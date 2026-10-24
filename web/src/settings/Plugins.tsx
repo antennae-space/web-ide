@@ -5,7 +5,7 @@ import { Index, Show } from 'solid-js'
 import { pluginStates, setPluginEnabled } from '../plugins/registry'
 import type { PluginState } from '../plugins/types'
 import { errorToast } from '../ui/toast'
-import { ExternalRow, InstallForm, PluginDialogs } from './PluginInstall'
+import { DeclinedOfficial, ExternalRow, InstallForm, PluginDialogs } from './PluginInstall'
 import { t } from '../i18n'
 
 /** The enabled plugins requiring a capability that the plugin provides (and the core does not). */
@@ -53,6 +53,7 @@ export function PluginsSection() {
           </div>
         )}
       </Index>
+      <DeclinedOfficial />
       <InstallForm />
       <PluginDialogs />
     </section>

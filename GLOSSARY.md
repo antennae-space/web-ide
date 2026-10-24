@@ -179,7 +179,7 @@ A view of an external plugin, run in an iframe of opaque origin that speaks to t
 A built-in plugin the IDE cannot run without (Files, Code): always enabled, shown greyed in Settings → Plugins.
 
 **Official plugin** ([plugins](docs/design/plugins.md#official-plugins))
-An external plugin of the antennae-space organisation, installed by default on a new pod from an archive embedded in the release; confined like any external plugin.
+An external plugin of the antennae-space organisation, installed by the pod from an archive embedded in its release, with its permissions granted, and used by every project unless disabled on it; confined like any external plugin. Removed by the user, it is not put back.
 _Avoid_: core plugin, first-party plugin
 
 **Language host** ([plugins](docs/design/plugins.md#language-packs))

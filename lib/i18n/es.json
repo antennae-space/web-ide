@@ -210,7 +210,6 @@
   "%s: %w": "%s: %w",
   "the address of the repository is missing": "falta la dirección del repositorio",
   "the archive is not a .tar.gz: %v": "el archivo no es un .tar.gz: %v",
-  "the archive of %s has no plugin.json": "el archivo de %s no tiene plugin.json",
   "the archive of %s %s changed since it was installed (sha256 %s, locked %s): refused": "el archivo de %s %s cambió desde su instalación (sha256 %s, bloqueado %s): rechazado",
   "the archive %s is larger than %d MB": "el archivo %s supera %d MB",
   "the plugin.json of the archive of %s differs from the one of its tag %s": "el plugin.json del archivo de %s difiere del de su etiqueta %s",
@@ -235,5 +234,6 @@
   "the backend of the plugin ended: %v": "el backend del plugin terminó: %v",
   "the plugin %s has no backend": "el plugin %s no tiene backend",
   "this kernel has no Landlock: an external plugin's backend cannot run confined": "este núcleo no tiene Landlock: el backend de un plugin externo no puede ejecutarse confinado",
-  "this pod is not paired": "este pod no está emparejado"
+  "this pod is not paired": "este pod no está emparejado",
+  "the archive has no plugin.json": "el archivo no tiene plugin.json"
 }

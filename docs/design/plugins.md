@@ -316,6 +316,15 @@ Explorer, Editor and the consoles stay core and locked (decision 6). Later, on t
 
 The external plugins of the organisation are **official**: installed by default on a new pod and used by every project unless disabled, so a pod keeps its Database and Docker tools after the move. The pod release embeds their archives, with their sha256, so the first boot needs no network; an update comes from their repositories like any external plugin. They are confined like the others: official means trusted to be installed, not trusted to run unconfined.
 
+Done in #142:
+
+- **The list**: `pod/plugins/official/official.json`, per plugin its repository, the constraint of its updates, the version this IDE ships and the sha256 of its archive per architecture. The release workflow runs `scripts/official.mjs linux-<arch>` before the `go build` of each Linux arch: the archives of the list (the address of its `plugin.json` at the tag), their sha256 checked, go to `pod/plugins/official/archives/current/`, embedded (`go:embed`). A development build embeds none: the pod downloads them (`=<version>` of their repository), the same sha256 checked. macOS builds have none and install none (their backends need Landlock).
+- **At start** (`official.Ensure`, after the lock is read): a plugin of the list the pod lacks is installed; one installed from the same repository at a lower version is upgraded; one installed from another repository is left alone; a failure is logged and tried again at the next start.
+- **Permissions, decided on 2026-10-24**: an official plugin gets the permissions of its manifest, **granted without asking** (still confined, revocable in *Settings → Plugins*); on an upgrade, the ones granted before and those new in the version, so a permission the user revoked stays revoked.
+- **Projects**: every project uses an official plugin unless its id is in `disabled` of `.ide/plugins.json`, as a built-in (`ResolveChoices`; `plugins.setEnabled` writes `disabled` for it).
+- **Removed** (`plugins.remove`): the lock's `declined` keeps it out at the next starts; *Settings → Plugins* lists the declined ones (`plugins.declined`) with *Install*, which installs it from its repository like any plugin, official again (`Locked.Official`: a repository of the list), out of `declined`.
+- Tests: `WEBIDE_OFFICIAL_DIR` (with `WEBIDE_TEST_PLUGINS`) replaces the list and the archives of the build; the e2e suite `official`.
+
 ### Language packs
 
 A **language pack** is an external plugin that contributes to the language host instead of a tool: per language, its grammar (data, as `web/src/editor/grammars/index.ts` already is), its language servers (the command, the languages, the settings: one `Spec` of today), its test patterns, later its debug adapter and its **project templates**. The host starts the servers of a pack **as the pack's confined backend**, never as its own process: a server declared by a pack gets the grants of the pack, not the trust of the host.

@@ -185,3 +185,18 @@ func TestExternals(t *testing.T) {
 		t.Fatal("removed")
 	}
 }
+
+// An official plugin is used by every project unless disabled on it, as a built-in.
+func TestOfficialExternal(t *testing.T) {
+	r := NewRegistry()
+	if err := r.SetExternal(External{Manifest: Manifest{ID: "database", Name: "Database", APIVersion: APIVersion}, URL: "u", Version: "1.0.0", Official: true}); err != nil {
+		t.Fatal(err)
+	}
+	s := r.ResolveChoices(Choices{})[0]
+	if !s.Enabled || s.Disabled || !s.External.Official {
+		t.Fatalf("on by default: %+v", s)
+	}
+	if s := r.ResolveChoices(Choices{Disabled: []string{"database"}})[0]; s.Enabled || !s.Disabled {
+		t.Fatalf("disabled on the project: %+v", s)
+	}
+}

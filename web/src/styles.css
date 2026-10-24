@@ -61,6 +61,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .badge { display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; border-radius: 9px; background: var(--bg-3); color: var(--fg-muted); font-size: 12px; font-weight: 600; line-height: 18px; border: 0; }
 .badge.ok { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
 .badge.warn { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); cursor: pointer; }
+.badge.official { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); }
 .badge.danger { background: color-mix(in srgb, var(--danger) 22%, transparent); color: var(--danger); }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--fg-faint); flex: none; }
 .dot-connected { background: var(--ok); }

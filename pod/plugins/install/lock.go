@@ -12,6 +12,9 @@ const LockFile = "plugins.lock"
 // grants the user accepted.
 type Lock struct {
 	Plugins map[string]Locked `json:"plugins"`
+	// Declined are the official plugins the user removed: the pod does not install them again
+	// (an install from Settings takes one out).
+	Declined []string `json:"declined,omitempty"`
 }
 
 // Locked is an installed external plugin. SHA256 is the hash of its release archive: a
@@ -22,6 +25,8 @@ type Locked struct {
 	Version    string   `json:"version"`
 	SHA256     string   `json:"sha256"`
 	Grants     []string `json:"grants"`
+	// Official: installed by the pod, one of the official plugins (pod/plugins/official).
+	Official bool `json:"official,omitempty"`
 }
 
 // ReadLock reads the lock of the pod (empty when there is none).

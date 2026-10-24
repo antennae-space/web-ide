@@ -3,15 +3,20 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"slices"
+	"time"
 
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/pod/plugins"
 	"antennae.space/ide/pod/plugins/confine"
 	"antennae.space/ide/pod/plugins/install"
+	"antennae.space/ide/pod/plugins/official"
 	"antennae.space/ide/pod/runtime"
 )
 
@@ -29,7 +34,10 @@ func (s *Server) installer() *install.Installer {
 func (s *Server) registerPluginInstall() {
 	s.plugins.installer = &install.Installer{Store: s.Store, Resolver: install.Resolver{IDE: s.Version, Builtin: s.Plugins.Builtin,
 		AllowHTTP: os.Getenv("WEBIDE_TEST_PLUGINS") != ""}}
+	s.plugins.official = s.officialSource()
+	s.plugins.installer.Official = s.officialURL
 	s.loadExternals()
+	go s.ensureOfficial()
 
 	type resolveArgs struct {
 		URL        string `json:"url"`
@@ -161,6 +169,22 @@ func (s *Server) registerPluginInstall() {
 		}
 		return s.pluginBundle(a.ID)
 	})
+	// plugins.declined: the official plugins the user removed, which the pod leaves out; Settings
+	// offers to install them again.
+	s.handle("plugins.declined", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
+		lock, err := install.ReadLock(s.Store)
+		if err != nil {
+			return nil, err
+		}
+		list, _ := s.plugins.official.List()
+		out := []map[string]string{}
+		for _, e := range list {
+			if slices.Contains(lock.Declined, e.ID) {
+				out = append(out, map[string]string{"id": e.ID, "url": e.URL, "constraint": e.Constraint})
+			}
+		}
+		return out, nil
+	})
 	s.handle("plugins.remove", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
 		a, err := bind[struct {
 			ID string `json:"id"`
@@ -233,7 +257,7 @@ func (s *Server) installPlugin(ctx context.Context, cand install.Candidate, cons
 	if err != nil {
 		return nil, err
 	}
-	if err := s.Plugins.SetExternal(plugins.External{Manifest: cand.Manifest, URL: l.URL, Version: l.Version, Grants: l.Grants}); err != nil {
+	if err := s.Plugins.SetExternal(plugins.External{Manifest: cand.Manifest, URL: l.URL, Version: l.Version, Grants: l.Grants, Official: l.Official}); err != nil {
 		return nil, err
 	}
 	s.externalsChanged()
@@ -262,7 +286,7 @@ func (s *Server) loadExternals() {
 	for id, l := range lock.Plugins {
 		m, err := s.plugins.installer.Manifest(id, l.Version)
 		if err == nil {
-			err = s.Plugins.SetExternal(plugins.External{Manifest: m, URL: l.URL, Version: l.Version, Grants: l.Grants})
+			err = s.Plugins.SetExternal(plugins.External{Manifest: m, URL: l.URL, Version: l.Version, Grants: l.Grants, Official: l.Official})
 		}
 		if err != nil {
 			log.Printf("plugins: %s %s: %v", id, l.Version, err)
@@ -285,4 +309,61 @@ func (s *Server) externalsChanged() {
 	for _, rt := range rts {
 		s.emitFamily(mainID(rt), "plugins.changed", map[string]any{"plugins": s.pluginStates(rt)})
 	}
+}
+
+// officialSource is where the official plugins come from: this build, or a folder for the
+// browser tests (WEBIDE_OFFICIAL_DIR, with WEBIDE_TEST_PLUGINS).
+func (s *Server) officialSource() official.Source {
+	if dir := os.Getenv("WEBIDE_OFFICIAL_DIR"); dir != "" && os.Getenv("WEBIDE_TEST_PLUGINS") != "" {
+		src, err := official.Dir(dir)
+		if err == nil {
+			return src
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			log.Printf("plugins: WEBIDE_OFFICIAL_DIR: %v", err)
+		}
+	}
+	return official.Embedded()
+}
+
+// officialURL tells whether a repository is the one of an official plugin.
+func (s *Server) officialURL(url string) bool {
+	list, _ := s.plugins.official.List()
+	for _, e := range list {
+		if e.URL == url {
+			return true
+		}
+	}
+	return false
+}
+
+// ensureOfficial installs or upgrades the official plugins at start (docs/design/plugins.md,
+// *Official plugins*), then tells the open projects.
+func (s *Server) ensureOfficial() {
+	if goruntime.GOOS != "linux" {
+		return // their backends run under Landlock: Linux only
+	}
+	s.plugins.installMu.Lock()
+	defer s.plugins.installMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	ms := official.Ensure(ctx, s.installer(), s.plugins.official, log.Printf)
+	if len(ms) == 0 {
+		return
+	}
+	lock, err := install.ReadLock(s.Store)
+	if err != nil {
+		log.Printf("plugins: %v", err)
+		return
+	}
+	for _, m := range ms {
+		l := lock.Plugins[m.ID]
+		s.dropBackends(m.ID) // its old version may run
+		if err := s.Plugins.SetExternal(plugins.External{Manifest: m, URL: l.URL, Version: l.Version, Grants: l.Grants, Official: true}); err != nil {
+			log.Printf("plugins: official %s: %v", m.ID, err)
+		} else {
+			log.Printf("plugins: official %s %s installed", m.ID, m.Version)
+		}
+	}
+	s.externalsChanged()
 }
