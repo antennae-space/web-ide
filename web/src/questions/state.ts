@@ -18,6 +18,9 @@ export interface Question {
   id: string
   /** plugin: the pod asks about a plugin (a new destination of a connection): text is the destination. */
   source: 'acp' | 'assistant' | 'mcp' | 'plugin'
+  /** A question of the pod about a plugin: dial (text: the destination) or aiWrite (text: the action, target). */
+  topic?: 'dial' | 'aiWrite'
+  target?: string
   project: string
   session?: string
   index: number

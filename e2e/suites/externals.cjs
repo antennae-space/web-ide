@@ -32,7 +32,7 @@ ide.register({
       try { void parent.document.title; out.parent = 'open' } catch { out.parent = 'blocked' }
       try { await ide.rpc('fs.list', { path: '' }); out.rpc = 'answered' } catch (e) { out.rpc = 'refused: ' + e.message }
       el.innerHTML = '<p id="hello">' + ide.t('Hello from the frame') + '</p><pre id="checks">' + JSON.stringify(out) + '</pre><button id="open">open</button><button id="view">view</button>'
-      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><pre id="answer"></pre><pre id="event"></pre>'
+      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><button id="targets">targets</button><button id="settings">settings</button><button id="console">console</button><pre id="answer"></pre><pre id="event"></pre>'
       const show = (p) => p.then((r) => (el.querySelector('#answer').textContent = typeof r === 'string' ? r : JSON.stringify(r)), (e) => (el.querySelector('#answer').textContent = 'error: ' + e.message))
       ide.on('greet.said', (d) => (el.querySelector('#event').textContent = d))
       el.querySelector('#backend').onclick = () => show(ide.rpc('greet.hello'))
@@ -40,11 +40,27 @@ ide.register({
       el.querySelector('#core').onclick = () => show(ide.rpc('greet.core'))
       el.querySelector('#dial').onclick = () => show(ide.rpc('greet.dial', { port: ${echoPort} }))
       el.querySelector('#secret').onclick = () => show(ide.rpc('greet.secret', { value: 's3cret' }))
+      el.querySelector('#targets').onclick = () => show(ide.rpc('greet.targets'))
+      el.querySelector('#settings').onclick = () => show(ide.rpc('greet.settings'))
+      el.querySelector('#console').onclick = () => ide.openView('console', {}, 'Console')
       el.querySelector('#list').onclick = () => show(ide.rpc('fs.list', { path: '' }).then(() => 'answered'))
       el.querySelector('#open').onclick = () => ide.openFile('notes.txt')
       el.querySelector('#view').onclick = () => ide.openView('note', { text: 'kept' }, 'Note')
     },
     note: (el, ide) => { el.innerHTML = '<p id="note">' + ((ide.view.state && ide.view.state.text) || '') + '</p>' },
+    // A tab with the core's editor above (#151): its text, a key of the manifest, the settings.
+    console: (el, ide) => {
+      el.innerHTML = '<pre id="ed"></pre><pre id="key"></pre><pre id="set"></pre><button id="fill">fill</button>'
+      const ed = ide.editor
+      el.querySelector('#ed').textContent = ed.text()
+      ed.onChange((t) => (el.querySelector('#ed').textContent = t))
+      ed.setWords(['greet_table'])
+      ed.onKey('run', () => { el.querySelector('#key').textContent = 'run:' + ed.selection().text + '|' + ed.text(); ed.mark([0, ed.text().length]) })
+      const set = (v) => (el.querySelector('#set').textContent = JSON.stringify(v))
+      set(ide.settings)
+      ide.onSettings(set)
+      el.querySelector('#fill').onclick = () => ed.setText('select 1')
+    },
   },
   commands: { hello: (ide) => ide.toast('Command of Greet') },
 })
@@ -290,6 +306,83 @@ run(async ({ page, errors }) => {
   got = await answer('secret')
   const secrets = JSON.parse(fs.readFileSync(path.join(WS, '..', 'data', 'secrets.json'), 'utf8'))
   assert(got === 's3cret' && secrets['plugin:greet/token'] === 's3cret', 'its vault entry: ' + got)
+
+  // The view side (#151): a tab with the core's editor, settings, actions and the AI policy.
+  release('1.3.0', {
+    ide: '^1.0',
+    permissions: ['files:read', 'net', 'core:fs.list', 'dial', 'vault'],
+    contributes: {
+      ...contributes,
+      tabViews: [...contributes.tabViews, { id: 'console', label: 'Console', editor: { lang: 'sql', keys: { 'Ctrl+Enter': 'run' } } }],
+      settings: { properties: { greeting: { type: 'string', title: 'Greeting', default: 'Hi' }, loud: { type: 'boolean', title: 'Loud' } } },
+      actions: [
+        { id: 'count', label: 'Count', description: 'Counts the things of Greet.', properties: {}, access: 'read' },
+        { id: 'write', label: 'Write a note', description: 'Writes a note in a connection.', properties: { conn: { type: 'string', description: 'The connection' } }, required: ['conn'], access: 'write', target: 'conn' },
+      ],
+    },
+  })
+  await openSettings()
+  await page.click('[data-testid=plugin-update-greet]')
+  await page.waitForFunction(() => document.querySelector('.plugin-row[data-plugin=greet]')?.textContent.includes('1.3.0'))
+  // Its settings, rendered and changed: the backend reads them.
+  await page.waitForSelector('[data-testid=plugin-setting-greet-greeting]')
+  assert((await page.inputValue('[data-testid=plugin-setting-greet-greeting]')) === 'Hi', 'the default of a setting')
+  await page.fill('[data-testid=plugin-setting-greet-greeting]', 'Hello')
+  await page.press('[data-testid=plugin-setting-greet-greeting]', 'Tab')
+  await page.waitForTimeout(900) // the settings are saved a moment after a change
+  await closeSettings()
+  await showGreet()
+  got = await answer('settings')
+  assert(JSON.parse(got).greeting === 'Hello', 'the backend reads its settings: ' + got)
+
+  // The console tab: the core's editor above the frame.
+  await frame(page, 'greet').locator('#console').click()
+  const con = frame(page, 'console')
+  await page.waitForSelector('[data-testid=plugin-editor] .ed-content')
+  await con.locator('#set').waitFor()
+  assert(JSON.parse(await con.locator('#set').textContent()).greeting === 'Hello', 'the frame reads its settings')
+  await page.click('[data-testid=plugin-editor] .ed-content')
+  await page.keyboard.type('select 42 from greet_')
+  await con.locator('#ed:has-text("select 42 from greet_")').waitFor()
+  await page.keyboard.press('Control+Space')
+  await page.waitForSelector('.completion :text("greet_table")')
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Control+Enter')
+  await con.locator('#key:not(:empty)').waitFor()
+  assert((await con.locator('#key').textContent()) === 'run:|select 42 from greet_', 'a key of the editor reaches the frame: ' + (await con.locator('#key').textContent()))
+  await con.locator('#fill').click()
+  await page.waitForFunction(() => document.querySelector('[data-testid=plugin-editor] .ed-content')?.textContent.startsWith('select 1'))
+  await page.waitForTimeout(600)
+  await page.reload()
+  await page.waitForSelector('[data-testid=plugin-editor] .ed-content')
+  await frame(page, 'console').locator('#ed:has-text("select 1")').waitFor()
+  assert(true, 'the text of the editor kept with the tab')
+
+  // Actions: a read one runs for the AI; a write one is read only by default, then asked, then allowed.
+  let r = await mcp('greet_count', {})
+  assert(r.result?.content?.[0]?.text === '3', 'an action that reads: ' + JSON.stringify(r))
+  r = await mcp('greet_write', { conn: 'main' })
+  assert(r.result?.isError && r.result.content[0].text.includes('read only'), 'a write is read only by default: ' + JSON.stringify(r))
+  await showGreet()
+  got = await answer('targets')
+  assert(got === 'declared', 'its targets declared: ' + got)
+  await openSettings()
+  await page.selectOption('[data-testid=plugin-ai-greet-main]', 'ask')
+  await page.waitForTimeout(900)
+  await closeSettings()
+  const pendingWrite = mcp('greet_write', { conn: 'main' })
+  await page.waitForSelector(`${modal}[data-kind=permission]`, { timeout: 15000 })
+  const wording = await page.textContent(modal)
+  assert(wording.includes('The AI wants to run “Write a note” of Greet on main'), 'the user is asked: ' + wording)
+  await page.click(`${modal} [data-testid=question-option-allow_once]`)
+  r = await pendingWrite
+  assert(r.result?.content?.[0]?.text === '"written main"', 'allowed once: ' + JSON.stringify(r))
+  await openSettings()
+  await page.selectOption('[data-testid=plugin-ai-greet-main]', 'write')
+  await page.waitForTimeout(900)
+  await closeSettings()
+  r = await mcp('greet_write', { conn: 'main' })
+  assert(r.result?.content?.[0]?.text === '"written main"' && !(await page.$(modal)), 'allowed: ' + JSON.stringify(r))
 
   echo.close()
   server.close()

@@ -1,20 +1,28 @@
 // The page module of an external plugin, built by the core from its bundle (plugins.bundle):
 // each tool and tab view a sandboxed frame running the plugin's module, its commands run in a
 // hidden frame of their own. The registry loads it as it loads a built-in.
-import { createEffect, on as onSignal, onCleanup, onMount } from 'solid-js'
+import { createEffect, createSignal, on as onSignal, onCleanup, onMount, untrack } from 'solid-js'
 import { request } from '../pod/rpc'
 import { lang } from '../i18n'
-import type { TabState } from '../state/project'
-import { frameDoc, serveFrame } from './sandbox'
+import { mutate, setActivePane, type TabState } from '../state/project'
+import { Doc } from '../editor/doc'
+import type { EditorView } from '../editor/view'
+import { comboFromEvent } from '../keys/bindings'
+import { useEditorView } from '../ui/EditorArea'
+import { useCompletion } from '../ui/Completion'
+import { frameDoc, serveFrame, type FrameEditor } from './sandbox'
+import { pluginSettingValues } from './settings'
 import type { PageMessage } from './sandbox-api'
-import type { PluginContributions, PluginModule, PluginState } from './types'
+import type { PluginContributions, PluginManifest, PluginModule, PluginState } from './types'
 
 type Bundle = { version: string; js: string; catalogs: Record<string, Record<string, string>> }
 
+type Served = ReturnType<typeof serveFrame>
+
 /** A frame of the plugin showing one of its views (a tool, a tab view). */
-function SandboxFrame(props: { state: PluginState; grants: () => string[]; bundle: Bundle; view: string; tab?: TabState }) {
+function SandboxFrame(props: { state: PluginState; grants: () => string[]; bundle: Bundle; view: string; tab?: TabState; editor?: FrameEditor; served?: (s: Served) => void }) {
   let frame!: HTMLIFrameElement
-  let served: ReturnType<typeof serveFrame> | undefined
+  let served: Served | undefined
   // Served once: the frame keeps its port for its life (a new state is its own business).
   onMount(() => {
     served = serveFrame(frame, {
@@ -24,9 +32,13 @@ function SandboxFrame(props: { state: PluginState; grants: () => string[]; bundl
       catalogs: props.bundle.catalogs,
       view: props.view,
       tab: props.tab,
+      editor: props.editor,
+      settings: () => pluginSettingValues(props.state.manifest),
     })
+    props.served?.(served)
   })
   createEffect(onSignal(lang, () => served?.lang(), { defer: true }))
+  createEffect(onSignal(() => JSON.stringify(pluginSettingValues(props.state.manifest)), () => served?.settings(), { defer: true }))
   onCleanup(() => served?.stop())
   return (
     <div class="panel plugin-external-view">
@@ -39,6 +51,84 @@ function SandboxFrame(props: { state: PluginState; grants: () => string[]; bundl
       sandbox="allow-scripts"
         srcdoc={frameDoc(props.bundle.js)}
       />
+    </div>
+  )
+}
+
+type TabEditorDef = NonNullable<NonNullable<PluginManifest['contributes']['tabViews']>[number]['editor']>
+
+/**
+ * A tab view whose manifest asks the core's editor: the editor above (its text kept in the
+ * tab's state as $text), the plugin's frame below, driving it through ide.editor.
+ */
+function EditorTab(props: { state: PluginState; grants: () => string[]; bundle: Bundle; view: string; tab: TabState; paneId: string; def: TabEditorDef }) {
+  const tab = props.tab
+  const doc = new Doc(`plugin:${props.state.manifest.id}:${tab.id}`, untrack(() => (tab.state as { $text?: string } | undefined)?.$text) ?? '', { lang: props.def.lang })
+  const [host, setHost] = createSignal<HTMLElement>()
+  let served: Served | undefined
+  let view: () => EditorView | null = () => null
+  const state = () => {
+    const sel = view()?.getSelection()
+    return { text: doc.text, from: sel?.anchor ?? 0, to: sel?.head ?? 0 }
+  }
+  // The text is kept with the tab (reloads, other windows), a moment after the typing stops.
+  let timer: number | undefined
+  const offChange = doc.onChange(() => {
+    served?.editorChanged()
+    clearTimeout(timer)
+    timer = window.setTimeout(
+      () =>
+        mutate((s) => {
+          const cur = s.tabs[tab.id]
+          if (!cur) return
+          const st = cur.state && typeof cur.state === 'object' && !Array.isArray(cur.state) ? (cur.state as Record<string, unknown>) : {}
+          cur.state = { ...st, $text: doc.text }
+        }),
+      400,
+    )
+  })
+  onCleanup(() => {
+    offChange()
+    clearTimeout(timer)
+  })
+  const keys = props.def.keys ?? {}
+  let comp: ReturnType<typeof useCompletion> | undefined
+  view = useEditorView(() => doc, host, {
+    onSelection: () => {
+      comp?.onSelection()
+      served?.editorChanged()
+    },
+    onFocus: () => setActivePane(props.paneId),
+    onKey: (e) => {
+      if (comp?.onKey(e)) return true
+      const name = keys[comboFromEvent(e) ?? '']
+      if (!name) return false
+      served?.editorKey(name)
+      return true
+    },
+    onType: (t) => comp?.onType(t),
+  })
+  comp = useCompletion(view, () => doc)
+  const Popup = comp.Popup
+  const editor: FrameEditor = {
+    state,
+    setText: (text) => view()?.edit(0, doc.text.length, text),
+    insert: (text) => {
+      const v = view()
+      if (!v) return
+      const sel = v.getSelection()
+      v.edit(Math.min(sel.anchor, sel.head), Math.max(sel.anchor, sel.head), text)
+    },
+    mark: (range) => view()?.setStatement(range),
+    focus: () => view()?.focus(),
+    setWords: (words) => (doc.words = words),
+  }
+  const size = props.def.size || 40
+  return (
+    <div class="plugin-editor-tab">
+      <div class="plugin-editor-host" style={{ height: `${size}%` }} ref={setHost} data-testid="plugin-editor" />
+      <Popup />
+      <SandboxFrame state={props.state} grants={props.grants} bundle={props.bundle} view={props.view} tab={tab} editor={editor} served={(s) => (served = s)} />
     </div>
   )
 }
@@ -59,6 +149,7 @@ function commandRunner(state: PluginState, grants: () => string[], bundle: Bundl
         grants,
         catalogs: bundle.catalogs,
         view: '',
+        settings: () => pluginSettingValues(state.manifest),
         onReady: () => resolve(served.send),
       })
       document.body.append(frame)
@@ -76,7 +167,17 @@ export async function externalModule(state: PluginState, current: () => PluginSt
   return {
     activate: (): PluginContributions => ({
       tools: Object.fromEntries((c.tools ?? []).map((x) => [x.id, { component: () => <SandboxFrame state={state} grants={grants} bundle={bundle} view={x.id} /> }])),
-      views: Object.fromEntries((c.tabViews ?? []).map((v) => [v.id, (props: { tab: TabState }) => <SandboxFrame state={state} grants={grants} bundle={bundle} view={v.id} tab={props.tab} />])),
+      views: Object.fromEntries(
+        (c.tabViews ?? []).map((v) => [
+          v.id,
+          (props: { tab: TabState; paneId: string }) =>
+            v.editor ? (
+              <EditorTab state={state} grants={grants} bundle={bundle} view={v.id} tab={props.tab} paneId={props.paneId} def={v.editor} />
+            ) : (
+              <SandboxFrame state={state} grants={grants} bundle={bundle} view={v.id} tab={props.tab} />
+            ),
+        ]),
+      ),
       commands: Object.fromEntries((c.commands ?? []).map((x) => [x.id, () => run(x.id)])),
     }),
   }

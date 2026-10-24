@@ -32,7 +32,12 @@ export interface PluginManifest {
   namespaces?: string[]
   contributes: {
     tools?: PluginTool[]
-    tabViews?: { id: string; label: string }[]
+    /** editor: the tab holds the core's editor above the view (#151). */
+    /** Its settings (#151), rendered in Settings > Plugins. */
+    settings?: { properties: Record<string, PluginSetting> }
+    /** Its actions (#151): a method of its backend and an assistant tool each. */
+    actions?: { id: string; label: string; description: string; properties?: Record<string, unknown>; required?: string[]; access: 'read' | 'write'; target?: string }[]
+    tabViews?: { id: string; label: string; editor?: { lang: string; size?: number; keys?: Record<string, string> } }[]
     assistantTools?: string[]
     mcpTools?: string[]
     /** Actions <plugin>.<id> (or the id as written when it has a prefix of the plugin's namespaces); keys: default shortcuts; replaces: the id of the action before it moved to a plugin. */
@@ -121,3 +126,6 @@ export interface FileDecorations {
   /** A state of a file or a folder (a class of its name), null for none. */
   state(path: string, dir: boolean): string | null
 }
+
+/** A setting of a plugin. */
+export type PluginSetting = { type: 'string' | 'number' | 'boolean'; enum?: string[]; title: string; description?: string; default?: unknown }

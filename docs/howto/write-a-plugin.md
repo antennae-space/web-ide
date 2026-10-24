@@ -91,6 +91,12 @@ Each tool and tab view is a frame of its own, running the module and the view of
 
 The keys pressed in the frame with a modifier, Escape and F1-F12 reach the IDE's shortcuts.
 
+## Editor tabs, settings, actions
+
+- **A tab with the IDE's editor**: give a tab view `"editor": {"lang": "sql", "size": 40, "keys": {"Ctrl+Enter": "run"}}`. The IDE's editor (highlighting, completion, find) sits above your frame and keeps its text with the tab; your view drives it with `ide.editor` (`text()`, `selection()`, `setText`, `insert`, `mark([from, to])`, `focus`, `setWords([...])`, `onChange`, `onSelection`, `onKey("run", f)`).
+- **Settings**: `"contributes": {"settings": {"properties": {"rows": {"type": "number", "title": "Rows shown", "default": 100}}}}`. The IDE shows them under your plugin in Settings → Plugins and syncs them; read them with `ide.settings` (and `ide.onSettings`) in your views, the core call `settings.get` in your backend.
+- **Actions**: `"actions": [{"id": "query", "label": "Run a query", "description": "…", "properties": {…}, "required": […], "access": "write", "target": "conn"}]`. Your backend answers the method `<id>.query`; your views call it, and the AI gets the tool `<id>_query` from the same declaration. Mark what changes something `write` and name its `target` (a connection): the user decides per target whether the AI may do it (read only by default, ask, allowed), in Settings → Plugins. Declare the targets from your backend with the core call `ai.targets {targets: [{id, label}]}` so the user can choose.
+
 ## The backend
 
 In Go, the SDK's `antennae.space/plugin-sdk/backend` speaks all of what follows: `backend.Serve` with its methods and tools, `backend.Core` and `backend.Emit` (its README shows one). In another language, implement it.

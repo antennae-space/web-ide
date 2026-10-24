@@ -6,6 +6,7 @@ import { pluginStates, setPluginEnabled } from '../plugins/registry'
 import type { PluginState } from '../plugins/types'
 import { errorToast } from '../ui/toast'
 import { DeclinedOfficial, ExternalRow, InstallForm, PluginDialogs } from './PluginInstall'
+import { PluginAIAccess, PluginSettingsForm } from './PluginOptions'
 import { t } from '../i18n'
 
 /** The enabled plugins requiring a capability that the plugin provides (and the core does not). */
@@ -50,6 +51,8 @@ export function PluginsSection() {
             <Show when={s().external}>
               <ExternalRow s={s()} />
             </Show>
+            <PluginSettingsForm s={s()} />
+            <PluginAIAccess s={s()} />
           </div>
         )}
       </Index>

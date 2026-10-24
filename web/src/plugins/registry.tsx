@@ -14,6 +14,7 @@ import { setDiffSources } from '../ui/diffSources'
 import { setPluginUiTools } from '../ui/uiCalls'
 import { setAloneView } from '../state/tiles'
 import { t } from '../i18n'
+import { errorToast, toast } from '../ui/toast'
 import { placePluginTools, type TabState } from '../state/project'
 
 // The page module of each built-in, a chunk of its own (vite.config.ts: plugin-<id>).
@@ -42,6 +43,8 @@ const modules: Record<string, PluginModule> = {}
 // Bumped when a module arrives: what reads the active plugins follows.
 const [version, setVersion] = createSignal(0)
 const loading: Record<string, Promise<PluginModule | undefined>> = {}
+// The version an external plugin's module was built from.
+const builtVersion: Record<string, string> = {}
 
 /** A plugin with a page module: a built-in, or an external one installed (external.tsx). */
 const hasModule = (s: PluginState) => !!builtins[s.manifest.id] || !!s.external?.installed
@@ -49,6 +52,7 @@ const hasModule = (s: PluginState) => !!builtins[s.manifest.id] || !!s.external?
 /** The page module of a plugin, loaded once (undefined when it cannot be). */
 function load(id: string): Promise<PluginModule | undefined> {
   const external = states().find((s) => s.manifest.id === id && s.external?.installed)
+  if (external) builtVersion[id] = external.external!.version
   const get = builtins[id] ?? (external ? () => externalModule(external, () => states().find((s) => s.manifest.id === id)) : () => Promise.reject(new Error('no page module')))
   return (loading[id] ??= get().then(
     (m) => (modules[id] = m),
@@ -72,6 +76,15 @@ const toRefresh = new Set<string>()
  */
 export function setPluginStates(list: PluginState[] | undefined, opened = false) {
   list ??= []
+  // An external plugin updated: its module is built again from its new manifest and bundle.
+  for (const s of list) {
+    const id = s.manifest.id
+    if (!s.external || !(id in builtVersion) || builtVersion[id] === s.external.version) continue
+    delete active[id]
+    delete modules[id]
+    delete loading[id]
+    delete builtVersion[id]
+  }
   setStates(list)
   if (opened) for (const s of list) if (s.enabled) toRefresh.add(s.manifest.id)
   const wanted = list.filter((s) => s.enabled && hasModule(s) && !active[s.manifest.id] && s.manifest.apiVersion === API_VERSION)
@@ -92,6 +105,10 @@ function contribute() {
     enabled().flatMap((s) => [
       ...(s.manifest.contributes.tools ?? []).map((x) => ({ id: `tool.${x.id}`, label: x.label, category: 'Tools', inTerminal: true })),
       ...(s.manifest.contributes.commands ?? []).map((c) => ({ id: c.id.includes('.') ? c.id : `${s.manifest.id}.${c.id}`, label: c.label, category: c.category ?? s.manifest.name, keys: c.keys, replaces: c.replaces, inTerminal: c.inTerminal, run: active[s.manifest.id]?.commands?.[c.id] })),
+      // An action needing no argument is a command too (#151): the user runs it, no AI policy.
+      ...(s.manifest.contributes.actions ?? [])
+        .filter((a) => !a.required?.length)
+        .map((a) => ({ id: `${s.manifest.id}.${a.id}`, label: a.label, category: s.manifest.name, run: () => void runAction(s.manifest.name, `${s.manifest.id}.${a.id}`, a.label) })),
     ]),
   )
   setPluginProviders(enabled().flatMap((s) => active[s.manifest.id].searchProviders ?? []))
@@ -103,6 +120,16 @@ function contribute() {
     toRefresh.delete(id)
   }
   running = now
+}
+
+/** Runs an action of a plugin from the palette, its outcome in a toast. */
+async function runAction(plugin: string, method: string, label: string) {
+  try {
+    await request(method, {})
+    toast(t('{plugin}: {action} done', { plugin, action: label }), 'ok')
+  } catch (e) {
+    errorToast(e)
+  }
 }
 
 on('plugins.changed', (e: { plugins: PluginState[] }) => {

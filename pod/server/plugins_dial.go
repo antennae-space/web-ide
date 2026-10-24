@@ -204,7 +204,7 @@ func (s *Server) allowDestination(ctx context.Context, rt *runtime.Runtime, e pl
 	}
 	root := s.questionRoot(rt.P.ID)
 	// The page words it in the user's language: Text is the destination, Name the plugin.
-	q := plugins.Question{Source: "plugin", Project: rt.P.ID, Name: e.Manifest.Name, Title: e.Manifest.Name, Kind: "permission", Text: dest,
+	q := plugins.Question{Source: "plugin", Project: rt.P.ID, Name: e.Manifest.Name, Title: e.Manifest.Name, Kind: "permission", Topic: "dial", Text: dest,
 		Options: []plugins.Option{
 			{ID: dialAllow, Name: "Allow", Kind: "allow_always"},
 			{ID: dialAllowOnce, Name: "Allow once", Kind: "allow_once"},

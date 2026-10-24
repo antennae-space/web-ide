@@ -200,3 +200,37 @@ func TestOfficialExternal(t *testing.T) {
 		t.Fatalf("disabled on the project: %+v", s)
 	}
 }
+
+// The view side of #151: an editor in a tab, settings, actions and their tools.
+func TestViewBricks(t *testing.T) {
+	base := func() Manifest {
+		return Manifest{ID: "db-x", Name: "DB", APIVersion: APIVersion, Contributes: Contributions{
+			TabViews: []TabView{{ID: "sql", Label: "SQL", Editor: &TabEditor{Lang: "sql", Keys: map[string]string{"Ctrl+Enter": "run"}}}},
+			Settings: &SettingsSchema{Properties: map[string]Setting{"rows": {Type: "number", Title: "Rows", Default: 100.0}}},
+			Actions:  []Action{{ID: "query", Label: "Query", Description: "Runs a query", Properties: map[string]any{"conn": map[string]any{"type": "string"}}, Access: "write", Target: "conn"}},
+		}}
+	}
+	m := base()
+	if err := m.Check(); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.ToolNames(); len(got) != 1 || got[0] != "db_x_query" {
+		t.Fatalf("tools: %v", got)
+	}
+	bad := []func(m *Manifest){
+		func(m *Manifest) { m.Contributes.TabViews[0].Editor.Lang = "SQL!" },
+		func(m *Manifest) { m.Contributes.TabViews[0].Editor.Keys = map[string]string{"ctrl+enter": "run"} },
+		func(m *Manifest) { m.Contributes.Settings.Properties["x"] = Setting{Type: "object"} },
+		func(m *Manifest) { m.Contributes.Actions[0].Access = "admin" },
+		func(m *Manifest) { m.Contributes.Actions[0].Target = "nope" },
+		func(m *Manifest) { m.Contributes.Actions[0].Description = "" },
+		func(m *Manifest) { m.Contributes.AssistantTools = []string{"db_x_query"} },
+	}
+	for i, f := range bad {
+		m := base()
+		f(&m)
+		if err := m.Check(); err == nil {
+			t.Fatalf("bad %d accepted", i)
+		}
+	}
+}

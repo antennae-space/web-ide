@@ -67,7 +67,7 @@ func (r *Registry) CheckExternal(m Manifest) error {
 			}
 		}
 	}
-	for _, name := range m.Contributes.toolNames() {
+	for _, name := range m.ToolNames() {
 		if o, ok := r.tools[name]; ok {
 			return fmt.Errorf("plugin %s: assistant tool %s is already the one of %s", m.ID, name, o)
 		}
@@ -148,7 +148,7 @@ func (r *Registry) Add(p Plugin) error {
 			return fmt.Errorf("plugin %s: tool %s is a tool of the core", m.ID, t.ID)
 		}
 	}
-	for _, name := range m.Contributes.toolNames() {
+	for _, name := range m.ToolNames() {
 		if o, ok := r.tools[name]; ok {
 			return fmt.Errorf("plugin %s: assistant tool %s is already the one of %s", m.ID, name, o)
 		}
