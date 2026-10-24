@@ -193,6 +193,10 @@ _Avoid_: language plugin, language extension
 What a new project starts from, given by a language pack: files and a `.ide` filled in, or the commands of a framework that the core runs in a console the user sees.
 _Avoid_: skeleton, boilerplate, scaffold
 
+**AI access** ([plugins](docs/design/plugins.md#editor-tabs-settings-and-actions))
+What the AI may do with a plugin's actions that change something, per target (a connection): read only (the default), ask the user, or allowed; set by the user in Settings → Plugins, never by the plugin.
+_Avoid_: AI permission (a grant is the plugin's), AI policy (in UI texts)
+
 **Plugin SDK**
 The `plugin-sdk` repository: the types of the sandbox API, a UI kit using the theme tokens, and a Go module for the JSON-RPC of a confined backend.
 

@@ -957,5 +957,13 @@
   "Open SSH tunnels with your keys": "Ouvrir des tunnels SSH avec tes clés",
   "Keep its secrets in the vault": "Garder ses secrets dans le coffre",
   "Allowed connections:": "Connexions autorisées :",
-  "Ask again": "Redemander"
+  "Ask again": "Redemander",
+  "AI access: what the assistant and the agents may change through {name}.": "Accès de l’IA : ce que l’assistant et les agents peuvent modifier par {name}.",
+  "Allowed": "Autorisé",
+  "Ask me": "Me demander",
+  "{name}: AI access": "{name} : accès de l’IA",
+  "Nothing declared yet: read only.": "Rien de déclaré pour l’instant : lecture seule.",
+  "{plugin}: {action} done": "{plugin} : {action} fait",
+  "Read only": "Lecture seule",
+  "The AI wants to run “{action}” of {name} on {target}.": "L’IA veut lancer « {action} » de {name} sur {target}."
 }

@@ -62,6 +62,47 @@ type Contributions struct {
 	// gives them in Go): run by its backend.
 	ToolSchemas map[string]ToolSchema `json:"toolSchemas,omitempty"`
 	Commands    []Command             `json:"commands,omitempty"`
+	// Settings of the plugin (#151): rendered in Settings > Plugins, synced with the other
+	// settings, read by its views (ide.settings) and its backend (settings.get).
+	Settings *SettingsSchema `json:"settings,omitempty"`
+	// Actions (#151): each one the method <id>.<action> of its backend, for its views, and the
+	// assistant and MCP tool ActionTool; one by the AI that writes follows the user's policy.
+	Actions []Action `json:"actions,omitempty"`
+}
+
+// SettingsSchema are the settings of a plugin, by key.
+type SettingsSchema struct {
+	Properties map[string]Setting `json:"properties"`
+}
+
+// Setting is one setting: its type (string, number, boolean), the values it takes (enum, a
+// string), its label and what it does, and its value by default.
+type Setting struct {
+	Type        string   `json:"type"`
+	Enum        []string `json:"enum,omitempty"`
+	Title       string   `json:"title"`
+	Description string   `json:"description,omitempty"`
+	Default     any      `json:"default,omitempty"`
+}
+
+// Action is something a plugin does for its views and for the AI from one declaration: its
+// arguments (JSON Schema properties), whether it only reads (read) or changes something
+// (write), and Target, the argument naming what it acts on (a connection), the unit of the
+// user's policy for the AI.
+type Action struct {
+	ID          string         `json:"id"`
+	Label       string         `json:"label"`
+	Description string         `json:"description"`
+	Properties  map[string]any `json:"properties"`
+	Required    []string       `json:"required,omitempty"`
+	Access      string         `json:"access"`
+	Target      string         `json:"target,omitempty"`
+}
+
+// ActionTool is the name of the assistant tool of an action: <plugin>_<action>, dashes as
+// underscores.
+func (m Manifest) ActionTool(a Action) string {
+	return strings.ReplaceAll(m.ID+"_"+a.ID, "-", "_")
 }
 
 // ToolSchema is an assistant tool as the model sees it: what it does, its arguments (JSON
@@ -75,6 +116,15 @@ type ToolSchema struct {
 // toolNames are its tools of the assistant and of the MCP: one namespace.
 func (c Contributions) toolNames() []string {
 	return append(append([]string{}, c.AssistantTools...), c.MCPTools...)
+}
+
+// ToolNames are all its tools of the assistant and of the MCP, those of its actions included.
+func (m Manifest) ToolNames() []string {
+	out := m.Contributes.toolNames()
+	for _, a := range m.Contributes.Actions {
+		out = append(out, m.ActionTool(a))
+	}
+	return out
 }
 
 // Tool is a tool of the window, shown from a rail icon. Its command tool.<id> is implied.
@@ -92,6 +142,17 @@ type Tool struct {
 type TabView struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
+	// Editor: the tab holds the text editor of the core above the plugin's view (#151).
+	Editor *TabEditor `json:"editor,omitempty"`
+}
+
+// TabEditor is the editor of the core in a tab of a plugin: the grammar of its text (sql,
+// redis…), its share of the tab's height in percent (40 by default), and the keys it gives the
+// plugin's view by name while it has the focus ({"Ctrl+Enter": "run"}).
+type TabEditor struct {
+	Lang string            `json:"lang"`
+	Size int               `json:"size,omitempty"`
+	Keys map[string]string `json:"keys,omitempty"`
 }
 
 // Command is an action of the keymap, Search Everywhere and the menus, named <plugin>.<id>.
@@ -121,6 +182,8 @@ var (
 	idRe   = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 	toolRe = regexp.MustCompile(`^[a-z][a-z_0-9]*$`)
 	zones  = map[string]bool{"left": true, "bottomLeft": true, "bottomRight": true, "right": true}
+	// comboRe is a shortcut as the keymap writes it: modifiers, then the physical key (Ctrl+Enter).
+	comboRe = regexp.MustCompile(`^(Ctrl\+)?(Alt\+)?(Shift\+)?(Meta\+)?[A-Z][A-Za-z0-9]*$`)
 )
 
 // Check validates a manifest: ids, zones, the API version.
@@ -145,6 +208,16 @@ func (m Manifest) Check() error {
 		if !idRe.MatchString(v.ID) {
 			return fmt.Errorf("plugin %s: invalid tab view id %q", m.ID, v.ID)
 		}
+		if e := v.Editor; e != nil {
+			if !idRe.MatchString(e.Lang) || e.Size < 0 || e.Size > 90 {
+				return fmt.Errorf("plugin %s: tab view %s: invalid editor (lang %q, size %d)", m.ID, v.ID, e.Lang, e.Size)
+			}
+			for combo, name := range e.Keys {
+				if !comboRe.MatchString(combo) || !idRe.MatchString(name) {
+					return fmt.Errorf("plugin %s: tab view %s: invalid editor key %q: %q", m.ID, v.ID, combo, name)
+				}
+			}
+		}
 	}
 	for _, n := range m.Namespaces {
 		if !idRe.MatchString(n) {
@@ -160,6 +233,30 @@ func (m Manifest) Check() error {
 		if !toolRe.MatchString(name) {
 			return fmt.Errorf("plugin %s: invalid assistant tool name %q", m.ID, name)
 		}
+	}
+	if st := m.Contributes.Settings; st != nil {
+		for key, p := range st.Properties {
+			if !toolRe.MatchString(key) || (p.Type != "string" && p.Type != "number" && p.Type != "boolean") || (len(p.Enum) > 0 && p.Type != "string") {
+				return fmt.Errorf("plugin %s: invalid setting %q (type %q)", m.ID, key, p.Type)
+			}
+		}
+	}
+	tools := map[string]bool{}
+	for _, name := range m.Contributes.toolNames() {
+		tools[name] = true
+	}
+	for _, a := range m.Contributes.Actions {
+		if !idRe.MatchString(a.ID) || (a.Access != "read" && a.Access != "write") || a.Description == "" {
+			return fmt.Errorf("plugin %s: invalid action %q (access %q, a description needed)", m.ID, a.ID, a.Access)
+		}
+		if _, ok := a.Properties[a.Target]; a.Target != "" && !ok {
+			return fmt.Errorf("plugin %s: action %s: its target %q is not one of its arguments", m.ID, a.ID, a.Target)
+		}
+		name := m.ActionTool(a)
+		if !toolRe.MatchString(name) || tools[name] {
+			return fmt.Errorf("plugin %s: action %s: its tool %s is invalid or taken", m.ID, a.ID, name)
+		}
+		tools[name] = true
 	}
 	return nil
 }

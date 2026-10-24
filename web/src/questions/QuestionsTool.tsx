@@ -18,6 +18,7 @@ import './questions.css'
 function summary(q: Question): string {
   switch (q.kind) {
     case 'permission':
+      if (q.source === 'plugin' && q.topic === 'aiWrite') return t('The AI wants to run “{action}” of {name} on {target}.', { action: q.text ?? '', name: q.name, target: q.target ?? '' })
       if (q.source === 'plugin') return t('{name} wants to connect to {destination}.', { name: q.name, destination: q.text ?? '' })
       return t('Allow: {title}?', { title: q.text || t('Tool') })
     case 'form':

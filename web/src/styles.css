@@ -804,8 +804,15 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .plugin-install input + input { flex: 0 1 140px; }
 .plugin-external { margin-left: 24px; display: flex; flex-direction: column; gap: 4px; }
 .plugin-external .row { display: flex; gap: 8px; }
+.plugin-settings, .plugin-ai { margin-left: 24px; display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
+.plugin-setting { display: grid; grid-template-columns: minmax(140px, max-content) minmax(0, 260px); align-items: center; gap: 4px 12px; }
+.plugin-setting > .muted { grid-column: 1 / -1; }
+.plugin-setting input[type=checkbox] { justify-self: start; }
 .plugin-grants label.check { display: flex; gap: 8px; align-items: center; margin: 6px 0; }
 /* The views of an external plugin: a sandboxed frame filling its panel (plugins/external.tsx). */
 .plugin-external-view { display: flex; }
 .plugin-frame { flex: 1; width: 100%; height: 100%; border: 0; display: block; background: var(--bg); }
 .plugin-frame-hidden { display: none; }
+.plugin-editor-tab { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.plugin-editor-host { flex: none; min-height: 60px; position: relative; border-bottom: 1px solid var(--line); overflow: hidden; }
+.plugin-editor-tab > .plugin-external-view { flex: 1; min-height: 0; height: auto; }

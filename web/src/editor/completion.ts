@@ -69,6 +69,7 @@ function bufferWords(doc: Doc, offset: number): CompletionItem[] {
   const re = doc.lang === 'php' ? /\$?[\p{L}_][\p{L}\p{N}_]{2,}/gu : /[\p{L}_$][\p{L}\p{N}_$]{2,}/gu
   const text = doc.text.length > 2_000_000 ? doc.text.slice(Math.max(0, offset - 1_000_000), offset + 1_000_000) : doc.text
   const own = doc.text.slice(start, offset)
+  for (const w of doc.words) if (w !== own) seen.add(w)
   for (const m of text.matchAll(re)) {
     if (m[0] !== own) seen.add(m[0])
     if (seen.size > 5000) break

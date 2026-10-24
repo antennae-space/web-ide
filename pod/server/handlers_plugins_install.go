@@ -167,6 +167,21 @@ func (s *Server) registerPluginInstall() {
 		defer s.plugins.installMu.Unlock()
 		return nil, s.setDestinations(a.ID, a.Destinations)
 	})
+	// plugins.aiTargets: what a plugin's actions act on (its backend declared them), for the AI
+	// access of Settings > Plugins.
+	s.handle("plugins.aiTargets", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
+		a, err := bind[struct {
+			ID string `json:"id"`
+		}](p)
+		if err != nil {
+			return nil, err
+		}
+		list := s.aiTargets(a.ID)
+		if list == nil {
+			list = []aiTarget{}
+		}
+		return list, nil
+	})
 	// plugins.host: what this pod can run of an external plugin (the Landlock ABI of its kernel:
 	// 0, no backend runs).
 	s.handle("plugins.host", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {

@@ -20,7 +20,11 @@ type Question struct {
 	Name  string `json:"name"`
 	Title string `json:"title"`
 	// Kind: permission (Options), form (Text and Schema), ask (Questions of ask_user).
-	Kind      string               `json:"kind"`
+	Kind string `json:"kind"`
+	// Topic of a question of the pod about a plugin (Source plugin): dial (Text the
+	// destination) or aiWrite (Text the action, Target what it changes); the page words it.
+	Topic     string               `json:"topic,omitempty"`
+	Target    string               `json:"target,omitempty"`
 	Text      string               `json:"text,omitempty"`
 	Options   []Option             `json:"options,omitempty"`
 	Schema    json.RawMessage      `json:"schema,omitempty"`

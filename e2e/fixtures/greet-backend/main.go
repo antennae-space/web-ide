@@ -2,7 +2,8 @@
 // It answers greet.hello (and emits greet.said), tries what it must not reach (greet.probe),
 // asks the core for fs.list (greet.core), for a connection the pod opens (greet.dial: an echo
 // through the socket it receives on fd 3), for its vault entry (greet.secret), and runs its
-// assistant tool greet_hello.
+// assistant tool greet_hello; its actions greet.count and greet.write (#151), its targets
+// (greet.targets) and its settings (greet.settings).
 package main
 
 import (
@@ -113,6 +114,7 @@ func handle(m msg) {
 				Key   string `json:"key"`
 				Port  int    `json:"port"`
 				Value string `json:"value"`
+				Conn  string `json:"conn"`
 			}
 		}
 		json.Unmarshal(m.Params, &c)
@@ -151,6 +153,23 @@ func handle(m msg) {
 			var v struct{ Value string }
 			json.Unmarshal(got, &v)
 			reply(m.ID, v.Value)
+		case "greet.count": // an action that reads (#151)
+			reply(m.ID, 3)
+		case "greet.write": // an action that writes, on the target conn
+			reply(m.ID, "written "+c.Params.Conn)
+		case "greet.targets":
+			if _, e := core("ai.targets", map[string]any{"targets": []map[string]string{{"id": "main", "label": "Main DB"}}}); e != "" {
+				reply(m.ID, "refused: "+e)
+				return
+			}
+			reply(m.ID, "declared")
+		case "greet.settings":
+			got, e := core("settings.get", map[string]any{})
+			if e != "" {
+				reply(m.ID, "refused: "+e)
+				return
+			}
+			reply(m.ID, string(got))
 		default:
 			fail(m.ID, "no "+c.Method)
 		}

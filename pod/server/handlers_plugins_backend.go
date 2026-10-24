@@ -201,6 +201,8 @@ func (s *Server) backendCore(ctx context.Context, rt *runtime.Runtime, e plugins
 		return s.pluginDial(ctx, rt, e, fds, params)
 	case "vault.get", "vault.set", "vault.delete":
 		return s.pluginVault(e, method, params)
+	case "settings.get", "ai.targets":
+		return s.backendSettings(e, method, params)
 	}
 	if !slices.Contains(e.Grants, "core:"+method) {
 		return nil, i18n.Errorf("%s is not granted to %s", method, e.Manifest.Name)
@@ -285,5 +287,5 @@ func (s *Server) externalTools() []pluginTool {
 
 // allPluginTools are the assistant tools of the built-ins, then of the external plugins.
 func (s *Server) allPluginTools() []pluginTool {
-	return append(append([]pluginTool{}, s.plugins.tools...), s.externalTools()...)
+	return append(append(append([]pluginTool{}, s.plugins.tools...), s.externalTools()...), s.actionTools()...)
 }

@@ -239,5 +239,7 @@
   "invalid destination %s:%d": "destination invalide %s:%d",
   "an SSH key must be in %s": "une clé SSH doit être dans %s",
   "the connection of %s to %s was not allowed": "la connexion de %s à %s n’a pas été autorisée",
-  "invalid vault key: %q": "clé de coffre invalide : %q"
+  "invalid vault key: %q": "clé de coffre invalide : %q",
+  "too many targets: %d": "trop de cibles : %d",
+  "invalid target %q": "cible invalide %q"
 }

@@ -239,5 +239,7 @@
   "invalid destination %s:%d": "destino no válido %s:%d",
   "an SSH key must be in %s": "una clave SSH debe estar en %s",
   "the connection of %s to %s was not allowed": "la conexión de %s a %s no fue permitida",
-  "invalid vault key: %q": "clave de bóveda no válida: %q"
+  "invalid vault key: %q": "clave de bóveda no válida: %q",
+  "too many targets: %d": "demasiados destinos: %d",
+  "invalid target %q": "destino no válido %q"
 }

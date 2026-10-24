@@ -347,14 +347,23 @@ Each opens to every external plugin, with its grant when it reaches past the plu
 
 | Brick | For | Notes |
 |---|---|---|
-| The core editor in a plugin tab | the SQL consoles | a virtual buffer, not a file, shown by Code in a tab of the plugin; the sandbox API reads and edits it |
+| The core editor in a plugin tab (#151, done) | the SQL consoles | `tabViews[].editor {lang, size?, keys?}`: the core's editor on a virtual `Doc` above the plugin's frame, its text kept in the tab's state (`$text`); `ide.editor` in the frame (below) |
 | Vault entries (#143, done) | the passwords of the connections | grant `vault`: core calls `vault.get` / `vault.set` / `vault.delete {key}`, entries `plugin:<id>/<key>` of `secrets.json`, synced with the vault; a plugin reaches its own entries only, one by one, never a listing |
 | Connections opened by the pod (#143, done) | a connection, the adb server | grant `dial`: the core call `dial {host, port}` makes the pod connect and hand the socket to the backend (below). A grant `net:<host>:<port>` was dropped: Landlock filters ports only and the pod does not see the backend's `connect` |
 | SSH tunnels by the core (#143, done) | a connection through SSH | grant `ssh`: `dial` with `ssh {host, port, user, auth, keyPath?, password?}`, the pod's SSH pool opens the channel (its agent and the keys of `~/.ssh` stay the pod's), bridged to a socketpair handed to the backend |
 | A socket or a device passed by the pod | the Docker socket, USB for adb | the pod opens it and passes the descriptor (seccomp refuses `AF_UNIX` to the backend); the grant says it is **root-equivalent** when it is |
 | A core terminal fed by a plugin | `docker exec`, `adb shell` | the terminal stays the core's (no external plugin provides `terminal`); the plugin gives the stream |
-| Settings of an external plugin | every plugin | the settings contribution point opened to the sandbox API |
+| Settings of a plugin (#151, done) | every plugin | `contributes.settings {properties}` (string, number, boolean, enum), rendered under its row in Settings → Plugins, kept in the synced settings (`pluginSettings.<id>`); `ide.settings` / `ide.onSettings` in its frames, the core call `settings.get` for its backend |
 | Pack contributions | the language packs | grammars, servers, test patterns, templates, read by the host from the manifest |
+
+### Editor tabs, settings and actions
+
+Done in #151:
+
+- **The editor in a tab**: the frame of such a tab gets `ide.editor`: `text()`, `selection()` (synchronous: the page pushes the text, 1 MB at most, and the selection), `setText`, `insert`, `mark(range)` (frames a statement), `focus`, `setWords` (completion words besides the text's: tables, columns), `onChange`, `onSelection`, `onKey(name)` for the manifest's `keys` while the editor has the focus. The core's completion, find and grammars work as in a file.
+- **Actions**: `contributes.actions [{id, label, description, properties, required, access: read|write, target?}]`. One declaration gives the method `<id>.<action>` of its backend (its views call it: the user acts, no policy), the assistant and MCP tool `<id>_<action>` (dashes as underscores), and a palette command when it needs no argument.
+- **The AI policy**: an action that reads always runs for the AI. One that writes follows the user's choice for its target (the value of its `target` argument; `*` without one), in Settings → Plugins → *AI access*: **read only** (the default: the tool answers why and where to change it), **ask me** (a question of the pod, `aiWrite`: *Allow once* / *Deny*), **allowed**. Kept in the synced settings (`pluginAI.<id>.<target>`); the targets listed are those its backend declares (core `ai.targets {targets: [{id, label}]}`, kept in `ai-targets.json` of the pod). The plugin cannot set the policy: no API does.
+- An external plugin updated is built again in the page from its new manifest and bundle (its new views, settings and actions).
 
 ### Connections opened by the pod
 
@@ -376,7 +385,7 @@ Done in #143. A backend cannot open the network itself without the broad grant `
 
 1. The SDK and its UI kit (`plugin-sdk`), then the template (`plugin-template`).
 2. Official plugins: installed by default, their archives in the release.
-3. The bricks of the database: the backend side (connections opened by the pod, SSH tunnels, vault entries: #143), the view side (the core editor in a plugin tab, the settings of an external plugin, actions with an AI policy: #151); then `plugin-database` and `plugins/database` removed (#144).
+3. The bricks of the database: the backend side (connections opened by the pod, SSH tunnels, vault entries: #143), the view side (the core editor in a plugin tab, the settings of a plugin, actions with an AI policy: #151, done); then `plugin-database` and `plugins/database` removed (#144).
 4. The pack contributions of the language host, then `lang-go`, the servers and grammar of Go removed from the core.
 5. The bricks of Docker (the socket passed by the pod, a core terminal fed by a plugin), then `plugin-docker` and `plugins/docker` removed.
 6. The other packs: `lang-php`, `lang-python`, `lang-typescript`.

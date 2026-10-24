@@ -48,6 +48,8 @@ export class Doc {
   base: string
   baseRev: number
   lang: string
+  /** Words the completion offers besides those of the text (a plugin's: tables, columns). */
+  words: string[] = []
   private listeners = new Set<(c: Change) => void>()
   private undoStack: Step[][] = []
   private redoStack: Step[][] = []

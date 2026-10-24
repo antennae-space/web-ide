@@ -6,20 +6,24 @@ import { on, request } from '../pod/rpc'
 import { openFile, openTab, mutate, type TabState } from '../state/project'
 import { toast } from '../ui/toast'
 import { lang, t } from '../i18n'
-import type { FrameCall, PageMessage, SandboxTheme } from './sandbox-api'
+import type { FrameCall, PageMessage, SandboxEditorState, SandboxTheme } from './sandbox-api'
 
 /** The CSP of a frame: inline scripts and styles, images as data, no network at all. */
 export const frameCSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'"
 
 /**
  * The bootstrap run in the frame before the plugin's module: `ide`, the API the module calls
- * (register, rpc, on, openFile, openView, setViewState, t, tn, toast, theme), over the port the
+ * (register, rpc, on, openFile, openView, setViewState, t, tn, toast, theme, editor, settings), over the port the
  * page sends once. Plain ES2020, no import.
  */
 export const bootstrap = `(() => {
   let port, info = null, registered = false, mounted = false
   let views = {}, commands = {}
   const pending = new Map(), handlers = {}, themeFns = []
+  // The editor of the tab: its state pushed by the page, and the listeners of the view.
+  let ed = null
+  const edFns = { change: [], selection: [], keys: {} }
+  const settingsFns = []
   let next = 1
   const send = (m) => port && port.postMessage(m)
   const call = (m) => new Promise((resolve, reject) => { const id = next++; pending.set(id, { resolve, reject }); send({ ...m, id }) })
@@ -42,6 +46,23 @@ export const bootstrap = `(() => {
     t: (k, p) => fill((info && info.catalog && info.catalog[k]) || k.slice(k.indexOf('|') + 1), p),
     tn: (n, one, other, p) => ide.t(n === 1 ? one : other, { n, ...p }),
     onTheme: (f) => themeFns.push(f),
+    get settings() { return (info && info.settings) || {} },
+    onSettings: (f) => settingsFns.push(f),
+    get editor() {
+      if (!ed) return null
+      return {
+        text: () => ed.text,
+        selection: () => ({ from: ed.from, to: ed.to, text: ed.text.slice(Math.min(ed.from, ed.to), Math.max(ed.from, ed.to)) }),
+        setText: (text) => send({ call: 'editorSet', text: String(text) }),
+        insert: (text) => send({ call: 'editorInsert', text: String(text) }),
+        mark: (range) => send({ call: 'editorMark', range: range || null }),
+        focus: () => send({ call: 'editorFocus' }),
+        setWords: (words) => send({ call: 'editorWords', words: (words || []).map(String) }),
+        onChange: (f) => edFns.change.push(f),
+        onSelection: (f) => edFns.selection.push(f),
+        onKey: (name, f) => ((edFns.keys[name] = edFns.keys[name] || []).push(f)),
+      }
+    },
   }
   window.ide = ide
   function start() {
@@ -53,7 +74,7 @@ export const bootstrap = `(() => {
   }
   function receive(e) {
     const m = e.data || {}
-    if (m.init) { info = m.init; applyTheme(info.theme); start(); return }
+    if (m.init) { info = m.init; ed = info.editor || null; applyTheme(info.theme); start(); return }
     if (m.reply && pending.has(m.reply)) {
       const p = pending.get(m.reply); pending.delete(m.reply)
       if ('error' in m) p.reject(new Error(m.error)); else p.resolve(m.result)
@@ -63,6 +84,14 @@ export const bootstrap = `(() => {
     if (m.lang) { info.lang = m.lang; info.catalog = m.catalog }
     if (m.event) (handlers[m.event] || []).forEach((f) => f(m.data))
     if (m.command && commands[m.command]) commands[m.command](ide)
+    if (m.editor) {
+      const was = ed
+      ed = m.editor
+      if (!was || was.text !== ed.text) edFns.change.forEach((f) => f(ed.text))
+      if (!was || was.from !== ed.from || was.to !== ed.to) edFns.selection.forEach((f) => f({ from: ed.from, to: ed.to }))
+    }
+    if (m.editorKey) (edFns.keys[m.editorKey] || []).forEach((f) => f())
+    if (m.settings) { info.settings = m.settings; settingsFns.forEach((f) => f(m.settings)) }
   }
   window.addEventListener('message', (e) => {
     if (e.source !== parent || port || !e.ports[0]) return
@@ -126,7 +155,24 @@ export type FrameHost = {
   view: string
   tab?: TabState
   onReady?: () => void
+  /** The editor of the tab (a tab view whose manifest asks it). */
+  editor?: FrameEditor
+  /** Its settings now (the defaults where the user set nothing). */
+  settings?: () => Record<string, unknown>
 }
+
+/** What the page does for the frame on the editor of its tab. */
+export interface FrameEditor {
+  state(): SandboxEditorState
+  setText(text: string): void
+  insert(text: string): void
+  mark(range: [number, number] | null): void
+  focus(): void
+  setWords(words: string[]): void
+}
+
+/** The largest text of an editor pushed to a frame. */
+const maxEditorText = 1 << 20
 
 /**
  * Serves a frame: sends it its port once loaded, then answers what it asks within its grants.
@@ -171,7 +217,10 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         if (tab)
           mutate((s) => {
             const cur = s.tabs[tab.id]
-            if (cur?.kind.startsWith(`plugin:${host.plugin}/`)) cur.state = m.state
+            if (!cur?.kind.startsWith(`plugin:${host.plugin}/`)) return
+            // The text of the tab's editor is the core's: kept under $text.
+            const text = (cur.state as { $text?: string } | undefined)?.$text
+            cur.state = text !== undefined && m.state && typeof m.state === 'object' && !Array.isArray(m.state) ? { ...(m.state as object), $text: text } : m.state
           })
         return
       }
@@ -189,6 +238,22 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       case 'ready':
         host.onReady?.()
         return
+      case 'editorSet':
+        if (typeof m.text === 'string' && m.text.length <= maxEditorText) host.editor?.setText(m.text)
+        return
+      case 'editorInsert':
+        if (typeof m.text === 'string' && m.text.length <= maxEditorText) host.editor?.insert(m.text)
+        return
+      case 'editorMark':
+        if (m.range === null) host.editor?.mark(null)
+        else if (Array.isArray(m.range) && m.range.length === 2 && m.range.every((n) => Number.isInteger(n) && n >= 0)) host.editor?.mark([m.range[0], m.range[1]])
+        return
+      case 'editorFocus':
+        host.editor?.focus()
+        return
+      case 'editorWords':
+        if (Array.isArray(m.words)) host.editor?.setWords(m.words.filter((w) => typeof w === 'string' && w.length <= 200).slice(0, 20000))
+        return
       default:
         // Every call of the API is answered above: tsc says when one is not.
         m satisfies never
@@ -200,6 +265,10 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   const theme = (): SandboxTheme => {
     inset = headInset(frame)
     return { ...themeVars(), '--ide-head-inset': inset }
+  }
+  const editorState = () => {
+    const st = host.editor?.state()
+    return st && st.text.length <= maxEditorText ? st : st ? { ...st, text: st.text.slice(0, maxEditorText) } : undefined
   }
   const unsubscribe = () => {
     offs.forEach((f) => f())
@@ -214,7 +283,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     frame.contentWindow?.postMessage('ide', '*', [ch.port2])
     // The state of the tab is a proxy of the store: a plain copy crosses the channel.
     const state = host.tab?.state === undefined ? undefined : JSON.parse(JSON.stringify(host.tab.state))
-    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme() } })
+    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme(), editor: editorState(), settings: host.settings?.() } })
   }
   frame.addEventListener('load', start)
   // The theme and the language follow the page.
@@ -229,6 +298,14 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   return {
     send,
     lang: () => send({ lang: lang(), catalog: catalog() }),
+    /** The editor's text or selection changed; a key of the editor was pressed. */
+    editorChanged: () => {
+      const st = editorState()
+      if (st) send({ editor: st })
+    },
+    editorKey: (name: string) => send({ editorKey: name }),
+    /** Its settings changed. */
+    settings: () => host.settings && send({ settings: host.settings() }),
     stop: () => {
       frame.removeEventListener('load', start)
       observer.disconnect()

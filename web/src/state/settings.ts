@@ -35,6 +35,10 @@ export interface Settings {
   sync: { settings: boolean; vault: boolean }
   /** Questions tool: a question of an agent opens in a modal by itself (a session may override it). */
   questions: { autoOpen: boolean }
+  /** The settings of the plugins, by plugin and key (contributes.settings of their manifests). */
+  pluginSettings: Record<string, Record<string, unknown>>
+  /** What the AI may do with the actions of a plugin that write, by plugin and target: read only (the default), ask, write. */
+  pluginAI: Record<string, Record<string, 'read' | 'ask' | 'write'>>
 }
 
 export const defaultSettings: Settings = {
@@ -54,6 +58,8 @@ export const defaultSettings: Settings = {
   devices: {},
   sync: { settings: true, vault: false },
   questions: { autoOpen: true },
+  pluginSettings: {},
+  pluginAI: {},
 }
 
 function merge(raw: any): Settings {
@@ -76,6 +82,8 @@ function merge(raw: any): Settings {
     devices: raw.devices ?? {},
     sync: { settings: raw.sync?.settings !== false, vault: raw.sync?.vault === true },
     questions: { autoOpen: raw.questions?.autoOpen !== false },
+    pluginSettings: raw.pluginSettings && typeof raw.pluginSettings === 'object' ? raw.pluginSettings : {},
+    pluginAI: raw.pluginAI && typeof raw.pluginAI === 'object' ? raw.pluginAI : {},
   }
 }
 
