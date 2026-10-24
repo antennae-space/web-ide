@@ -19,6 +19,13 @@ var backendRe = regexp.MustCompile(`^bin/[A-Za-z0-9._-]+$`)
 
 var coreMethod = regexp.MustCompile(`^core:[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$`)
 
+// The grants of a language pack (#145): a program its servers run (program:gopls), a folder of
+// the host they need (path:GOMODCACHE, resolved by the pod).
+var (
+	programGrant = regexp.MustCompile(`^program:[A-Za-z0-9][A-Za-z0-9._+-]*$`)
+	pathGrant    = regexp.MustCompile(`^path:[A-Z][A-Z0-9_]*$`)
+)
+
 // ValidGrant tells whether a permission is a grant name.
 func ValidGrant(p string) bool {
 	for _, g := range Grants {
@@ -26,7 +33,7 @@ func ValidGrant(p string) bool {
 			return true
 		}
 	}
-	return coreMethod.MatchString(p)
+	return coreMethod.MatchString(p) || programGrant.MatchString(p) || pathGrant.MatchString(p)
 }
 
 // CheckExternal validates the manifest of an external plugin, beyond Manifest.Check: its

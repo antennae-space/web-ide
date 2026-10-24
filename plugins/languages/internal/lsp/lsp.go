@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +22,7 @@ import (
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/pod/caps"
 	"antennae.space/ide/pod/execx"
+	"antennae.space/ide/pod/plugins"
 )
 
 type Spec struct {
@@ -28,6 +30,37 @@ type Spec struct {
 	Candidates [][]string `json:"candidates"`
 	Markers    []string   `json:"markers"`
 	Exts       []string   `json:"exts"`
+	// Pack is the language pack giving the language (#145), its Servers started by the
+	// command the pod builds (confined, or on the host of an SSH project); LanguageIDs the LSP
+	// language id of an extension when it is not Lang.
+	Pack        string                   `json:"pack,omitempty"`
+	Servers     []plugins.LanguageServer `json:"-"`
+	LanguageIDs map[string]string        `json:"-"`
+}
+
+// PackSpec is the spec of a language of a pack.
+func PackSpec(pl plugins.PackLanguage) Spec {
+	l := pl.Language
+	s := Spec{Lang: l.ID, Markers: l.Markers, Exts: l.Extensions, Pack: pl.Pack, Servers: l.Servers, LanguageIDs: l.LanguageIDs}
+	for _, sv := range l.Servers {
+		s.Candidates = append(s.Candidates, sv.Argv)
+	}
+	return s
+}
+
+// Packs gives the specs of the languages of the installed packs (set by the plugin), which
+// win over a default of the same language.
+var Packs = func() []Spec { return nil }
+
+// specs are the defaults and the packs' (all of them, or those of a project).
+func specs(packs []Spec) []Spec {
+	out := slices.Clone(packs)
+	for _, d := range Defaults {
+		if !slices.ContainsFunc(packs, func(p Spec) bool { return p.Lang == d.Lang }) {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 var Defaults = []Spec{
@@ -39,7 +72,16 @@ var Defaults = []Spec{
 
 // LanguageID is the language id of a document for textDocument/didOpen.
 func LanguageID(p string) string {
-	switch strings.ToLower(path.Ext(p)) {
+	ext := strings.ToLower(path.Ext(p))
+	for _, s := range Packs() {
+		if slices.Contains(s.Exts, ext) {
+			if id := s.LanguageIDs[ext]; id != "" {
+				return id
+			}
+			return s.Lang
+		}
+	}
+	switch ext {
 	case ".go":
 		return "go"
 	case ".php", ".phtml":
@@ -61,7 +103,7 @@ func LanguageID(p string) string {
 // LangOf returns the server language handling a file, from its extension.
 func LangOf(p string) string {
 	ext := strings.ToLower(path.Ext(p))
-	for _, s := range Defaults {
+	for _, s := range specs(Packs()) {
 		for _, e := range s.Exts {
 			if e == ext {
 				return s.Lang
@@ -82,12 +124,15 @@ type Status struct {
 }
 
 type Manager struct {
-	runner    execx.Runner
-	root      string
-	local     bool
-	overrides map[string][]string
-	exists    func(p string) bool
-	emit      func(event string, data any)
+	// packs are the specs of the packs the project uses; packCommand starts one's server.
+	packs       func() []Spec
+	packCommand func(pack string, sv plugins.LanguageServer) ([]string, error)
+	runner      execx.Runner
+	root        string
+	local       bool
+	overrides   map[string][]string
+	exists      func(p string) bool
+	emit        func(event string, data any)
 
 	mu       sync.Mutex
 	servers  map[string]*server
@@ -114,8 +159,20 @@ func NewManager(r execx.Runner, root string, local bool, overrides map[string][]
 		servers: map[string]*server{}, resolved: map[string][]string{}, diags: map[string]docDiagnostics{}}
 }
 
-func spec(lang string) (Spec, bool) {
-	for _, s := range Defaults {
+// UsePacks gives the manager the packs of its project and how to start their servers.
+func (m *Manager) UsePacks(packs func() []Spec, command func(pack string, sv plugins.LanguageServer) ([]string, error)) {
+	m.packs, m.packCommand = packs, command
+}
+
+func (m *Manager) specs() []Spec {
+	if m.packs == nil {
+		return Defaults
+	}
+	return specs(m.packs())
+}
+
+func (m *Manager) spec(lang string) (Spec, bool) {
+	for _, s := range m.specs() {
 		if s.Lang == lang {
 			return s, true
 		}
@@ -133,7 +190,18 @@ func (m *Manager) command(lang string) []string {
 	var cmd []string
 	if o, ok := m.overrides[lang]; ok && len(o) > 0 {
 		cmd = o
-	} else if s, ok := spec(lang); ok {
+	} else if s, ok := m.spec(lang); ok && s.Pack != "" && m.packCommand != nil {
+		// A pack's: the first server whose program is there (confined here, on the host over SSH).
+		for _, sv := range s.Servers {
+			if !m.local && !m.runner.Has(sv.Argv[0]) {
+				continue
+			}
+			if c, err := m.packCommand(s.Pack, sv); err == nil {
+				cmd = c
+				break
+			}
+		}
+	} else if ok {
 		for _, c := range s.Candidates {
 			if m.runner.Has(c[0]) {
 				cmd = c
@@ -150,7 +218,7 @@ func (m *Manager) command(lang string) []string {
 // Status lists the languages detected in the project root and their servers.
 func (m *Manager) Status() []Status {
 	var out []Status
-	for _, s := range Defaults {
+	for _, s := range m.specs() {
 		st := Status{Lang: s.Lang}
 		for _, mk := range s.Markers {
 			if m.exists(path.Join(m.root, mk)) {
@@ -195,7 +263,7 @@ func (m *Manager) get(lang string) (*server, error) {
 	}
 	cmd := m.command(lang)
 	if cmd == nil {
-		s, _ := spec(lang)
+		s, _ := m.spec(lang)
 		return nil, i18n.Errorf("no language server for %s (install %s)", lang, candidates(s))
 	}
 	m.mu.Lock()

@@ -241,5 +241,8 @@
   "the connection of %s to %s was not allowed": "la conexión de %s a %s no fue permitida",
   "invalid vault key: %q": "clave de bóveda no válida: %q",
   "too many targets: %d": "demasiados destinos: %d",
-  "invalid target %q": "destino no válido %q"
+  "invalid target %q": "destino no válido %q",
+  "no folder found for %s (%s)": "no se encontró ninguna carpeta para %s (%s)",
+  "%s is not installed (not found on the PATH)": "%s no está instalado (no está en el PATH)",
+  "the folder %s of %s is refused: it holds the home, the data of the IDE or the SSH keys": "la carpeta %s de %s se rechaza: contiene la carpeta personal, los datos del IDE o las claves SSH"
 }

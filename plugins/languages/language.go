@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"antennae.space/ide/pod/caps"
+	"antennae.space/ide/pod/plugins"
 
 	"antennae.space/ide/plugins/languages/internal/lsp"
 	"antennae.space/ide/pod/runtime"
@@ -17,11 +18,31 @@ type servers struct{ *lsp.Manager }
 func (s servers) Stop(bool) { s.StopAll() }
 func (s servers) Idle()     { s.StopAll() }
 
-// serversOf are the language servers of the project of rt, made on first use.
+// pod is the pod the plugin runs in: the language packs installed (#145).
+var pod plugins.Pod
+
+// packSpecs are the languages of the packs the project of rt uses (all of them for nil).
+func packSpecs(rt *runtime.Runtime) []lsp.Spec {
+	if pod == nil {
+		return nil
+	}
+	var out []lsp.Spec
+	for _, l := range pod.PackLanguages(rt) {
+		out = append(out, lsp.PackSpec(l))
+	}
+	return out
+}
+
+// serversOf are the language servers of the project of rt, made on first use: the defaults
+// and those of its packs, started by the pod (confined here, on the host over SSH).
 func serversOf(rt *runtime.Runtime) *lsp.Manager {
 	return rt.Part("languages", func() any {
 		exists := func(p string) bool { _, err := rt.FS.Stat(p); return err == nil }
-		return servers{lsp.NewManager(rt.Runner, rt.Root, rt.Local, rt.Config.LSP, exists, rt.Emit)}
+		m := lsp.NewManager(rt.Runner, rt.Root, rt.Local, rt.Config.LSP, exists, rt.Emit)
+		m.UsePacks(func() []lsp.Spec { return packSpecs(rt) }, func(pack string, sv plugins.LanguageServer) ([]string, error) {
+			return pod.PackCommand(rt, pack, sv)
+		})
+		return servers{m}
 	}).(servers).Manager
 }
 

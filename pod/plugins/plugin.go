@@ -76,7 +76,19 @@ type Host interface {
 
 // Pod is the pod as a built-in plugin sees it: the projects, the events to every window, and
 // its pod-wide services.
+// PackLanguage is a language of a language pack (#145), installed and used by a project.
+type PackLanguage struct {
+	Pack     string
+	Language Language
+}
+
 type Pod interface {
+	// PackLanguages are the languages of the packs the project of rt uses (all the installed
+	// ones for a nil rt).
+	PackLanguages(rt *runtime.Runtime) []PackLanguage
+	// PackCommand is the command starting a server of a pack on the project of rt: confined
+	// (plugin-exec) on this machine, its granted program on the host of an SSH project.
+	PackCommand(rt *runtime.Runtime, pack string, s LanguageServer) ([]string, error)
 	// Runtime opens the runtime of a project (a preview of another project of the pod).
 	Runtime(project string) (*runtime.Runtime, error)
 	// OpenRuntime is the runtime of a project if a window has it open.

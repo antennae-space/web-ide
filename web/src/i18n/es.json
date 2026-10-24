@@ -965,5 +965,7 @@
   "Nothing declared yet: read only.": "Nada declarado aún: solo lectura.",
   "{plugin}: {action} done": "{plugin}: {action} hecho",
   "Read only": "Solo lectura",
-  "The AI wants to run “{action}” of {name} on {target}.": "La IA quiere ejecutar «{action}» de {name} en {target}."
+  "The AI wants to run “{action}” of {name} on {target}.": "La IA quiere ejecutar «{action}» de {name} en {target}.",
+  "Run {program} (a language server, confined)": "Ejecutar {program} (un servidor de lenguaje, confinado)",
+  "Use the folder {name} of this machine": "Usar la carpeta {name} de esta máquina"
 }

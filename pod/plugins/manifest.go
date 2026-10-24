@@ -68,6 +68,42 @@ type Contributions struct {
 	// Actions (#151): each one the method <id>.<action> of its backend, for its views, and the
 	// assistant and MCP tool ActionTool; one by the AI that writes follows the user's policy.
 	Actions []Action `json:"actions,omitempty"`
+	// Languages make the plugin a language pack (#145): what it gives the language host.
+	Languages []Language `json:"languages,omitempty"`
+}
+
+// Language is a language a pack gives the language host: its files (extensions, the LSP
+// language id per extension when not its id), the files marking a project of it, its grammar
+// (a file of the pack: a GrammarDef of the editor, data), its language servers (the first one
+// whose program is found runs) and its test patterns ({".go": "{name}_test.go"}).
+type Language struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Extensions  []string          `json:"extensions"`
+	Markers     []string          `json:"markers,omitempty"`
+	LanguageIDs map[string]string `json:"languageIds,omitempty"`
+	Grammar     string            `json:"grammar,omitempty"`
+	Servers     []LanguageServer  `json:"servers,omitempty"`
+	Tests       map[string]string `json:"tests,omitempty"`
+}
+
+// LanguageServer is a language server: its program (a bare name found on the PATH of the host,
+// granted as program:<name>) and arguments; the folders of the host it needs (each granted as
+// path:<name>); the names of those added to its PATH (a toolchain's bin, "GOROOT/bin").
+type LanguageServer struct {
+	Argv     []string    `json:"argv"`
+	Paths    []PathGrant `json:"paths,omitempty"`
+	PathDirs []string    `json:"pathDirs,omitempty"`
+}
+
+// PathGrant is a folder of the host a server needs, by name: the first of its candidates that
+// exists ($GOMODCACHE, $GOPATH/pkg/mod, ~/go/pkg/mod), read only unless Access is write; Env
+// passes it to the server as the variable of its name.
+type PathGrant struct {
+	Name       string   `json:"name"`
+	Candidates []string `json:"candidates"`
+	Access     string   `json:"access,omitempty"`
+	Env        bool     `json:"env,omitempty"`
 }
 
 // SettingsSchema are the settings of a plugin, by key.
@@ -182,6 +218,11 @@ var (
 	idRe   = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 	toolRe = regexp.MustCompile(`^[a-z][a-z_0-9]*$`)
 	zones  = map[string]bool{"left": true, "bottomLeft": true, "bottomRight": true, "right": true}
+	// programRe is the program of a language server: a bare name, found on the PATH.
+	programRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]*$`)
+	// pathNameRe names a folder a language server needs (GOMODCACHE).
+	pathNameRe = regexp.MustCompile(`^[A-Z][A-Z0-9_]*$`)
+	extRe      = regexp.MustCompile(`^\.[A-Za-z0-9_+-]+$`)
 	// comboRe is a shortcut as the keymap writes it: modifiers, then the physical key (Ctrl+Enter).
 	comboRe = regexp.MustCompile(`^(Ctrl\+)?(Alt\+)?(Shift\+)?(Meta\+)?[A-Z][A-Za-z0-9]*$`)
 )
@@ -241,6 +282,9 @@ func (m Manifest) Check() error {
 			}
 		}
 	}
+	if err := m.checkLanguages(); err != nil {
+		return err
+	}
 	tools := map[string]bool{}
 	for _, name := range m.Contributes.toolNames() {
 		tools[name] = true
@@ -257,6 +301,49 @@ func (m Manifest) Check() error {
 			return fmt.Errorf("plugin %s: action %s: its tool %s is invalid or taken", m.ID, a.ID, name)
 		}
 		tools[name] = true
+	}
+	return nil
+}
+
+// checkLanguages validates the languages of a pack: ids, extensions, the programs and folders of
+// its servers, each one asked in its permissions.
+func (m Manifest) checkLanguages() error {
+	for _, l := range m.Contributes.Languages {
+		if !idRe.MatchString(l.ID) || l.Name == "" || len(l.Extensions) == 0 {
+			return fmt.Errorf("plugin %s: invalid language %q", m.ID, l.ID)
+		}
+		for _, e := range l.Extensions {
+			if !extRe.MatchString(e) {
+				return fmt.Errorf("plugin %s: language %s: invalid extension %q", m.ID, l.ID, e)
+			}
+		}
+		if l.Grammar != "" && (!strings.HasPrefix(l.Grammar, "grammars/") || strings.Contains(l.Grammar, "..") || !strings.HasSuffix(l.Grammar, ".json")) {
+			return fmt.Errorf("plugin %s: language %s: the grammar is a file grammars/<name>.json of the pack", m.ID, l.ID)
+		}
+		for _, sv := range l.Servers {
+			if len(sv.Argv) == 0 || !programRe.MatchString(sv.Argv[0]) {
+				return fmt.Errorf("plugin %s: language %s: a server's program is a bare name (found on the PATH)", m.ID, l.ID)
+			}
+			if !slices.Contains(m.Permissions, "program:"+sv.Argv[0]) {
+				return fmt.Errorf("plugin %s: language %s: its server %s needs the permission program:%s", m.ID, l.ID, sv.Argv[0], sv.Argv[0])
+			}
+			names := map[string]bool{}
+			for _, p := range sv.Paths {
+				if !pathNameRe.MatchString(p.Name) || len(p.Candidates) == 0 || (p.Access != "" && p.Access != "read" && p.Access != "write") {
+					return fmt.Errorf("plugin %s: language %s: invalid folder %q", m.ID, l.ID, p.Name)
+				}
+				if !slices.Contains(m.Permissions, "path:"+p.Name) {
+					return fmt.Errorf("plugin %s: language %s: the folder %s needs the permission path:%s", m.ID, l.ID, p.Name, p.Name)
+				}
+				names[p.Name] = true
+			}
+			for _, d := range sv.PathDirs {
+				name, _, _ := strings.Cut(d, "/")
+				if !names[name] || strings.Contains(d, "..") {
+					return fmt.Errorf("plugin %s: language %s: %q is not under a folder of the server", m.ID, l.ID, d)
+				}
+			}
+		}
 	}
 	return nil
 }

@@ -44,6 +44,8 @@ type call struct {
 }
 
 func (p *Plugin) Register(h plugins.Host) {
+	pod = h.Pod()
+	lsp.Packs = func() []lsp.Spec { return packSpecs(nil) }
 	h.Provide("language", language{})
 	h.Handle("lsp.status", func(ctx context.Context, c plugins.Call) (any, error) {
 		return serversOf(c.Runtime).Status(), nil

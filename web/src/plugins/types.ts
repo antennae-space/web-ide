@@ -33,6 +33,8 @@ export interface PluginManifest {
   contributes: {
     tools?: PluginTool[]
     /** editor: the tab holds the core's editor above the view (#151). */
+    /** A language pack's languages (#145): the language host runs their servers. */
+    languages?: { id: string; name: string; extensions: string[]; grammar?: string; languageIds?: Record<string, string> }[]
     /** Its settings (#151), rendered in Settings > Plugins. */
     settings?: { properties: Record<string, PluginSetting> }
     /** Its actions (#151): a method of its backend and an assistant tool each. */

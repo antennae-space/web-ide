@@ -19,10 +19,22 @@ export function setGrammarOverrides(o: Record<string, GrammarDef> | undefined) {
   setGeneration((g) => g + 1)
 }
 
+// The grammars of the language packs installed (#145): over the built-ins, under the user's.
+const [packGrammars, setPackGrammarsSignal] = createSignal<GrammarDef[]>([])
+
+export function setPackGrammars(list: GrammarDef[]) {
+  if (JSON.stringify(list) === JSON.stringify(packGrammars())) return
+  setPackGrammarsSignal(list)
+  cache.clear()
+  setGeneration((g) => g + 1)
+}
+
 export function grammarDefs(): GrammarDef[] {
   const o = overrides()
-  const ids = new Set(builtinGrammars.map((g) => g.id))
-  return [...builtinGrammars.map((g) => o[g.id] ?? g), ...Object.values(o).filter((g) => !ids.has(g.id))]
+  const packs = packGrammars()
+  const base = [...builtinGrammars.filter((g) => !packs.some((p) => p.id === g.id)), ...packs]
+  const ids = new Set(base.map((g) => g.id))
+  return [...base.map((g) => o[g.id] ?? g), ...Object.values(o).filter((g) => !ids.has(g.id))]
 }
 
 export function builtinGrammar(id: string) {
@@ -82,8 +94,19 @@ export function detectLanguage(path: string, content = ''): string {
 }
 
 /** Server language (LSP) handling a file. */
+// The languages of the language packs the project uses (#145): their servers are the host's.
+let packLanguages: { id: string; extensions: string[]; languageIds?: Record<string, string> }[] = []
+
+export function setPackLanguages(list: typeof packLanguages) {
+  packLanguages = list
+}
+
+const packOf = (ext: string) => packLanguages.find((l) => l.extensions.includes(ext))
+
 export function lspLanguage(path: string): string {
   const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
+  const pack = packOf(ext)
+  if (pack) return pack.id
   if (ext === '.go') return 'go'
   if (['.php', '.phtml'].includes(ext)) return 'php'
   if (['.py', '.pyi'].includes(ext)) return 'python'
@@ -94,6 +117,8 @@ export function lspLanguage(path: string): string {
 /** LSP languageId of a file. */
 export function lspLanguageId(path: string): string {
   const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
+  const pack = packOf(ext)
+  if (pack) return pack.languageIds?.[ext] ?? pack.id
   switch (ext) {
     case '.ts':
     case '.mts':

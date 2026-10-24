@@ -234,3 +234,33 @@ func TestViewBricks(t *testing.T) {
 		}
 	}
 }
+
+// A language pack: its programs and folders are asked in its permissions.
+func TestLanguagePackManifest(t *testing.T) {
+	base := func() Manifest {
+		return Manifest{ID: "lang-go", Name: "Go", APIVersion: APIVersion, Permissions: []string{"program:gopls", "path:GOMODCACHE"},
+			Contributes: Contributions{Languages: []Language{{ID: "go", Name: "Go", Extensions: []string{".go"}, Grammar: "grammars/go.json",
+				Servers: []LanguageServer{{Argv: []string{"gopls"}, Paths: []PathGrant{{Name: "GOMODCACHE", Candidates: []string{"$GOMODCACHE"}}}, PathDirs: []string{"GOMODCACHE/bin"}}}}}}}
+	}
+	m := base()
+	if err := m.Check(); err != nil {
+		t.Fatal(err)
+	}
+	bad := []func(m *Manifest){
+		func(m *Manifest) { m.Permissions = []string{"path:GOMODCACHE"} },
+		func(m *Manifest) { m.Permissions = []string{"program:gopls"} },
+		func(m *Manifest) { m.Contributes.Languages[0].Servers[0].Argv = []string{"/bin/sh", "-c", "x"} },
+		func(m *Manifest) { m.Contributes.Languages[0].Servers[0].Argv = []string{"sh -c"} },
+		func(m *Manifest) { m.Contributes.Languages[0].Grammar = "../../etc/passwd.json" },
+		func(m *Manifest) { m.Contributes.Languages[0].Extensions = []string{"go"} },
+		func(m *Manifest) { m.Contributes.Languages[0].Servers[0].PathDirs = []string{"GOROOT/bin"} },
+		func(m *Manifest) { m.Contributes.Languages[0].Servers[0].Paths[0].Access = "exec" },
+	}
+	for i, f := range bad {
+		m := base()
+		f(&m)
+		if err := m.Check(); err == nil {
+			t.Fatalf("bad %d accepted", i)
+		}
+	}
+}
