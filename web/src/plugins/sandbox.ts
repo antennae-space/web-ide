@@ -5,6 +5,7 @@
 import { on, request } from '../pod/rpc'
 import { openFile, openTab, mutate, type TabState } from '../state/project'
 import { toast } from '../ui/toast'
+import { copyText } from '../ui/clipboard'
 import { lang, t } from '../i18n'
 import type { FrameCall, PageMessage, SandboxEditorState, SandboxTheme } from './sandbox-api'
 
@@ -25,8 +26,12 @@ export const bootstrap = `(() => {
   const edFns = { change: [], selection: [], keys: {} }
   const settingsFns = []
   let next = 1
-  const send = (m) => port && port.postMessage(m)
+  // What the module sends before the page gives the channel (a call at load) waits for it.
+  const queue = []
+  const send = (m) => (port ? port.postMessage(m) : queue.push(m))
   const call = (m) => new Promise((resolve, reject) => { const id = next++; pending.set(id, { resolve, reject }); send({ ...m, id }) })
+  // What crosses the channel is plain JSON: a store of the plugin (a Proxy) cannot be cloned.
+  const plain = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)))
   const fill = (s, p) => (p ? s.replace(/\\{(\\w+)\\}/g, (m, k) => (k in p ? String(p[k]) : m)) : s)
   const applyTheme = (th) => {
     for (const [k, v] of Object.entries(th || {})) document.documentElement.style.setProperty(k, v)
@@ -37,12 +42,13 @@ export const bootstrap = `(() => {
     get view() { return info && info.view },
     get lang() { return info && info.lang },
     get theme() { return info && info.theme },
-    rpc: (method, params) => call({ call: 'rpc', method, params }),
+    rpc: (method, params) => call({ call: 'rpc', method, params: plain(params) }),
     on(event, f) { (handlers[event] = handlers[event] || []).push(f); send({ call: 'on', event }) },
     openFile: (path, line) => send({ call: 'openFile', path, line }),
-    openView: (view, state, title) => send({ call: 'openView', view, state, title }),
-    setViewState: (state) => send({ call: 'setViewState', state }),
+    openView: (view, state, title, key) => send({ call: 'openView', view, state: plain(state), title, key }),
+    setViewState: (state) => send({ call: 'setViewState', state: plain(state) }),
     toast: (text, kind) => send({ call: 'toast', text: String(text), kind }),
+    copyText: (text) => send({ call: 'copyText', text: String(text) }),
     t: (k, p) => fill((info && info.catalog && info.catalog[k]) || k.slice(k.indexOf('|') + 1), p),
     tn: (n, one, other, p) => ide.t(n === 1 ? one : other, { n, ...p }),
     onTheme: (f) => themeFns.push(f),
@@ -77,7 +83,7 @@ export const bootstrap = `(() => {
     if (m.init) { info = m.init; ed = info.editor || null; applyTheme(info.theme); start(); return }
     if (m.reply && pending.has(m.reply)) {
       const p = pending.get(m.reply); pending.delete(m.reply)
-      if ('error' in m) p.reject(new Error(m.error)); else p.resolve(m.result)
+      if ('error' in m) p.reject(Object.assign(new Error(m.error), m.code ? { code: m.code, data: m.data || {} } : {})); else p.resolve(m.result)
       return
     }
     if (m.theme) { info.theme = m.theme; applyTheme(m.theme) }
@@ -97,6 +103,7 @@ export const bootstrap = `(() => {
     if (e.source !== parent || port || !e.ports[0]) return
     port = e.ports[0]
     port.onmessage = receive
+    queue.splice(0).forEach((m) => port.postMessage(m))
   })
   // The shortcuts of the IDE work from the frame: the keys with a modifier, Escape and F1-F12.
   document.addEventListener('keydown', (e) => {
@@ -184,7 +191,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   let offs: (() => void)[] = []
   const catalog = () => host.catalogs[lang()] ?? {}
   const handle = (port: MessagePort) => (e: MessageEvent) => {
-    const reply = (id: number, r: { result?: unknown; error?: string }) => port.postMessage({ reply: id, ...r } satisfies PageMessage)
+    const reply = (id: number, r: { result?: unknown; error?: string; code?: string; data?: Record<string, string> }) => port.postMessage({ reply: id, ...r } satisfies PageMessage)
     // Typed as the API says, checked as untrusted: the frame may send anything.
     const m = (e.data ?? {}) as FrameCall
     switch (m.call) {
@@ -197,7 +204,12 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         }
         request(method, m.params).then(
           (result) => reply(m.id, { result }),
-          (err) => reply(m.id, { error: err instanceof Error ? err.message : String(err) }),
+          (err) => {
+            // A coded error (a password to ask) keeps its code for the frame; never "error", the default.
+            const e = err as { message?: string; code?: string; data?: Record<string, string> }
+            const coded = e.code && e.code !== 'error' ? { code: e.code, data: e.data ?? {} } : {}
+            reply(m.id, { error: err instanceof Error ? err.message : String(e.message ?? err), ...coded })
+          },
         )
         return
       }
@@ -210,7 +222,8 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         if (typeof m.path === 'string') void openFile(typeof m.line === 'number' ? { path: m.path, line: m.line } : m.path)
         return
       case 'openView':
-        if (typeof m.view === 'string') openTab({ kind: `plugin:${host.plugin}/${m.view}`, title: typeof m.title === 'string' ? m.title : undefined, state: m.state } as Omit<TabState, 'id'>)
+        if (typeof m.view === 'string')
+          openTab({ kind: `plugin:${host.plugin}/${m.view}`, title: typeof m.title === 'string' ? m.title : undefined, state: m.state, key: typeof m.key === 'string' ? m.key.slice(0, 200) : undefined } as Omit<TabState, 'id'>)
         return
       case 'setViewState': {
         const tab = host.tab
@@ -226,6 +239,10 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       }
       case 'toast':
         toast(String(m.text ?? '').slice(0, 500), m.kind && ['info', 'warn', 'error', 'ok'].includes(m.kind) ? m.kind : 'info')
+        return
+      case 'copyText':
+        // Only while the user is in the frame, as the keys: a plugin cannot fill the clipboard on its own.
+        if (document.activeElement === frame && typeof m.text === 'string') void copyText(m.text.slice(0, maxEditorText))
         return
       case 'key':
         // Only while the user is in the frame: a plugin cannot press the IDE's keys on its own.

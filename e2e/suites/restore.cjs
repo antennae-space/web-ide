@@ -6,7 +6,7 @@ run(async ({ ctx, page }) => {
   const tabsBefore = await page.$$eval('.tab .tab-title', (e) => e.map((x) => x.textContent))
   const panesBefore = (await page.$$('.pane')).length
   console.log('     tabs', JSON.stringify(tabsBefore), 'panes', panesBefore)
-  assert(tabsBefore.length >= 4 && panesBefore === 2, 'session restored after reload (tabs and split)')
+  assert(tabsBefore.length >= 3 && panesBefore === 2, 'session restored after reload (tabs and split)')
   // The features suite ends with the console panel closed: the session keeps it closed.
   assert(!(await page.isVisible('.zone-bottomLeft')), 'closed console panel still closed after reload')
   await page.click('.rail-left .rail-btn[title="Console"]')
@@ -41,8 +41,8 @@ run(async ({ ctx, page }) => {
   await page.waitForTimeout(500)
   // detached tool window
   const tool = await ctx.newPage()
-  await tool.goto(url.origin + url.pathname + '/tool/database')
-  await tool.waitForSelector('.db-tool .conn-row')
+  await tool.goto(url.origin + url.pathname + '/tool/git')
+  await tool.waitForSelector('.git-panel')
   assert(!(await tool.$('[data-testid=status-bar]')), 'a detached tool window has no status bar')
   assert(true, 'detached tool window')
 })

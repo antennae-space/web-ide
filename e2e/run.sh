@@ -22,7 +22,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 # The longest first (their times on a CI runner): the workers end together.
-ALL=(relay multipod sync features restore+ externals official identity plugins kanban chat renew desks speech keeper doodle lan preview docker editor questions git agent llm push subagents quota orchestrator kanbanai editing agents kanbangit lsp mousenav commands popups keyboard mobile milestones projects help forwards explorer plan kanbanagents mcptools services i18n perf)
+ALL=(relay multipod sync features restore+ externals official database identity plugins kanban chat renew desks speech keeper doodle lan preview docker editor questions git agent llm push subagents quota orchestrator kanbanai editing agents kanbangit lsp mousenav commands popups keyboard mobile milestones projects help forwards explorer plan kanbanagents mcptools services i18n perf)
 # A suite is suites/<name>.cjs (the core) or plugins/<id>/e2e/<name>.cjs (a built-in plugin).
 suite_file() {
   local f
@@ -170,6 +170,9 @@ start_relay() {
 trap 'stop_pod; stop_relay; rm -rf "$TMP"' EXIT
 start_pod() {
   rm -rf "$TMP/data" "$TMP/ws" "$TMP/official"
+  # No official plugin unless the suite gives some (official, database): the list of the build
+  # would be downloaded by every pod.
+  mkdir -p "$TMP/official/archives/current" && echo '[]' >"$TMP/official/official.json"
   EXTRA=()
   # The identity, sync and push suites pair the pod with the CLI, so its pod must reach the relay too.
   if [ "${1:-}" = relay ] || [ "${1:-}" = identity ] || [ "${1:-}" = sync ] || [ "${1:-}" = push ] || [ "${1:-}" = multipod ] || [ "${1:-}" = quota ] || [ "${1:-}" = renew ]; then EXTRA=(-relay "http://127.0.0.1:$RELAY_PORT" -force-turn); fi

@@ -21,7 +21,6 @@ import { placePluginTools, type TabState } from '../state/project'
 const builtins: Record<string, () => Promise<PluginModule>> = {
   ai: () => import('../../../plugins/ai/web').then((m) => m.ai),
   code: () => import('../../../plugins/code/web').then((m) => m.code),
-  database: () => import('../../../plugins/database/web').then((m) => m.database),
   docker: () => import('../../../plugins/docker/web').then((m) => m.docker),
   exec: () => import('../../../plugins/exec/web').then((m) => m.exec),
   files: () => import('../../../plugins/files/web').then((m) => m.files),

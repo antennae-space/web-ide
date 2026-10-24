@@ -134,6 +134,9 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 	if err := os.MkdirAll(filepath.Join(data, "tmp"), 0o700); err != nil {
 		return nil, err
 	}
+	if id == "database" {
+		s.migrateConnections(rt) // the data of the built-in it was (#144)
+	}
 	argv := []string{exe, "plugin-exec", "-plugin", dir, "-data", data}
 	write, read := slices.Contains(e.Grants, "files:write"), slices.Contains(e.Grants, "files:read")
 	// The files of a project on this machine, as granted; an SSH project is reached through the
@@ -165,7 +168,7 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 		Log:   &cappedLog{f: logFile},
 		Files: []*os.File{theirs},
 		Init: map[string]any{"apiVersion": plugins.APIVersion, "plugin": id, "version": e.Version, "grants": e.Grants,
-			"project": map[string]any{"id": rt.P.ID, "root": rt.Root, "local": rt.Local}},
+			"project": map[string]any{"id": rt.P.ID, "root": rt.Root, "local": rt.Local, "main": mainID(rt)}},
 		Core: func(ctx context.Context, method string, params json.RawMessage) (any, error) {
 			return s.backendCore(ctx, rt, e, fds, method, params)
 		},

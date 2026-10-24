@@ -32,6 +32,7 @@ import (
 	"antennae.space/ide/pod/hfcache"
 	"antennae.space/ide/pod/keeper"
 	"antennae.space/ide/pod/plugins"
+	"antennae.space/ide/pod/plugins/backend"
 	"antennae.space/ide/pod/projects"
 	"antennae.space/ide/pod/push"
 	"antennae.space/ide/pod/runtime"
@@ -1035,7 +1036,17 @@ func toRPCError(err error, lang string) *rpcError {
 	}
 	var ar *sshx.AuthRequired
 	var pe *plugins.CodedError
+	var be *backend.CodedError
 	switch {
+	case errors.As(err, &be):
+		// A backend's: its message is already in the language of the call.
+		data := map[string]string{}
+		for k, v := range be.Data {
+			if k != "code" {
+				data[k] = v
+			}
+		}
+		return &rpcError{Code: be.Code, Message: be.Msg, Data: data}
 	case errors.As(err, &ar):
 		msg := i18n.Translate(lang, ar.Msg)
 		return &rpcError{Code: "auth_required", Message: msg, Data: map[string]string{"kind": ar.Kind, "prompt": msg}}

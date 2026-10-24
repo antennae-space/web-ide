@@ -72,6 +72,43 @@ type message struct {
 type rpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
+	// Data of a coded error: {code, …} (db_password, auth_required), told apart by the page.
+	Data map[string]string `json:"data,omitempty"`
+}
+
+// Coded is an error with a code the page tells apart (a password to ask), both ways: from the
+// backend to the page, and from the core to the backend.
+type Coded interface {
+	error
+	ErrorCode() (code string, data map[string]string)
+}
+
+// CodedError is a coded error a backend answered.
+type CodedError struct {
+	Code string
+	Data map[string]string
+	Msg  string
+}
+
+func (e *CodedError) Error() string { return e.Msg }
+
+// ErrorCode is its code and data.
+func (e *CodedError) ErrorCode() (string, map[string]string) { return e.Code, e.Data }
+
+// codedData is the data of a coded error: its code and its fields.
+func codedData(err error) map[string]string {
+	var c Coded
+	if !errors.As(err, &c) {
+		return nil
+	}
+	code, data := c.ErrorCode()
+	out := map[string]string{"code": code}
+	for k, v := range data {
+		if k != "code" {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // Start runs a backend and initializes it.
@@ -177,6 +214,9 @@ func (p *Process) Call(ctx context.Context, method string, params any) (json.Raw
 	select {
 	case m := <-ch:
 		if m.Error != nil {
+			if code := m.Error.Data["code"]; code != "" {
+				return nil, &CodedError{Code: code, Data: m.Error.Data, Msg: m.Error.Message}
+			}
 			return nil, errors.New(m.Error.Message)
 		}
 		return m.Result, nil
@@ -247,7 +287,7 @@ func (p *Process) core(m message) {
 	if err := json.Unmarshal(m.Params, &c); err != nil || p.cfg.Core == nil {
 		reply.Error = &rpcError{Code: -32602, Message: "invalid core call"}
 	} else if res, err := p.cfg.Core(context.Background(), c.Method, c.Params); err != nil {
-		reply.Error = &rpcError{Code: -32000, Message: err.Error()}
+		reply.Error = &rpcError{Code: -32000, Message: err.Error(), Data: codedData(err)}
 	} else if reply.Result, err = json.Marshal(res); err != nil {
 		reply.Error = &rpcError{Code: -32000, Message: err.Error()}
 	}
