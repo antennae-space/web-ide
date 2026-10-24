@@ -149,35 +149,7 @@ const python: GrammarDef = {
   },
 }
 
-const go: GrammarDef = {
-  id: 'go',
-  name: 'Go',
-  extensions: ['.go'],
-  detect: r`^package\s+\w+`,
-  states: {
-    root: [
-      { token: 'comment', regex: r`//.*` },
-      { token: 'comment', regex: r`/\*`, next: 'comment' },
-      { token: 'string', regex: '`', next: 'raw' },
-      { token: 'string', regex: r`"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?` },
-      num,
-      { token: 'keyword', regex: r`\b(?:break|case|chan|const|continue|default|defer|else|fallthrough|for|func|go|goto|if|import|interface|map|package|range|return|select|struct|switch|type|var)\b` },
-      { token: 'type', regex: r`\b(?:bool|byte|complex64|complex128|error|float32|float64|int|int8|int16|int32|int64|rune|string|uint|uint8|uint16|uint32|uint64|uintptr|any|comparable)\b` },
-      { token: 'constant', regex: r`\b(?:true|false|iota|nil)\b` },
-      { token: 'builtin', regex: r`\b(?:append|cap|clear|close|complex|copy|delete|imag|len|make|max|min|new|panic|print|println|real|recover)\b(?=\s*\()` },
-      { token: 'function', regex: r`(?<=\bfunc\s+(?:\([^)]*\)\s*)?)[A-Za-z_]\w*` },
-      call,
-      { token: 'type', regex: r`(?<=\btype\s+)[A-Za-z_]\w*` },
-      { token: 'property', regex: r`(?<=\.)[A-Za-z_]\w*` },
-      classLike,
-      { token: 'text', regex: r`[A-Za-z_]\w*` },
-      { token: 'operator', regex: r`:=|<-|[-+*/%=<>!&|^~?:]+` },
-      punct,
-    ],
-    comment: blockComment(),
-    raw: [{ token: 'string', regex: '`', next: '@pop' }, { token: 'string', regex: r`[^\`]+` }],
-  },
-}
+// Go: the grammar of the language pack lang-go (#146).
 
 const nginx: GrammarDef = {
   id: 'nginx',
@@ -382,7 +354,6 @@ export const builtinGrammars: GrammarDef[] = [
   js('javascript', 'JavaScript', ['.js', '.mjs', '.cjs', '.jsx'], false),
   js('typescript', 'TypeScript', ['.ts', '.tsx', '.mts', '.cts'], true),
   python,
-  go,
   nginx,
   sql,
   redis,

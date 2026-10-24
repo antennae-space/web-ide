@@ -1,6 +1,7 @@
-// Code navigation with gopls (skipped when gopls is not installed).
+// Code navigation with gopls through the language pack lang-go (#146), its server confined
+// (skipped when gopls is not installed).
 const { execSync } = require('child_process')
-const { run, openProject, open, assert, text, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, open, assert, text, installOfficial, OUT } = require('../../../e2e/common.cjs')
 try {
   execSync('command -v gopls', { env: { ...process.env, PATH: process.env.HOME + '/go/bin:' + process.env.PATH }, stdio: 'ignore' })
 } catch {
@@ -8,6 +9,8 @@ try {
   process.exit(0)
 }
 run(async ({ page }) => {
+  const lock = await installOfficial('lang-go')
+  assert(lock?.grants.join() === 'program:gopls,path:GOROOT,path:GOMODCACHE', 'lang-go installed with its grants: ' + JSON.stringify(lock))
   await openProject(page)
   await open(page, 'main.go')
   const caretOn = async (needle, delta = 1) => {

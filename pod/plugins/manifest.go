@@ -94,6 +94,9 @@ type LanguageServer struct {
 	Argv     []string    `json:"argv"`
 	Paths    []PathGrant `json:"paths,omitempty"`
 	PathDirs []string    `json:"pathDirs,omitempty"`
+	// Env are literal variables of its environment (GOTOOLCHAIN=local: no download, it has no
+	// network), on this machine only.
+	Env map[string]string `json:"env,omitempty"`
 }
 
 // PathGrant is a folder of the host a server needs, by name: the first of its candidates that
@@ -336,6 +339,11 @@ func (m Manifest) checkLanguages() error {
 					return fmt.Errorf("plugin %s: language %s: the folder %s needs the permission path:%s", m.ID, l.ID, p.Name, p.Name)
 				}
 				names[p.Name] = true
+			}
+			for k := range sv.Env {
+				if !pathNameRe.MatchString(k) || k == "PATH" || k == "HOME" || k == "TMPDIR" || names[k] {
+					return fmt.Errorf("plugin %s: language %s: invalid variable %q", m.ID, l.ID, k)
+				}
 			}
 			for _, d := range sv.PathDirs {
 				name, _, _ := strings.Cut(d, "/")

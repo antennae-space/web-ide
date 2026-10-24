@@ -56,7 +56,7 @@ func TestPackLanguageOfFiles(t *testing.T) {
 	old := Packs
 	t.Cleanup(func() { Packs = old })
 	Packs = func() []Spec { return []Spec{toy} }
-	if LangOf("a/b.toy") != "toy" || LangOf("x.go") != "go" || LanguageID("b.toy") != "toy" {
+	if LangOf("a/b.toy") != "toy" || LangOf("x.php") != "php" || LangOf("x.go") != "" || LanguageID("b.toy") != "toy" {
 		t.Fatal("the pack's extension")
 	}
 }

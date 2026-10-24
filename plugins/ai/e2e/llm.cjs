@@ -3,7 +3,7 @@
 // attachment, stop, and resume after a crash (with the same or another model). The model is a scripted fake OpenAI server.
 const fs = require('fs')
 const http = require('http')
-const { run, openProject, open, assert, text, WS, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, open, assert, text, installOfficial, WS, OUT } = require('../../../e2e/common.cjs')
 
 const requests = []
 let slowClosed = false
@@ -168,6 +168,8 @@ const fake = http.createServer(async (req, res) => {
 })
 
 run(async ({ page, ctx }) => {
+  // The Go blocks of the answers are highlighted by the language pack lang-go (#146).
+  await installOfficial('lang-go')
   await new Promise((r) => fake.listen(0, '127.0.0.1', r))
   const port = fake.address().port
   page.on('dialog', (d) => d.accept())
