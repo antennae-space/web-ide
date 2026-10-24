@@ -1,15 +1,20 @@
 // The backend of the fixture plugin greet of the externals suite (#130): JSON-RPC over stdio.
 // It answers greet.hello (and emits greet.said), tries what it must not reach (greet.probe),
-// asks the core for fs.list (greet.core) and runs its assistant tool greet_hello.
+// asks the core for fs.list (greet.core), for a connection the pod opens (greet.dial: an echo
+// through the socket it receives on fd 3), for its vault entry (greet.secret), and runs its
+// assistant tool greet_hello.
 package main
 
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -105,7 +110,9 @@ func handle(m msg) {
 		var c struct {
 			Method string
 			Params struct {
-				Key string `json:"key"`
+				Key   string `json:"key"`
+				Port  int    `json:"port"`
+				Value string `json:"value"`
 			}
 		}
 		json.Unmarshal(m.Params, &c)
@@ -129,6 +136,21 @@ func handle(m msg) {
 			} else {
 				reply(m.ID, "answered")
 			}
+		case "greet.dial":
+			reply(m.ID, echo(c.Params.Port))
+		case "greet.secret":
+			if _, e := core("vault.set", map[string]any{"key": "token", "value": c.Params.Value}); e != "" {
+				reply(m.ID, "refused: "+e)
+				return
+			}
+			got, e := core("vault.get", map[string]any{"key": "token"})
+			if e != "" {
+				reply(m.ID, "refused: "+e)
+				return
+			}
+			var v struct{ Value string }
+			json.Unmarshal(got, &v)
+			reply(m.ID, v.Value)
 		default:
 			fail(m.ID, "no "+c.Method)
 		}
@@ -137,4 +159,58 @@ func handle(m msg) {
 	default:
 		fail(m.ID, "unknown method: "+m.Method)
 	}
+}
+
+// echo asks the pod for a connection to 127.0.0.1:port, takes its socket from fd 3, sends
+// "ping" and answers what comes back.
+func echo(port int) string {
+	res, e := core("dial", map[string]any{"host": "127.0.0.1", "port": port})
+	if e != "" {
+		return "refused: " + e
+	}
+	var r struct{ Fd int }
+	json.Unmarshal(res, &r)
+	conn, err := receive(r.Fd)
+	if err != nil {
+		return "no socket: " + err.Error()
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
+	fmt.Fprint(conn, "ping\n")
+	line, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		return "read: " + err.Error()
+	}
+	return "echo: " + line[:len(line)-1]
+}
+
+// fd3 is kept for the life of the process: an *os.File closes its fd when collected.
+var fd3 = os.NewFile(3, "fds")
+
+// receive takes the socket the pod sent on fd 3 with the id id.
+func receive(id int) (net.Conn, error) {
+	ch, err := net.FileConn(fd3) // a dup: fd 3 stays open
+	if err != nil {
+		return nil, err
+	}
+	defer ch.Close()
+	buf, oob := make([]byte, 32), make([]byte, syscall.CmsgSpace(4))
+	n, oobn, _, _, err := ch.(*net.UnixConn).ReadMsgUnix(buf, oob)
+	if err != nil {
+		return nil, err
+	}
+	if got, _ := strconv.Atoi(string(buf[:n])); got != id {
+		return nil, fmt.Errorf("socket %d, expected %d", got, id)
+	}
+	msgs, err := syscall.ParseSocketControlMessage(oob[:oobn])
+	if err != nil || len(msgs) != 1 {
+		return nil, fmt.Errorf("no socket in the message")
+	}
+	fds, err := syscall.ParseUnixRights(&msgs[0])
+	if err != nil || len(fds) != 1 {
+		return nil, fmt.Errorf("no socket in the message")
+	}
+	f := os.NewFile(uintptr(fds[0]), "conn")
+	defer f.Close()
+	return net.FileConn(f)
 }

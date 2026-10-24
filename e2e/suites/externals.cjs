@@ -10,6 +10,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const http = require('http')
+const net = require('net')
 const { execFileSync } = require('child_process')
 const { run, openProject, assert, mcp, WS } = require('../common.cjs')
 
@@ -31,12 +32,14 @@ ide.register({
       try { void parent.document.title; out.parent = 'open' } catch { out.parent = 'blocked' }
       try { await ide.rpc('fs.list', { path: '' }); out.rpc = 'answered' } catch (e) { out.rpc = 'refused: ' + e.message }
       el.innerHTML = '<p id="hello">' + ide.t('Hello from the frame') + '</p><pre id="checks">' + JSON.stringify(out) + '</pre><button id="open">open</button><button id="view">view</button>'
-      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><pre id="answer"></pre><pre id="event"></pre>'
+      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><pre id="answer"></pre><pre id="event"></pre>'
       const show = (p) => p.then((r) => (el.querySelector('#answer').textContent = typeof r === 'string' ? r : JSON.stringify(r)), (e) => (el.querySelector('#answer').textContent = 'error: ' + e.message))
       ide.on('greet.said', (d) => (el.querySelector('#event').textContent = d))
       el.querySelector('#backend').onclick = () => show(ide.rpc('greet.hello'))
       el.querySelector('#probe').onclick = () => show(ide.rpc('greet.probe', { key: ${JSON.stringify(path.join(WS, '..', 'data', 'device.key'))} }))
       el.querySelector('#core').onclick = () => show(ide.rpc('greet.core'))
+      el.querySelector('#dial').onclick = () => show(ide.rpc('greet.dial', { port: ${echoPort} }))
+      el.querySelector('#secret').onclick = () => show(ide.rpc('greet.secret', { value: 's3cret' }))
       el.querySelector('#list').onclick = () => show(ide.rpc('fs.list', { path: '' }).then(() => 'answered'))
       el.querySelector('#open').onclick = () => ide.openFile('notes.txt')
       el.querySelector('#view').onclick = () => ide.openView('note', { text: 'kept' }, 'Note')
@@ -47,7 +50,13 @@ ide.register({
 })
 `
 
+// The echo server the backend reaches through a connection the pod opens for it (#143).
+let echoPort = 0
+
 run(async ({ page, errors }) => {
+  const echo = net.createServer((sock) => sock.on('data', (d) => sock.write(d)))
+  await new Promise((r) => echo.listen(0, '127.0.0.1', r))
+  echoPort = echo.address().port
   // The release archives, by version (any architecture).
   const assets = {}
   const server = http.createServer((req, res) => {
@@ -253,6 +262,36 @@ run(async ({ page, errors }) => {
   got = await answer('list')
   assert(got === 'answered', 'granted again: ' + got)
 
+  // The pod dials for the backend (#143): a version asking dial and vault; the first connection
+  // to a destination asks the user, Allow is remembered; the socket comes on fd 3.
+  release('1.2.0', { ide: '^1.0', permissions: ['files:read', 'net', 'core:fs.list', 'dial', 'vault'] })
+  await openSettings()
+  await page.click('[data-testid=plugin-update-greet]')
+  await page.waitForSelector('.plugin-grants')
+  await page.check('[data-testid=plugin-grant-dial]')
+  await page.check('[data-testid=plugin-grant-vault]')
+  await page.click('[data-testid=plugin-grants-accept]')
+  await page.waitForFunction(() => document.querySelector('.plugin-row[data-plugin=greet]')?.textContent.includes('1.2.0'))
+  await closeSettings()
+  await showGreet()
+  await frame(page, 'greet').locator('#dial').click()
+  const modal = '[data-testid=question-modal]'
+  await page.waitForSelector(`${modal}[data-kind=permission]`, { timeout: 15000 })
+  const q = await page.textContent(modal)
+  assert(q.includes(`Greet wants to connect to 127.0.0.1:${echoPort}`), 'the destination is asked: ' + q)
+  await page.click(`${modal} [data-testid=question-option-allow_always]`)
+  await frame(page, 'greet').locator('#answer:not(:empty)').waitFor()
+  got = await frame(page, 'greet').locator('#answer').textContent()
+  await frame(page, 'greet').locator('#answer').evaluate((e) => (e.textContent = ''))
+  assert(got === 'echo: ping', 'the socket opened by the pod: ' + got)
+  assert(readLock().greet.destinations?.includes(`127.0.0.1:${echoPort}`), 'allowed and remembered: ' + JSON.stringify(readLock().greet))
+  got = await answer('dial')
+  assert(got === 'echo: ping' && !(await page.$(modal)), 'not asked again: ' + got)
+  got = await answer('secret')
+  const secrets = JSON.parse(fs.readFileSync(path.join(WS, '..', 'data', 'secrets.json'), 'utf8'))
+  assert(got === 's3cret' && secrets['plugin:greet/token'] === 's3cret', 'its vault entry: ' + got)
+
+  echo.close()
   server.close()
   fs.rmSync(tmp, { recursive: true, force: true })
   // The fetch of the frame refused by its CSP is what was asked.

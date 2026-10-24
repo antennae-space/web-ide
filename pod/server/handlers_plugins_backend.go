@@ -152,15 +152,22 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 	if err != nil {
 		return nil, err
 	}
+	// fd 3 of the backend: the sockets the pod opens for it (dial).
+	fds, theirs, err := newFDChannel()
+	if err != nil {
+		logFile.Close()
+		return nil, err
+	}
 	p, err := backend.Start(ctx, backend.Config{
-		Argv: argv,
-		Env:  []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=" + data, "TMPDIR=" + filepath.Join(data, "tmp"), "LANG=C.UTF-8"},
-		Dir:  data,
-		Log:  &cappedLog{f: logFile},
+		Argv:  argv,
+		Env:   []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=" + data, "TMPDIR=" + filepath.Join(data, "tmp"), "LANG=C.UTF-8"},
+		Dir:   data,
+		Log:   &cappedLog{f: logFile},
+		Files: []*os.File{theirs},
 		Init: map[string]any{"apiVersion": plugins.APIVersion, "plugin": id, "version": e.Version, "grants": e.Grants,
 			"project": map[string]any{"id": rt.P.ID, "root": rt.Root, "local": rt.Local}},
 		Core: func(ctx context.Context, method string, params json.RawMessage) (any, error) {
-			return s.backendCore(ctx, rt, e, method, params)
+			return s.backendCore(ctx, rt, e, fds, method, params)
 		},
 		Emit: func(event string, data json.RawMessage) {
 			// Its own events only, to the windows of the project.
@@ -169,19 +176,32 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 			}
 		},
 	})
+	theirs.Close() // the backend's now
 	if err != nil {
 		logFile.Close()
+		fds.close()
 		return nil, i18n.Errorf("the backend of %s did not start: %v", id, err)
 	}
 	go func() {
 		<-p.Done()
 		logFile.Close()
+		fds.close()
 	}()
 	return p, nil
 }
 
 // backendCore runs a method of the core for a backend, with its grant, in the project of rt.
-func (s *Server) backendCore(ctx context.Context, rt *runtime.Runtime, e plugins.External, method string, params json.RawMessage) (res any, err error) {
+func (s *Server) backendCore(ctx context.Context, rt *runtime.Runtime, e plugins.External, fds *fdChannel, method string, params json.RawMessage) (res any, err error) {
+	// The grants of now: revoked in Settings, refused at once.
+	if cur, ok := s.Plugins.External(e.Manifest.ID); ok {
+		e = cur
+	}
+	switch method {
+	case "dial":
+		return s.pluginDial(ctx, rt, e, fds, params)
+	case "vault.get", "vault.set", "vault.delete":
+		return s.pluginVault(e, method, params)
+	}
 	if !slices.Contains(e.Grants, "core:"+method) {
 		return nil, i18n.Errorf("%s is not granted to %s", method, e.Manifest.Name)
 	}

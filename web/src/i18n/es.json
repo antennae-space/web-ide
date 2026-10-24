@@ -948,5 +948,14 @@
   "Accept all": "Aceptar todo",
   "Official": "Oficial",
   "Remove {name} from this pod? It is an official plugin: the IDE will not install it again by itself.": "¿Quitar {name} de este pod? Es un plugin oficial: el IDE no lo volverá a instalar por sí solo.",
-  "Official plugins removed": "Plugins oficiales quitados"
+  "Official plugins removed": "Plugins oficiales quitados",
+  "{name} wants to connect to {destination}.": "{name} quiere conectarse a {destination}.",
+  "Allow": "Permitir",
+  "Allow once": "Permitir una vez",
+  "Deny": "Denegar",
+  "Connect where you allow it, through the IDE": "Conectarse donde lo permitas, a través del IDE",
+  "Open SSH tunnels with your keys": "Abrir túneles SSH con tus claves",
+  "Keep its secrets in the vault": "Guardar sus secretos en la bóveda",
+  "Allowed connections:": "Conexiones permitidas:",
+  "Ask again": "Volver a preguntar"
 }

@@ -41,6 +41,8 @@ type External struct {
 	// Official: one of the official plugins, installed by the pod and used by every project
 	// unless disabled on it.
 	Official bool `json:"official,omitempty"`
+	// Destinations the user allowed the pod to connect it to (the grant dial).
+	Destinations []string `json:"destinations,omitempty"`
 }
 
 // Builtin tells whether id is the one of a built-in plugin.

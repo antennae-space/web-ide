@@ -171,6 +171,9 @@ func (in *Installer) place(tmp, sum string, want *plugins.Manifest, tag string, 
 	if in.Official != nil && in.Official(l.URL) {
 		l.Official = true
 	}
+	if had && l.Destinations == nil {
+		l.Destinations = prev.Destinations // allowed by the user, kept across versions
+	}
 	l.Version, l.SHA256 = m.Version, sum
 	lock.Plugins[m.ID] = l
 	lock.Declined = slices.DeleteFunc(lock.Declined, func(id string) bool { return id == m.ID })

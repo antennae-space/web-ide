@@ -153,6 +153,20 @@ func (s *Server) registerPluginInstall() {
 		s.externalsChanged()
 		return map[string]any{"grants": l.Grants}, nil
 	})
+	// plugins.destinations: the destinations the user still allows a plugin (Settings > Plugins:
+	// one taken out is asked again at its next connection).
+	s.handle("plugins.destinations", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
+		a, err := bind[struct {
+			ID           string   `json:"id"`
+			Destinations []string `json:"destinations"`
+		}](p)
+		if err != nil {
+			return nil, err
+		}
+		s.plugins.installMu.Lock()
+		defer s.plugins.installMu.Unlock()
+		return nil, s.setDestinations(a.ID, a.Destinations)
+	})
 	// plugins.host: what this pod can run of an external plugin (the Landlock ABI of its kernel:
 	// 0, no backend runs).
 	s.handle("plugins.host", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
@@ -257,7 +271,7 @@ func (s *Server) installPlugin(ctx context.Context, cand install.Candidate, cons
 	if err != nil {
 		return nil, err
 	}
-	if err := s.Plugins.SetExternal(plugins.External{Manifest: cand.Manifest, URL: l.URL, Version: l.Version, Grants: l.Grants, Official: l.Official}); err != nil {
+	if err := s.Plugins.SetExternal(plugins.External{Manifest: cand.Manifest, URL: l.URL, Version: l.Version, Grants: l.Grants, Official: l.Official, Destinations: l.Destinations}); err != nil {
 		return nil, err
 	}
 	s.externalsChanged()
@@ -286,7 +300,7 @@ func (s *Server) loadExternals() {
 	for id, l := range lock.Plugins {
 		m, err := s.plugins.installer.Manifest(id, l.Version)
 		if err == nil {
-			err = s.Plugins.SetExternal(plugins.External{Manifest: m, URL: l.URL, Version: l.Version, Grants: l.Grants, Official: l.Official})
+			err = s.Plugins.SetExternal(plugins.External{Manifest: m, URL: l.URL, Version: l.Version, Grants: l.Grants, Official: l.Official, Destinations: l.Destinations})
 		}
 		if err != nil {
 			log.Printf("plugins: %s %s: %v", id, l.Version, err)
@@ -359,11 +373,30 @@ func (s *Server) ensureOfficial() {
 	for _, m := range ms {
 		l := lock.Plugins[m.ID]
 		s.dropBackends(m.ID) // its old version may run
-		if err := s.Plugins.SetExternal(plugins.External{Manifest: m, URL: l.URL, Version: l.Version, Grants: l.Grants, Official: true}); err != nil {
+		if err := s.Plugins.SetExternal(plugins.External{Manifest: m, URL: l.URL, Version: l.Version, Grants: l.Grants, Official: true, Destinations: l.Destinations}); err != nil {
 			log.Printf("plugins: official %s: %v", m.ID, err)
 		} else {
 			log.Printf("plugins: official %s %s installed", m.ID, m.Version)
 		}
 	}
 	s.externalsChanged()
+}
+
+// setDestinations writes the destinations of a plugin to the lock and the registry, and tells
+// the projects (installMu held).
+func (s *Server) setDestinations(id string, dests []string) error {
+	e, ok := s.Plugins.External(id)
+	if !ok {
+		return i18n.Errorf("the plugin %s is not installed", id)
+	}
+	l, err := install.SetDestinations(s.Store, id, dests)
+	if err != nil {
+		return err
+	}
+	e.Destinations = l.Destinations
+	if err := s.Plugins.SetExternal(e); err != nil {
+		return err
+	}
+	s.externalsChanged()
+	return nil
 }
