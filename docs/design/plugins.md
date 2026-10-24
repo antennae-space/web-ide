@@ -1,6 +1,6 @@
 # Plugins
 
-Status: **phases 1 and 2 done, phase 3 decided** (2026-10-20, [Phase 3](#phase-3-external-plugins): external plugins, confined). Milestone *Plugins, phase 1*: the core of the plugin system (#113), then Docker (#114) and the database (#115) moved onto it, all built-in, one lineage. The core is in place (#113), and Docker (#114) and the Database explorer (#115) are plugins: phase 1 is done. Whether Git, the editor, the kanban and the assistant become plugins too is decided after Docker (see [Decisions](#decisions)). The direction was explored on 2026-10-16.
+Status: **phases 1, 2 and 3 done, phase 4 decided** (2026-10-24, [Phase 4](#phase-4-official-external-plugins): Database, Docker and the languages become external plugins). Milestone *Plugins, phase 1*: the core of the plugin system (#113), then Docker (#114) and the database (#115) moved onto it, all built-in, one lineage. The core is in place (#113), and Docker (#114) and the Database explorer (#115) are plugins: phase 1 is done. Whether Git, the editor, the kanban and the assistant become plugins too is decided after Docker (see [Decisions](#decisions)). The direction was explored on 2026-10-16.
 
 ## Vision
 
@@ -295,9 +295,73 @@ The manifest's `permissions` become **grants**, accepted one by one by the user 
    Done in #128: `pod/plugins/install` (`semver.go` constraints `^ ~ >= > <= < =`, `*`, `||`, a bare version; `resolve.go` `git ls-remote --tags` then the `plugin.json` of a tag by a shallow clone, the first fitting the IDE, the API and the installed plugins, else the reason of the highest; `install.go` the archive of the architecture over https (http only to 127.0.0.1 in the tests), at most 100 MB, its sha256 against the lock, extracted with only files, folders and links staying inside, its `plugin.json` equal to the tag's, then `<data>/plugins/<id>/<version>/`; `lock.go`). The RPCs: `plugins.resolve {url, constraint}` → `{url, tag, version, manifest, grants}`, `plugins.install {url, constraint, version, grants}`, `plugins.update {id, grants?}` (answers the version and the new `grants` to accept, or `upToDate`), `plugins.remove {id}`; each sends `plugins.changed` to every open project. The lock: `{"plugins": {id: {url, constraint, version, sha256, grants}}}`. `.ide/plugins.json` gains `external: {id: url}`, the external plugins a project uses; a `State` gains `external {url, version, grants, installed}`; enabled from #129 when the project uses it.
 4. Grants enforced end to end (#131)
    Done in #131: grants revocable in *Settings → Plugins* (`plugins.grants`: the lock, the registry, the backends started again; the frames check the current grants); `plugins.host` tells the Landlock ABI of the pod; the example [plugin-greet](https://github.com/antennae-space/plugin-greet) (its own repository, a release workflow per arch; `hello` stays the core's test plugin); the how-to [Write a plugin](../howto/write-a-plugin.md). `core:<method>` is needed for every core method, `fs.*` included.
-, an example plugin in its own repository (`hello` moved out), the how-to *Write a plugin*.
+
+## Phase 4: official external plugins
+
+Decided on 2026-10-24 (milestone *Plugins, phase 4*). Phase 3 proved that an external plugin can be installed and confined with `plugin-greet`; phase 4 proves the API on real tools, and gives the ecosystem its first bricks and examples: **Database, Docker and the language servers leave the repository**, each for its own repository in the GitHub organisation [antennae-space](https://github.com/antennae-space). What they lack becomes API, open to every external plugin, as phases 1 and 2 did for the built-ins.
+
+### What leaves, what stays
+
+| Today | Phase 4 | Why |
+|---|---|---|
+| Database (`plugins/database`) | `plugin-database`, external | a tool with a UI, a backend, secrets and AI tools: the full API |
+| Docker (`plugins/docker`) | `plugin-docker`, external | a backend reaching a socket of the system, a terminal fed by a plugin |
+| Languages (`plugins/languages`) | stays built-in: the **language host** | the LSP client, Problems, Structure, the Symbols provider |
+| The servers of `Defaults` (`plugins/languages/internal/lsp/lsp.go`), the grammars (`web/src/editor/grammars`) | **language packs**, external, one per language: `lang-go`, `lang-php`, `lang-python`, `lang-typescript` | data and a server to run, no UI |
+| AI (`plugins/ai`) | stays built-in | it reads the kanban, runs the tools of the other plugins, calls the windows (`ui.call`), runs the ACP agents, which cannot run confined |
+
+Explorer, Editor and the consoles stay core and locked (decision 6). Later, on the same model: a **debug host** (a DAP client, built-in) fed by the packs' debug adapters, `plugin-adb`.
+
+### Official plugins
+
+The external plugins of the organisation are **official**: installed by default on a new pod and used by every project unless disabled, so a pod keeps its Database and Docker tools after the move. The pod release embeds their archives, with their sha256, so the first boot needs no network; an update comes from their repositories like any external plugin. They are confined like the others: official means trusted to be installed, not trusted to run unconfined.
+
+### Language packs
+
+A **language pack** is an external plugin that contributes to the language host instead of a tool: per language, its grammar (data, as `web/src/editor/grammars/index.ts` already is), its language servers (the command, the languages, the settings: one `Spec` of today), its test patterns, later its debug adapter and its **project templates**. The host starts the servers of a pack **as the pack's confined backend**, never as its own process: a server declared by a pack gets the grants of the pack, not the trust of the host.
+
+A **project template** is a contribution of a pack: a raw one is data (files and a `.ide` filled in), a framework one (Symfony, Angular, Android…) names the commands that create it, which the core runs in a console the user sees, after the user agrees; the confined backend never runs them itself. Templates planned: PHP (raw, Symfony), JavaScript/TypeScript (raw, Angular, Vue), Java (raw, Android), Go, Rust, Python, C, C#.
+
+### The AI uses the plugins too
+
+Every plugin serves the human and the AIs alike: **one declaration of an action gives a command of the UI and an assistant/MCP tool**, as the assistant tools of a manifest already do. What a plugin opens to the AI is the user's choice, per plugin:
+
+- **Database**: an AI policy per connection, read-only by default; a write is refused or asked through `ask_user`. The password stays in the vault: the AI names a connection, never sees its secret.
+- **Docker**: `docker_ps` and `docker_logs` stay assistant tools of the plugin (a shell reaches Docker anyway).
+- **Debug** (later): one DAP session per worktree, so an agent debugs in its own worktree, and the user can watch it.
+
+### API bricks
+
+Each opens to every external plugin, with its grant when it reaches past the plugin:
+
+| Brick | For | Notes |
+|---|---|---|
+| The core editor in a plugin tab | the SQL consoles | a virtual buffer, not a file, shown by Code in a tab of the plugin; the sandbox API reads and edits it |
+| Vault entries | the passwords of the connections | entry by entry, under the plugin's name; the plugin never lists the vault |
+| A finer network grant | a connection, the adb server | `net:<host>:<port>` besides `net` (Landlock network rules filter the port; the host is checked by the pod) |
+| SSH forwards by the core | a connection through SSH | the pod's SSH pool opens the forward and gives the backend a local port: the agent and the keys stay the pod's |
+| A socket or a device passed by the pod | the Docker socket, USB for adb | the pod opens it and passes the descriptor (seccomp refuses `AF_UNIX` to the backend); the grant says it is **root-equivalent** when it is |
+| A core terminal fed by a plugin | `docker exec`, `adb shell` | the terminal stays the core's (no external plugin provides `terminal`); the plugin gives the stream |
+| Settings of an external plugin | every plugin | the settings contribution point opened to the sandbox API |
+| Pack contributions | the language packs | grammars, servers, test patterns, templates, read by the host from the manifest |
+
+### SDK and template
+
+- **`plugin-sdk`**: an npm package with the types of the sandbox API and a **UI kit** in Solid using the theme tokens (so an external tool looks like a built-in one), and a Go module speaking the backend's JSON-RPC (`initialize`, `call`, `tool`, `core`, `emit`).
+- **`plugin-template`**: a repository to start a plugin from, built on the SDK: a view, a backend, a tool, the release workflow per architecture. `plugin-greet` stays the smallest example; [Write a plugin](../howto/write-a-plugin.md) starts from the template.
+
+### Steps
+
+1. The SDK and its UI kit (`plugin-sdk`), then the template (`plugin-template`).
+2. Official plugins: installed by default, their archives in the release.
+3. The bricks of the database (the core editor in a plugin tab, vault entries, the finer network grant, SSH forwards by the core, the settings of an external plugin), then `plugin-database` and `plugins/database` removed.
+4. The pack contributions of the language host, then `lang-go`, the servers and grammar of Go removed from the core.
+5. The bricks of Docker (the socket passed by the pod, a core terminal fed by a plugin), then `plugin-docker` and `plugins/docker` removed.
+6. The other packs: `lang-php`, `lang-python`, `lang-typescript`.
+7. Project templates; then the debug host, then `plugin-adb`, when there is time.
 
 ## Open questions
 
 - Answered on 2026-10-20 ([Phase 3](#phase-3-external-plugins)): the install source (a git repository, semver tags, release assets, a lock per pod, not synced) and the views of an external plugin (a sandboxed iframe).
 - A catalog of plugins (like Packagist), signed releases: after phase 3.
+- Phase 4: what a language server needs outside the project under Landlock (the Go module cache, `node_modules` of a global install, the toolchain) and how the pack asks for it; whether the go-import tag of the relay serves the repositories of the organisation besides `antennae.space/ide`.

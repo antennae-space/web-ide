@@ -178,6 +178,24 @@ A view of an external plugin, run in an iframe of opaque origin that speaks to t
 **Locked plugin**
 A built-in plugin the IDE cannot run without (Files, Code): always enabled, shown greyed in Settings → Plugins.
 
+**Official plugin** ([plugins](docs/design/plugins.md#official-plugins))
+An external plugin of the antennae-space organisation, installed by default on a new pod from an archive embedded in the release; confined like any external plugin.
+_Avoid_: core plugin, first-party plugin
+
+**Language host** ([plugins](docs/design/plugins.md#language-packs))
+The built-in plugin that runs the language servers of the language packs and shows what they give: Problems, Structure, symbols, completion. Today the Languages plugin.
+
+**Language pack** ([plugins](docs/design/plugins.md#language-packs))
+An external plugin that gives one language to the language host: its grammar, its language servers (run as its confined backend), its test patterns, later its debug adapter and its project templates.
+_Avoid_: language plugin, language extension
+
+**Project template** ([plugins](docs/design/plugins.md#language-packs))
+What a new project starts from, given by a language pack: files and a `.ide` filled in, or the commands of a framework that the core runs in a console the user sees.
+_Avoid_: skeleton, boilerplate, scaffold
+
+**Plugin SDK**
+The `plugin-sdk` repository: the types of the sandbox API, a UI kit using the theme tokens, and a Go module for the JSON-RPC of a confined backend.
+
 **Diff source**
 What gives the diff view the two sides of a diff tab (Git: the working tree, the index, HEAD, a commit).
 
