@@ -320,6 +320,8 @@ The external plugins of the organisation are **official**: installed by default 
 
 A **language pack** is an external plugin that contributes to the language host instead of a tool: per language, its grammar (data, as `web/src/editor/grammars/index.ts` already is), its language servers (the command, the languages, the settings: one `Spec` of today), its test patterns, later its debug adapter and its **project templates**. The host starts the servers of a pack **as the pack's confined backend**, never as its own process: a server declared by a pack gets the grants of the pack, not the trust of the host.
 
+What a server needs outside the project (the Go module cache, the toolchain, a cache of its own) is a **path grant**, decided on 2026-10-24: the pack declares a symbolic path (`files:read:$GOMODCACHE`, `files:read:$GOROOT`, `files:write:~/.cache/gopls`), the pod resolves it on the host (`go env`, the environment), the grant shows the real path and the lock keeps it. A folder covers what it holds (Landlock grants a hierarchy), so there is no pattern; read only unless the grant says write; a path covering the whole home, `~/.web-ide` or `~/.ssh` is always refused. The server's program is named by the pack, found by the pod on the host's `PATH`, and granted to read and run that file only.
+
 A **project template** is a contribution of a pack: a raw one is data (files and a `.ide` filled in), a framework one (Symfony, Angular, Android…) names the commands that create it, which the core runs in a console the user sees, after the user agrees; the confined backend never runs them itself. Templates planned: PHP (raw, Symfony), JavaScript/TypeScript (raw, Angular, Vue), Java (raw, Android), Go, Rust, Python, C, C#.
 
 ### The AI uses the plugins too
@@ -347,7 +349,9 @@ Each opens to every external plugin, with its grant when it reaches past the plu
 
 ### SDK and template
 
-- **`plugin-sdk`**: an npm package with the types of the sandbox API and a **UI kit** in Solid using the theme tokens (so an external tool looks like a built-in one), and a Go module speaking the backend's JSON-RPC (`initialize`, `call`, `tool`, `core`, `emit`).
+- **`plugin-sdk`** (#140): an npm package (installed from git, `github:antennae-space/plugin-sdk#v1.x`) with the types of the sandbox API, a **UI kit** in Solid using the theme tokens (so an external tool looks like a built-in one: controls, view and toolbar, tabs, splitter, list, tree, virtual table, menu, modal, icons) and a **Vite preset** building the page module as one ES module (the CSS injected by the module, the assets inlined, a second file refused); a Go module, `antennae.space/plugin-sdk/backend`, speaking the backend's JSON-RPC (`initialize`, `call`, `tool`, `core`, `emit`); the JSON Schema of the manifest. Its major version is `apiVersion`.
+- **The sandbox API's types** live in the IDE, `web/src/plugins/sandbox-api.ts`: `serveFrame` answers each `FrameCall` (tsc fails on one left unanswered) and sends `PageMessage`s; the SDK keeps a copy, which its CI compares with the IDE's `main`. Change it only to add while `apiVersion` is 1.
+- **Theme tokens**: what the page sets on its root, `--bg`, `--bg-2`, `--bg-3`, `--bg-hover`, `--bg-active`, `--fg`, `--fg-muted`, `--fg-faint`, `--line`, `--accent`, `--accent-fg`, `--sel-bg`, `--cur-line`, `--danger`, `--warn`, `--ok`, `--info`, `--match-bg`, `--match-cur-bg`, `--gutter`, `--conflict-bg`, the code font and the sizes (`--font-code`, `--font-size-code`, `--line-height-code`, `--font-size-ui`, `--ligatures`), `--focus-outline-width`, `--focus-dim`, and `color-scheme` (`themeVars()`: every variable set inline on the root, so a new token reaches the frames).
 - **`plugin-template`**: a repository to start a plugin from, built on the SDK: a view, a backend, a tool, the release workflow per architecture. `plugin-greet` stays the smallest example; [Write a plugin](../howto/write-a-plugin.md) starts from the template.
 
 ### Steps
@@ -364,4 +368,3 @@ Each opens to every external plugin, with its grant when it reaches past the plu
 
 - Answered on 2026-10-20 ([Phase 3](#phase-3-external-plugins)): the install source (a git repository, semver tags, release assets, a lock per pod, not synced) and the views of an external plugin (a sandboxed iframe).
 - A catalog of plugins (like Packagist), signed releases: after phase 3.
-- Phase 4: what a language server needs outside the project under Landlock (the Go module cache, `node_modules` of a global install, the toolchain) and how the pack asks for it; whether the go-import tag of the relay serves the repositories of the organisation besides `antennae.space/ide`.

@@ -6,6 +6,7 @@ import { request } from '../pod/rpc'
 import { lang } from '../i18n'
 import type { TabState } from '../state/project'
 import { frameDoc, serveFrame } from './sandbox'
+import type { PageMessage } from './sandbox-api'
 import type { PluginContributions, PluginModule, PluginState } from './types'
 
 type Bundle = { version: string; js: string; catalogs: Record<string, Record<string, string>> }
@@ -44,7 +45,7 @@ function SandboxFrame(props: { state: PluginState; grants: () => string[]; bundl
 
 /** The hidden frame running the commands of a plugin, made on its first command. */
 function commandRunner(state: PluginState, grants: () => string[], bundle: Bundle) {
-  let ready: Promise<(m: unknown) => void> | undefined
+  let ready: Promise<(m: PageMessage) => void> | undefined
   return (command: string) => {
     ready ??= new Promise((resolve) => {
       const frame = document.createElement('iframe')

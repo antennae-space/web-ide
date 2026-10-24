@@ -157,20 +157,25 @@ func TestPodLink(t *testing.T) {
 	}
 }
 
-// TestGoImport: `go get antennae.space/ide/...` finds the repository, a browser goes to it.
+// TestGoImport: `go get antennae.space/<module>/...` finds the repository, a browser goes to it.
 func TestGoImport(t *testing.T) {
 	st, _ := OpenStore(filepath.Join(t.TempDir(), "relay.db"))
 	t.Cleanup(func() { st.Close() })
 	ts := httptest.NewServer(New(st, nil).Handler())
 	t.Cleanup(ts.Close)
-	for _, p := range []string{"/ide?go-get=1", "/ide/lib/i18n?go-get=1"} {
+	for p, want := range map[string]string{
+		"/ide?go-get=1":           "antennae.space/ide git https://github.com/antennae-space/web-ide",
+		"/ide/lib/i18n?go-get=1":  "antennae.space/ide git https://github.com/antennae-space/web-ide",
+		"/plugin-sdk?go-get=1":    "antennae.space/plugin-sdk git https://github.com/antennae-space/plugin-sdk",
+		"/plugin-sdk/ui?go-get=1": "antennae.space/plugin-sdk git https://github.com/antennae-space/plugin-sdk",
+	} {
 		r, err := http.Get(ts.URL + p)
 		if err != nil {
 			t.Fatal(err)
 		}
 		b, _ := io.ReadAll(r.Body)
 		r.Body.Close()
-		if !strings.Contains(string(b), `<meta name="go-import" content="antennae.space/ide git https://github.com/antennae-space/web-ide">`) {
+		if !strings.Contains(string(b), `<meta name="go-import" content="`+want+`">`) {
 			t.Fatalf("%s: %s", p, b)
 		}
 	}
@@ -182,5 +187,14 @@ func TestGoImport(t *testing.T) {
 	r.Body.Close()
 	if r.StatusCode != http.StatusFound || r.Header.Get("Location") != "https://github.com/antennae-space/web-ide" {
 		t.Fatalf("a browser: %d %q", r.StatusCode, r.Header.Get("Location"))
+	}
+	// A route of the relay that only starts like a module stays the relay's.
+	r, err = c.Get(ts.URL + "/ideas?go-get=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Body.Close()
+	if r.StatusCode == http.StatusFound {
+		t.Fatalf("/ideas went to a repository")
 	}
 }

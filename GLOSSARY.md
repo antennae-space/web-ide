@@ -165,7 +165,7 @@ A plugin installed from its own git repository, at a version of the plugin lock;
 `~/.web-ide/plugins.lock`: the external plugins installed on a pod, each with its version, the hash of its asset and its grants. Per pod, not synced.
 
 **Grant**
-A permission of an external plugin accepted by the user (the project's files, network, a core method…); without it the boundary refuses the call.
+A permission of an external plugin accepted by the user (the project's files, a folder of the host, network, a core method…); without it the boundary refuses the call.
 _Avoid_: permission (what the manifest asks)
 
 **Confined backend**
