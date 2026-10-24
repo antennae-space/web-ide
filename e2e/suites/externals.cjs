@@ -138,6 +138,9 @@ run(async ({ page, errors }) => {
   const sandbox = await page.getAttribute('iframe.plugin-frame[data-view=greet]', 'sandbox')
   assert(sandbox === 'allow-scripts', 'sandboxed, no allow-same-origin: ' + sandbox)
   await frame(page, 'greet').locator('#checks').waitFor()
+  // The room of the zone's detach button over the frame's corner, for its header (#141).
+  const inset = await frame(page, 'greet').locator('html').evaluate((h) => h.style.getPropertyValue('--ide-head-inset'))
+  assert(parseInt(inset) >= 20, 'the frame knows the room of the detach button: ' + inset)
   let checks = JSON.parse(await frame(page, 'greet').locator('#checks').textContent())
   assert(checks.localStorage === 'blocked' && checks.indexedDB === 'blocked', 'no storage of the origin: ' + JSON.stringify(checks))
   assert(checks.fetch === 'blocked', 'no network (CSP): ' + JSON.stringify(checks))

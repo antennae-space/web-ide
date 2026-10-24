@@ -88,6 +88,22 @@ export function themeVars(): SandboxTheme {
   return out
 }
 
+/**
+ * The room the IDE's own buttons take over the top right corner of a frame (the "Open in a
+ * window" of a zone, the corner of a tile), as `--ide-head-inset`: a built-in tool leaves it in
+ * its header, the kit of the plugin SDK does it for a frame.
+ */
+export function headInset(frame: HTMLElement): string {
+  const f = frame.getBoundingClientRect()
+  let inset = 0
+  for (const el of frame.closest('.zone, .pane')?.querySelectorAll<HTMLElement>(':scope > .detach, .tile-corner') ?? []) {
+    const b = el.getBoundingClientRect()
+    if (!b.width || b.bottom <= f.top || b.top >= f.top + 40 || b.left >= f.right || b.right <= f.left) continue
+    inset = Math.max(inset, Math.ceil(f.right - b.left + 4))
+  }
+  return `${inset}px`
+}
+
 const escapeHTML = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 /** The document of a frame: its CSP, the base styles from the theme, the bootstrap, the module. */
@@ -179,6 +195,12 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     }
   }
   const send = (m: PageMessage) => port?.postMessage(m)
+  // The theme, and the room of the buttons over its corner (headInset), last sent.
+  let inset = ''
+  const theme = (): SandboxTheme => {
+    inset = headInset(frame)
+    return { ...themeVars(), '--ide-head-inset': inset }
+  }
   const unsubscribe = () => {
     offs.forEach((f) => f())
     offs = []
@@ -192,11 +214,17 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     frame.contentWindow?.postMessage('ide', '*', [ch.port2])
     // The state of the tab is a proxy of the store: a plain copy crosses the channel.
     const state = host.tab?.state === undefined ? undefined : JSON.parse(JSON.stringify(host.tab.state))
-    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: themeVars() } })
+    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme() } })
   }
   frame.addEventListener('load', start)
   // The theme and the language follow the page.
-  const observer = new MutationObserver(() => send({ theme: themeVars() }))
+  const observer = new MutationObserver(() => send({ theme: theme() }))
+  // The buttons over its corner move with its size (a tile, a zone, a detached window).
+  const resized = new ResizeObserver(() => {
+    const now = headInset(frame)
+    if (now !== inset && port) send({ theme: theme() })
+  })
+  resized.observe(frame)
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
   return {
     send,
@@ -204,6 +232,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     stop: () => {
       frame.removeEventListener('load', start)
       observer.disconnect()
+      resized.disconnect()
       unsubscribe()
       port?.close()
     },
