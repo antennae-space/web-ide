@@ -37,6 +37,9 @@ type Config struct {
 	Dir  string
 	// Log receives its standard error (capped by the writer).
 	Log io.Writer
+	// Files are inherited by the backend from fd 3 on (the channel of the sockets the pod opens
+	// for it: fd 3).
+	Files []*os.File
 	// Init are the params of initialize.
 	Init any
 	// Core answers a call of the backend to the core; Emit takes its events.
@@ -76,6 +79,7 @@ func Start(ctx context.Context, cfg Config) (*Process, error) {
 	cmd := exec.Command(cfg.Argv[0], cfg.Argv[1:]...)
 	cmd.Env, cmd.Dir = cfg.Env, cfg.Dir
 	cmd.Stderr = cfg.Log
+	cmd.ExtraFiles = cfg.Files
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

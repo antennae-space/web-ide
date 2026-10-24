@@ -53,24 +53,29 @@ export const toolPanels: Record<string, { label: string; icon: string; component
 registerTileTools(toolPanels)
 
 // The tools of the enabled plugins join the zones, the tiles and the keymap; a plugin disabled
-// leaves them, its place in the zones kept.
+// leaves them, its place in the zones kept. Only what changed is replaced: a panel shown stays
+// mounted when the states of the plugins change for something else (its frame keeps its calls).
+let placedTools: ReturnType<typeof pluginTools> = []
 createRoot(() =>
   createEffect(() => {
     const list = pluginTools()
     untrack(() => {
+      const ids = new Set(list.map((p) => p.id))
+      for (const p of placedTools)
+        if (!ids.has(p.id)) {
+          delete toolPanels[p.id]
+          delete tileTools[p.id]
+        }
       for (const p of list) {
+        const cur = toolPanels[p.id]
+        if (cur && cur.component === p.component && cur.label === p.label && cur.icon === p.icon && cur.badge === p.badge) continue
         toolPanels[p.id] = { label: p.label, icon: p.icon, component: p.component, badge: p.badge }
         tileTools[p.id] = { label: p.label, icon: p.icon, component: p.component }
       }
     })
+    placedTools = list
     const offs = list.map((p) => registerAction(`tool.${p.id}`, () => toggleToolFocus(p.id)))
-    onCleanup(() => {
-      offs.forEach((off) => off())
-      for (const p of list) {
-        delete toolPanels[p.id]
-        delete tileTools[p.id]
-      }
-    })
+    onCleanup(() => offs.forEach((off) => off()))
   }),
 )
 

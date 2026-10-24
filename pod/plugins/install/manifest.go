@@ -10,8 +10,10 @@ import (
 
 // Grants are the permissions an external plugin may ask, each accepted by the user
 // (docs/design/plugins.md, *Grants*): the project's files read or read-write, the network,
-// running programs, and core:<method> for a method of the core it calls (core:fs.read).
-var Grants = []string{"files:read", "files:write", "net", "exec"}
+// running programs, connections the pod opens for it (dial, through SSH: ssh; each destination
+// approved by the user), its entries of the vault (vault), and core:<method> for a method of
+// the core it calls (core:fs.read).
+var Grants = []string{"files:read", "files:write", "net", "exec", "dial", "ssh", "vault"}
 
 var backendRe = regexp.MustCompile(`^bin/[A-Za-z0-9._-]+$`)
 

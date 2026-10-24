@@ -348,13 +348,22 @@ Each opens to every external plugin, with its grant when it reaches past the plu
 | Brick | For | Notes |
 |---|---|---|
 | The core editor in a plugin tab | the SQL consoles | a virtual buffer, not a file, shown by Code in a tab of the plugin; the sandbox API reads and edits it |
-| Vault entries | the passwords of the connections | entry by entry, under the plugin's name; the plugin never lists the vault |
-| A finer network grant | a connection, the adb server | `net:<host>:<port>` besides `net` (Landlock network rules filter the port; the host is checked by the pod) |
-| SSH forwards by the core | a connection through SSH | the pod's SSH pool opens the forward and gives the backend a local port: the agent and the keys stay the pod's |
+| Vault entries (#143, done) | the passwords of the connections | grant `vault`: core calls `vault.get` / `vault.set` / `vault.delete {key}`, entries `plugin:<id>/<key>` of `secrets.json`, synced with the vault; a plugin reaches its own entries only, one by one, never a listing |
+| Connections opened by the pod (#143, done) | a connection, the adb server | grant `dial`: the core call `dial {host, port}` makes the pod connect and hand the socket to the backend (below). A grant `net:<host>:<port>` was dropped: Landlock filters ports only and the pod does not see the backend's `connect` |
+| SSH tunnels by the core (#143, done) | a connection through SSH | grant `ssh`: `dial` with `ssh {host, port, user, auth, keyPath?, password?}`, the pod's SSH pool opens the channel (its agent and the keys of `~/.ssh` stay the pod's), bridged to a socketpair handed to the backend |
 | A socket or a device passed by the pod | the Docker socket, USB for adb | the pod opens it and passes the descriptor (seccomp refuses `AF_UNIX` to the backend); the grant says it is **root-equivalent** when it is |
 | A core terminal fed by a plugin | `docker exec`, `adb shell` | the terminal stays the core's (no external plugin provides `terminal`); the plugin gives the stream |
 | Settings of an external plugin | every plugin | the settings contribution point opened to the sandbox API |
 | Pack contributions | the language packs | grammars, servers, test patterns, templates, read by the host from the manifest |
+
+### Connections opened by the pod
+
+Done in #143. A backend cannot open the network itself without the broad grant `net`; with `dial`, the pod opens each connection for it:
+
+- **The socket**: a backend inherits fd 3, one end of a `socketpair(AF_UNIX, SOCK_SEQPACKET)` (the other end is the pod's). The core call `dial` answers `{fd: n}`; the socket comes on fd 3 in a message whose text is `n`, with SCM_RIGHTS. seccomp only refuses `socket()` of AF_UNIX: receiving on an inherited one is allowed. A TCP connection is handed as it is; an SSH channel, which is no socket of the system, is bridged to a socketpair.
+- **Destinations, decided on 2026-10-24**: the first connection of a plugin to a destination (`host:port`, `host:port via user@host:port` through SSH) asks the user in the Questions tool (a question of the pod, `pod:<n>`: *Allow*, *Allow once*, *Deny*; unanswered in two minutes: denied). *Allow* is kept in the lock (`Locked.Destinations`, kept across versions), listed in *Settings → Plugins* where each one can be taken out (`plugins.destinations`), and asked again then.
+- **SSH keys**: a key path must be in `~/.ssh`; the pod reads it, the plugin never does.
+- The same channel will carry the Docker socket and USB devices (#147).
 
 ### SDK and template
 
@@ -367,7 +376,7 @@ Each opens to every external plugin, with its grant when it reaches past the plu
 
 1. The SDK and its UI kit (`plugin-sdk`), then the template (`plugin-template`).
 2. Official plugins: installed by default, their archives in the release.
-3. The bricks of the database (the core editor in a plugin tab, vault entries, the finer network grant, SSH forwards by the core, the settings of an external plugin), then `plugin-database` and `plugins/database` removed.
+3. The bricks of the database: the backend side (connections opened by the pod, SSH tunnels, vault entries: #143), the view side (the core editor in a plugin tab, the settings of an external plugin, actions with an AI policy: #151); then `plugin-database` and `plugins/database` removed (#144).
 4. The pack contributions of the language host, then `lang-go`, the servers and grammar of Go removed from the core.
 5. The bricks of Docker (the socket passed by the pod, a core terminal fed by a plugin), then `plugin-docker` and `plugins/docker` removed.
 6. The other packs: `lang-php`, `lang-python`, `lang-typescript`.

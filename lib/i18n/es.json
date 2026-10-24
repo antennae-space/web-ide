@@ -235,5 +235,9 @@
   "the plugin %s has no backend": "el plugin %s no tiene backend",
   "this kernel has no Landlock: an external plugin's backend cannot run confined": "este núcleo no tiene Landlock: el backend de un plugin externo no puede ejecutarse confinado",
   "this pod is not paired": "este pod no está emparejado",
-  "the archive has no plugin.json": "el archivo no tiene plugin.json"
+  "the archive has no plugin.json": "el archivo no tiene plugin.json",
+  "invalid destination %s:%d": "destino no válido %s:%d",
+  "an SSH key must be in %s": "una clave SSH debe estar en %s",
+  "the connection of %s to %s was not allowed": "la conexión de %s a %s no fue permitida",
+  "invalid vault key: %q": "clave de bóveda no válida: %q"
 }

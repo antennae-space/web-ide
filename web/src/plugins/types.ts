@@ -48,7 +48,7 @@ export interface PluginState {
   missing?: string[]
   /** An external plugin (not runnable yet): disabled is false when the project uses it. */
   /** official: installed by the pod for every project, on unless disabled on it. */
-  external?: { url: string; version: string; grants: string[]; installed: boolean; official?: boolean }
+  external?: { url: string; version: string; grants: string[]; installed: boolean; official?: boolean; destinations?: string[] }
 }
 
 /** What the module of a plugin gives for the contributions of its manifest, by id. */

@@ -118,6 +118,8 @@ type Server struct {
 	uiWait map[string]chan plugins.UIResult
 	// asks: the questions of the MCP tool ask_user, and the conversations asking (Questions tool).
 	asks askRegistry
+	// podAsks are the questions the pod itself asks (a plugin's new destination): plugins_dial.go.
+	podAsks podAskRegistry
 	// plugins: the assistant tools of the plugins and their enabling per project.
 	plugins pluginSet
 }

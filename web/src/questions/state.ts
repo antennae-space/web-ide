@@ -16,7 +16,8 @@ export interface PermissionOption {
 
 export interface Question {
   id: string
-  source: 'acp' | 'assistant' | 'mcp'
+  /** plugin: the pod asks about a plugin (a new destination of a connection): text is the destination. */
+  source: 'acp' | 'assistant' | 'mcp' | 'plugin'
   project: string
   session?: string
   index: number

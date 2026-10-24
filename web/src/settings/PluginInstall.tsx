@@ -21,6 +21,9 @@ function grantText(g: string): string {
       'files:write': t('Change the files of the project'),
       net: t('Reach the network'),
       exec: t('Run programs'),
+      dial: t('Connect where you allow it, through the IDE'),
+      ssh: t('Open SSH tunnels with your keys'),
+      vault: t('Keep its secrets in the vault'),
     }[g] ?? g
   )
 }
@@ -222,6 +225,23 @@ export function ExternalRow(props: { s: PluginState }) {
             </label>
           )}
         </For>
+        {/* The destinations the user allowed: one taken out is asked again at its next connection. */}
+        <Show when={ext().destinations?.length}>
+          <div class="plugin-destinations small" data-testid={`plugin-destinations-${props.s.manifest.id}`}>
+            <span class="muted">{t('Allowed connections:')}</span>
+            <For each={ext().destinations}>
+              {(d) => (
+                <span class="badge">
+                  {d}
+                  <button class="icon-btn tiny" title={t('Ask again')}
+                    onClick={() => void request('plugins.destinations', { id: props.s.manifest.id, destinations: ext().destinations!.filter((x) => x !== d) }).catch(errorToast)}>
+                    ✕
+                  </button>
+                </span>
+              )}
+            </For>
+          </div>
+        </Show>
         <div class="row">
           <button disabled={!!busy()} onClick={() => work('update', update)} data-testid={`plugin-update-${props.s.manifest.id}`}>
             <Working busy={busy() === 'update'} label={t('Update')} text={t('Updating…')} />

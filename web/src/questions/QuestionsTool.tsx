@@ -18,12 +18,18 @@ import './questions.css'
 function summary(q: Question): string {
   switch (q.kind) {
     case 'permission':
+      if (q.source === 'plugin') return t('{name} wants to connect to {destination}.', { name: q.name, destination: q.text ?? '' })
       return t('Allow: {title}?', { title: q.text || t('Tool') })
     case 'form':
       return q.text ?? ''
     default:
       return (q.questions?.length ?? 0) > 1 ? `${q.questions![0].question} (${tn(q.questions!.length, '{n} question', '{n} questions')})` : (q.questions?.[0]?.question ?? '')
   }
+}
+
+/** The options of a question of the pod, in the user's language. */
+function podOption(id: string): string {
+  return ({ allow_always: t('Allow'), allow_once: t('Allow once'), reject_once: t('Deny') } as Record<string, string>)[id] ?? id
 }
 
 function ago(ms: number): string {
@@ -139,7 +145,7 @@ function QuestionDialog(props: { q: Question }) {
                     onClick={() => void run(() => answerPermission(q(), o.optionId))}
                     data-testid={`question-option-${o.optionId}`}
                   >
-                    {o.name}
+                    {q().source === 'plugin' ? podOption(o.optionId) : o.name}
                   </button>
                 )}
               </For>

@@ -27,6 +27,24 @@ type Locked struct {
 	Grants     []string `json:"grants"`
 	// Official: installed by the pod, one of the official plugins (pod/plugins/official).
 	Official bool `json:"official,omitempty"`
+	// Destinations are those the user allowed the pod to connect it to (host:port, or
+	// host:port via user@host:port of an SSH tunnel), asked at its first connection to each.
+	Destinations []string `json:"destinations,omitempty"`
+}
+
+// SetDestinations replaces the destinations allowed to an installed plugin.
+func SetDestinations(st *store.Store, id string, dests []string) (Locked, error) {
+	l, err := ReadLock(st)
+	if err != nil {
+		return Locked{}, err
+	}
+	e, ok := l.Plugins[id]
+	if !ok {
+		return Locked{}, errNotInstalled(id)
+	}
+	e.Destinations = dests
+	l.Plugins[id] = e
+	return e, WriteLock(st, l)
 }
 
 // ReadLock reads the lock of the pod (empty when there is none).
