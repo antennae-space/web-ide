@@ -74,9 +74,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/_relay/push/subscribe", s.servePushSubscribe)
 	mux.HandleFunc("/_relay/push/unsubscribe", s.servePushUnsubscribe)
 	mux.HandleFunc("/sw.js", staticJS(s.serviceWorker()))
-	// The import path of the Go module (goimport.go).
-	mux.HandleFunc("/ide", serveGoImport)
-	mux.HandleFunc("/ide/", serveGoImport)
+	// The import paths of the Go modules (goimport.go).
+	for name := range goModules {
+		mux.HandleFunc("/"+name, serveGoImport)
+		mux.HandleFunc("/"+name+"/", serveGoImport)
+	}
 	// The GitHub link of an account (milestone 5): the relay's own login page, the callback
 	// GitHub sends the browser back to, and the sponsorship webhook. Served only when the relay
 	// was given a GitHub app.

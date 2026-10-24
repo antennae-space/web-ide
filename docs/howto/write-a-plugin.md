@@ -2,19 +2,20 @@
 
 Write an external plugin in its own repository: views that run in the IDE, a backend if it needs one, published as tagged releases that the IDE installs, checks and confines.
 
-An external plugin is untrusted by design ([plugins.md](../design/plugins.md#phase-3-external-plugins)): its views run in a sandboxed frame without network, its backend under Landlock and seccomp, and both reach the IDE only through what the user granted. Start from the example, [plugin-greet](https://github.com/antennae-space/plugin-greet): fork it, rename it, change it.
+An external plugin is untrusted by design ([plugins.md](../design/plugins.md#phase-3-external-plugins)): its views run in a sandboxed frame without network, its backend under Landlock and seccomp, and both reach the IDE only through what the user granted. Build it with the [plugin SDK](https://github.com/antennae-space/plugin-sdk): the types of the sandbox API, a UI kit in Solid with the look and the theme of the IDE, a Vite preset that builds the page module, and a Go module for the backend. Start from the example, [plugin-greet](https://github.com/antennae-space/plugin-greet), built on it: fork it, rename it, change it.
 
 ## The repository
 
 ```
 plugin.json                    the manifest
-web/index.js                   the page module: one ES module, already built
+web/src/index.tsx              the sources of the page module (with the SDK)
+web/index.js                   the page module: one ES module, built (by the SDK's preset)
 i18n/fr.json, i18n/es.json     its texts in the other languages (English is the key)
 backend/…                      the sources of its backend (optional)
 .github/workflows/release.yml  a tag v* publishes the release with its archives
 ```
 
-A release carries one archive per architecture, `<id>-linux-amd64.tar.gz` and `<id>-linux-arm64.tar.gz`, holding at their root `plugin.json`, the `index.js` of `web/`, `i18n/` and the backend's executable (`bin/<name>`). No toolchain runs on the pod: build everything in the workflow.
+A release carries one archive per architecture, `<id>-linux-amd64.tar.gz` and `<id>-linux-arm64.tar.gz`, holding at their root `plugin.json`, the `index.js` of `web/`, `i18n/` and the backend's executable (`bin/<name>`). No toolchain runs on the pod: build everything in the workflow. The SDK's `plugin.schema.json` is the JSON Schema of the manifest, for an editor to check it.
 
 ## The manifest
 
@@ -62,7 +63,21 @@ ide.register({
 })
 ```
 
-Each tool and tab view is a frame of its own, running the module and the view of its id; the commands run in a hidden frame. The sandbox API, `ide`:
+With the SDK, a view is a Solid component and the kit draws it as the IDE's own tools (`@antennae-space/plugin-sdk/solid` and `/ui`, its README lists them); the preset builds the sources of `web/src/` into the `index.js` of `web/`, the CSS and the assets inside:
+
+```tsx
+import { useIde, view } from '@antennae-space/plugin-sdk/solid'
+import { Button, View } from '@antennae-space/plugin-sdk/ui'
+
+function Greet() {
+  const ide = useIde()
+  return <View><Button onClick={() => ide.toast(ide.t('Hello!'))}>{ide.t('Say hello')}</Button></View>
+}
+
+ide.register({ views: { greet: view(Greet) } })
+```
+
+Each tool and tab view is a frame of its own, running the module and the view of its id; the commands run in a hidden frame. The sandbox API, `ide` (its types: `web/src/plugins/sandbox-api.ts` of the IDE, copied in the SDK):
 
 | | |
 |---|---|
@@ -72,11 +87,13 @@ Each tool and tab view is a frame of its own, running the module and the view of
 | `ide.openFile(path, line)`, `ide.openView(view, state, title)`, `ide.setViewState(state)` | open a file, a tab of one of its views, save the state of its tab |
 | `ide.t(text, params)`, `ide.tn(n, one, other, params)`, `ide.lang` | its texts, from its `i18n/<lang>.json` |
 | `ide.toast(text, kind)` | a message of the IDE (`info`, `warn`, `error`, `ok`) |
-| `ide.theme`, `ide.onTheme(f)` | the colors of the IDE, also set as CSS variables (`var(--bg)`, `var(--fg)`…) |
+| `ide.theme`, `ide.onTheme(f)` | the colors and fonts of the IDE, also set as CSS variables (`var(--bg)`, `var(--fg)`…, the list is `themeTokens` of the SDK) and its `color-scheme` |
 
 The keys pressed in the frame with a modifier, Escape and F1-F12 reach the IDE's shortcuts.
 
 ## The backend
+
+In Go, the SDK's `antennae.space/plugin-sdk/backend` speaks all of what follows: `backend.Serve` with its methods and tools, `backend.Core` and `backend.Emit` (its README shows one). In another language, implement it.
 
 The IDE starts it on the first call of a project, through `web-ide-pod plugin-exec`, and stops it a while after the last window of the project leaves. It speaks JSON-RPC 2.0 over its stdin and stdout, one message per line (8 MB at most); its stderr goes to `~/.web-ide/plugin-data/<id>/backend.log`.
 

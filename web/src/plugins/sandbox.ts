@@ -6,6 +6,7 @@ import { on, request } from '../pod/rpc'
 import { openFile, openTab, mutate, type TabState } from '../state/project'
 import { toast } from '../ui/toast'
 import { lang, t } from '../i18n'
+import type { FrameCall, PageMessage, SandboxTheme } from './sandbox-api'
 
 /** The CSP of a frame: inline scripts and styles, images as data, no network at all. */
 export const frameCSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'"
@@ -76,13 +77,13 @@ export const bootstrap = `(() => {
   window.addEventListener('focus', () => send({ call: 'focus' }))
 })()`
 
-/** The theme of the IDE as CSS variables: those the page set on its root. */
-export function themeVars(): Record<string, string> {
-  const out: Record<string, string> = {}
+/** The theme of the IDE as CSS variables: those the page set on its root, and its `color-scheme`. */
+export function themeVars(): SandboxTheme {
+  const out: SandboxTheme = {}
   const s = document.documentElement.style
   for (let i = 0; i < s.length; i++) {
     const k = s[i]
-    if (k.startsWith('--')) out[k] = s.getPropertyValue(k)
+    if (k.startsWith('--') || k === 'color-scheme') out[k] = s.getPropertyValue(k)
   }
   return out
 }
@@ -121,8 +122,9 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   let offs: (() => void)[] = []
   const catalog = () => host.catalogs[lang()] ?? {}
   const handle = (port: MessagePort) => (e: MessageEvent) => {
-    const reply = (id: number, r: { result?: unknown; error?: string }) => port.postMessage({ reply: id, ...r })
-    const m = e.data ?? {}
+    const reply = (id: number, r: { result?: unknown; error?: string }) => port.postMessage({ reply: id, ...r } satisfies PageMessage)
+    // Typed as the API says, checked as untrusted: the frame may send anything.
+    const m = (e.data ?? {}) as FrameCall
     switch (m.call) {
       case 'rpc': {
         const method = String(m.method ?? '')
@@ -139,7 +141,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       }
       case 'on': {
         const event = String(m.event ?? '')
-        if (event.startsWith(host.plugin + '.')) offs.push(on(event, (data: unknown) => port.postMessage({ event, data })))
+        if (event.startsWith(host.plugin + '.')) offs.push(on(event, (data: unknown) => port.postMessage({ event, data } satisfies PageMessage)))
         return
       }
       case 'openFile':
@@ -158,7 +160,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         return
       }
       case 'toast':
-        toast(String(m.text ?? '').slice(0, 500), ['info', 'warn', 'error', 'ok'].includes(m.kind) ? m.kind : 'info')
+        toast(String(m.text ?? '').slice(0, 500), m.kind && ['info', 'warn', 'error', 'ok'].includes(m.kind) ? m.kind : 'info')
         return
       case 'key':
         // Only while the user is in the frame: a plugin cannot press the IDE's keys on its own.
@@ -171,9 +173,12 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       case 'ready':
         host.onReady?.()
         return
+      default:
+        // Every call of the API is answered above: tsc says when one is not.
+        m satisfies never
     }
   }
-  const send = (m: unknown) => port?.postMessage(m)
+  const send = (m: PageMessage) => port?.postMessage(m)
   const unsubscribe = () => {
     offs.forEach((f) => f())
     offs = []
