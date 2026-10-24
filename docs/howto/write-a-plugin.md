@@ -2,7 +2,7 @@
 
 Write an external plugin in its own repository: views that run in the IDE, a backend if it needs one, published as tagged releases that the IDE installs, checks and confines.
 
-An external plugin is untrusted by design ([plugins.md](../design/plugins.md#phase-3-external-plugins)): its views run in a sandboxed frame without network, its backend under Landlock and seccomp, and both reach the IDE only through what the user granted. Build it with the [plugin SDK](https://github.com/antennae-space/plugin-sdk): the types of the sandbox API, a UI kit in Solid with the look and the theme of the IDE, a Vite preset that builds the page module, and a Go module for the backend. Start from the example, [plugin-greet](https://github.com/antennae-space/plugin-greet), built on it: fork it, rename it, change it.
+An external plugin is untrusted by design ([plugins.md](../design/plugins.md#phase-3-external-plugins)): its views run in a sandboxed frame without network, its backend under Landlock and seccomp, and both reach the IDE only through what the user granted. Build it with the [plugin SDK](https://github.com/antennae-space/plugin-sdk): the types of the sandbox API, a UI kit in Solid with the look and the theme of the IDE, a Vite preset that builds the page module, and a Go module for the backend. Start from [plugin-template](https://github.com/antennae-space/plugin-template): *Use this template* on GitHub, then `./scripts/rename.sh <id> "<Name>" <owner>/<repo>` gives it your id, name and repository; it has a tool, a tab view, a command, an assistant tool and a tested backend, each small. [plugin-greet](https://github.com/antennae-space/plugin-greet) is the smallest example.
 
 ## The repository
 
@@ -87,7 +87,7 @@ Each tool and tab view is a frame of its own, running the module and the view of
 | `ide.openFile(path, line)`, `ide.openView(view, state, title)`, `ide.setViewState(state)` | open a file, a tab of one of its views, save the state of its tab |
 | `ide.t(text, params)`, `ide.tn(n, one, other, params)`, `ide.lang` | its texts, from its `i18n/<lang>.json` |
 | `ide.toast(text, kind)` | a message of the IDE (`info`, `warn`, `error`, `ok`) |
-| `ide.theme`, `ide.onTheme(f)` | the colors and fonts of the IDE, also set as CSS variables (`var(--bg)`, `var(--fg)`…, the list is `themeTokens` of the SDK) and its `color-scheme` |
+| `ide.theme`, `ide.onTheme(f)` | the colors and fonts of the IDE, also set as CSS variables (`var(--bg)`, `var(--fg)`…, the list is `themeTokens` of the SDK), its `color-scheme`, and `--ide-head-inset`: the room the IDE's buttons take over the frame's top right corner, to leave in the first row of a view (the kit's toolbar does) |
 
 The keys pressed in the frame with a modifier, Escape and F1-F12 reach the IDE's shortcuts.
 
