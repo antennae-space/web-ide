@@ -304,7 +304,7 @@ Decided on 2026-10-24 (milestone *Plugins, phase 4*). Phase 3 proved that an ext
 
 | Today | Phase 4 | Why |
 |---|---|---|
-| Database (`plugins/database`) | `plugin-database`, external | a tool with a UI, a backend, secrets and AI tools: the full API |
+| Database (`plugins/database`, removed in #144) | [plugin-database](https://github.com/antennae-space/plugin-database), external and official (#144, done) | a tool with a UI, a backend, secrets and AI tools: the full API |
 | Docker (`plugins/docker`) | `plugin-docker`, external | a backend reaching a socket of the system, a terminal fed by a plugin |
 | Languages (`plugins/languages`) | stays built-in: the **language host** | the LSP client, Problems, Structure, the Symbols provider |
 | The servers of `Defaults` (`plugins/languages/internal/lsp/lsp.go`), the grammars (`web/src/editor/grammars`) | **language packs**, external, one per language: `lang-go`, `lang-php`, `lang-python`, `lang-typescript` | data and a server to run, no UI |
@@ -364,6 +364,15 @@ Done in #151:
 - **Actions**: `contributes.actions [{id, label, description, properties, required, access: read|write, target?}]`. One declaration gives the method `<id>.<action>` of its backend (its views call it: the user acts, no policy), the assistant and MCP tool `<id>_<action>` (dashes as underscores), and a palette command when it needs no argument.
 - **The AI policy**: an action that reads always runs for the AI. One that writes follows the user's choice for its target (the value of its `target` argument; `*` without one), in Settings → Plugins → *AI access*: **read only** (the default: the tool answers why and where to change it), **ask me** (a question of the pod, `aiWrite`: *Allow once* / *Deny*), **allowed**. Kept in the synced settings (`pluginAI.<id>.<target>`); the targets listed are those its backend declares (core `ai.targets {targets: [{id, label}]}`, kept in `ai-targets.json` of the pod). The plugin cannot set the policy: no API does.
 - An external plugin updated is built again in the page from its new manifest and bundle (its new views, settings and actions).
+
+### Database, moved (#144)
+
+Done in #144: the Database explorer is [plugin-database](https://github.com/antennae-space/plugin-database) (id `database`, views `sql`, `redis` with the IDE's editor, `table`, its tool `database`), official, built on the SDK; `plugins/database` is gone, and with it pgx, go-redis and SQLite from the pod.
+
+- **Its data**: its connections per main project and its SQL history in its data folder, its remembered secrets in its vault. The pod moves those of the built-in once (`server/plugins_migrate.go`): the secrets `<project>/<conn>` of `secrets.json` to `plugin:database/…` and `sql-history/` at its first start (`migrations.json`), `.ide/connections.json` of a project when the plugin's backend first starts on it (an SSH project's is on its host). An old console tab keeps its text (`state.text`, taken by the plugin).
+- **Its connections**: SQLite files of the project opened by its backend (`files:write`), Postgres and Redis through `dial` (each destination allowed once by the user), SSH tunnels by the pod (`ssh`). **SQLite files of a project over SSH are not reached** (a confined backend cannot run `sqlite3` on the host): #152.
+- **For the AI**: the actions `database_connections`, `database_schema`, `database_query` (read-only, enforced by the database: a read-only transaction for Postgres, `query_only` for SQLite, the read commands of Redis) and `database_execute` (writes: the user's AI access per connection, read only by default).
+- **What the move added to the API**: `project.main` at `initialize` (the plugin keys its data by the main project of a worktree); coded errors through the sandbox (a backend's JSON-RPC error with `data.code` becomes a coded error of the page, and `err.code` / `err.data` in the frame; the core's `auth_required` reaches the backend coded too); `openView(view, state, title, key)` (several tabs of one view); `ide.copyText` (while the user is in the frame); what the frame sends before its channel waits for it, and is copied as plain JSON (a store of Solid is a Proxy).
 
 ### Connections opened by the pod
 

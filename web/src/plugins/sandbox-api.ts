@@ -50,16 +50,25 @@ export interface SandboxAPI {
   readonly view: SandboxView | null
   readonly lang: string | null
   readonly theme: SandboxTheme | null
-  /** A method of its own (`<id>.*`, to its backend) or of the core with the grant `core:<method>`. */
+  /**
+   * A method of its own (`<id>.*`, to its backend) or of the core with the grant `core:<method>`.
+   * A coded error of the backend (a password to ask) rejects with an Error carrying `code` and `data`.
+   */
   rpc<T = unknown>(method: string, params?: unknown): Promise<T>
   /** An event of its own namespace (`<id>.*`), emitted by its backend. */
   on(event: string, f: (data: unknown) => void): void
   /** A path relative to the project, a line from 1. */
   openFile(path: string, line?: number): void
-  openView(view: string, state?: unknown, title?: string): void
+  /**
+   * Opens a tab of one of its views. key tells its tabs apart: one with the same key is shown
+   * again (a table), a new key opens another (a console); without one, the view has one tab.
+   */
+  openView(view: string, state?: unknown, title?: string, key?: string): void
   /** The state of this frame's tab, kept with it (a tab view only). */
   setViewState(state: unknown): void
   toast(text: string, kind?: ToastKind): void
+  /** Copies a text to the clipboard (the frame has no access to it), with the IDE's clipboard history. */
+  copyText(text: string): void
   /** A text of its catalog, `{name}` filled from `params`. */
   t(text: string, params?: Record<string, unknown>): string
   tn(n: number, one: string, other: string, params?: Record<string, unknown>): string
@@ -76,9 +85,10 @@ export type FrameCall =
   | { call: 'rpc'; id: number; method: string; params?: unknown }
   | { call: 'on'; event: string }
   | { call: 'openFile'; path: string; line?: number }
-  | { call: 'openView'; view: string; state?: unknown; title?: string }
+  | { call: 'openView'; view: string; state?: unknown; title?: string; key?: string }
   | { call: 'setViewState'; state: unknown }
   | { call: 'toast'; text: string; kind?: ToastKind }
+  | { call: 'copyText'; text: string }
   | { call: 'key'; key: string; code: string; ctrl: boolean; shift: boolean; alt: boolean; meta: boolean }
   | { call: 'focus' }
   | { call: 'ready' }
@@ -91,7 +101,7 @@ export type FrameCall =
 /** What the page sends the frame. */
 export type PageMessage =
   | { init: { view: SandboxView; lang: string; catalog: Record<string, string>; theme: SandboxTheme; editor?: SandboxEditorState; settings?: Record<string, unknown> } }
-  | { reply: number; result?: unknown; error?: string }
+  | { reply: number; result?: unknown; error?: string; code?: string; data?: Record<string, string> }
   | { theme: SandboxTheme }
   | { lang: string; catalog: Record<string, string> }
   | { event: string; data: unknown }

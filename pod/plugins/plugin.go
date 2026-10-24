@@ -249,7 +249,10 @@ type CodedError struct {
 }
 
 func (e *CodedError) Error() string { return e.Err.Error() }
-func (e *CodedError) Unwrap() error { return e.Err }
+
+// ErrorCode is its code and data (a backend gets them, plugins/backend.Coded).
+func (e *CodedError) ErrorCode() (string, map[string]string) { return e.Code, e.Data }
+func (e *CodedError) Unwrap() error                          { return e.Err }
 
 // Result of an assistant tool: the text read by the model, the summary shown to the user.
 // An error status tells the model the call failed.

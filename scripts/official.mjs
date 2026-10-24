@@ -26,7 +26,7 @@ for (const e of list) {
   if (!want) throw new Error(`${e.id} ${e.version}: no sha256 for ${arch} in official.json`)
   const tmp = mkdtempSync(join(tmpdir(), 'official-'))
   try {
-    execFileSync('git', ['clone', '-q', '--depth', '1', '--branch', 'v' + e.version, e.url, tmp], { stdio: 'inherit' })
+    execFileSync('git', ['-c', 'advice.detachedHead=false', 'clone', '-q', '--depth', '1', '--branch', 'v' + e.version, e.url, tmp], { stdio: 'inherit' })
     const m = JSON.parse(readFileSync(join(tmp, 'plugin.json'), 'utf8'))
     if (m.id !== e.id || m.version !== e.version) throw new Error(`${e.url} v${e.version} holds ${m.id} ${m.version}`)
     const url = m.assets.replaceAll('{version}', e.version).replaceAll('{arch}', arch)

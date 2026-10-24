@@ -140,54 +140,6 @@ run(async ({ page }) => {
   r = await mcp('docker_ps', {})
   assert(!text(r).includes('disabled'), 'docker_ps back: ' + text(r))
 
-  // Database explorer: a console on a SQLite base, its text kept in its tab.
-  await page.click('.rail-btn[data-id=database]')
-  await page.waitForSelector('.db-tool')
-  await page.click('.db-tool .empty-state button:has-text("Add a connection")')
-  await page.click('.conn-new button:has-text("SQLite")')
-  await page.fill('.conn-form input[placeholder="var/data.db"]', 'plugins.db')
-  await page.click('.conn-form button:has-text("Save")')
-  await page.waitForTimeout(400)
-  await page.click('.modal-head .icon-btn')
-  await page.click('.conn-row')
-  await page.click('.db-tool button[title^="Open a console"]')
-  await page.waitForSelector('.sql-console .ed-content')
-  await page.click('.sql-console .ed-content')
-  await page.keyboard.type('SELECT 42 AS answer;')
-  await page.keyboard.press('Control+Enter')
-  await page.waitForFunction(() => document.querySelector('.sql-result .grid')?.textContent.includes('42'))
-  await page.waitForTimeout(800) // the text is saved after 500 ms
-  const consoleText = () => page.textContent('.sql-console .ed-content')
-
-  // Disabled: no icon, the console tab says its plugin is off; enabled again, the text is back.
-  await setPlugin('database', false)
-  await page.waitForSelector('.rail-btn[data-id=database]', { state: 'detached' })
-  await page.waitForSelector('.pane:has-text("The plugin of this tab is disabled")')
-  await setPlugin('database', true)
-  await page.waitForSelector('.sql-console .ed-content')
-  assert((await consoleText()).includes('SELECT 42 AS answer;'), 'the console keeps its text: ' + (await consoleText()))
-
-  // A desk saved before #115 (a sql tab, its text in sqlText) opens as a console of the plugin.
-  const dir = path.join(process.env.E2E_DATA, 'desks')
-  const file = fs.readdirSync(dir).map((f) => path.join(dir, f)).find((f) => fs.readFileSync(f, 'utf8').includes('plugin:database/sql'))
-  const pid = fs.readFileSync(path.join(process.env.E2E_TMP, 'pod.pid'), 'utf8').trim()
-  execSync(`kill -TERM ${pid}; while kill -0 ${pid} 2>/dev/null; do sleep 0.1; done`)
-  const desk = JSON.parse(fs.readFileSync(file, 'utf8'))
-  const sess = desk.session ?? desk
-  sess.sqlText = {}
-  for (const t of Object.values(sess.tabs)) {
-    if (t.kind !== 'plugin:database/sql') continue
-    Object.assign(t, { kind: 'sql', connId: t.state.connId, db: t.state.db })
-    sess.sqlText[t.id] = 'SELECT 7; -- before #115'
-    delete t.state
-    delete t.key
-  }
-  fs.writeFileSync(file, JSON.stringify(desk))
-  execSync(`bash ${path.join(process.env.E2E_TMP, 'launch-pod.sh')}`)
-  await page.reload()
-  await page.waitForSelector('.sql-console .ed-content', { timeout: 15000 })
-  assert((await consoleText()).includes('SELECT 7; -- before #115'), 'a console of an old desk keeps its text: ' + (await consoleText()))
-
   // Exec is locked (#137): a terminal opens, the Console tool stays with its dependents, and the
   // console tools of the MCP answer.
   page.on('dialog', (d) => d.accept())
@@ -376,6 +328,7 @@ run(async ({ page }) => {
 
   // A desk saved before #122 (a tab of kind ticket) opens the ticket view of the plugin.
   await page.waitForTimeout(800)
+  const dir = path.join(process.env.E2E_DATA, 'desks')
   const deskFile = fs.readdirSync(dir).map((f) => path.join(dir, f)).find((f) => fs.readFileSync(f, 'utf8').includes('plugin:kanban/ticket'))
   const podPid = fs.readFileSync(path.join(process.env.E2E_TMP, 'pod.pid'), 'utf8').trim()
   execSync(`kill -TERM ${podPid}; while kill -0 ${podPid} 2>/dev/null; do sleep 0.1; done`)

@@ -37,6 +37,7 @@ func (s *Server) registerPluginInstall() {
 	s.plugins.official = s.officialSource()
 	s.plugins.installer.Official = s.officialURL
 	s.loadExternals()
+	s.migrateDatabase()
 	go s.ensureOfficial()
 
 	type resolveArgs struct {

@@ -50,6 +50,11 @@ type AuthRequired struct {
 
 func (a *AuthRequired) Error() string { return a.Msg.Error() }
 
+// ErrorCode tells the backend of a plugin to ask the secret (plugins/backend.Coded).
+func (a *AuthRequired) ErrorCode() (string, map[string]string) {
+	return "auth_required", map[string]string{"kind": a.Kind, "prompt": a.Msg.Error()}
+}
+
 func home() string {
 	h, _ := os.UserHomeDir()
 	return h
