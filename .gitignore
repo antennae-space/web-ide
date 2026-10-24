@@ -13,3 +13,6 @@
 *.tmp
 *.db
 *.test
+
+# The archives of the official plugins, fetched for a release build (scripts/official.sh)
+/pod/plugins/official/archives/current/*.tar.gz

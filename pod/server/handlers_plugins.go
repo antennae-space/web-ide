@@ -18,6 +18,7 @@ import (
 	"antennae.space/ide/pod/plugins"
 	"antennae.space/ide/pod/plugins/builtin"
 	"antennae.space/ide/pod/plugins/install"
+	"antennae.space/ide/pod/plugins/official"
 	"antennae.space/ide/pod/runtime"
 	"antennae.space/ide/pod/settingsync"
 	"antennae.space/ide/pod/sshx"
@@ -62,6 +63,8 @@ type pluginSet struct {
 	// lock at a time.
 	installer *install.Installer
 	installMu sync.Mutex
+	// official is the source of the official plugins (this build's, or a test folder).
+	official official.Source
 }
 
 // pluginQuestions is a source of the Questions tool given by a plugin.
@@ -186,6 +189,9 @@ func (s *Server) registerPlugins() {
 				s.plugins.mu.Unlock()
 				return nil, i18n.Errorf("the %s plugin is always on: the IDE needs it", pl.Manifest().Name)
 			}
+			ch, err = plugins.SetEnabled(rt.FS, rt.IdeDir, a.ID, a.Enabled)
+		} else if e, ok := s.Plugins.External(a.ID); ok && e.Official {
+			// An official plugin: on unless disabled on the project, as a built-in.
 			ch, err = plugins.SetEnabled(rt.FS, rt.IdeDir, a.ID, a.Enabled)
 		} else if url != "" {
 			// An external plugin: the project uses it or not (it runs from #129 on).

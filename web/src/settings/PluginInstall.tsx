@@ -1,9 +1,9 @@
 // The external plugins of Settings > Plugins (docs/design/plugins.md, *Phase 3*): install one
 // from its git repository and a version constraint, accept its permissions one by one, update
 // it (a new permission is asked again), remove it. Pod-wide: the lock is the pod's.
-import { createSignal, For, Show } from 'solid-js'
+import { createEffect, createSignal, For, on, Show } from 'solid-js'
 import { request } from '../pod/rpc'
-import { setPluginEnabled } from '../plugins/registry'
+import { pluginStates, setPluginEnabled } from '../plugins/registry'
 import type { PluginManifest, PluginState } from '../plugins/types'
 import { Modal } from '../ui/overlay'
 import { errorToast, toast } from '../ui/toast'
@@ -185,7 +185,7 @@ export function ExternalRow(props: { s: PluginState }) {
   return (
     <div class="plugin-external" data-testid={`plugin-external-${props.s.manifest.id}`}>
       <div>
-        <span class="badge">{t('External')}</span> <span class="muted small">{ext().url}</span>
+        <span class="badge" classList={{ official: !!ext().official }}>{ext().official ? t('Official') : t('External')}</span> <span class="muted small">{ext().url}</span>
       </div>
       <Show
         when={ext().installed}
@@ -232,14 +232,43 @@ export function ExternalRow(props: { s: PluginState }) {
             disabled={!!busy()}
             onClick={() => {
               const id = props.s.manifest.id
-              // Gone from the pod, and from this project's list, as when disabled.
-              if (confirm(t('Remove {name} from this pod?', { name: props.s.manifest.name })))
+              // Gone from the pod, and from this project's list, as when disabled. An official
+              // plugin is not put back by the pod: Settings offers to install it again.
+              if (!ext().official && confirm(t('Remove {name} from this pod?', { name: props.s.manifest.name })))
                 work('remove', () => request('plugins.remove', { id }).then(() => setPluginEnabled(id, false)))
+              else if (ext().official && confirm(t('Remove {name} from this pod? It is an official plugin: the IDE will not install it again by itself.', { name: props.s.manifest.name })))
+                work('remove', () => request('plugins.remove', { id }))
             }}>
             <Working busy={busy() === 'remove'} label={t('Remove')} text={t('Removing…')} />
           </button>
         </div>
       </Show>
     </div>
+  )
+}
+
+/** The official plugins the user removed from this pod: the pod leaves them out, they can be installed again. */
+export function DeclinedOfficial() {
+  const [list, setList] = createSignal<{ id: string; url: string; constraint: string }[]>([])
+  const load = () => void request<{ id: string; url: string; constraint: string }[]>('plugins.declined').then(setList, () => setList([]))
+  load()
+  // The list changes with each install or removal.
+  createEffect(on(pluginStates, load, { defer: true }))
+  return (
+    <Show when={list().length}>
+      <div class="plugin-declined" data-testid="plugins-declined">
+        <h3>{t('Official plugins removed')}</h3>
+        <For each={list()}>
+          {(d) => (
+            <p class="small">
+              {d.id} <span class="muted">{d.url}</span>{' '}
+              <button onClick={() => void askInstall(d.url, d.constraint).catch(errorToast)} data-testid={`plugin-reinstall-${d.id}`}>
+                {t('Install')}
+              </button>
+            </p>
+          )}
+        </For>
+      </div>
+    </Show>
   )
 }

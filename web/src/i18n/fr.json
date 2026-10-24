@@ -945,5 +945,8 @@
   "Updating…": "Mise à jour…",
   "Removing…": "Suppression…",
   "Forget": "Oublier",
-  "Accept all": "Tout accepter"
+  "Accept all": "Tout accepter",
+  "Official": "Officiel",
+  "Remove {name} from this pod? It is an official plugin: the IDE will not install it again by itself.": "Supprimer {name} de ce pod ? C’est un plugin officiel : l’IDE ne le réinstallera pas de lui-même.",
+  "Official plugins removed": "Plugins officiels supprimés"
 }

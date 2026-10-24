@@ -22,7 +22,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 # The longest first (their times on a CI runner): the workers end together.
-ALL=(relay multipod sync features restore+ externals identity plugins kanban chat renew desks speech keeper doodle lan preview docker editor questions git agent llm push subagents quota orchestrator kanbanai editing agents kanbangit lsp mousenav commands popups keyboard mobile milestones projects help forwards explorer plan kanbanagents mcptools services i18n perf)
+ALL=(relay multipod sync features restore+ externals official identity plugins kanban chat renew desks speech keeper doodle lan preview docker editor questions git agent llm push subagents quota orchestrator kanbanai editing agents kanbangit lsp mousenav commands popups keyboard mobile milestones projects help forwards explorer plan kanbanagents mcptools services i18n perf)
 # A suite is suites/<name>.cjs (the core) or plugins/<id>/e2e/<name>.cjs (a built-in plugin).
 suite_file() {
   local f
@@ -169,7 +169,7 @@ start_relay() {
 }
 trap 'stop_pod; stop_relay; rm -rf "$TMP"' EXIT
 start_pod() {
-  rm -rf "$TMP/data" "$TMP/ws"
+  rm -rf "$TMP/data" "$TMP/ws" "$TMP/official"
   EXTRA=()
   # The identity, sync and push suites pair the pod with the CLI, so its pod must reach the relay too.
   if [ "${1:-}" = relay ] || [ "${1:-}" = identity ] || [ "${1:-}" = sync ] || [ "${1:-}" = push ] || [ "${1:-}" = multipod ] || [ "${1:-}" = quota ] || [ "${1:-}" = renew ]; then EXTRA=(-relay "http://127.0.0.1:$RELAY_PORT" -force-turn); fi
@@ -205,7 +205,7 @@ PY
   # /tmp: another scratch folder keeps the approvals of the changes out of the projects.
   cat >"$TMP/launch-pod.sh" <<EOF
 GIT_AUTHOR_NAME=e2e GIT_AUTHOR_EMAIL=e2e@x GIT_COMMITTER_NAME=e2e GIT_COMMITTER_EMAIL=e2e@x \\
-WEBIDE_TEST_PLUGINS=1 WEBIDE_PEER_IDLE=4s WEBIDE_INSTRUCTIONS_HOME="$TMP/home" WEBIDE_SCRATCH="$TMP/scratch" WEBIDE_CLAUDE="$ROOT/e2e/bin/claude" PATH="$ROOT/e2e/bin:$HOME/go/bin:$HOME/sdk/go/bin:$PATH" "$ROOT/bin/web-ide-pod" -addr "127.0.0.1:$PORT" -data "$TMP/data" -projects "$TMP/ws" \\
+WEBIDE_TEST_PLUGINS=1 WEBIDE_OFFICIAL_DIR="$TMP/official" WEBIDE_PEER_IDLE=4s WEBIDE_INSTRUCTIONS_HOME="$TMP/home" WEBIDE_SCRATCH="$TMP/scratch" WEBIDE_CLAUDE="$ROOT/e2e/bin/claude" PATH="$ROOT/e2e/bin:$HOME/go/bin:$HOME/sdk/go/bin:$PATH" "$ROOT/bin/web-ide-pod" -addr "127.0.0.1:$PORT" -data "$TMP/data" -projects "$TMP/ws" \\
   -static "$ROOT/pod/webdist/dist" ${EXTRA[@]+"${EXTRA[@]}"} >>"$TMP/pod.log" 2>&1 </dev/null &
 echo \$! >"$TMP/pod.pid"
 for _ in \$(seq 50); do [ -s "$TMP/data/token" ] && curl -s -o /dev/null "http://127.0.0.1:$PORT/" && break; sleep 0.1; done

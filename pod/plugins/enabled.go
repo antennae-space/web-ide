@@ -68,7 +68,8 @@ func LoadDisabled(fs fsx.FS, ideDir string) ([]string, error) {
 	return f.Disabled, nil
 }
 
-// SetEnabled enables or disables a built-in plugin in a .ide folder and returns the choices.
+// SetEnabled enables or disables a built-in or an official plugin in a .ide folder and returns
+// the choices.
 func SetEnabled(fs fsx.FS, ideDir, id string, enabled bool) (Choices, error) {
 	f, err := load(fs, ideDir)
 	if err != nil {

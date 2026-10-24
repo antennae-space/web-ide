@@ -1,0 +1,3 @@
+The release archives of the official plugins for the architecture being built, put here by
+scripts/official.sh before `go build` (the release workflow does it per architecture), and
+embedded in the pod. Empty in a development build: the pod downloads them at boot instead.

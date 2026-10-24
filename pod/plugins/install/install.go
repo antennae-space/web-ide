@@ -40,6 +40,9 @@ type Installer struct {
 	Arch string
 	// Client downloads the archives (a timeout by default).
 	Client *http.Client
+	// Official tells whether a repository is the one of an official plugin: installed from it,
+	// a plugin is official (Locked.Official) whoever installs it.
+	Official func(url string) bool
 }
 
 // Arch is the architecture of this pod, as the archives name it.
@@ -58,49 +61,102 @@ func (in *Installer) Install(ctx context.Context, cand Candidate, constraint str
 			return Locked{}, i18n.Errorf("%s does not ask the permission %s", m.ID, g)
 		}
 	}
-	lock, err := ReadLock(in.Store)
-	if err != nil {
-		return Locked{}, err
-	}
-	prev, had := lock.Plugins[m.ID]
-	if had && prev.URL != cand.URL {
-		return Locked{}, i18n.Errorf("a plugin %s is already installed from %s", m.ID, prev.URL)
-	}
-	arch := in.Arch
-	if arch == "" {
-		arch = Arch()
-	}
-	asset := strings.NewReplacer("{version}", m.Version, "{arch}", arch).Replace(m.Assets)
+	asset := strings.NewReplacer("{version}", m.Version, "{arch}", in.Architecture()).Replace(m.Assets)
 	tmp, sum, err := in.download(ctx, asset)
 	if err != nil {
 		return Locked{}, err
 	}
 	defer os.Remove(tmp)
-	// A locked version is never taken again under the same tag with another archive.
-	if had && prev.Version == m.Version && prev.SHA256 != "" && prev.SHA256 != sum {
-		return Locked{}, i18n.Errorf("the archive of %s %s changed since it was installed (sha256 %s, locked %s): refused", m.ID, m.Version, sum, prev.SHA256)
+	return in.place(tmp, sum, &m, cand.Tag, Locked{URL: cand.URL, Constraint: constraint, Grants: grants})
+}
+
+// InstallArchive installs a release archive at hand (an official plugin embedded in the pod,
+// whose hash the caller checked): its manifest is the one inside. grants checks it and answers
+// the permissions to grant (an error refuses the archive). l gives the URL, the constraint and
+// Official.
+func (in *Installer) InstallArchive(data []byte, l Locked, grants func(plugins.Manifest) ([]string, error)) (Locked, plugins.Manifest, error) {
+	f, err := os.CreateTemp("", "web-ide-plugin-*.tar.gz")
+	if err != nil {
+		return Locked{}, plugins.Manifest{}, err
 	}
-	if err := os.MkdirAll(in.Dir(m.ID), 0o700); err != nil {
+	defer os.Remove(f.Name())
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		return Locked{}, plugins.Manifest{}, err
+	}
+	sum := sha256.Sum256(data)
+	var m plugins.Manifest
+	l.Grants = nil
+	locked, err := in.place(f.Name(), hex.EncodeToString(sum[:]), nil, "", l, func(got plugins.Manifest) ([]string, error) {
+		m = got
+		return grants(got)
+	})
+	return locked, m, err
+}
+
+// Architecture is the one of the archives it installs (the pod's by default).
+func (in *Installer) Architecture() string {
+	if in.Arch != "" {
+		return in.Arch
+	}
+	return Arch()
+}
+
+// place checks and extracts an archive (tmp, its sha256) to <data>/plugins/<id>/<version>/ and
+// locks it. want is the manifest of its tag (nil: the archive's own is taken); grantsOf, when
+// given, checks the manifest found and picks the grants.
+func (in *Installer) place(tmp, sum string, want *plugins.Manifest, tag string, l Locked, grantsOf ...func(plugins.Manifest) ([]string, error)) (Locked, error) {
+	if err := os.MkdirAll(in.Store.Path("plugins"), 0o700); err != nil {
 		return Locked{}, err
 	}
-	work := filepath.Join(in.Dir(m.ID), ".tmp-"+randomID())
+	work, err := os.MkdirTemp(in.Store.Path("plugins"), ".tmp-")
+	if err != nil {
+		return Locked{}, err
+	}
 	defer os.RemoveAll(work)
 	if err := extract(tmp, work); err != nil {
 		return Locked{}, err
 	}
 	data, err := os.ReadFile(filepath.Join(work, "plugin.json"))
 	if err != nil {
-		return Locked{}, i18n.Errorf("the archive of %s has no plugin.json", m.ID)
+		return Locked{}, i18n.Errorf("the archive has no plugin.json")
 	}
 	got, err := plugins.Parse(data)
-	if err != nil || !reflect.DeepEqual(got, m) {
-		return Locked{}, i18n.Errorf("the plugin.json of the archive of %s differs from the one of its tag %s", m.ID, cand.Tag)
+	if err != nil {
+		return Locked{}, err
+	}
+	if want != nil && !reflect.DeepEqual(got, *want) {
+		return Locked{}, i18n.Errorf("the plugin.json of the archive of %s differs from the one of its tag %s", want.ID, tag)
+	}
+	m := got
+	if len(grantsOf) > 0 {
+		if l.Grants, err = grantsOf[0](m); err != nil {
+			return Locked{}, err
+		}
+	}
+	lock, err := ReadLock(in.Store)
+	if err != nil {
+		return Locked{}, err
+	}
+	prev, had := lock.Plugins[m.ID]
+	if had && prev.URL != l.URL {
+		return Locked{}, i18n.Errorf("a plugin %s is already installed from %s", m.ID, prev.URL)
+	}
+	// A locked version is never taken again under the same tag with another archive.
+	if had && prev.Version == m.Version && prev.SHA256 != "" && prev.SHA256 != sum {
+		return Locked{}, i18n.Errorf("the archive of %s %s changed since it was installed (sha256 %s, locked %s): refused", m.ID, m.Version, sum, prev.SHA256)
 	}
 	if m.Backend != "" {
 		st, err := os.Lstat(filepath.Join(work, filepath.FromSlash(m.Backend)))
 		if err != nil || !st.Mode().IsRegular() || st.Mode()&0o100 == 0 {
 			return Locked{}, i18n.Errorf("the archive of %s has no executable %s", m.ID, m.Backend)
 		}
+	}
+	if err := os.MkdirAll(in.Dir(m.ID), 0o700); err != nil {
+		return Locked{}, err
 	}
 	final := filepath.Join(in.Dir(m.ID), m.Version)
 	if err := os.RemoveAll(final); err != nil {
@@ -109,11 +165,15 @@ func (in *Installer) Install(ctx context.Context, cand Candidate, constraint str
 	if err := os.Rename(work, final); err != nil {
 		return Locked{}, err
 	}
-	if grants == nil {
-		grants = []string{}
+	if l.Grants == nil {
+		l.Grants = []string{}
 	}
-	l := Locked{URL: cand.URL, Constraint: constraint, Version: m.Version, SHA256: sum, Grants: grants}
+	if in.Official != nil && in.Official(l.URL) {
+		l.Official = true
+	}
+	l.Version, l.SHA256 = m.Version, sum
 	lock.Plugins[m.ID] = l
+	lock.Declined = slices.DeleteFunc(lock.Declined, func(id string) bool { return id == m.ID })
 	if err := WriteLock(in.Store, lock); err != nil {
 		return Locked{}, err
 	}
@@ -133,10 +193,15 @@ func (in *Installer) Remove(id string) error {
 	if err != nil {
 		return err
 	}
-	if _, ok := lock.Plugins[id]; !ok {
+	l, ok := lock.Plugins[id]
+	if !ok {
 		return errNotInstalled(id)
 	}
 	delete(lock.Plugins, id)
+	// The pod does not put back an official plugin the user removed.
+	if l.Official && !slices.Contains(lock.Declined, id) {
+		lock.Declined = append(lock.Declined, id)
+	}
 	if err := WriteLock(in.Store, lock); err != nil {
 		return err
 	}
@@ -152,6 +217,17 @@ func (in *Installer) Manifest(id, version string) (plugins.Manifest, error) {
 		return plugins.Manifest{}, err
 	}
 	return plugins.Parse(data)
+}
+
+// Fetch downloads the release archive of a resolved version for its architecture.
+func (in *Installer) Fetch(ctx context.Context, cand Candidate) ([]byte, error) {
+	asset := strings.NewReplacer("{version}", cand.Manifest.Version, "{arch}", in.Architecture()).Replace(cand.Manifest.Assets)
+	tmp, _, err := in.download(ctx, asset)
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tmp)
+	return os.ReadFile(tmp)
 }
 
 // download fetches an archive to a temporary file, with its sha256.

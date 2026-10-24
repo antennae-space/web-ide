@@ -38,6 +38,9 @@ type External struct {
 	Grants   []string `json:"grants"`
 	// Installed is false for a plugin a project uses that this pod lacks.
 	Installed bool `json:"installed"`
+	// Official: one of the official plugins, installed by the pod and used by every project
+	// unless disabled on it.
+	Official bool `json:"official,omitempty"`
 }
 
 // Builtin tells whether id is the one of a built-in plugin.
@@ -201,6 +204,10 @@ func (r *Registry) ResolveChoices(ch Choices) []State {
 	for _, e := range r.Externals() {
 		e := e
 		_, used := ch.External[e.Manifest.ID]
+		// An official plugin is used by every project, as a built-in, unless disabled on it.
+		if e.Official {
+			used = !slices.Contains(ch.Disabled, e.Manifest.ID)
+		}
 		s := State{Manifest: e.Manifest, Disabled: !used, Enabled: used, External: &e}
 		for _, c := range e.Manifest.Requires {
 			if !provided[c] {
