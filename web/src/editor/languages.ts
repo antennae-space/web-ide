@@ -107,7 +107,6 @@ export function lspLanguage(path: string): string {
   const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
   const pack = packOf(ext)
   if (pack) return pack.id
-  if (ext === '.go') return 'go'
   if (['.php', '.phtml'].includes(ext)) return 'php'
   if (['.py', '.pyi'].includes(ext)) return 'python'
   if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'].includes(ext)) return 'typescript'

@@ -82,8 +82,6 @@ func (r *Runtime) testNames(p string) []string {
 	stem, ext := splitName(p)
 	var names []string
 	switch ext {
-	case ".go":
-		names = []string{stem + "_test.go"}
 	case ".py":
 		names = []string{"test_" + stem + ".py", stem + "_test.py"}
 	case ".php":

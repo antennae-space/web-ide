@@ -193,3 +193,47 @@ exports.pushService = () => {
     listen: () => new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(port))),
   }
 }
+
+/**
+ * Installs an official plugin at the next start of the pod: its release archive (the version of
+ * pod/plugins/official/official.json, downloaded once to ~/.cache/web-ide-e2e/plugins, its
+ * sha256 checked; or E2E_PLUGIN_<ID>: a local build, a file or the dist folder of its repo)
+ * as the only official plugin of the pod. before runs before the restart (the data a migration
+ * reads). Answers its lock entry.
+ */
+exports.installOfficial = async (id, before) => {
+  const os = require('os')
+  const { execFileSync } = require('child_process')
+  const DATA = process.env.E2E_DATA
+  const arch = 'linux-' + (os.arch() === 'arm64' ? 'arm64' : 'amd64')
+  const listed = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'pod/plugins/official/official.json'), 'utf8')).find((e) => e.id === id)
+  const entry = listed ? { ...listed } : { id, url: `https://github.com/antennae-space/${id.startsWith('lang-') ? id : 'plugin-' + id}`, constraint: '^1', version: '1.0.0', sha256: {} }
+  const local = process.env['E2E_PLUGIN_' + id.toUpperCase().replace(/-/g, '_')]
+  let data
+  if (local) {
+    data = fs.readFileSync(fs.statSync(local).isDirectory() ? path.join(local, `${id}-${arch}.tar.gz`) : local)
+    entry.version = JSON.parse(execFileSync('tar', ['xzOf', '-', './plugin.json'], { input: data })).version
+  } else {
+    const cache = path.join(os.homedir(), '.cache', 'web-ide-e2e', 'plugins', `${id}-${entry.version}-${arch}.tar.gz`)
+    if (!fs.existsSync(cache)) {
+      const url = `${entry.url}/releases/download/v${entry.version}/${id}-${arch}.tar.gz`
+      const r = await fetch(url)
+      if (!r.ok) throw new Error(`${url}: ${r.status}`)
+      fs.mkdirSync(path.dirname(cache), { recursive: true })
+      fs.writeFileSync(cache, Buffer.from(await r.arrayBuffer()))
+    }
+    data = fs.readFileSync(cache)
+  }
+  entry.sha256 = { [arch]: crypto.createHash('sha256').update(data).digest('hex') }
+  if (!local && listed && listed.sha256[arch] !== entry.sha256[arch]) throw new Error(`the cached archive of ${id} is not the official one`)
+  const off = path.join(DATA, '..', 'official')
+  fs.mkdirSync(path.join(off, 'archives', 'current'), { recursive: true })
+  fs.writeFileSync(path.join(off, 'official.json'), JSON.stringify([entry]))
+  fs.writeFileSync(path.join(off, 'archives', 'current', `${id}-${entry.version}.tar.gz`), data)
+  if (before) await before()
+  execFileSync('bash', [process.env.E2E_RESTART_POD])
+  const lockFile = path.join(DATA, 'plugins.lock')
+  const locked = () => fs.existsSync(lockFile) && JSON.parse(fs.readFileSync(lockFile, 'utf8')).plugins[id]
+  for (let i = 0; i < 100 && !locked(); i++) await new Promise((r) => setTimeout(r, 100))
+  return locked()
+}

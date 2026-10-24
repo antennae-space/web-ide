@@ -35,6 +35,21 @@ func TestResolvePath(t *testing.T) {
 	}
 }
 
+// @program: the folder of a program found on the PATH (its real path), not run.
+func TestResolveFromProgram(t *testing.T) {
+	root := t.TempDir()
+	goroot := filepath.Join(root, "sdk", "go1.27")
+	_ = os.MkdirAll(filepath.Join(goroot, "bin"), 0o755)
+	_ = os.WriteFile(filepath.Join(goroot, "bin", "go"), []byte("#!/bin/sh\nexit 1\n"), 0o755)
+	links := filepath.Join(root, "bin")
+	_ = os.MkdirAll(links, 0o755)
+	_ = os.Symlink(filepath.Join(goroot, "bin", "go"), filepath.Join(links, "go"))
+	h := Host{Env: func(k string) string { return map[string]string{"PATH": links}[k] }, Home: filepath.Join(root, "home")}
+	if p, err := h.ResolvePath(plugins.PathGrant{Name: "GOROOT", Candidates: []string{"$GOROOT", "@go/../.."}}); err != nil || p != goroot {
+		t.Fatalf("GOROOT from the go of the PATH: %q %v", p, err)
+	}
+}
+
 func TestResolveProgram(t *testing.T) {
 	dir := t.TempDir()
 	_ = os.WriteFile(filepath.Join(dir, "gopls"), []byte("#!/bin/sh\n"), 0o755)

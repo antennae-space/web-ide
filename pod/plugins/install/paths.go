@@ -29,9 +29,17 @@ func ThisHost(data string) Host {
 	return Host{Env: os.Getenv, Home: home, Data: data}
 }
 
-// expand turns a candidate into a path: ~/ the home, $NAME a variable (empty: none).
+// expand turns a candidate into a path: ~/ the home, $NAME a variable (empty: none), @program
+// the real path of a program on the PATH (@go/../.. is the GOROOT of the go found), never run.
 func (h Host) expand(c string) string {
 	switch {
+	case strings.HasPrefix(c, "@"):
+		name, rest, _ := strings.Cut(c[1:], "/")
+		p, err := h.ResolveProgram(name)
+		if err != nil {
+			return ""
+		}
+		return filepath.Join(p, rest)
 	case c == "~" || strings.HasPrefix(c, "~/"):
 		return filepath.Join(h.Home, strings.TrimPrefix(c, "~"))
 	case strings.HasPrefix(c, "$"):

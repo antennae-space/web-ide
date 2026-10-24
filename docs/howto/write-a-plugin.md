@@ -97,6 +97,14 @@ The keys pressed in the frame with a modifier, Escape and F1-F12 reach the IDE's
 - **Settings**: `"contributes": {"settings": {"properties": {"rows": {"type": "number", "title": "Rows shown", "default": 100}}}}`. The IDE shows them under your plugin in Settings → Plugins and syncs them; read them with `ide.settings` (and `ide.onSettings`) in your views, the core call `settings.get` in your backend.
 - **Actions**: `"actions": [{"id": "query", "label": "Run a query", "description": "…", "properties": {…}, "required": […], "access": "write", "target": "conn"}]`. Your backend answers the method `<id>.query`; your views call it, and the AI gets the tool `<id>_query` from the same declaration. Mark what changes something `write` and name its `target` (a connection): the user decides per target whether the AI may do it (read only by default, ask, allowed), in Settings → Plugins. Declare the targets from your backend with the core call `ai.targets {targets: [{id, label}]}` so the user can choose.
 
+## A language pack
+
+A plugin that gives the IDE a language, like [lang-go](https://github.com/antennae-space/lang-go): no view, no backend, its manifest's `contributes.languages` and a grammar file.
+
+- `languages: [{"id", "name", "extensions", "markers", "grammar": "grammars/<id>.json", "servers": [...], "tests": {".go": "{name}_test.go"}}]`. The grammar is a grammar of the editor as JSON (export one from Settings → Syntax).
+- A server: `"argv": ["gopls"]`, its program a bare name found on the PATH of the machine (the grant `program:gopls`); `"paths"`: the folders of the machine it needs, each a name and candidates (`$GOMODCACHE`, `$GOPATH/pkg/mod`, `~/go/pkg/mod`, `@go/../..`: the folder of a program on the PATH), the first that exists, read only unless `"access": "write"`, a variable of its name with `"env": true` (the grant `path:GOMODCACHE`); `"pathDirs"` add some to its PATH; `"env"` literal variables.
+- The IDE runs the server confined on this machine: its program, its folders, the project read only, its data folder as `HOME` (its caches), no network unless you ask `net`; on the host of an SSH project, its program by name.
+
 ## The backend
 
 In Go, the SDK's `antennae.space/plugin-sdk/backend` speaks all of what follows: `backend.Serve` with its methods and tools, `backend.Core` and `backend.Emit` (its README shows one). In another language, implement it.

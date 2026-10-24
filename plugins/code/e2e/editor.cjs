@@ -1,9 +1,10 @@
 // Editor: text against the gutter, indentation guides, whitespace, multiple carets, folding,
-// soft wrap.
+// soft wrap. Go is highlighted and folded by the language pack lang-go (#146), installed first.
 const fs = require('fs')
-const { run, openProject, open, assert, text, WS, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, open, assert, text, installOfficial, WS, OUT } = require('../../../e2e/common.cjs')
 
 run(async ({ page }) => {
+  await installOfficial('lang-go')
   fs.writeFileSync(WS + '/demo/multi.txt', 'foo bar foo\nfoo baz\n    foo qux\n')
   fs.writeFileSync(WS + '/demo/win.txt', 'one\r\ntwo\r\n')
   fs.writeFileSync(WS + '/demo/latin.txt', Buffer.from('caf\xe9\n', 'latin1'))

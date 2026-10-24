@@ -18,7 +18,7 @@ func TestPackCommand(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(bin, "toy-lsp"), []byte("#!/bin/sh\n"), 0o755)
 	t.Setenv("PATH", bin+":/usr/bin:/bin")
 	t.Setenv("TOYLIB", lib)
-	sv := plugins.LanguageServer{Argv: []string{"toy-lsp", "--stdio"}, Paths: []plugins.PathGrant{{Name: "TOYLIB", Candidates: []string{"$TOYLIB"}, Env: true, Access: "write"}}, PathDirs: []string{"TOYLIB/bin"}}
+	sv := plugins.LanguageServer{Argv: []string{"toy-lsp", "--stdio"}, Env: map[string]string{"TOYMODE": "local"}, Paths: []plugins.PathGrant{{Name: "TOYLIB", Candidates: []string{"$TOYLIB"}, Env: true, Access: "write"}}, PathDirs: []string{"TOYLIB/bin"}}
 	m := plugins.Manifest{ID: "lang-toy", Name: "Toy", Version: "1.0.0", APIVersion: plugins.APIVersion, Permissions: []string{"program:toy-lsp", "path:TOYLIB"},
 		Contributes: plugins.Contributions{Languages: []plugins.Language{{ID: "toy", Name: "Toy", Extensions: []string{".toy"}, Servers: []plugins.LanguageServer{sv}}}}}
 	if err := s.Plugins.SetExternal(plugins.External{Manifest: m, URL: "u", Version: "1.0.0", Grants: []string{"program:toy-lsp"}}); err != nil {
@@ -41,7 +41,7 @@ func TestPackCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(argv, " ")
-	for _, want := range []string{"/usr/bin/env -i", "TOYLIB=" + lib, "PATH=" + filepath.Join(lib, "bin") + ":", "plugin-exec", "-project " + local.Root, "-read " + filepath.Join(bin, "toy-lsp"), "-writedir " + lib, "-- " + filepath.Join(bin, "toy-lsp") + " --stdio"} {
+	for _, want := range []string{"/usr/bin/env -i", "TOYLIB=" + lib, "TOYMODE=local", "PATH=" + filepath.Join(lib, "bin") + ":", "plugin-exec", "-project " + local.Root, "-read " + filepath.Join(bin, "toy-lsp"), "-writedir " + lib, "-- " + filepath.Join(bin, "toy-lsp") + " --stdio"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in %s", want, joined)
 		}

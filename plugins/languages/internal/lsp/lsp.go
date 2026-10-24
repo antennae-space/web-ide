@@ -64,7 +64,6 @@ func specs(packs []Spec) []Spec {
 }
 
 var Defaults = []Spec{
-	{Lang: "go", Candidates: [][]string{{"gopls"}}, Markers: []string{"go.mod", "go.work"}, Exts: []string{".go"}},
 	{Lang: "php", Candidates: [][]string{{"intelephense", "--stdio"}, {"phpactor", "language-server"}}, Markers: []string{"composer.json"}, Exts: []string{".php", ".phtml"}},
 	{Lang: "python", Candidates: [][]string{{"pyright-langserver", "--stdio"}, {"basedpyright-langserver", "--stdio"}, {"pylsp"}}, Markers: []string{"pyproject.toml", "setup.py", "requirements.txt", "Pipfile"}, Exts: []string{".py", ".pyi"}},
 	{Lang: "typescript", Candidates: [][]string{{"typescript-language-server", "--stdio"}}, Markers: []string{"package.json", "tsconfig.json", "jsconfig.json"}, Exts: []string{".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"}},
@@ -82,8 +81,6 @@ func LanguageID(p string) string {
 		}
 	}
 	switch ext {
-	case ".go":
-		return "go"
 	case ".php", ".phtml":
 		return "php"
 	case ".py", ".pyi":

@@ -87,6 +87,14 @@ func (s *Server) packCommand(rt *runtime.Runtime, pack string, sv plugins.Langua
 			env = append(env, g.Name+"="+dir)
 		}
 	}
+	keys := make([]string, 0, len(sv.Env))
+	for k := range sv.Env {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	for _, k := range keys {
+		env = append(env, k+"="+sv.Env[k])
+	}
 	path := []string{}
 	for _, d := range sv.PathDirs {
 		name, rest, _ := strings.Cut(d, "/")

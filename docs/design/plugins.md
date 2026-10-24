@@ -307,7 +307,7 @@ Decided on 2026-10-24 (milestone *Plugins, phase 4*). Phase 3 proved that an ext
 | Database (`plugins/database`, removed in #144) | [plugin-database](https://github.com/antennae-space/plugin-database), external and official (#144, done) | a tool with a UI, a backend, secrets and AI tools: the full API |
 | Docker (`plugins/docker`) | `plugin-docker`, external | a backend reaching a socket of the system, a terminal fed by a plugin |
 | Languages (`plugins/languages`) | stays built-in: the **language host** | the LSP client, Problems, Structure, the Symbols provider |
-| The servers of `Defaults` (`plugins/languages/internal/lsp/lsp.go`), the grammars (`web/src/editor/grammars`) | **language packs**, external, one per language: `lang-go`, `lang-php`, `lang-python`, `lang-typescript` | data and a server to run, no UI |
+| The servers of `Defaults` (`plugins/languages/internal/lsp/lsp.go`), the grammars (`web/src/editor/grammars`) | **language packs**, external, one per language: `lang-go` (#146, done), `lang-php`, `lang-python`, `lang-typescript` | data and a server to run, no UI |
 | AI (`plugins/ai`) | stays built-in | it reads the kanban, runs the tools of the other plugins, calls the windows (`ui.call`), runs the ACP agents, which cannot run confined |
 
 Explorer, Editor and the consoles stay core and locked (decision 6). Later, on the same model: a **debug host** (a DAP client, built-in) fed by the packs' debug adapters, `plugin-adb`.
@@ -339,6 +339,8 @@ Done in #145:
 - **SSH project**: its granted program by its name on the host, through the project's runner, as the built-in servers (nothing confines a remote process).
 - **The host** (`plugins/languages`): the specs of the packs the project uses win over the defaults of the same language (`lsp.PackSpec`, `Manager.UsePacks`); the page maps the packs' extensions to their servers (`setPackLanguages`) and takes their grammars (`plugins.grammars`, a layer between the built-in grammars and the user's); their test patterns join the project's (`runtime.PackTests`).
 - Settings words the grants (*Run gopls (a language server, confined)*, *Use the folder GOMODCACHE of this machine*); an official pack gets them without asking.
+
+Done in #146: [lang-go](https://github.com/antennae-space/lang-go), the first pack, official: the Go grammar of the editor (as data), gopls with `GOROOT` (its `bin` on the server's `PATH`) and `GOMODCACHE` granted read only, `GOTOOLCHAIN=local` and `GOPROXY=off` (it has no network: no toolchain nor module download), the test pattern `{name}_test.go`. Go left the core: `lsp.Defaults`, the extension mappings of the pod and the page, the built-in grammar, the test pattern of `runtime/related.go`. Two additions for it: a candidate `@<program>/rest`, the real path of a program found on the host's `PATH` (`@go/../..` is the `GOROOT` of the `go` there), still without running it; `servers[].env`, literal variables (not `PATH`, `HOME`, `TMPDIR`).
 
 A **project template** is a contribution of a pack: a raw one is data (files and a `.ide` filled in), a framework one (Symfony, Angular, Android…) names the commands that create it, which the core runs in a console the user sees, after the user agrees; the confined backend never runs them itself. Templates planned: PHP (raw, Symfony), JavaScript/TypeScript (raw, Angular, Vue), Java (raw, Android), Go, Rust, Python, C, C#.
 
