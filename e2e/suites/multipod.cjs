@@ -85,6 +85,9 @@ const getText = (port, p) =>
           body += d
         })
         res.on('end', () => resolve({ status: res.statusCode, body, first, total: Date.now() - t0 }))
+        // A connection cut (or timed out) after the headers ends the response with no 'end'.
+        res.on('close', () => resolve({ status: res.statusCode, body: body + ' (cut)', first, total: Date.now() - t0 }))
+        res.on('error', () => {})
       })
       .on('timeout', function () {
         this.destroy(new Error('timeout'))

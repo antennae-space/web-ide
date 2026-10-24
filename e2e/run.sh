@@ -4,20 +4,25 @@
 # the pod of the previous one (session restore tests). Usage: ./run.sh [-j N] [suite...]
 # -j N (or E2E_JOBS): N workers run the suites in parallel, each one with its own temporary
 # folder and block of ports (default: a quarter of the CPUs, 8 at most; -j 1: one by one).
+# --shard I/N (or E2E_SHARD): only the I-th of N shares of the suites (CI jobs side by side).
+# A suite running over E2E_SUITE_TIMEOUT seconds (300) is stopped and fails.
 set -u
 cd "$(dirname "$0")"
 ROOT=$(cd .. && pwd)
 SUITES=()
 JOBS=${E2E_JOBS:-}
+SHARD=${E2E_SHARD:-}
 while [ $# -gt 0 ]; do
   case $1 in
     -j) JOBS=$2; shift 2 ;;
     -j*) JOBS=${1#-j}; shift ;;
+    --shard) SHARD=$2; shift 2 ;;
+    --shard=*) SHARD=${1#--shard=}; shift ;;
     *) SUITES+=("$1"); shift ;;
   esac
 done
-# The longest first: the workers end together.
-ALL=(kanban milestones chat agents kanbanagents questions features restore+ docker lan identity multipod sync push keeper doodle speech relay quota renew preview git editor agent llm subagents orchestrator kanbanai editing lsp mousenav kanbangit commands mcptools plugins externals projects popups desks keyboard mobile forwards services explorer plan i18n help perf)
+# The longest first (their times on a CI runner): the workers end together.
+ALL=(relay multipod sync features restore+ externals identity plugins kanban chat renew desks speech keeper doodle lan preview docker editor questions git agent llm push subagents quota orchestrator kanbanai editing agents kanbangit lsp mousenav commands popups keyboard mobile milestones projects help forwards explorer plan kanbanagents mcptools services i18n perf)
 # A suite is suites/<name>.cjs (the core) or plugins/<id>/e2e/<name>.cjs (a built-in plugin).
 suite_file() {
   local f
@@ -33,6 +38,23 @@ done
 for s in "${ALL[@]}"; do suite_file "${s%+}" >/dev/null || { echo "e2e: no file for the suite ${s%+}"; exit 1; }; done
 for s in "${SUITES[@]}"; do suite_file "${s%+}" >/dev/null || { echo "e2e: unknown suite ${s%+}"; exit 1; }; done
 [ ${#SUITES[@]} -eq 0 ] && SUITES=("${ALL[@]}")
+# Shard I of N: the chains (a suite and the "+" ones after it) dealt in snake order, 1..N then
+# N..1, so that each share gets long and short suites alike.
+if [ -n "$SHARD" ]; then
+  I=${SHARD%/*} N=${SHARD#*/}
+  [[ $I =~ ^[0-9]+$ && $N =~ ^[0-9]+$ ]] && [ "$I" -ge 1 ] && [ "$I" -le "$N" ] || { echo "e2e: bad shard $SHARD (I/N)"; exit 1; }
+  MINE=() k=-1
+  for s in "${SUITES[@]}"; do
+    [[ $s == *+ ]] || k=$((k + 1))
+    r=$((k % (2 * N)))
+    [ $r -ge "$N" ] && r=$((2 * N - 1 - r))
+    [ $((r + 1)) -eq "$I" ] && MINE+=("$s")
+  done
+  # A "+" suite asked for without the one before it.
+  [ ${#MINE[@]} -gt 0 ] && [[ ${MINE[0]} == *+ ]] && MINE[0]=${MINE[0]%+}
+  [ ${#MINE[@]} -eq 0 ] && { echo "e2e: shard $SHARD has no suite"; exit 0; }
+  SUITES=("${MINE[@]}")
+fi
 [ -d node_modules/playwright-core ] || npm install --no-audit --no-fund >/dev/null
 if [ -z "$JOBS" ]; then JOBS=$(($(nproc) / 4)); [ "$JOBS" -gt 8 ] && JOBS=8; [ "$JOBS" -lt 1 ] && JOBS=1; fi
 # wait -n -p needs bash 5.1.
@@ -220,7 +242,10 @@ for s in "${SUITES[@]}"; do
   # Pod id of the relay client: the pod id + secret live in relay.json of its data folder.
   export E2E_POD_ID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["podId"])' "$TMP/data/relay.json" 2>/dev/null)
   echo "== $s"
-  node "$(suite_file "$s")" || status=1
+  timeout -k 10 "${E2E_SUITE_TIMEOUT:-300}" node "$(suite_file "$s")"
+  st=$?
+  [ $st -eq 124 ] || [ $st -eq 137 ] && echo "  FAIL $s stopped after ${E2E_SUITE_TIMEOUT:-300} s"
+  [ $st -eq 0 ] || status=1
 done
 POD_LOG=${E2E_POD_LOG:-/tmp/web-ide-e2e-pod.log}
 [ $status -eq 0 ] && echo "e2e: all passed" || { echo "e2e: failures (pod log: $POD_LOG)"; cp "$TMP/pod.log" "$POD_LOG" 2>/dev/null; }

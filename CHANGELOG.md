@@ -4,6 +4,10 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ## [Unreleased]
 
+### Changed
+
+- e2e: the CI runs the suites in 6 shards side by side, from one build, with Chromium, gopls and the speech model cached; `run.sh --shard I/N` runs one share, and stops a suite after 300 s (`E2E_SUITE_TIMEOUT`), so a stuck suite fails instead of holding the job for hours. The multipod suite no longer waits forever on a request cut after its headers.
+
 ## [1.23.0] - 2026-10-18
 
 ### Fixed

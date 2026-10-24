@@ -28,10 +28,25 @@ jobs:
         run: make build
       - name: Unit tests
         run: make test
+      # The e2e jobs reuse this build (a tarball keeps the executable bit).
+      - name: Pack the build
+        run: tar -czf build.tgz bin/web-ide-pod pod/webdist/dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: build.tgz
+          retention-days: 1
 
+  # The suites in shards side by side, 2 workers each (a runner has 4 CPUs); a suite is stopped
+  # after 300 s (run.sh), the job after 15 min.
   e2e:
     runs-on: ubuntu-latest
     needs: test
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -45,20 +60,31 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             e2e/package-lock.json
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+      - run: tar -xzf build.tgz
+      # Chromium, gopls and the speech model (whisper-tiny) are kept between runs.
+      - uses: actions/cache@v4
+        id: tools
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            ~/go/bin/gopls
+            ~/.cache/web-ide-e2e/models
+          key: e2e-tools-${{ runner.os }}-${{ hashFiles('e2e/package-lock.json') }}
       - name: Install gopls and Chromium
         run: |
-          go install golang.org/x/tools/gopls@latest
+          [ -x ~/go/bin/gopls ] || go install golang.org/x/tools/gopls@latest
           cd e2e && npm ci && npx playwright-core install --with-deps chromium
-      - name: Build
-        run: make build
       - name: Browser tests
-        run: PATH="$(go env GOPATH)/bin:$PATH" E2E_OUT="$RUNNER_TEMP/e2e" ./e2e/run.sh
+        run: PATH="$HOME/go/bin:$PATH" E2E_OUT="$RUNNER_TEMP/e2e" ./e2e/run.sh -j 2 --shard ${{ matrix.shard }}/6
       - name: Keep the failure screenshot
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-failure
+          name: e2e-failure-${{ matrix.shard }}
           path: |
             ${{ runner.temp }}/e2e
-            /tmp/web-ide-e2e-pod.log
+            /tmp/web-ide-e2e-*.log
           if-no-files-found: ignore
