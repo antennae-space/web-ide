@@ -15,6 +15,8 @@ import { setPluginUiTools } from '../ui/uiCalls'
 import { setAloneView } from '../state/tiles'
 import { t } from '../i18n'
 import { errorToast, toast } from '../ui/toast'
+import { setPackGrammars, setPackLanguages } from '../editor/languages'
+import type { GrammarDef } from '../editor/tokenizer'
 import { placePluginTools, type TabState } from '../state/project'
 
 // The page module of each built-in, a chunk of its own (vite.config.ts: plugin-<id>).
@@ -46,7 +48,12 @@ const loading: Record<string, Promise<PluginModule | undefined>> = {}
 const builtVersion: Record<string, string> = {}
 
 /** A plugin with a page module: a built-in, or an external one installed (external.tsx). */
-const hasModule = (s: PluginState) => !!builtins[s.manifest.id] || !!s.external?.installed
+const hasModule = (s: PluginState) => {
+  if (builtins[s.manifest.id]) return true
+  const c = s.manifest.contributes
+  // A language pack may have no view: the language host is all it needs.
+  return !!s.external?.installed && !!(c.tools?.length || c.tabViews?.length || c.commands?.length)
+}
 
 /** The page module of a plugin, loaded once (undefined when it cannot be). */
 function load(id: string): Promise<PluginModule | undefined> {
@@ -75,6 +82,9 @@ const toRefresh = new Set<string>()
  */
 export function setPluginStates(list: PluginState[] | undefined, opened = false) {
   list ??= []
+  if (list.some((s) => s.manifest.contributes.languages?.length)) refreshPackGrammars()
+  else setPackGrammars([])
+  setPackLanguages(list.filter((s) => s.enabled).flatMap((s) => s.manifest.contributes.languages ?? []))
   // An external plugin updated: its module is built again from its new manifest and bundle.
   for (const s of list) {
     const id = s.manifest.id
@@ -129,6 +139,15 @@ async function runAction(plugin: string, method: string, label: string) {
   } catch (e) {
     errorToast(e)
   }
+}
+
+/** The grammars of the language packs, asked again when the plugins change. */
+let grammarsAsked: Promise<void> | undefined
+function refreshPackGrammars() {
+  grammarsAsked ??= request<{ pack: string; grammar: GrammarDef }[]>('plugins.grammars')
+    .then((list) => setPackGrammars(list.map((g) => g.grammar)))
+    .catch(() => {})
+    .finally(() => (grammarsAsked = undefined))
 }
 
 on('plugins.changed', (e: { plugins: PluginState[] }) => {

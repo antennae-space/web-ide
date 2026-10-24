@@ -31,19 +31,23 @@ type fakePod struct {
 func (p *fakePod) Runtime(string) (*runtime.Runtime, error) {
 	return nil, errors.New("no runtime in the tests")
 }
-func (p *fakePod) OpenRuntime(string) *runtime.Runtime               { return nil }
-func (p *fakePod) Project(string) (string, string, bool)             { return "", "", false }
-func (p *fakePod) Broadcast(string, any)                             {}
-func (p *fakePod) Emit(string, string, any)                          {}
-func (p *fakePod) Authorized(*http.Request) bool                     { return false }
-func (p *fakePod) AdvertiseChanged()                                 {}
-func (p *fakePod) Peers() plugins.Peers                              { return nil }
-func (p *fakePod) EmitFamily(string, string, any, string)            {}
-func (p *fakePod) CloseRuntime(string)                               {}
-func (p *fakePod) Services() *plugins.Services                       { return p.svc }
-func (p *fakePod) CapabilityOn(*runtime.Runtime, string) bool        { return true }
-func (p *fakePod) Capability(*runtime.Runtime, string) any           { return nil }
-func (p *fakePod) Stopping() bool                                    { return false }
+func (p *fakePod) OpenRuntime(string) *runtime.Runtime                   { return nil }
+func (p *fakePod) Project(string) (string, string, bool)                 { return "", "", false }
+func (p *fakePod) Broadcast(string, any)                                 {}
+func (p *fakePod) Emit(string, string, any)                              {}
+func (p *fakePod) Authorized(*http.Request) bool                         { return false }
+func (p *fakePod) AdvertiseChanged()                                     {}
+func (p *fakePod) Peers() plugins.Peers                                  { return nil }
+func (p *fakePod) EmitFamily(string, string, any, string)                {}
+func (p *fakePod) CloseRuntime(string)                                   {}
+func (p *fakePod) Services() *plugins.Services                           { return p.svc }
+func (p *fakePod) CapabilityOn(*runtime.Runtime, string) bool            { return true }
+func (p *fakePod) Capability(*runtime.Runtime, string) any               { return nil }
+func (p *fakePod) Stopping() bool                                        { return false }
+func (p *fakePod) PackLanguages(*runtime.Runtime) []plugins.PackLanguage { return nil }
+func (p *fakePod) PackCommand(*runtime.Runtime, string, plugins.LanguageServer) ([]string, error) {
+	return nil, nil
+}
 func (p *fakePod) AssistantTools(*runtime.Runtime) []json.RawMessage { return nil }
 func (p *fakePod) Notify(plugins.Note)                               {}
 func (p *fakePod) QuestionsChanged(string, string)                   {}

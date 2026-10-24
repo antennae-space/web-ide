@@ -98,8 +98,14 @@ func (r *Runtime) testNames(p string) []string {
 	if pat, ok := r.Config.Tests[ext]; ok {
 		names = append(names, strings.ReplaceAll(pat, "{name}", stem))
 	}
+	for _, pat := range PackTests(ext) {
+		names = append(names, strings.ReplaceAll(pat, "{name}", stem))
+	}
 	return names
 }
+
+// PackTests are the test patterns the language packs give an extension (#145), set by the server.
+var PackTests = func(ext string) []string { return nil }
 
 type Related struct {
 	IsTest  bool     `json:"isTest"`

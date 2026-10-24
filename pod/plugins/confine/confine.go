@@ -31,8 +31,10 @@ type Options struct {
 	Write   bool
 	// Net: the grant net (TCP and UDP).
 	Net bool
-	// Read are more folders read and run (the tests: the folder of their binary).
-	Read []string
+	// Read are more folders or files read and run (a language server's program and toolchain,
+	// the folder of a test's binary); WriteDirs more folders read and written (its caches).
+	Read      []string
+	WriteDirs []string
 	// Argv is the backend and its arguments; Env its environment.
 	Argv []string
 	Env  []string
@@ -52,6 +54,9 @@ func (o Options) Rules() []Rule {
 		rules = append(rules, Rule{Path: p, Access: ReadExec})
 	}
 	rules = append(rules, Rule{Path: o.Plugin, Access: ReadExec}, Rule{Path: o.Data, Access: ReadWrite})
+	for _, p := range o.WriteDirs {
+		rules = append(rules, Rule{Path: p, Access: ReadWrite})
+	}
 	for _, d := range devices {
 		rules = append(rules, Rule{Path: d, Access: Device})
 	}
@@ -91,16 +96,20 @@ func Exec(o Options) error {
 func Main(args []string) {
 	fs := flag.NewFlagSet("plugin-exec", flag.ExitOnError)
 	var o Options
-	var read string
+	var read, write string
 	fs.StringVar(&o.Plugin, "plugin", "", "the folder of the plugin (read, run)")
 	fs.StringVar(&o.Data, "data", "", "its data folder (written)")
 	fs.StringVar(&o.Project, "project", "", "the folder of the project")
 	fs.BoolVar(&o.Write, "write", false, "it may change the project")
 	fs.BoolVar(&o.Net, "net", false, "it may reach the network")
-	fs.StringVar(&read, "read", "", "more folders read and run, separated by ':'")
+	fs.StringVar(&read, "read", "", "more folders or files read and run, separated by ':'")
+	fs.StringVar(&write, "writedir", "", "more folders read and written, separated by ':'")
 	_ = fs.Parse(args)
 	if read != "" {
 		o.Read = strings.Split(read, ":")
+	}
+	if write != "" {
+		o.WriteDirs = strings.Split(write, ":")
 	}
 	o.Argv = fs.Args()
 	o.Env = os.Environ() // the pod gave it a clean one

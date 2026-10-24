@@ -241,5 +241,8 @@
   "the connection of %s to %s was not allowed": "la connexion de %s à %s n’a pas été autorisée",
   "invalid vault key: %q": "clé de coffre invalide : %q",
   "too many targets: %d": "trop de cibles : %d",
-  "invalid target %q": "cible invalide %q"
+  "invalid target %q": "cible invalide %q",
+  "no folder found for %s (%s)": "aucun dossier trouvé pour %s (%s)",
+  "%s is not installed (not found on the PATH)": "%s n’est pas installé (introuvable dans le PATH)",
+  "the folder %s of %s is refused: it holds the home, the data of the IDE or the SSH keys": "le dossier %s de %s est refusé : il contient le dossier personnel, les données de l’IDE ou les clés SSH"
 }

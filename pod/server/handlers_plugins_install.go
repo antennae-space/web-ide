@@ -37,6 +37,7 @@ func (s *Server) registerPluginInstall() {
 	s.plugins.official = s.officialSource()
 	s.plugins.installer.Official = s.officialURL
 	s.loadExternals()
+	runtime.PackTests = s.packTests
 	s.migrateDatabase()
 	go s.ensureOfficial()
 
@@ -182,6 +183,10 @@ func (s *Server) registerPluginInstall() {
 			list = []aiTarget{}
 		}
 		return list, nil
+	})
+	// plugins.grammars: the grammars of the language packs installed (#145), for the editor.
+	s.handle("plugins.grammars", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
+		return s.packGrammars(), nil
 	})
 	// plugins.host: what this pod can run of an external plugin (the Landlock ABI of its kernel:
 	// 0, no backend runs).

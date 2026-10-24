@@ -15,6 +15,8 @@ type Resolved = { url: string; tag: string; version: string; manifest: PluginMan
 /** What a permission lets the plugin do, as the dialog says it. */
 function grantText(g: string): string {
   if (g.startsWith('core:')) return t('Call {method} of the IDE', { method: g.slice(5) })
+  if (g.startsWith('program:')) return t('Run {program} (a language server, confined)', { program: g.slice(8) })
+  if (g.startsWith('path:')) return t('Use the folder {name} of this machine', { name: g.slice(5) })
   return (
     {
       'files:read': t('Read the files of the project'),
