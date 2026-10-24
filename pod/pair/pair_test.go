@@ -80,9 +80,10 @@ func TestCreate(t *testing.T) {
 	entries, _ := os.ReadDir(e.Dir)
 	for _, en := range entries {
 		b, _ := os.ReadFile(filepath.Join(e.Dir, en.Name()))
-		for _, w := range shown {
-			if bytes.Contains(b, []byte(w)) {
-				t.Fatalf("%s holds a word of the phrase", en.Name())
+		// Two words in a row: a single short word ("key", "art") may be met in JSON or base64.
+		for i := 0; i+1 < len(shown); i++ {
+			if bytes.Contains(b, []byte(shown[i]+" "+shown[i+1])) {
+				t.Fatalf("%s holds words of the phrase", en.Name())
 			}
 		}
 	}
