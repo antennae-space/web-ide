@@ -8,7 +8,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { execFileSync } = require('child_process')
-const { run, openProject, assert, installOfficial } = require('../common.cjs')
+const { run, openProject, assert, installOfficial, mcp } = require('../common.cjs')
 
 const alphaJS = `
 let count = 0
@@ -28,7 +28,11 @@ ide.register({
       el.innerHTML = '<p id="asked">' + JSON.stringify(ide.view.state) + '</p><button id="choose">choose</button>'
       el.querySelector('#choose').onclick = () => ide.closeModal({ chosen: 'green' })
     },
-    note: (el, ide) => { el.innerHTML = '<p id="note">' + JSON.stringify(ide.view.state) + '</p>' },
+    note: (el, ide) => {
+      el.innerHTML = '<p id="note">' + JSON.stringify(ide.view.state) + '</p><button id="opened">opened</button><button id="ask">ask</button><button id="answer">answer</button><button id="notify">notify</button><pre id="out"></pre>'
+      for (const b of ['opened', 'ask', 'answer', 'notify'])
+        el.querySelector('#' + b).onclick = () => ide.rpc('alpha.' + b).then((r) => (el.querySelector('#out').textContent = JSON.stringify(r)), (e) => (el.querySelector('#out').textContent = 'error: ' + e.message))
+    },
   },
 })
 `
@@ -74,7 +78,11 @@ run(async ({ page }) => {
   }
   archive('alpha', {
     name: 'Alpha', provides: ['greeting'],
-    contributes: { modals: [{ id: 'pick', label: 'Pick' }], tabViews: [{ id: 'note', label: 'Note' }], links: [{ param: 'greet', view: 'note' }] },
+    contributes: {
+      modals: [{ id: 'pick', label: 'Pick' }], tabViews: [{ id: 'note', label: 'Note' }], links: [{ param: 'greet', view: 'note' }],
+      mcpTools: ['alpha_where'], toolSchemas: { alpha_where: { description: 'Tells the scope of the call', properties: {} } },
+      questions: true, hooks: ['project.open'],
+    },
   }, alphaJS)
   archive('beta', { name: 'Beta', requires: ['greeting'], contributes: { tools: [{ id: 'beta', label: 'Beta', icon: 'sparkle', zone: 'right' }] } }, betaJS)
   await installOfficial(['alpha', 'beta'])
@@ -131,6 +139,32 @@ run(async ({ page }) => {
   await note.locator('#note').waitFor()
   assert((await note.locator('#note').textContent()) === '{"greet":"hello"}', 'the link opens the view')
   assert(!page.url().includes('greet='), 'the parameter is taken out of the address')
+
+  // #156: the hook project.open reached alpha's backend; its MCP tool answers with the scope of
+  // the call; its question shows in the Questions tool and the answer reaches it; notify needs
+  // its grant, not given here.
+  const alpha = async (button) => {
+    await note.locator('#out').evaluate((e) => (e.textContent = ''))
+    await note.locator('#' + button).click()
+    await note.locator('#out:not(:empty)').waitFor()
+    return note.locator('#out').textContent()
+  }
+  for (let i = 0; i < 30 && (got = await alpha('opened')) !== 'true'; i++) await page.waitForTimeout(100)
+  assert(got === 'true', 'project.open reached the backend: ' + got)
+  const where = await mcp('alpha_where', {})
+  const text = where.result?.content?.[0]?.text ?? JSON.stringify(where)
+  assert(/^alpha_where: project \S+, main \S+$/.test(text) && !where.result.isError, 'an MCP tool of an external plugin, with its scope: ' + text)
+  assert((await alpha('ask')) === '"asked"', 'alpha asks')
+  await page.click('.rail-btn[data-id=questions]')
+  await page.waitForSelector('[data-testid=question-item][data-source=alpha], [data-testid=question-modal]')
+  if (!(await page.$('[data-testid=question-modal]'))) await page.click('[data-testid=question-item][data-source=alpha]')
+  assert((await page.textContent('[data-testid=question-modal]')).includes('Greet everyone?'), 'its question in the Questions tool')
+  await page.click('[data-testid=question-modal] [data-testid=question-option-yes]')
+  await page.waitForSelector('[data-testid=question-modal]', { state: 'detached' })
+  got = await alpha('answer')
+  assert(got === '"q1=yes"', 'the answer reaches its backend: ' + got)
+  got = await alpha('notify')
+  assert(got.includes('notify is not granted to Alpha'), 'notify without its grant: ' + got)
 
   // alpha disabled on the project: beta, which requires it, is off too; back with it.
   page.on('dialog', (d) => d.accept())

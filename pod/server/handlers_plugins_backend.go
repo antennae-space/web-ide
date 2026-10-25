@@ -53,6 +53,21 @@ func (e *extPart) stop() {
 	}
 }
 
+// running is the backend running now, nil when none: what is asked of every backend of a
+// project (its questions) starts none.
+func (e *extPart) running() *backend.Process {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.proc != nil {
+		select {
+		case <-e.proc.Done():
+			return nil
+		default:
+		}
+	}
+	return e.proc
+}
+
 // process is the running backend, started when there is none; one that died three times in a
 // minute stays off until the project opens again.
 func (e *extPart) process(ctx context.Context) (*backend.Process, error) {
@@ -225,6 +240,10 @@ func (s *Server) backendCore(ctx context.Context, rt *runtime.Runtime, e plugins
 		return s.serviceCall(ctx, rt, e, params)
 	case "service.on":
 		return s.serviceOn(rt, e, params)
+	case "questions.changed":
+		return s.backendQuestionsChanged(rt, e, params)
+	case "notify":
+		return s.pluginNotify(rt, e, params)
 	}
 	if !slices.Contains(e.Grants, "core:"+method) {
 		return nil, i18n.Errorf("%s is not granted to %s", method, e.Manifest.Name)

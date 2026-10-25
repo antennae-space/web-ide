@@ -134,6 +134,9 @@ The IDE starts it on the first call of a project, through `web-ide-pod plugin-ex
 | `initialize {apiVersion, plugin, version, grants, project: {id, root, local}}` | answer `{}` |
 | `call {method, params, lang, from?}` | an `<id>.*` method of one of its views, or of another plugin's backend using a capability it provides (`from`: that plugin's id): answer its result |
 | `event {event, data}` (no id) | an event of the backend of a capability it listens to (`service.on`) |
+| `mcp {name, args, lang, scope: {project, main, ticket, url}}` | one of its MCP tools (`contributes.mcpTools`, described in `toolSchemas`): `project` of the client's folder, `main` its main project, `ticket` that of its worktree (0 elsewhere), `url` the address of the IDE; answer `{content, error}` |
+| `questions.list {}`, `questions.answer {id, option, action, content}` | with `contributes.questions: true`: its questions waiting for the user (`[{id, kind: "permission" or "form", title, text, options: [{optionId, name, kind}], schema, time}]`), and the answer of one |
+| `project.open {}` (no id) | with `contributes.hooks: ["project.open"]`: a window opened the project (the backend started for it) |
 | `tool {name, args, lang}` | one of its assistant tools: answer `{content, summary, error}` |
 | `shutdown` | answer, then exit |
 
@@ -147,6 +150,9 @@ The IDE starts it on the first call of a project, through `web-ide-pod plugin-ex
 | `core {method: "terminal.open", params: {title}}` | a console of the IDE you feed (grant `terminal`): answers `{console, fd: n}`; write its output on the socket, read what is typed; the notification `terminal.resize {console, cols, rows}` (no id, no answer) tells its size; `ide.showConsole(console)` in a view shows it |
 | `core {method: "service.call", params: {capability, method, params}}` | a method of the backend providing a capability it requires: answers its result |
 | `core {method: "service.on", params: {capability}}` | its events come as `event` notifications: answers `{provider}` |
+| `core {method: "questions.changed", params: {asked?}}` | its questions changed: the windows ask again; `asked: true` notifies the devices |
+| `core {method: "notify", params: {kind, query?, tag?, urgency?, texts: {en: {title, body}, fr: …}}}` | a push notification (grant `notify`), of a kind the devices choose (`feedback`, `asks`, `finished`, `tests`), opening the project at `?<query>` |
+| `core {method: "commands.list"}` (and `commands.save`, `commands.run`) | the saved commands of the project, with `core:commands.list`… |
 | `emit {event, data}` (no id) | an event to the windows of the project, `<id>.*` only, and to the backends listening to it |
 
 A call waits two minutes at most; a backend that ends three times in a minute stays off until the project opens again. It runs confined: it reads its own folder and the system, writes its data folder (its `HOME` and `TMPDIR`), reads the project with `files:read`, writes it with `files:write`, reaches the network with `net` only; never the home, nor `~/.web-ide`, nor the other processes. A project over SSH is not on the pod: reach its files with `core` calls. Build it static (`CGO_ENABLED=0` for Go): it starts with the system's libraries only. A kernel without Landlock does not run it.
@@ -162,6 +168,7 @@ The user grants each permission at the install, again for a new one asked by an 
 - `exec:<name>`: the pod runs that program for it on the host of an SSH project (not confined there);
 - `socket:docker`: the Docker socket, opened by the pod; whoever holds it is as much as root on the machine, and the user is told so;
 - `terminal`: consoles of the IDE it feeds;
+- `notify`: push notifications to the user's devices;
 - `exec`: running programs (reserved);
 - `core:<method>`: its views and its backend call that method of the core (`core:fs.list`, `core:fs.read`…); the files permissions do not open them.
 

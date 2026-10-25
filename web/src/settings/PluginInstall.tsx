@@ -29,6 +29,7 @@ function grantText(g: string): string {
       vault: t('Keep its secrets in the vault'),
       'socket:docker': t('Use Docker: as much as root on this machine (or the host of an SSH project)'),
       terminal: t('Open terminals in the IDE'),
+      notify: t('Send you notifications'),
     }[g] ?? g
   )
 }
