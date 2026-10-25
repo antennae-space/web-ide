@@ -29,11 +29,12 @@ ide.register({
       el.querySelector('#choose').onclick = () => ide.closeModal({ chosen: 'green' })
     },
     note: (el, ide) => {
-      el.innerHTML = '<p id="note">' + JSON.stringify(ide.view.state) + '</p><button id="opened">opened</button><button id="ask">ask</button><button id="answer">answer</button><button id="notify">notify</button><button id="git">git</button><button id="worktree">worktree</button><button id="unworktree">unworktree</button><button id="md">md</button><pre id="out"></pre><pre id="choice"></pre>'
+      el.innerHTML = '<p id="note">' + JSON.stringify(ide.view.state) + '</p><button id="opened">opened</button><button id="ask">ask</button><button id="answer">answer</button><button id="notify">notify</button><button id="git">git</button><button id="worktree">worktree</button><button id="unworktree">unworktree</button><button id="md">md</button><button id="agents">agents</button><pre id="out"></pre><pre id="choice"></pre>'
       // #157: its status items, a choice of their menu back; the IDE's Markdown.
       ide.setStatus([{ id: 'alpha-mood', text: 'Mood: calm', title: 'The mood of alpha', menu: [{ id: 'calm', label: 'Calm', checked: true }, { id: 'busy', label: 'Busy' }] }])
       ide.onStatus((e) => (el.querySelector('#choice').textContent = e.item + '=' + e.choice))
       el.querySelector('#md').onclick = () => ide.markdown('**bold** <img src=x onerror=alert(1)>').then((h) => (el.querySelector('#out').textContent = h))
+      el.querySelector('#agents').onclick = () => ide.use('agents').call('catalog').then((r) => (el.querySelector('#out').textContent = JSON.stringify(r)), (e) => (el.querySelector('#out').textContent = 'error: ' + e.message))
       for (const b of ['opened', 'ask', 'answer', 'notify', 'git', 'worktree', 'unworktree'])
         el.querySelector('#' + b).onclick = () => ide.rpc('alpha.' + b).then((r) => (el.querySelector('#out').textContent = JSON.stringify(r)), (e) => (el.querySelector('#out').textContent = 'error: ' + e.message))
     },
@@ -45,7 +46,7 @@ const betaJS = `
 ide.register({
   views: {
     beta: (el, ide) => {
-      el.innerHTML = '<button id="call">call</button><button id="modal">modal</button><button id="ask">ask</button><button id="listen">listen</button><button id="heard">heard</button><button id="foreign">foreign</button><button id="unrequired">unrequired</button><pre id="answer"></pre><pre id="count"></pre><pre id="said"></pre>'
+      el.innerHTML = '<button id="console">console</button><button id="chat">chat</button><pre id="chatid"></pre><button id="call">call</button><button id="modal">modal</button><button id="ask">ask</button><button id="listen">listen</button><button id="heard">heard</button><button id="foreign">foreign</button><button id="unrequired">unrequired</button><pre id="answer"></pre><pre id="count"></pre><pre id="said"></pre>'
       const $ = (s) => el.querySelector(s)
       const show = (p) => p.then((r) => ($('#answer').textContent = typeof r === 'string' ? r : JSON.stringify(r)), (e) => ($('#answer').textContent = 'error: ' + e.message))
       const greeting = ide.use('greeting')
@@ -58,6 +59,11 @@ ide.register({
       $('#heard').onclick = () => show(ide.rpc('beta.heard'))
       $('#foreign').onclick = () => show(ide.rpc('beta.foreign'))
       $('#unrequired').onclick = () => show(ide.use('other').call('x'))
+      // #167: the bridges of the core, with their grants.
+      const term = ide.use('terminal'), assistant = ide.use('assistant')
+      $('#console').onclick = () => show(term.call('open', { command: ['sh', '-c', 'echo bridged-$((40+2)); sleep 60'], title: 'Bridged' }).then((id) => (term.call('show', id), 'opened')))
+      assistant.onValue('chat', (c) => ($('#chatid').textContent = c && c.id ? 'chat ' + c.id : ''))
+      $('#chat').onclick = () => show(assistant.call('newChat', { mode: 'build', title: 'Bridged chat' }).then(() => 'started'))
     },
   },
 })
@@ -81,14 +87,14 @@ run(async ({ page }) => {
     process.env['E2E_PLUGIN_' + id.toUpperCase()] = file
   }
   archive('alpha', {
-    name: 'Alpha', provides: ['greeting'], permissions: ['git', 'worktrees'],
+    name: 'Alpha', provides: ['greeting'], requires: ['agents'], permissions: ['git', 'worktrees'],
     contributes: {
       modals: [{ id: 'pick', label: 'Pick' }], tabViews: [{ id: 'note', label: 'Note' }], links: [{ param: 'greet', view: 'note' }],
       mcpTools: ['alpha_where'], toolSchemas: { alpha_where: { description: 'Tells the scope of the call', properties: {} } },
       questions: true, hooks: ['project.open'],
     },
   }, alphaJS)
-  archive('beta', { name: 'Beta', requires: ['greeting'], contributes: { tools: [{ id: 'beta', label: 'Beta', icon: 'sparkle', zone: 'right' }] } }, betaJS)
+  archive('beta', { name: 'Beta', requires: ['greeting', 'terminal', 'assistant'], permissions: ['use:terminal', 'use:assistant'], contributes: { tools: [{ id: 'beta', label: 'Beta', icon: 'sparkle', zone: 'right' }] } }, betaJS)
   await installOfficial(['alpha', 'beta'])
   // The demo project a git repository, for the git of alpha (#157).
   const demo = path.join(WS, 'demo')
@@ -110,8 +116,25 @@ run(async ({ page }) => {
     return got
   }
 
+  // #167: beta opens a console through the bridge of terminal (its command runs), and starts a
+  // conversation of the assistant, whose id it follows.
+  let got = await answer('console')
+  assert(got === 'opened', 'a console opened through the bridge: ' + got)
+  await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('bridged-42'), null, { timeout: 10000 })
+  assert(true, 'its command ran in a console of the IDE')
+  if (!(await page.isVisible('iframe.plugin-frame[data-view=beta]'))) await page.click('.rail-btn[data-id=beta]')
+  const chatBefore = await beta.locator('#chatid').textContent()
+  got = await answer('chat')
+  assert(got === 'started', 'a conversation started through the bridge: ' + got)
+  let chatNow = chatBefore
+  for (let i = 0; i < 50 && (chatNow === chatBefore || !chatNow); i++) {
+    await page.waitForTimeout(100)
+    chatNow = await beta.locator('#chatid').textContent()
+  }
+  assert(chatNow.startsWith('chat ') && chatNow !== chatBefore, 'beta follows the conversation shown: ' + chatBefore + ' -> ' + chatNow)
+
   // In the page: alpha's background frame answers beta's call, its value and event reach beta.
-  let got = await answer('call')
+  got = await answer('call')
   assert(got === 'Hello Ada from the frame of alpha', 'a call of a service in the page: ' + got)
   await beta.locator('#count:has-text("count 1")').waitFor()
   await beta.locator('#said:has-text("said Ada")').waitFor()
@@ -196,6 +219,10 @@ run(async ({ page }) => {
   assert(true, 'a status item of a plugin tab and its menu')
   got = await alpha('md')
   assert(got.includes('<strong>bold</strong>') && !got.includes('onerror'), 'the IDE renders Markdown, sanitized: ' + got)
+
+  // #167: a capability of a built-in through the bridge of the core, refused without its grant.
+  got = await alpha('agents')
+  assert(got.includes('use:agents is not granted to Alpha'), 'a bridge without its grant: ' + got)
 
   // alpha disabled on the project: beta, which requires it, is off too; back with it.
   page.on('dialog', (d) => d.accept())

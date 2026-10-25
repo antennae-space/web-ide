@@ -271,5 +271,7 @@
   "gh: only its pull requests (gh pr …) for a plugin": "gh : seulement ses pull requests (gh pr …) pour un plugin",
   "gh is not installed": "gh n’est pas installé",
   "%s is not a folder of .ide/worktrees": "%s n’est pas un dossier de .ide/worktrees",
-  "worktree.register: owner, the number of its ticket": "worktree.register : owner, le numéro de son ticket"
+  "worktree.register: owner, the number of its ticket": "worktree.register : owner, le numéro de son ticket",
+  "%s is not a method of the bridge of %s": "%s n’est pas une méthode du pont de %s",
+  "%s is not a project of this one": "%s n’est pas un projet de celui-ci"
 }

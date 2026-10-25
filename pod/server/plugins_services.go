@@ -14,7 +14,8 @@ import (
 // The services between external plugins (docs/design/plugins.md, *Services between external
 // plugins*, #155): a backend calls a method of the backend providing a capability its manifest
 // requires, and hears the events that backend emits. Only between external plugins: a built-in's
-// service runs unconfined, so an external reaches it through a core:<method> grant only.
+// service runs unconfined, so an external reaches it through a core:<method> grant, or the
+// bridge of the core for that capability (plugins_bridges.go).
 
 // serviceProvider is the external plugin with a backend providing capability to the backend of
 // caller in the project of rt.
@@ -44,6 +45,20 @@ func (s *Server) serviceCall(ctx context.Context, rt *runtime.Runtime, caller pl
 	}
 	if err := json.Unmarshal(params, &a); err != nil {
 		return nil, err
+	}
+	// A capability of a built-in: through its bridge only (#167).
+	if slices.Contains(caller.Manifest.Requires, a.Capability) {
+		b, err := s.bridgeOf(rt, caller, a.Capability)
+		if err != nil {
+			return nil, err
+		}
+		if b != nil {
+			f := b[a.Method]
+			if f == nil {
+				return nil, i18n.Errorf("%s is not a method of the bridge of %s", a.Method, a.Capability)
+			}
+			return f(ctx, s, rt, caller, a.Params)
+		}
 	}
 	p, err := s.serviceProvider(rt, caller, a.Capability)
 	if err != nil {

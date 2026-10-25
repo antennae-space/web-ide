@@ -107,7 +107,7 @@ ide.register({
 ide.publish('greeting', 'count', 1) // a value its users read and follow
 ```
 
-Another plugin, with `"requires": ["greeting"]`, uses it from any of its frames: `const g = ide.use('greeting')`, `await g.call('hello', 'Ada')`, `g.value('count')`, `g.onValue('count', f)`, `g.on('said', f)`; `ide.openModal('pick', state, {plugin: 'alpha'})` opens a modal view of the plugin providing it, titled with that plugin's name. Its backend calls the provider's backend with the core calls `service.call {capability, method, params}` (a method `<provider>.*`, which the provider's backend gets as a `call` with `from`, the caller's id) and `service.on {capability}` (the events the provider's backend emits come as the notification `event {event, data}`). Only between external plugins: a built-in's capability is reached through `core:<method>` grants.
+Another plugin, with `"requires": ["greeting"]`, uses it from any of its frames: `const g = ide.use('greeting')`, `await g.call('hello', 'Ada')`, `g.value('count')`, `g.onValue('count', f)`, `g.on('said', f)`; `ide.openModal('pick', state, {plugin: 'alpha'})` opens a modal view of the plugin providing it, titled with that plugin's name. Its backend calls the provider's backend with the core calls `service.call {capability, method, params}` (a method `<provider>.*`, which the provider's backend gets as a `call` with `from`, the caller's id) and `service.on {capability}` (the events the provider's backend emits come as the notification `event {event, data}`). A built-in's capability is reached through `core:<method>` grants, or through its **bridge**, a reviewed part the IDE offers on the grant `use:<capability>`: `ide.use('terminal')` (`open({cwd, command, title})`, `show(id)`), `ide.use('assistant')` (`newChat({mode, title, ticket})`, `send(text)`, `openChat(id)`, the values `chat` and `config`), `ide.use('agents')` (`show(session)`, `catalog()`); from the backend, `service.call` on `agents` (`agents.develop`, `agents.ticketSession`, `agents.purge`, `agents.chatTimes`). `ide.showWorktree(project)` shows a worktree of the project in the window.
 
 ## Editor tabs, settings, actions
 
@@ -174,6 +174,7 @@ The user grants each permission at the install, again for a new one asked by an 
 - `socket:docker`: the Docker socket, opened by the pod; whoever holds it is as much as root on the machine, and the user is told so;
 - `terminal`: consoles of the IDE it feeds;
 - `notify`: push notifications to the user's devices;
+- `use:terminal`, `use:assistant`, `use:agents`: the bridges of the IDE's consoles (a command run as the user), assistant and agents;
 - `git`, `gh`, `worktrees`: git and gh in the project with the user's keys (its hooks run: as much as the user), the worktree projects and their setup;
 - `exec`: running programs (reserved);
 - `core:<method>`: its views and its backend call that method of the core (`core:fs.list`, `core:fs.read`…); the files permissions do not open them.

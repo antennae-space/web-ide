@@ -470,7 +470,15 @@ Done in #155:
 - **Links**: `contributes.links [{param, view, type?: number|string}]`, the view one of its tab views, the parameters `open`, `questions`, `assistant`, `chat` and `desk` the core's; `web/src/plugins/links.ts` opens them for the enabled plugins (key the value, state `{[param]: value}`). The built-in Kanban declares `ticket`, `milestone`, `objective`; `?chat=` stays the core's until the assistant moves (#166).
 - Tested by the e2e suite `capabilities` (two plugins, `alpha` and `beta`, their backend `e2e/fixtures/capabilities-backend`) and `TestServiceCallRefusals`, `TestExternalProviders`.
 
-### What the Kanban adds to the API
+### Bridges
+
+Decided on 2026-10-25, done in #167. A capability a built-in provides runs unconfined, and `requires` is no grant: an external plugin does not reach it as it reaches another external's. The Kanban leaving before the AI still needs the AI, though, and later the AI leaving needs what stays built-in. A **bridge** is the core's code exposing a reviewed part of a built-in capability to the external plugins requiring it, on the grant `use:<capability>` worded at the install; what crosses it is checked by the bridge.
+
+- **On the page** (`web/src/plugins/bridges.ts`): `ide.use(cap)`, when no external serves the capability and a built-in does, is its bridge: `assistant` (`newChat` with a mode, a title and a ticket, `send`, `openChat`, `loadConfig`; the values `chat` and `config`), `agents` (`show`, `catalog`), `terminal` (`open {cwd, command, title, kind}`, the folder within the project: a command run as the user, `show`).
+- **On the pod** (`server/plugins_bridges.go`): `service.call` on a built-in provider runs the bridge's method: `agents` with `agents.develop`, `agents.ticketSession`, `agents.purge`, `agents.chatTimes` (`caps.Agents`), the project the caller's main project or one of its ticket worktrees.
+- `ide.showWorktree(project)` shows a worktree of the window's project.
+- Grants `use:assistant`, `use:agents`, `use:terminal`. Tested by `TestAgentsBridge` and the e2e suite `capabilities` (a console opened, a conversation started, a bridge refused without its grant).
+
 
 - **MCP tools of an external plugin**: `contributes.mcpTools` with their schemas, run by its backend with the scope of the call (the project of the client's folder, its main project, the ticket of its worktree, the public address, the language), as `Host.MCPTool` does for a built-in. The `kanban_*` tools are the Kanban's, `kanban_conversation`, `kanban_reply` and `kanban_answer` included: it reads and answers the thread of a ticket through `threads`, whichever plugin holds it.
 - **Git by the core**: grants `git` (state, branches, changes, patches, merged or not) and `git:write` (worktrees added and removed, branches, merge, a pull request through `gh`), the core calls running `pod/git` in the project; the backend runs no `git` itself (a confined backend cannot reach `~/.gitconfig` nor the keys).
