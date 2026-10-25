@@ -264,6 +264,9 @@ export function setCapabilityGate(f: (plugin: string) => boolean) {
   enabledNow = f
 }
 
+/** Whether a plugin is enabled on the project (reactive). */
+export const pluginEnabled = (plugin: string) => enabledNow(plugin)
+
 export function provide<K extends keyof Capabilities>(plugin: string, name: K, impl: Capabilities[K]) {
   services.impl[name] = impl
   services.by[name] = plugin

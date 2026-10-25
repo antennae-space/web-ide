@@ -47,7 +47,8 @@ A release carries one archive per architecture, `<id>-linux-amd64.tar.gz` and `<
 - `assets`: the address of its archives, `{version}` and `{arch}` (`linux-amd64`, `linux-arm64`) replaced; https only.
 - `backend`: its executable in the archive, `bin/<name>`; none for a plugin made of views only.
 - `permissions`: what it asks, each one granted by the user or not (see *Grants*).
-- `contributes`: its tools (an icon of a rail: `left`, `bottomLeft`, `bottomRight`, `right`), tab views, commands, and its assistant tools, each described in `toolSchemas` (a description and the JSON Schema properties of its arguments; its backend runs them).
+- `contributes`: its tools (an icon of a rail: `left`, `bottomLeft`, `bottomRight`, `right`), tab views, commands, and its assistant tools, each described in `toolSchemas` (a description and the JSON Schema properties of its arguments; its backend runs them). `links: [{"param": "note", "view": "note", "type": "string"}]`: `/project/<id>?note=x` opens the view `note`, `x` the key of its tab and `{"note": "x"}` its state (`"type": "number"` for a number).
+- `provides`, `requires`: the capabilities it serves to the other external plugins and those it uses (see *Services*); it is off on a project where nothing provides one it requires.
 
 ## The page module
 
@@ -77,7 +78,7 @@ function Greet() {
 ide.register({ views: { greet: view(Greet) } })
 ```
 
-Each tool and tab view is a frame of its own, running the module and the view of its id; the commands run in a hidden frame. The sandbox API, `ide` (its types: `web/src/plugins/sandbox-api.ts` of the IDE, copied in the SDK):
+Each tool and tab view is a frame of its own, running the module and the view of its id; the commands run in a hidden frame, its background frame, which also serves the capabilities it provides. The sandbox API, `ide` (its types: `web/src/plugins/sandbox-api.ts` of the IDE, copied in the SDK):
 
 | | |
 |---|---|
@@ -92,6 +93,19 @@ Each tool and tab view is a frame of its own, running the module and the view of
 | `ide.theme`, `ide.onTheme(f)` | the colors and fonts of the IDE, also set as CSS variables (`var(--bg)`, `var(--fg)`…, the list is `themeTokens` of the SDK), its `color-scheme`, and `--ide-head-inset`: the room the IDE's buttons take over the frame's top right corner, to leave in the first row of a view (the kit's toolbar does) |
 
 The keys pressed in the frame with a modifier, Escape and F1-F12 reach the IDE's shortcuts.
+
+## Services
+
+A plugin serves a capability to the other external plugins: name it in `provides`, register its methods, and publish what its users show:
+
+```js
+ide.register({
+  services: { greeting: { hello: (name) => { ide.emit('greeting', 'said', name); return 'Hello ' + name } } },
+})
+ide.publish('greeting', 'count', 1) // a value its users read and follow
+```
+
+Another plugin, with `"requires": ["greeting"]`, uses it from any of its frames: `const g = ide.use('greeting')`, `await g.call('hello', 'Ada')`, `g.value('count')`, `g.onValue('count', f)`, `g.on('said', f)`; `ide.openModal('pick', state, {plugin: 'alpha'})` opens a modal view of the plugin providing it, titled with that plugin's name. Its backend calls the provider's backend with the core calls `service.call {capability, method, params}` (a method `<provider>.*`, which the provider's backend gets as a `call` with `from`, the caller's id) and `service.on {capability}` (the events the provider's backend emits come as the notification `event {event, data}`). Only between external plugins: a built-in's capability is reached through `core:<method>` grants.
 
 ## Editor tabs, settings, actions
 
@@ -118,7 +132,8 @@ The IDE starts it on the first call of a project, through `web-ide-pod plugin-ex
 | From the IDE | |
 |---|---|
 | `initialize {apiVersion, plugin, version, grants, project: {id, root, local}}` | answer `{}` |
-| `call {method, params, lang}` | an `<id>.*` method of one of its views: answer its result |
+| `call {method, params, lang, from?}` | an `<id>.*` method of one of its views, or of another plugin's backend using a capability it provides (`from`: that plugin's id): answer its result |
+| `event {event, data}` (no id) | an event of the backend of a capability it listens to (`service.on`) |
 | `tool {name, args, lang}` | one of its assistant tools: answer `{content, summary, error}` |
 | `shutdown` | answer, then exit |
 
@@ -130,7 +145,9 @@ The IDE starts it on the first call of a project, through `web-ide-pod plugin-ex
 | `core {method: "socket", params: {name: "docker"}}` | the Docker socket, opened by the pod (grant `socket:docker`), the host's on an SSH project: answers `{fd: n}`, as `dial` |
 | `core {method: "exec", params: {argv, dir?}}` | a program on the host of an SSH project (grant `exec:<name>`: `exec:sqlite3`), run in the project, not confined there: answers `{output}`; refused on a local project (run it yourself) |
 | `core {method: "terminal.open", params: {title}}` | a console of the IDE you feed (grant `terminal`): answers `{console, fd: n}`; write its output on the socket, read what is typed; the notification `terminal.resize {console, cols, rows}` (no id, no answer) tells its size; `ide.showConsole(console)` in a view shows it |
-| `emit {event, data}` (no id) | an event to the windows of the project, `<id>.*` only |
+| `core {method: "service.call", params: {capability, method, params}}` | a method of the backend providing a capability it requires: answers its result |
+| `core {method: "service.on", params: {capability}}` | its events come as `event` notifications: answers `{provider}` |
+| `emit {event, data}` (no id) | an event to the windows of the project, `<id>.*` only, and to the backends listening to it |
 
 A call waits two minutes at most; a backend that ends three times in a minute stays off until the project opens again. It runs confined: it reads its own folder and the system, writes its data folder (its `HOME` and `TMPDIR`), reads the project with `files:read`, writes it with `files:write`, reaches the network with `net` only; never the home, nor `~/.web-ide`, nor the other processes. A project over SSH is not on the pod: reach its files with `core` calls. Build it static (`CGO_ENABLED=0` for Go): it starts with the system's libraries only. A kernel without Landlock does not run it.
 

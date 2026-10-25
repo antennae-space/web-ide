@@ -210,8 +210,11 @@ What gives the diff view the two sides of a diff tab (Git: the working tree, the
 What gives Search Everywhere one kind of results (files, symbols, actions, text…) and its tab: the core or a plugin.
 
 **Capability**
-A named feature a plugin or the core provides and others require (`terminal`, `worktrees`), with the service that does it: the consoles of `terminal`.
+A named feature a plugin or the core provides and others require (`terminal`, `worktrees`), with the service that does it: the consoles of `terminal`. An external plugin's is served to the other external plugins only, by its background frame and its backend (`ide.use`, `service.call`).
 _Avoid_: service (an HTTP service shared between pods), dependency (a ticket waiting for another)
+
+**Background frame** ([plugins](docs/design/plugins.md#services-between-external-plugins))
+The hidden frame of an external plugin: it runs its commands and serves the capabilities it provides to the frames of the other plugins.
 
 **Part** ([plugins](docs/design/plugins.md#what-the-layout-added-to-the-api))
 The per-project state a plugin keeps in the runtime of a project (its language servers, its database connections), made on first use and stopped with the project.

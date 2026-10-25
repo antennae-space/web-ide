@@ -252,5 +252,9 @@
   "exec runs a program on the host of an SSH project; on this machine, the backend runs it itself": "exec lance un programme sur l'hôte d'un projet SSH ; sur cette machine, le backend le lance lui-même",
   "%s is outside the project": "%s est hors du projet",
   "%s is needed to install %s": "%s est nécessaire pour installer %s",
-  "%s has no install recipe in %s": "%s n'a pas de recette d'installation dans %s"
+  "%s has no install recipe in %s": "%s n'a pas de recette d'installation dans %s",
+  "%s does not require %s": "%s ne requiert pas %s",
+  "nothing provides %s on this project": "rien ne fournit %s sur ce projet",
+  "%s is provided by %s, which an external plugin cannot call": "%s est fourni par %s, qu’un plugin externe ne peut pas appeler",
+  "%s is not a method of %s": "%s n’est pas une méthode de %s"
 }

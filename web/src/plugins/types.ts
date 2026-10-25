@@ -42,6 +42,8 @@ export interface PluginManifest {
     tabViews?: { id: string; label: string; editor?: { lang: string; size?: number; keys?: Record<string, string> } }[]
     /** The views an external plugin opens in a modal of the core (#154). */
     modals?: { id: string; label: string }[]
+    /** Parameters of a project's address opening a tab view (#155): ?ticket=12. */
+    links?: { param: string; view: string; type?: 'number' | 'string' }[]
     assistantTools?: string[]
     mcpTools?: string[]
     /** Actions <plugin>.<id> (or the id as written when it has a prefix of the plugin's namespaces); keys: default shortcuts; replaces: the id of the action before it moved to a plugin. */
@@ -115,6 +117,8 @@ export interface PluginModule {
   activate(api: PluginApi): PluginContributions
   /** What it shows on the home page (no project open): the api offers its global methods there. */
   home?(api: PluginApi): () => JSX.Element
+  /** Its module is built again (an external plugin updated): what it made goes (its frames). */
+  dispose?(): void
 }
 
 /** An entry of the Explorer, and the folder it is or is in. */

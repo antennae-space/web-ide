@@ -14,7 +14,8 @@ import { useEditorView } from '../ui/EditorArea'
 import { useCompletion } from '../ui/Completion'
 import { frameDoc, serveFrame, type FrameEditor } from './sandbox'
 import { pluginSettingValues } from './settings'
-import type { PageMessage, SandboxModalSize } from './sandbox-api'
+import type { SandboxModalSize } from './sandbox-api'
+import { serve, setModalOpener } from './services'
 import type { PluginContributions, PluginManifest, PluginModule, PluginState } from './types'
 
 type Bundle = { version: string; js: string; catalogs: Record<string, Record<string, string>> }
@@ -77,6 +78,8 @@ function SandboxFrame(props: {
     served = serveFrame(frame, {
       plugin: props.state.manifest.id,
       name: props.state.manifest.name,
+      requires: props.state.manifest.requires,
+      provides: props.state.manifest.provides,
       grants: props.grants,
       catalogs: props.bundle.catalogs,
       view: props.view,
@@ -187,28 +190,41 @@ function EditorTab(props: { state: PluginState; grants: () => string[]; bundle: 
   )
 }
 
-/** The hidden frame running the commands of a plugin, made on its first command. */
-function commandRunner(state: PluginState, grants: () => string[], bundle: Bundle) {
-  let ready: Promise<(m: PageMessage) => void> | undefined
-  return (command: string) => {
-    ready ??= new Promise((resolve) => {
-      const frame = document.createElement('iframe')
+/**
+ * The background frame of a plugin, hidden: it runs its commands, made on the first one, and
+ * serves the capabilities it provides (#155), made when it is activated.
+ */
+function backgroundFrame(state: PluginState, grants: () => string[], bundle: Bundle) {
+  let ready: Promise<Served> | undefined
+  let frame: HTMLIFrameElement | undefined
+  let served: Served | undefined
+  const start = () =>
+    (ready ??= new Promise((resolve) => {
+      frame = document.createElement('iframe')
       frame.setAttribute('sandbox', 'allow-scripts')
       frame.className = 'plugin-frame-hidden'
       frame.dataset.plugin = state.manifest.id
       frame.srcdoc = frameDoc(bundle.js)
-      const served = serveFrame(frame, {
+      served = serveFrame(frame, {
         plugin: state.manifest.id,
         name: state.manifest.name,
+        requires: state.manifest.requires,
+        provides: state.manifest.provides,
         grants,
         catalogs: bundle.catalogs,
         view: '',
         settings: () => pluginSettingValues(state.manifest),
-        onReady: () => resolve(served.send),
+        onReady: () => resolve(served!),
       })
       document.body.append(frame)
-    })
-    void ready.then((send) => send({ command }))
+    }))
+  return {
+    start,
+    command: (command: string) => void start().then((s) => s.send({ command })),
+    stop: () => {
+      served?.stop()
+      frame?.remove()
+    },
   }
 }
 
@@ -217,9 +233,17 @@ export async function externalModule(state: PluginState, current: () => PluginSt
   const bundle = await request<Bundle>('plugins.bundle', { id: state.manifest.id })
   const c = state.manifest.contributes
   const grants = () => current()?.external?.grants ?? []
-  const run = commandRunner(state, grants, bundle)
+  const bg = backgroundFrame(state, grants, bundle)
+  const id = state.manifest.id
+  setModalOpener(id, modalOpener(state, grants, bundle))
   return {
-    activate: (): PluginContributions => ({
+    dispose: bg.stop,
+    activate: (): PluginContributions => {
+      // Its capabilities, served by its background frame to the other external plugins.
+      const provides = state.manifest.provides ?? []
+      if (provides.length)
+        void bg.start().then((s) => provides.forEach((cap) => serve(cap, id, (method, args) => s.request(cap, method, args))))
+      return {
       tools: Object.fromEntries((c.tools ?? []).map((x) => [x.id, { component: () => <SandboxFrame state={state} grants={grants} bundle={bundle} view={x.id} /> }])),
       views: Object.fromEntries(
         (c.tabViews ?? []).map((v) => [
@@ -232,7 +256,8 @@ export async function externalModule(state: PluginState, current: () => PluginSt
             ),
         ]),
       ),
-      commands: Object.fromEntries((c.commands ?? []).map((x) => [x.id, () => run(x.id)])),
-    }),
+      commands: Object.fromEntries((c.commands ?? []).map((x) => [x.id, () => bg.command(x.id)])),
+      }
+    },
   }
 }

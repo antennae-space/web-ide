@@ -975,5 +975,8 @@
   "Install {needs} to install {program}.": "Instala {needs} para instalar {program}.",
   "A dialog opens only while you use the plugin": "Un diálogo solo se abre mientras usas el plugin",
   "{name} has no such modal view": "{name} no tiene esa vista modal",
-  "A modal of a plugin is already open": "Ya hay una modal de un plugin abierta"
+  "A modal of a plugin is already open": "Ya hay una modal de un plugin abierta",
+  "{plugin} does not require {name}": "{plugin} no requiere {name}",
+  "nothing provides {name} on this project": "nada proporciona {name} en este proyecto",
+  "{name} is not ready": "{name} no está listo"
 }

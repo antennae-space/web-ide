@@ -61,6 +61,9 @@ func (p *fakePod) Plugin(id string) (plugins.Plugin, bool) {
 	}
 	return nil, false
 }
+func (p *fakePod) CallPlugin(context.Context, string, string, any) (json.RawMessage, error) {
+	return nil, nil
+}
 func (p *fakePod) UICall(context.Context, string, string, string, any, bool, time.Duration) (plugins.UIResult, bool, bool) {
 	return plugins.UIResult{}, false, false
 }

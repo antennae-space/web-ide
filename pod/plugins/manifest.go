@@ -55,6 +55,9 @@ type Contributions struct {
 	TabViews []TabView `json:"tabViews,omitempty"`
 	// Modals are the views an external plugin opens in a modal of the core (#154).
 	Modals []ModalView `json:"modals,omitempty"`
+	// Links are the parameters of a project's address opening one of its tab views (#155):
+	// /project/<id>?ticket=12.
+	Links []Link `json:"links,omitempty"`
 	// AssistantTools are the names of the tools the plugin offers to the assistant and the MCP;
 	// each one is registered with its handler (Host.AssistantTool).
 	AssistantTools []string `json:"assistantTools,omitempty"`
@@ -196,13 +199,24 @@ type Tool struct {
 	Before string `json:"before,omitempty"`
 }
 
-// TabView is a kind of tab, opened as plugin:<plugin>/<id>.
+// Link is a parameter of a project's address that opens a tab view of the plugin: its value is
+// the key of the tab and the field param of its state, a number when Type says so.
+type Link struct {
+	Param string `json:"param"`
+	View  string `json:"view"`
+	Type  string `json:"type,omitempty"`
+}
+
+// coreParams are the parameters of a project's address the core reads itself.
+var coreParams = []string{"open", "questions", "assistant", "chat", "desk"}
+
 // ModalView is a view of a plugin shown in a modal of the core (ide.openModal).
 type ModalView struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
 }
 
+// TabView is a kind of tab, opened as plugin:<plugin>/<id>.
 type TabView struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
@@ -276,6 +290,12 @@ func (m Manifest) Check() error {
 	for _, v := range m.Contributes.Modals {
 		if !idRe.MatchString(v.ID) || v.Label == "" {
 			return fmt.Errorf("plugin %s: invalid modal view %q", m.ID, v.ID)
+		}
+	}
+	for _, l := range m.Contributes.Links {
+		if !idRe.MatchString(l.Param) || slices.Contains(coreParams, l.Param) || (l.Type != "" && l.Type != "number" && l.Type != "string") ||
+			!slices.ContainsFunc(m.Contributes.TabViews, func(v TabView) bool { return v.ID == l.View }) {
+			return fmt.Errorf("plugin %s: invalid link %q to view %q", m.ID, l.Param, l.View)
 		}
 	}
 	for _, v := range m.Contributes.TabViews {

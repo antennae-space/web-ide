@@ -195,14 +195,16 @@ func (r *Registry) Resolve(disabled []string) []State {
 	return r.ResolveChoices(Choices{Disabled: disabled})
 }
 
-// ResolveChoices is Resolve with the external plugins: those installed, then those the project
-// uses that this pod lacks.
+// ResolveChoices is Resolve with the external plugins: the built-ins and those installed, in one
+// resolution (an external plugin may require what another provides, #155), then those the
+// project uses that this pod lacks.
 func (r *Registry) ResolveChoices(ch Choices) []State {
-	out := r.resolveBuiltins(ch.Disabled)
-	// An external plugin used by the project runs its views (#129) when the capabilities it
-	// requires are there; what it provides is not given to the others (its views reach nothing
-	// but the sandbox API).
-	provided := Provided(out)
+	out := make([]State, 0, len(r.list))
+	for _, p := range r.list {
+		m := p.Manifest()
+		off := slices.Contains(ch.Disabled, m.ID) && !m.Required
+		out = append(out, State{Manifest: m, Enabled: !off, Disabled: off})
+	}
 	for _, e := range r.Externals() {
 		e := e
 		_, used := ch.External[e.Manifest.ID]
@@ -210,15 +212,9 @@ func (r *Registry) ResolveChoices(ch Choices) []State {
 		if e.Official {
 			used = !slices.Contains(ch.Disabled, e.Manifest.ID)
 		}
-		s := State{Manifest: e.Manifest, Disabled: !used, Enabled: used, External: &e}
-		for _, c := range e.Manifest.Requires {
-			if !provided[c] {
-				s.Missing = append(s.Missing, c)
-				s.Enabled = false
-			}
-		}
-		out = append(out, s)
+		out = append(out, State{Manifest: e.Manifest, Disabled: !used, Enabled: used, External: &e})
 	}
+	settle(out)
 	ids := make([]string, 0, len(ch.External))
 	for id := range ch.External {
 		ids = append(ids, id)
@@ -233,29 +229,15 @@ func (r *Registry) ResolveChoices(ch Choices) []State {
 	return out
 }
 
-func (r *Registry) resolveBuiltins(disabled []string) []State {
-	out := make([]State, len(r.list))
-	for i, p := range r.list {
-		m := p.Manifest()
-		off := slices.Contains(disabled, m.ID) && !m.Required
-		out[i] = State{Manifest: m, Enabled: !off, Disabled: off}
-	}
+// settle turns off the plugins whose requirement nothing enabled provides, until none is left:
+// one turned off may turn off those that required it in turn.
+func settle(out []State) {
 	for changed := true; changed; {
 		changed = false
-		provided := map[string]bool{}
-		for _, c := range CoreCapabilities {
-			provided[c] = true
-		}
-		for _, s := range out {
-			if s.Enabled {
-				for _, c := range s.Manifest.Provides {
-					provided[c] = true
-				}
-			}
-		}
+		provided := Provided(out)
 		for i := range out {
 			s := &out[i]
-			if !s.Enabled {
+			if s.Disabled {
 				continue
 			}
 			s.Missing = nil
@@ -264,13 +246,12 @@ func (r *Registry) resolveBuiltins(disabled []string) []State {
 					s.Missing = append(s.Missing, c)
 				}
 			}
-			if len(s.Missing) > 0 {
+			if s.Enabled && len(s.Missing) > 0 {
 				s.Enabled = false
 				changed = true
 			}
 		}
 	}
-	return out
 }
 
 // Enabled is the set of the plugins running on a project.
@@ -314,13 +295,24 @@ func Provided(states []State) map[string]bool {
 		out[c] = true
 	}
 	for _, s := range states {
-		if s.Enabled && s.External == nil {
+		if s.Enabled {
 			for _, c := range s.Provides() {
 				out[c] = true
 			}
 		}
 	}
 	return out
+}
+
+// Provider is the enabled plugin providing a capability ("" for none): a built-in first, then the
+// external plugins by id.
+func Provider(states []State, capability string) string {
+	for _, s := range states {
+		if s.Enabled && slices.Contains(s.Provides(), capability) {
+			return s.Manifest.ID
+		}
+	}
+	return ""
 }
 
 // Provides are the capabilities of the plugin.

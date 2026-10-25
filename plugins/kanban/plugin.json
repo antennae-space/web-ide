@@ -13,6 +13,11 @@
       { "id": "milestone", "label": "Milestone" },
       { "id": "objective", "label": "Objective" }
     ],
+    "links": [
+      { "param": "ticket", "view": "ticket", "type": "number" },
+      { "param": "milestone", "view": "milestone", "type": "number" },
+      { "param": "objective", "view": "objective", "type": "number" }
+    ],
     "commands": [{ "id": "kanban.open", "label": "Open the kanban", "category": "General" }],
     "mcpTools": [
       "kanban_list", "kanban_get", "kanban_create", "kanban_update", "kanban_milestone", "kanban_objective",

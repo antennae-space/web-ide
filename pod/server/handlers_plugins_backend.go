@@ -36,6 +36,8 @@ type extPart struct {
 	mu     sync.Mutex
 	proc   *backend.Process
 	deaths []time.Time
+	// listeners are the plugins whose backends hear the events of this one (service.on).
+	listeners map[string]bool
 }
 
 func (e *extPart) Stop(bool) { e.stop() }
@@ -179,6 +181,7 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 			// Its own events only, to the windows of the project.
 			if strings.HasPrefix(event, id+".") {
 				s.emitter(rt.P.ID)(event, data, "")
+				s.backendOf(rt, id).relay(event, data)
 			}
 		},
 	})
@@ -218,6 +221,10 @@ func (s *Server) backendCore(ctx context.Context, rt *runtime.Runtime, e plugins
 		return s.pluginVault(e, method, params)
 	case "settings.get", "ai.targets":
 		return s.backendSettings(e, method, params)
+	case "service.call":
+		return s.serviceCall(ctx, rt, e, params)
+	case "service.on":
+		return s.serviceOn(rt, e, params)
 	}
 	if !slices.Contains(e.Grants, "core:"+method) {
 		return nil, i18n.Errorf("%s is not granted to %s", method, e.Manifest.Name)

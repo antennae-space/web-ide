@@ -170,7 +170,7 @@ func TestExternals(t *testing.T) {
 	if r.ResolveChoices(Choices{})[1].Enabled {
 		t.Fatal("not used by the project: off")
 	}
-	// What an external plugin provides is not given to the others.
+	// An external plugin whose requirement is missing provides nothing.
 	r.RemoveExternal("greet")
 	_ = r.SetExternal(External{Manifest: Manifest{ID: "greet", APIVersion: APIVersion, Provides: []string{"tickets"}, Requires: []string{"nope"}}, Version: "1.1.0"})
 	states = r.ResolveChoices(Choices{External: map[string]string{"greet": "u"}})
@@ -183,6 +183,32 @@ func TestExternals(t *testing.T) {
 	r.RemoveExternal("greet")
 	if len(r.Externals()) != 0 || !r.ResolveChoices(Choices{})[0].Enabled {
 		t.Fatal("removed")
+	}
+}
+
+// What an external plugin provides is given to the others (#155): a chain of them on together,
+// off with the first.
+func TestExternalProviders(t *testing.T) {
+	r := NewRegistry()
+	for _, m := range []Manifest{
+		{ID: "alpha", Provides: []string{"greeting"}},
+		{ID: "beta", Provides: []string{"echo"}, Requires: []string{"greeting"}},
+		{ID: "gamma", Requires: []string{"echo"}},
+	} {
+		m.APIVersion = APIVersion
+		if err := r.SetExternal(External{Manifest: m, Version: "1.0.0"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	all := map[string]string{"alpha": "a", "beta": "b", "gamma": "c"}
+	states := r.ResolveChoices(Choices{External: all})
+	if on := Enabled(states); !on["alpha"] || !on["beta"] || !on["gamma"] || Provider(states, "echo") != "beta" || !Provided(states)["greeting"] {
+		t.Fatalf("a chain of externals: %+v", states)
+	}
+	delete(all, "alpha")
+	states = r.ResolveChoices(Choices{External: all})
+	if on := Enabled(states); on["beta"] || on["gamma"] || Provider(states, "greeting") != "" || states[1].Missing[0] != "greeting" || states[2].Missing[0] != "echo" {
+		t.Fatalf("off with its provider: %+v", states)
 	}
 }
 

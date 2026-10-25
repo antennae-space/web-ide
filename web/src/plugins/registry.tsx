@@ -50,8 +50,9 @@ const builtVersion: Record<string, string> = {}
 const hasModule = (s: PluginState) => {
   if (builtins[s.manifest.id]) return true
   const c = s.manifest.contributes
-  // A language pack may have no view: the language host is all it needs.
-  return !!s.external?.installed && !!(c.tools?.length || c.tabViews?.length || c.commands?.length)
+  // A language pack may have no view: the language host is all it needs. One providing a
+  // capability serves it from its background frame.
+  return !!s.external?.installed && !!(c.tools?.length || c.tabViews?.length || c.commands?.length || s.manifest.provides?.length)
 }
 
 /** The page module of a plugin, loaded once (undefined when it cannot be). */
@@ -89,6 +90,7 @@ export function setPluginStates(list: PluginState[] | undefined, opened = false)
     const id = s.manifest.id
     if (!s.external || !(id in builtVersion) || builtVersion[id] === s.external.version) continue
     delete active[id]
+    modules[id]?.dispose?.()
     delete modules[id]
     delete loading[id]
     delete builtVersion[id]
