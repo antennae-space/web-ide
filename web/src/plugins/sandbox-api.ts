@@ -68,6 +68,14 @@ export type SandboxPick = { title: string; items: { label: string; detail?: stri
 /** The size of a modal view: its width (480, 680, 920 px at most), its height up to 80% of the window. */
 export type SandboxModalSize = 'small' | 'medium' | 'large'
 
+/** An item of the status bar a tab view gives for its tab (#157), its menu's choices by id. */
+export type SandboxStatusItem = {
+  id: string
+  text: string
+  title?: string
+  menu?: { id: string; label: string; checked?: boolean; disabled?: boolean; title?: string }[]
+}
+
 /** The global `ide` of a frame. */
 export interface SandboxAPI {
   register(c: SandboxContributions): void
@@ -129,6 +137,16 @@ export interface SandboxAPI {
   publish(capability: string, key: string, value: unknown): void
   /** An event of a capability it provides, to its users. */
   emit(capability: string, event: string, data?: unknown): void
+  /** The items of the status bar while its tab is in focus (a tab view, #157). */
+  setStatus(items: SandboxStatusItem[]): void
+  /** A choice of the menu of one of its status items. */
+  onStatus(f: (e: { item: string; choice: string }) => void): void
+  /** The HTML of a Markdown text, rendered and sanitized by the IDE as its own. */
+  markdown(text: string): Promise<string>
+  /** Opens an http(s) address in a new tab of the browser, while the user is in the frame. */
+  openLink(url: string): void
+  /** Opens a page of the IDE's documentation, by its help topic. */
+  help(topic: string): void
 }
 
 /** What the frame asks the page; `rpc` waits for a `reply` with its `id`. */
@@ -156,6 +174,10 @@ export type FrameCall =
   | { call: 'serviceReply'; id: number; result?: unknown; error?: string }
   | { call: 'publish'; capability: string; key: string; value?: unknown }
   | { call: 'serviceEmit'; capability: string; event: string; data?: unknown }
+  | { call: 'setStatus'; items: SandboxStatusItem[] }
+  | { call: 'markdown'; id: number; text: string }
+  | { call: 'openLink'; url: string }
+  | { call: 'help'; topic: string }
   | { call: 'closeModal'; result?: unknown }
 
 /** What the page sends the frame. */
@@ -173,3 +195,4 @@ export type PageMessage =
   | { serviceValues: { capability: string; values: Record<string, unknown> } }
   | { serviceValue: { capability: string; key: string; value: unknown } }
   | { serviceEvent: { capability: string; event: string; data: unknown } }
+  | { status: { item: string; choice: string } }

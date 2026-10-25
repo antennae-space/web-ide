@@ -487,6 +487,14 @@ Done in #156:
 - **Hooks**: `contributes.hooks: ["project.open"]`: when a window opens a project where the plugin is enabled, its backend starts and gets the notification `project.open {}`.
 - **Saved commands**: the methods of Exec, `commands.list`, `commands.save`, `commands.run`, reached with `core:<method>` as any core method; the setup of a worktree is the Kanban's own (#158), no hook of the core.
 
+Done in #157 (`server/plugins_git.go`):
+
+- **Git** (grant `git`, worded *Run git in the project with your keys (fetch, push; its hooks run)*): the core call `git {args, dir?}` runs git through the project's runner (this machine or the SSH host), unconfined, in the main folder of the project or one of its `.ide/worktrees/*` (never `.ide` itself nor outside), answering `{output, truncated}` (4 MB). Refused: `-c` but `core.quotepath` and `color.ui`, `-C`, `--git-dir`, `--work-tree`, `--exec-path`, `--upload-pack`, `--receive-pack`, `--exec`, `--ext-diff`, `--textconv`, `--output`, `--config-env`, `--namespace`, an `ext::` address, `config` without `--get`, `filter-branch` and the subcommands that run tools. The hooks of the repository run, as for the user: the grant says it.
+- **gh** (grant `gh`): `gh {args, dir?}`, `gh pr …` and `gh --version` only.
+- **Worktree projects** (grant `worktrees`): `worktree.register {owner, title, path}` → `{project}` (the project `<main>-t<owner>` of a folder of `.ide/worktrees`, `Projects.PutChild`), `worktree.unregister {owner}` (its runtime closed, its project and desk removed), `worktree.setup {path}` → `{output, ok, error?}` (the setup commands of the project, 15 minutes at most), `ide.keepOut {}` (`.ide` kept out of the repository).
+- **Statuses**: a tab frame's `ide.setStatus([{id, text, title?, menu?: [{id, label, checked?, disabled?}]}])` (8 items, 50 choices) are the `viewStatus` of its tab; a choice comes back as `ide.onStatus(({item, choice}) => …)`.
+- **Markdown, links, help**: `ide.markdown(text)` answers the core's HTML (`renderMarkdown`, sanitized); `ide.openLink(url)` opens an http(s) address while the user is in the frame (a frame has no popups); `ide.help(topic)` a topic of `web/src/help/topics.json`. The kit of the SDK draws them (`Markdown`, `HelpLink`), with `fuzzy`; its menus stay in the frame (`openMenu`).
+
 ### Threads
 
 A conversation of the assistant and a session of an agent are both a **thread**, kept and shown the same way:
