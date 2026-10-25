@@ -27,6 +27,9 @@ type Manifest struct {
 	Permissions []string `json:"permissions,omitempty"`
 	Provides    []string `json:"provides,omitempty"`
 	Requires    []string `json:"requires,omitempty"`
+	// Uses are the capabilities it uses when they are there, without needing them to be on
+	// (the Kanban uses the agents of the AI, #158).
+	Uses []string `json:"uses,omitempty"`
 	// Namespaces are the prefixes of the RPC methods and the actions it owns besides its id
 	// (console and commands for exec: their names were kept when the tool became a plugin).
 	Namespaces  []string      `json:"namespaces,omitempty"`
@@ -252,6 +255,11 @@ type Command struct {
 	Replaces string `json:"replaces,omitempty"`
 	// InTerminal: it also runs while a terminal has the focus.
 	InTerminal bool `json:"inTerminal,omitempty"`
+}
+
+// Needs tells whether the plugin may use a capability: one it requires or uses.
+func (m Manifest) Needs(capability string) bool {
+	return slices.Contains(m.Requires, capability) || slices.Contains(m.Uses, capability)
 }
 
 // Parse reads and checks a plugin.json.

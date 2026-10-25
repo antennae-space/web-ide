@@ -29,6 +29,8 @@ export interface PluginManifest {
   backend?: string
   provides?: string[]
   requires?: string[]
+  /** Capabilities it uses when they are there (not needed to be on, #158). */
+  uses?: string[]
   namespaces?: string[]
   contributes: {
     tools?: PluginTool[]
