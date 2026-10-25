@@ -40,6 +40,7 @@ func (s *Server) questionsOf(root string) []Question {
 			out = append(out, src.q.List(root)...)
 		}
 	}
+	out = append(out, s.externalQuestions(context.Background(), root)...)
 	out = append(out, s.asks.of(root)...)
 	out = append(out, s.podAsks.of(root)...)
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Time < out[j].Time })
@@ -127,6 +128,9 @@ func (s *Server) registerQuestions() {
 		parts := strings.Split(a.ID, ":")
 		if len(parts) == 2 && parts[0] == "pod" {
 			return nil, s.podAsks.answer(a.ID, root, a.Option)
+		}
+		if len(parts) >= 4 && parts[0] == "ext" {
+			return nil, s.answerExternal(ctx, root, a.ID, plugins.Answer{Option: a.Option, Action: a.Action, Content: a.Content})
 		}
 		if len(parts) == 2 && parts[0] == "mcp" {
 			return nil, s.answerMCPAsk(a.ID, root, mcpAnswer{answers: a.Answers, notes: a.Notes, path: a.Path, offPath: a.OffPath, skip: a.Skip})

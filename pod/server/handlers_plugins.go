@@ -125,9 +125,9 @@ func (h pluginHost) MCPTool(t plugins.MCPTool) {
 }
 
 func (s *Server) findPluginMCPTool(name string) *pluginMCPTool {
-	for i := range s.plugins.mcp {
-		if s.plugins.mcp[i].tool.Name == name {
-			return &s.plugins.mcp[i]
+	for _, t := range s.allMCPTools() {
+		if t.tool.Name == name {
+			return &t
 		}
 	}
 	return nil
@@ -151,8 +151,7 @@ func (s *Server) runPluginMCPTool(ctx context.Context, t *pluginMCPTool, args js
 		return "", err
 	}
 	if !s.pluginOn(rt, t.plugin) {
-		m, _ := s.Plugins.Get(t.plugin)
-		return "", i18n.Errorf("the %s plugin is disabled on this project", m.Manifest().Name)
+		return "", i18n.Errorf("the %s plugin is disabled on this project", s.pluginName(rt, t.plugin))
 	}
 	if c := t.tool.Needs; c != "" && !s.capabilityOn(rt, c) {
 		return "", i18n.Errorf("%s needs the %s capability, off on this project (Settings > Plugins)", t.tool.Name, c)
@@ -307,6 +306,17 @@ func (w clientWindow) Release(id string) {
 	if stop, ok := w.c.streams.LoadAndDelete(id); ok {
 		stop.(func())()
 	}
+}
+
+// pluginName is the name of a plugin of the project of rt, built-in or external (its id if
+// unknown).
+func (s *Server) pluginName(rt *runtime.Runtime, id string) string {
+	for _, st := range s.pluginStates(rt) {
+		if st.Manifest.ID == id && st.Manifest.Name != "" {
+			return st.Manifest.Name
+		}
+	}
+	return id
 }
 
 // pluginOptions are the options of a plugin in a conversation of the assistant.
@@ -505,6 +515,18 @@ func (s *Server) projectOpened(rt *runtime.Runtime) {
 		if s.pluginOn(rt, hk.plugin) {
 			hk.f(rt)
 		}
+	}
+	// The external plugins with the hook project.open: their backend starts and is told.
+	for _, e := range s.Plugins.Externals() {
+		if e.Manifest.Backend == "" || !slices.Contains(e.Manifest.Contributes.Hooks, "project.open") || !s.pluginOn(rt, e.Manifest.ID) {
+			continue
+		}
+		go func(id string) {
+			proc, err := s.backendOf(rt, id).process(context.Background())
+			if err == nil {
+				_ = proc.Notify("project.open", map[string]any{})
+			}
+		}(e.Manifest.ID)
 	}
 }
 

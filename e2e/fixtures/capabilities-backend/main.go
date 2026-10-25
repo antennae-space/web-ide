@@ -2,7 +2,9 @@
 // started for. alpha provides greeting: alpha.greet answers who asked it, and emits
 // alpha.greeted. beta requires greeting: beta.ask calls alpha.greet through the core
 // (service.call), beta.listen hears alpha's events (service.on), beta.heard tells the last one,
-// beta.foreign asks a method out of alpha's namespace.
+// beta.foreign asks a method out of alpha's namespace. alpha also has an MCP tool (alpha_where:
+// the scope of the call), a question (alpha.ask, then questions.list and questions.answer;
+// alpha.answer tells it), the hook project.open (alpha.opened) and a notification (alpha.notify).
 package main
 
 import (
@@ -31,6 +33,9 @@ var (
 	next    int
 	plugin  string
 	heard   string
+	opened  bool
+	asking  bool
+	answer  string
 )
 
 func write(v any) {
@@ -95,6 +100,38 @@ func handle(m msg) {
 	case "shutdown":
 		reply(m.ID, map[string]any{})
 		os.Exit(0)
+	case "project.open":
+		mu.Lock()
+		opened = true
+		mu.Unlock()
+	case "mcp":
+		var c struct {
+			Name  string
+			Scope struct {
+				Project, Main string
+				Ticket        int
+			}
+		}
+		json.Unmarshal(m.Params, &c)
+		reply(m.ID, map[string]any{"content": c.Name + ": project " + c.Scope.Project + ", main " + c.Scope.Main})
+	case "questions.list":
+		mu.Lock()
+		a := asking
+		mu.Unlock()
+		list := []any{}
+		if a {
+			list = append(list, map[string]any{"id": "q1", "kind": "permission", "title": "Alpha's question", "text": "Greet everyone?", "time": 1,
+				"options": []any{map[string]any{"optionId": "yes", "name": "Yes", "kind": "allow_once"}, map[string]any{"optionId": "no", "name": "No", "kind": "reject_once"}}})
+		}
+		reply(m.ID, list)
+	case "questions.answer":
+		var a struct{ ID, Option string }
+		json.Unmarshal(m.Params, &a)
+		mu.Lock()
+		asking, answer = false, a.ID+"="+a.Option
+		mu.Unlock()
+		reply(m.ID, map[string]any{})
+		core("questions.changed", map[string]any{})
 	case "event":
 		// An event of a plugin this one listens to (service.on).
 		var e struct {
@@ -120,6 +157,28 @@ func handle(m msg) {
 			}
 			write(map[string]any{"jsonrpc": "2.0", "method": "emit", "params": map[string]any{"event": "alpha.greeted", "data": c.Params.Name}})
 			reply(m.ID, "Hello "+c.Params.Name+" from the backend of alpha, asked by "+who)
+		case "alpha.opened":
+			mu.Lock()
+			o := opened
+			mu.Unlock()
+			reply(m.ID, o)
+		case "alpha.ask":
+			mu.Lock()
+			asking = true
+			mu.Unlock()
+			core("questions.changed", map[string]any{"asked": true})
+			reply(m.ID, "asked")
+		case "alpha.answer":
+			mu.Lock()
+			a := answer
+			mu.Unlock()
+			reply(m.ID, a)
+		case "alpha.notify":
+			if _, e := core("notify", map[string]any{"kind": "feedback", "query": "?greet=hi", "texts": map[string]any{"en": map[string]any{"title": "Alpha"}}}); e != "" {
+				reply(m.ID, "refused: "+e)
+				return
+			}
+			reply(m.ID, "sent")
 		case "beta.ask":
 			res, e := core("service.call", map[string]any{"capability": "greeting", "method": "alpha.greet", "params": map[string]any{"name": "beta"}})
 			if e != "" {

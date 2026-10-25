@@ -278,7 +278,15 @@ func TestUnsafeManifests(t *testing.T) {
 		"tool no backend": func(m map[string]any) {
 			m["contributes"] = map[string]any{"assistantTools": []string{"greet_hello"}, "toolSchemas": map[string]any{"greet_hello": map[string]any{"description": "d"}}}
 		},
-		"mcp tools": func(m map[string]any) { m["contributes"] = map[string]any{"mcpTools": []string{"greet_x"}} },
+		"mcp tool no schema": func(m map[string]any) {
+			m["backend"] = "bin/greet"
+			m["contributes"] = map[string]any{"mcpTools": []string{"greet_x"}}
+		},
+		"questions no backend": func(m map[string]any) { m["contributes"] = map[string]any{"questions": true} },
+		"unknown hook": func(m map[string]any) {
+			m["backend"] = "bin/greet"
+			m["contributes"] = map[string]any{"hooks": []string{"project.close"}}
+		},
 	} {
 		if ok(mut) == nil {
 			t.Errorf("%s: refused", name)

@@ -55,6 +55,10 @@ type Contributions struct {
 	TabViews []TabView `json:"tabViews,omitempty"`
 	// Modals are the views an external plugin opens in a modal of the core (#154).
 	Modals []ModalView `json:"modals,omitempty"`
+	// Questions: an external plugin's backend asks the user through the Questions tool (#156).
+	Questions bool `json:"questions,omitempty"`
+	// Hooks are the moments of a project its backend is told of: project.open (#156).
+	Hooks []string `json:"hooks,omitempty"`
 	// Links are the parameters of a project's address opening one of its tab views (#155):
 	// /project/<id>?ticket=12.
 	Links []Link `json:"links,omitempty"`
@@ -63,8 +67,8 @@ type Contributions struct {
 	AssistantTools []string `json:"assistantTools,omitempty"`
 	// MCPTools are the names of the tools it offers to the MCP only (Host.MCPTool).
 	MCPTools []string `json:"mcpTools,omitempty"`
-	// ToolSchemas describe the assistant tools of an external plugin, by name (a built-in
-	// gives them in Go): run by its backend.
+	// ToolSchemas describe the assistant and MCP tools of an external plugin, by name (a
+	// built-in gives them in Go): run by its backend.
 	ToolSchemas map[string]ToolSchema `json:"toolSchemas,omitempty"`
 	Commands    []Command             `json:"commands,omitempty"`
 	// Settings of the plugin (#151): rendered in Settings > Plugins, synced with the other

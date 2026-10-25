@@ -153,7 +153,7 @@ func (s *Server) mcpCall(ctx context.Context, m mcpMessage) mcpReply {
 			t := mcpTool{props: p.tool.Props, required: p.tool.Required}
 			tools = append(tools, map[string]any{"name": p.tool.Name, "description": p.tool.Description, "inputSchema": t.schema()})
 		}
-		for _, p := range s.plugins.mcp {
+		for _, p := range s.allMCPTools() {
 			tools = append(tools, map[string]any{"name": p.tool.Name, "description": p.tool.Description, "inputSchema": plugins.MCPSchema(p.tool.Props, p.tool.Required)})
 		}
 		reply.Result = map[string]any{"tools": tools}

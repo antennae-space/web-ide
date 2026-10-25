@@ -222,7 +222,6 @@
   "the plugin %s has no web/index.js": "el plugin %s no tiene web/index.js",
   "the page module of %s is larger than %d MB": "el módulo de página de %s supera %d MB",
   "a message to the backend is larger than %d MB": "un mensaje al backend supera %d MB",
-  "plugin %s: an external plugin gives its tools to the assistant and the MCP alike (assistantTools)": "plugin %s: un plugin externo da sus herramientas al asistente y al MCP a la vez (assistantTools)",
   "plugin %s: its assistant tool %s needs a schema and a backend": "plugin %s: su herramienta de asistente %s necesita un esquema y un backend",
   "plugin %s: its backend must be an executable of bin/, not %q": "plugin %s: su backend debe ser un ejecutable de bin/, no %q",
   "%s is not granted to %s": "%s no está concedido a %s",
@@ -256,5 +255,11 @@
   "%s does not require %s": "%s no requiere %s",
   "nothing provides %s on this project": "nada proporciona %s en este proyecto",
   "%s is provided by %s, which an external plugin cannot call": "%s lo proporciona %s, al que un plugin externo no puede llamar",
-  "%s is not a method of %s": "%s no es un método de %s"
+  "%s is not a method of %s": "%s no es un método de %s",
+  "plugin %s: its MCP tool %s needs a schema and a backend": "plugin %s: su herramienta MCP %s necesita un esquema y un backend",
+  "plugin %s: its questions and hooks need a backend": "plugin %s: sus preguntas y sus hooks necesitan un backend",
+  "plugin %s: unknown hook %q": "plugin %s: hook desconocido %q",
+  "%s asks no questions (contributes.questions)": "%s no hace preguntas (contributes.questions)",
+  "unknown kind of notification: %s": "tipo de notificación desconocido: %s",
+  "a notification needs its English title": "una notificación necesita su título en inglés"
 }

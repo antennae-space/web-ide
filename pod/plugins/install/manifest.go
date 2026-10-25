@@ -13,7 +13,7 @@ import (
 // running programs, connections the pod opens for it (dial, through SSH: ssh; each destination
 // approved by the user), its entries of the vault (vault), and core:<method> for a method of
 // the core it calls (core:fs.read).
-var Grants = []string{"files:read", "files:write", "net", "exec", "dial", "ssh", "vault", "socket:docker", "terminal"}
+var Grants = []string{"files:read", "files:write", "net", "exec", "dial", "ssh", "vault", "socket:docker", "terminal", "notify"}
 
 var backendRe = regexp.MustCompile(`^bin/[A-Za-z0-9._-]+$`)
 
@@ -79,8 +79,18 @@ func CheckExternal(m plugins.Manifest, builtin func(id string) bool) error {
 			return i18n.Errorf("plugin %s: its assistant tool %s needs a schema and a backend", m.ID, name)
 		}
 	}
-	if len(m.Contributes.MCPTools) > 0 {
-		return i18n.Errorf("plugin %s: an external plugin gives its tools to the assistant and the MCP alike (assistantTools)", m.ID)
+	for _, name := range m.Contributes.MCPTools {
+		if _, ok := m.Contributes.ToolSchemas[name]; !ok || m.Backend == "" {
+			return i18n.Errorf("plugin %s: its MCP tool %s needs a schema and a backend", m.ID, name)
+		}
+	}
+	if (m.Contributes.Questions || len(m.Contributes.Hooks) > 0) && m.Backend == "" {
+		return i18n.Errorf("plugin %s: its questions and hooks need a backend", m.ID)
+	}
+	for _, h := range m.Contributes.Hooks {
+		if h != "project.open" {
+			return i18n.Errorf("plugin %s: unknown hook %q", m.ID, h)
+		}
 	}
 	if m.Required || len(m.Namespaces) > 0 {
 		return i18n.Errorf("plugin %s: an external plugin cannot be locked nor own namespaces", m.ID)

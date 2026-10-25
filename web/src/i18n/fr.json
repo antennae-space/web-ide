@@ -978,5 +978,6 @@
   "A modal of a plugin is already open": "Une modale de plugin est déjà ouverte",
   "{plugin} does not require {name}": "{plugin} ne requiert pas {name}",
   "nothing provides {name} on this project": "rien ne fournit {name} sur ce projet",
-  "{name} is not ready": "{name} n’est pas prêt"
+  "{name} is not ready": "{name} n’est pas prêt",
+  "Send you notifications": "Vous envoyer des notifications"
 }
