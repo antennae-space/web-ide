@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"antennae.space/ide/plugins/ai/engine"
-	"antennae.space/ide/plugins/kanban/kanban"
 	"antennae.space/ide/pod/assistant"
 )
 
@@ -16,10 +15,9 @@ import (
 
 func (s *A) orchestratorTool(r *assistantRun, ref *runtimeRef, name string, a assistant.Args) (assistant.ToolResult, error) {
 	switch name {
-	case "kanban_next":
-		return s.kanbanNext(r)
-	case "kanban_history":
-		return s.kanbanHistory(r, a.Str("from"), a.Str("to"))
+	case "kanban_next", "kanban_history":
+		// The Kanban answers them (#158).
+		return s.kanbanTool(r, name, a, engine.Orchestrator), nil
 	case "list_conversations":
 		return s.listConversations(r, a.Str("query"), a.Num("limit"))
 	case "action_card":
@@ -28,114 +26,6 @@ func (s *A) orchestratorTool(r *assistantRun, ref *runtimeRef, name string, a as
 		return s.openConversation(r, a)
 	}
 	return assistant.ToolResult{}, assistant.Usagef("unknown tool: %s", name)
-}
-
-func ticketLine(t kanban.Summary) string {
-	line := fmt.Sprintf("#%d [%s] (%s) %s", t.ID, kanban.StatusNames[t.Status], kanban.PriorityNames[t.Priority], t.Title)
-	if t.Size != "" {
-		line += " · size " + kanban.SizeNames[t.Size]
-	}
-	if t.Parent != 0 {
-		line += fmt.Sprintf(" · step of #%d", t.Parent)
-	}
-	return line
-}
-
-func (s *A) kanbanNext(r *assistantRun) (assistant.ToolResult, error) {
-	list, err := s.kb().Kanban.List(kanbanLocOf(r.loc))
-	if err != nil {
-		return assistant.ToolResult{}, err
-	}
-	s.kb().FillBlockers(r.ctx, s.kanbanGit(r), list)
-	objectives, err := s.kb().Kanban.Objectives(kanbanLocOf(r.loc))
-	if err != nil {
-		return assistant.ToolResult{}, err
-	}
-	next := kanban.Next(list, objectives)
-	var b strings.Builder
-	b.WriteString("Can start now, in order:\n")
-	if len(next) == 0 {
-		b.WriteString("(none)\n")
-	}
-	for _, t := range next {
-		b.WriteString("- " + ticketLine(t) + "\n")
-	}
-	if w := kanban.Waiting(list); len(w) > 0 {
-		b.WriteString("\nWaiting for the user:\n")
-		for _, t := range w {
-			line := "- " + ticketLine(t)
-			if t.Status == kanban.ToTest {
-				line += " · to test and validate"
-			}
-			if t.FeedbackOpen > 0 {
-				line += fmt.Sprintf(" · %d feedback to handle", t.FeedbackOpen)
-			}
-			b.WriteString(line + "\n")
-		}
-	}
-	var blocked []string
-	for _, t := range list {
-		if t.Status == kanban.Todo && len(t.Blockers) > 0 {
-			blocked = append(blocked, fmt.Sprintf("#%d (waits for %s)", t.ID, kanban.BlockersText(t.Blockers)))
-		}
-	}
-	if len(blocked) > 0 {
-		b.WriteString("\nBlocked: " + strings.Join(blocked, ", ") + "\n")
-	}
-	return assistant.OK(strings.TrimSpace(b.String()), assistant.Tn(len(next), "{n} ticket can start", "{n} tickets can start", nil)), nil
-}
-
-// parseDay reads "YYYY-MM-DD" or "YYYY-MM-DD HH:MM" in local time.
-func parseDay(s string) (time.Time, error) {
-	s = strings.TrimSpace(s)
-	for _, layout := range []string{"2006-01-02 15:04", "2006-01-02T15:04", "2006-01-02"} {
-		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
-			return t, nil
-		}
-	}
-	return time.Time{}, assistant.Usagef("invalid date %q: use YYYY-MM-DD or YYYY-MM-DD HH:MM", s)
-}
-
-func (s *A) kanbanHistory(r *assistantRun, fromArg, toArg string) (assistant.ToolResult, error) {
-	now := time.UnixMilli(s.kb().Kanban.Now()).In(time.Local)
-	y, mo, d := now.Date()
-	from, to := time.Date(y, mo, d-1, 0, 0, 0, 0, time.Local), now
-	var err error
-	if fromArg != "" {
-		if from, err = parseDay(fromArg); err != nil {
-			return assistant.ToolResult{}, err
-		}
-	}
-	if toArg != "" {
-		if to, err = parseDay(toArg); err != nil {
-			return assistant.ToolResult{}, err
-		}
-	}
-	list, err := s.kb().Kanban.History(kanbanLocOf(r.loc), from.UnixMilli(), to.UnixMilli())
-	if err != nil {
-		return assistant.ToolResult{}, err
-	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "Tickets that moved from %s to %s (closed ones first):", from.Format("2006-01-02 15:04"), to.Format("2006-01-02 15:04"))
-	if len(list) == 0 {
-		b.WriteString("\n(none)")
-	}
-	for _, t := range list {
-		b.WriteString("\n- " + ticketLine(t.Summary))
-		for _, e := range t.Events {
-			key, p := kanban.EventKey(e.Text)
-			text := key
-			for k, v := range p {
-				val := fmt.Sprint(v)
-				if name, ok := kanban.StatusNames[val]; ok && (k == "from" || k == "to") {
-					val = name
-				}
-				text = strings.ReplaceAll(text, "{"+k+"}", val)
-			}
-			fmt.Fprintf(&b, "\n  %s %s (%s)", time.UnixMilli(e.Created).In(time.Local).Format("01-02 15:04"), text, e.Author)
-		}
-	}
-	return assistant.OK(b.String(), assistant.Tn(len(list), "{n} ticket", "{n} tickets", nil)), nil
 }
 
 func (s *A) listConversations(r *assistantRun, query string, limit int) (assistant.ToolResult, error) {
@@ -197,7 +87,7 @@ func (s *A) actionCard(r *assistantRun, a assistant.Args) (assistant.ToolResult,
 		if _, err := s.loadChat(r.loc, card.Chat); err != nil {
 			return assistant.ToolResult{}, assistant.Usagef("unknown conversation %q (see list_conversations)", card.Chat)
 		}
-	} else if _, err := s.kb().Kanban.Get(kanbanLocOf(r.loc), card.Ticket); err != nil {
+	} else if _, err := s.kanbanGet(r.ctx, r.root, card.Ticket); err != nil {
 		return assistant.ToolResult{}, failf("ticket #%d not found", card.Ticket)
 	}
 	res := assistant.OKPlain("Card shown to the user; the action runs only if they click it.", card.Label)
@@ -235,7 +125,7 @@ func (s *A) openConversation(r *assistantRun, a assistant.Args) (assistant.ToolR
 			if mode == engine.Build {
 				return assistant.ToolResult{}, failf("to develop a ticket, propose action_card start_dev: it runs in the worktree of the ticket")
 			}
-			t, err := s.kb().Kanban.Get(kanbanLocOf(r.loc), n)
+			t, err := s.kanbanGet(r.ctx, r.root, n)
 			if err != nil {
 				return assistant.ToolResult{}, failf("ticket #%d not found", n)
 			}
