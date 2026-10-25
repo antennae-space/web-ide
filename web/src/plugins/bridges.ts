@@ -5,7 +5,8 @@
 // assistant acts in the project.
 import { createEffect, createRoot, on } from 'solid-js'
 import { t } from '../i18n'
-import { root } from '../state/project'
+import { mutate, root } from '../state/project'
+import { showTool } from '../state/zones'
 import { capability, type Capabilities } from './capabilities'
 import type { ExternalService } from './services'
 
@@ -51,12 +52,19 @@ const bridges: { [K in keyof Capabilities]?: Bridge<K> } = {
       send: ([text]) => (typeof text === 'string' ? a.send(text.slice(0, 100000)) : bad('text')),
       openChat: ([id]) => (typeof id === 'string' ? a.openChat(id.slice(0, 200)) : bad('id')),
       loadConfig: () => a.loadConfig(),
+      // The Assistant tool shown.
+      show: async () => mutate((s) => showTool(s, 'assistant')),
     }),
     values: (a) => ({ chat: a.chat(), config: a.config() }),
   },
   agents: {
     methods: (g) => ({
-      show: async ([session]) => (typeof session === 'string' ? g.show(session.slice(0, 200)) : bad('session')),
+      // A session shown in the Agents tool, the tool shown.
+      show: async ([session]) => {
+        if (typeof session !== 'string') return bad('session')
+        mutate((s) => showTool(s, 'agents'))
+        g.show(session.slice(0, 200))
+      },
       catalog: ([project]) => g.catalog(str(project, 200)),
     }),
   },
