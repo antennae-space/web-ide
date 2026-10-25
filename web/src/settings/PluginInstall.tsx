@@ -16,6 +16,7 @@ type Resolved = { url: string; tag: string; version: string; manifest: PluginMan
 function grantText(g: string): string {
   if (g.startsWith('core:')) return t('Call {method} of the IDE', { method: g.slice(5) })
   if (g.startsWith('program:')) return t('Run {program} (a language server, confined)', { program: g.slice(8) })
+  if (g.startsWith('exec:')) return t('Run {program} on the host of an SSH project (not confined there)', { program: g.slice(5) })
   if (g.startsWith('path:')) return t('Use the folder {name} of this machine', { name: g.slice(5) })
   return (
     {

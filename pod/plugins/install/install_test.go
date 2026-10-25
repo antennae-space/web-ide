@@ -284,7 +284,7 @@ func TestUnsafeManifests(t *testing.T) {
 			t.Errorf("%s: refused", name)
 		}
 	}
-	if !ValidGrant("core:fs.read") || ValidGrant("core:fs") || ValidGrant("files") {
+	if !ValidGrant("core:fs.read") || ValidGrant("core:fs") || ValidGrant("files") || !ValidGrant("exec:sqlite3") || ValidGrant("exec:/bin/sh") {
 		t.Fatal("grants")
 	}
 }
