@@ -511,6 +511,8 @@ Decided on 2026-10-25, done in #167. A capability a built-in provides runs uncon
 - **Notifications**: grant `notify`, the core call `notify {kind, path, tag, urgency, texts}` (`Pod.Notify` today), the push notifications of the pod.
 - **Hooks of the project**: the events `project.open` and `worktree.setup` to the backend; the saved commands read and written (`commands.list`, `commands.save`, `commands.start`), so the setup of a worktree stays a saved command.
 - **Statuses**: `viewStatus` of a tab of the plugin's views (a ticket's status, priority and size) given by its frame.
+- **Tab views** (#158): `ide.project` (`{id, main, name, root, local}`, pushed again when the window shows another worktree), `ide.setTitle(title)` and `ide.closeView()` of its tab, `ide.showTool(id)` of one of its tools, `tabViews[].alone` (a tab of its own in the Full mode, `aloneViews`).
+- **The tickets adapter** (#158, `web/src/plugins/adapters.ts`): an external plugin serving `tickets` is `capability('tickets')` through it: its values `tickets` (the summaries) and `labels` (`{status, role, blocker}`), its calls `get`, `open`, `openBoard`, `openMilestone`, `openObjective`, `startChat`, `startWork`, `worktreeProject`.
 - **Its data**: `<project>/.ide/kanban.db` stays where it is for a local project (`files:write`); the base of a remote project moves from the pod's store to the plugin's data folder, once.
 
 Done in #156:

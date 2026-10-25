@@ -3,7 +3,8 @@
 // one MessageChannel per frame carries what they may ask. The page is the boundary: a method of
 // the core needs its grant, an event must be of the plugin's namespace.
 import { on, request } from '../pod/rpc'
-import { home, openFile, openTab, mutate, showWorktree, type TabState } from '../state/project'
+import { closeTab, home, isLocal, leaves, openFile, openTab, mutate, project, root, showWorktree, type TabState } from '../state/project'
+import { showTool } from '../state/zones'
 import { toast } from '../ui/toast'
 import { confirmModal, pick, prompt } from '../ui/overlay'
 import { copyText } from '../ui/clipboard'
@@ -13,7 +14,7 @@ import { renderMarkdown } from '../ui/markdown'
 import { docTarget, openDoc, type HelpTopic } from '../state/docs'
 import topics from '../help/topics.json'
 import { lang, t } from '../i18n'
-import type { FrameCall, PageMessage, SandboxEditorState, SandboxModalSize, SandboxStatusItem, SandboxTheme, SandboxToolMenuItem } from './sandbox-api'
+import type { FrameCall, PageMessage, SandboxEditorState, SandboxModalSize, SandboxProject, SandboxStatusItem, SandboxTheme, SandboxToolMenuItem } from './sandbox-api'
 
 /** The CSP of a frame: inline scripts and styles, images as data, no network at all. */
 export const frameCSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'"
@@ -88,6 +89,10 @@ export const bootstrap = `(() => {
     openLink: (url) => send({ call: 'openLink', url: String(url) }),
     help: (topic) => send({ call: 'help', topic: String(topic) }),
     showWorktree: (project) => send({ call: 'showWorktree', project: String(project) }),
+    get project() { return (info && info.project) || null },
+    setTitle: (title) => send({ call: 'setTitle', title: String(title) }),
+    closeView: () => send({ call: 'closeView' }),
+    showTool: (id) => send({ call: 'showTool', id: String(id) }),
     closeModal: (result) => send({ call: 'closeModal', result: plain(result) }),
     get modal() { return !!(info && info.modal) },
     get settings() { return (info && info.settings) || {} },
@@ -138,6 +143,7 @@ export const bootstrap = `(() => {
     if (m.settings) { info.settings = m.settings; settingsFns.forEach((f) => f(m.settings)) }
     if (m.status) statusFns.forEach((f) => f(m.status))
     if (m.toolMenu) toolMenuFns.forEach((f) => f(m.toolMenu))
+    if (m.project && info) info.project = m.project
     // A method of a capability it provides, asked by the page for another plugin.
     if (m.serviceRequest) {
       const id = m.serviceRequest, f = services[m.capability] && services[m.capability][m.method]
@@ -226,6 +232,8 @@ export type FrameHost = {
   openModal?: (view: string, state: unknown, title: string, size: SandboxModalSize) => Promise<unknown>
   /** A modal view: closes its modal with a result. */
   closeModal?: (result: unknown) => void
+  /** Its tools (it may show them). */
+  tools?: string[]
   /** A tab view: the items of the status bar it gives for its tab. */
   setStatus?: (items: SandboxStatusItem[]) => void
   /** Its tool or its tab: the items it adds to the options menu (the ⋮) of the zone or tile. */
@@ -264,6 +272,13 @@ export interface FrameEditor {
   mark(range: [number, number] | null): void
   focus(): void
   setWords(words: string[]): void
+}
+
+/** The project of the window, for a frame. */
+export function projectInfo(): SandboxProject | undefined {
+  const p = project()
+  const h = home()
+  return p ? { id: p.id, main: h?.id ?? p.id, name: p.name, root: root(), local: isLocal() } : undefined
 }
 
 /** The largest text of an editor pushed to a frame. */
@@ -463,6 +478,24 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         if (main && typeof m.project === 'string' && (m.project === main || m.project.startsWith(main + '-'))) void showWorktree(m.project).catch(() => {})
         return
       }
+      case 'setTitle': {
+        const tab = host.tab
+        if (tab && typeof m.title === 'string')
+          mutate((s) => {
+            const cur = s.tabs[tab.id]
+            if (cur?.kind.startsWith(`plugin:${host.plugin}/`)) cur.title = m.title.slice(0, 100)
+          })
+        return
+      }
+      case 'closeView': {
+        const tab = host.tab
+        if (tab) for (const l of leaves()) if (l.tabs.includes(tab.id)) closeTab(l.id, tab.id, true)
+        return
+      }
+      case 'showTool':
+        // One of its own tools only.
+        if (typeof m.id === 'string' && host.tools?.includes(m.id)) mutate((s) => showTool(s, m.id))
+        return
       case 'serviceEmit':
         if (host.provides?.includes(m.capability) && typeof m.event === 'string') emit(host.plugin, m.capability, m.event.slice(0, 200), m.data)
         return
@@ -512,7 +545,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     // The state of the tab is a proxy of the store: a plain copy crosses the channel.
     const st = host.tab ? host.tab.state : host.state
     const state = st === undefined ? undefined : JSON.parse(JSON.stringify(st))
-    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme(), editor: editorState(), settings: host.settings?.(), modal: !!host.closeModal } })
+    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme(), editor: editorState(), settings: host.settings?.(), modal: !!host.closeModal, project: projectInfo() } })
   }
   frame.addEventListener('load', start)
   // The theme and the language follow the page.

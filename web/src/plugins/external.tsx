@@ -12,10 +12,11 @@ import type { EditorView } from '../editor/view'
 import { comboFromEvent } from '../keys/bindings'
 import { useEditorView } from '../ui/EditorArea'
 import { useCompletion } from '../ui/Completion'
-import { frameDoc, serveFrame, type FrameEditor } from './sandbox'
+import { frameDoc, projectInfo, serveFrame, type FrameEditor } from './sandbox'
 import { pluginSettingValues } from './settings'
 import type { PageMessage, SandboxModalSize, SandboxStatusItem, SandboxToolMenuItem } from './sandbox-api'
 import { serve, setModalOpener } from './services'
+import './adapters'
 import type { PluginContributions, PluginManifest, PluginModule, PluginState, StatusItem } from './types'
 import type { MenuItem } from '../ui/overlay'
 
@@ -105,6 +106,7 @@ function SandboxFrame(props: {
       name: props.state.manifest.name,
       requires: props.state.manifest.requires,
       provides: props.state.manifest.provides,
+      tools: props.state.manifest.contributes.tools?.map((x) => x.id),
       grants: props.grants,
       catalogs: props.bundle.catalogs,
       view: props.view,
@@ -126,6 +128,17 @@ function SandboxFrame(props: {
     props.served?.(served)
   })
   createEffect(onSignal(lang, () => served?.lang(), { defer: true }))
+  // The window shows another worktree: the frame's project follows.
+  createEffect(
+    onSignal(
+      () => projectInfo()?.id,
+      () => {
+        const p = projectInfo()
+        if (p) served?.send({ project: p })
+      },
+      { defer: true },
+    ),
+  )
   createEffect(onSignal(() => JSON.stringify(pluginSettingValues(props.state.manifest)), () => served?.settings(), { defer: true }))
   onCleanup(() => {
     served?.stop()
@@ -298,6 +311,7 @@ export async function externalModule(state: PluginState, current: () => PluginSt
         ...Object.fromEntries((c.tools ?? []).map((x) => [x.id, () => (frameToolMenu()[x.id] ? frameMenuItems(frameToolMenu()[x.id]!) : [])])),
         ...Object.fromEntries((c.tabViews ?? []).map((v) => [v.id, (tab?: TabState) => (tab && frameTabMenu()[tab.id] ? frameMenuItems(frameTabMenu()[tab.id]!) : [])])),
       },
+      aloneViews: (c.tabViews ?? []).filter((v) => v.alone).map((v) => v.id),
       }
     },
   }

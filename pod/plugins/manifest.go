@@ -224,6 +224,9 @@ type ModalView struct {
 type TabView struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
+	// Alone: its tab stays a tab of its own in the Full mode, the zones show the tools (the
+	// board of the Kanban, #158).
+	Alone bool `json:"alone,omitempty"`
 	// Editor: the tab holds the text editor of the core above the plugin's view (#151).
 	Editor *TabEditor `json:"editor,omitempty"`
 }
