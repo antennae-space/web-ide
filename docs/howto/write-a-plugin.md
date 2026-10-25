@@ -48,7 +48,7 @@ A release carries one archive per architecture, `<id>-linux-amd64.tar.gz` and `<
 - `backend`: its executable in the archive, `bin/<name>`; none for a plugin made of views only.
 - `permissions`: what it asks, each one granted by the user or not (see *Grants*).
 - `contributes`: its tools (an icon of a rail: `left`, `bottomLeft`, `bottomRight`, `right`), tab views, commands, and its assistant tools, each described in `toolSchemas` (a description and the JSON Schema properties of its arguments; its backend runs them). `links: [{"param": "note", "view": "note", "type": "string"}]`: `/project/<id>?note=x` opens the view `note`, `x` the key of its tab and `{"note": "x"}` its state (`"type": "number"` for a number).
-- `provides`, `requires`: the capabilities it serves to the other external plugins and those it uses (see *Services*); it is off on a project where nothing provides one it requires.
+- `provides`, `requires`, `uses`: the capabilities it serves to the other external plugins, those it needs (it is off on a project where nothing provides one) and those it uses when they are there (see *Services*).
 
 ## The page module
 

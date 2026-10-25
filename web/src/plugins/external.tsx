@@ -104,7 +104,7 @@ function SandboxFrame(props: {
     served = serveFrame(frame, {
       plugin: props.state.manifest.id,
       name: props.state.manifest.name,
-      requires: props.state.manifest.requires,
+      requires: [...(props.state.manifest.requires ?? []), ...(props.state.manifest.uses ?? [])],
       provides: props.state.manifest.provides,
       tools: props.state.manifest.contributes.tools?.map((x) => x.id),
       grants: props.grants,
@@ -257,7 +257,7 @@ function backgroundFrame(state: PluginState, grants: () => string[], bundle: Bun
       served = serveFrame(frame, {
         plugin: state.manifest.id,
         name: state.manifest.name,
-        requires: state.manifest.requires,
+        requires: [...(state.manifest.requires ?? []), ...(state.manifest.uses ?? [])],
         provides: state.manifest.provides,
         grants,
         catalogs: bundle.catalogs,
