@@ -969,5 +969,6 @@
   "Run {program} (a language server, confined)": "Ejecutar {program} (un servidor de lenguaje, confinado)",
   "Use the folder {name} of this machine": "Usar la carpeta {name} de esta máquina",
   "Use Docker: as much as root on this machine (or the host of an SSH project)": "Usar Docker: tanto como root en esta máquina (o el host de un proyecto SSH)",
-  "Open terminals in the IDE": "Abrir terminales en el IDE"
+  "Open terminals in the IDE": "Abrir terminales en el IDE",
+  "Run {program} on the host of an SSH project (not confined there)": "Ejecutar {program} en el host de un proyecto SSH (sin confinar allí)"
 }

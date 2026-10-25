@@ -247,5 +247,8 @@
   "the folder %s of %s is refused: it holds the home, the data of the IDE or the SSH keys": "la carpeta %s de %s se rechaza: contiene la carpeta personal, los datos del IDE o las claves SSH",
   "DOCKER_HOST %s is not a unix socket": "DOCKER_HOST %s no es un socket unix",
   "unknown socket: %s": "socket desconocido: %s",
-  "Docker does not answer on %s: %v": "Docker no responde en %s: %v"
+  "Docker does not answer on %s: %v": "Docker no responde en %s: %v",
+  "exec: argv must start with the name of a program": "exec: argv debe empezar por el nombre de un programa",
+  "exec runs a program on the host of an SSH project; on this machine, the backend runs it itself": "exec ejecuta un programa en el host de un proyecto SSH; en esta máquina, el backend lo ejecuta él mismo",
+  "%s is outside the project": "%s está fuera del proyecto"
 }

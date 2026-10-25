@@ -212,6 +212,8 @@ func (s *Server) backendCore(ctx context.Context, rt *runtime.Runtime, e plugins
 		return s.pluginSocket(ctx, rt, e, fds, params)
 	case "terminal.open":
 		return s.pluginTerminal(rt, e, fds, proc, params)
+	case "exec":
+		return s.pluginExec(ctx, rt, e, params)
 	case "vault.get", "vault.set", "vault.delete":
 		return s.pluginVault(e, method, params)
 	case "settings.get", "ai.targets":

@@ -125,6 +125,7 @@ The IDE starts it on the first call of a project, through `web-ide-pod plugin-ex
 | `core {method: "dial", params: {host, port, ssh?}}` | a connection the pod opens for it (grant `dial`, and `ssh` through a tunnel): answers `{fd: n}`, the socket comes on fd 3 (SCM_RIGHTS, the message's text `n`); the user allows each new destination |
 | `core {method: "vault.get" / "vault.set" / "vault.delete", params: {key, value?}}` | its own entries of the vault (grant `vault`): `vault.get` answers `{value, found}` |
 | `core {method: "socket", params: {name: "docker"}}` | the Docker socket, opened by the pod (grant `socket:docker`), the host's on an SSH project: answers `{fd: n}`, as `dial` |
+| `core {method: "exec", params: {argv, dir?}}` | a program on the host of an SSH project (grant `exec:<name>`: `exec:sqlite3`), run in the project, not confined there: answers `{output}`; refused on a local project (run it yourself) |
 | `core {method: "terminal.open", params: {title}}` | a console of the IDE you feed (grant `terminal`): answers `{console, fd: n}`; write its output on the socket, read what is typed; the notification `terminal.resize {console, cols, rows}` (no id, no answer) tells its size; `ide.showConsole(console)` in a view shows it |
 | `emit {event, data}` (no id) | an event to the windows of the project, `<id>.*` only |
 
@@ -138,6 +139,7 @@ The user grants each permission at the install, again for a new one asked by an 
 - `net`: its backend reaches the network (TCP, UDP), anywhere;
 - `dial`: the pod opens connections for it, each new destination allowed by the user (prefer it to `net`); `ssh`: through SSH tunnels with the user's agent and keys;
 - `vault`: it keeps secrets (passwords, tokens) in the vault, synced with the user's other pods;
+- `exec:<name>`: the pod runs that program for it on the host of an SSH project (not confined there);
 - `socket:docker`: the Docker socket, opened by the pod; whoever holds it is as much as root on the machine, and the user is told so;
 - `terminal`: consoles of the IDE it feeds;
 - `exec`: running programs (reserved);
