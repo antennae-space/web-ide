@@ -11,6 +11,7 @@ import {
 import { desk, desks, onDeskGone } from '../state/desks'
 import { cycleWidth, focusDirection, moveColumnBy, scrollMode, stackTile, tileMode, unstackTile, registerTileTools, resizeTile, showToolTile, startResize, swapDirection, tileTools, toggleSplit } from '../state/tiles'
 import { pluginHosts, pluginsOpened, pluginTools, refreshPlugins } from '../plugins/registry'
+import { openLinks } from '../plugins/links'
 import { tileLauncher } from '../ui/tileLauncher'
 import { deskPath, navigate, route } from '../app/router'
 import { defaultPlacement, moveTool, normalizePlacement, showTool, shownIn, toggleTool, toolsIn, zoneOf, zones, type Zone } from '../state/zones'
@@ -597,16 +598,8 @@ export function ProjectPage(props: { id: string }) {
         mutate((s) => (s.right.panel = 'assistant'))
         history.replaceState(null, '', location.pathname)
       }
-      // A ticket link of Claude Code: /project/<id>?ticket=<n>.
-      // Also ?milestone=<n> and ?objective=<n>, with the Kanban plugin.
-      // The Kanban module may still be loading: the link waits for it.
-      for (const param of ['ticket', 'milestone', 'objective'] as const) {
-        const n = Number(new URLSearchParams(location.search).get(param))
-        if (n > 0) {
-          history.replaceState(null, '', location.pathname)
-          void whenProvided('tickets').then((k) => ({ ticket: k.open, milestone: k.openMilestone, objective: k.openObjective })[param](n))
-        }
-      }
+      // A link of a plugin (contributes.links): /project/<id>?ticket=<n> of the Kanban.
+      if (openLinks(new URLSearchParams(location.search))) history.replaceState(null, '', location.pathname)
       // A push notification of a conversation: /project/<id>?chat=<id> shows it in the assistant.
       const chatId = new URLSearchParams(location.search).get('chat')
       if (chatId) {

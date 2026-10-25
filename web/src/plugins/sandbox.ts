@@ -8,6 +8,7 @@ import { toast } from '../ui/toast'
 import { confirmModal, pick, prompt } from '../ui/overlay'
 import { copyText } from '../ui/clipboard'
 import { capability } from './capabilities'
+import { emit, openModalOf, publish, use } from './services'
 import { lang, t } from '../i18n'
 import type { FrameCall, PageMessage, SandboxEditorState, SandboxModalSize, SandboxTheme } from './sandbox-api'
 
@@ -16,12 +17,14 @@ export const frameCSP = "default-src 'none'; script-src 'unsafe-inline'; style-s
 
 /**
  * The bootstrap run in the frame before the plugin's module: `ide`, the API the module calls
- * (register, rpc, on, openFile, openView, setViewState, t, tn, toast, theme, editor, settings), over the port the
+ * (register, rpc, on, openFile, openView, setViewState, t, tn, toast, theme, editor, settings, use, publish, emit), over the port the
  * page sends once. Plain ES2020, no import.
  */
 export const bootstrap = `(() => {
   let port, info = null, registered = false, mounted = false
-  let views = {}, commands = {}
+  let views = {}, commands = {}, services = {}
+  // The capabilities of other plugins it uses: their values pushed by the page, its listeners.
+  const used = {}
   const pending = new Map(), handlers = {}, themeFns = []
   // The editor of the tab: its state pushed by the page, and the listeners of the view.
   let ed = null
@@ -40,7 +43,7 @@ export const bootstrap = `(() => {
     themeFns.forEach((f) => f(th))
   }
   const ide = {
-    register(c) { views = (c && c.views) || {}; commands = (c && c.commands) || {}; registered = true; start() },
+    register(c) { views = (c && c.views) || {}; commands = (c && c.commands) || {}; services = (c && c.services) || {}; registered = true; start() },
     get view() { return info && info.view },
     get lang() { return info && info.lang },
     get theme() { return info && info.theme },
@@ -58,7 +61,22 @@ export const bootstrap = `(() => {
     confirm: (o) => call({ call: 'dialog', confirm: plain(o) }),
     prompt: (o) => call({ call: 'dialog', prompt: plain(o) }),
     pick: (o) => call({ call: 'dialog', pick: plain(o) }),
-    openModal: (view, state, o) => call({ call: 'openModal', view, state: plain(state), title: o && o.title, size: o && o.size }),
+    openModal: (view, state, o) => call({ call: 'openModal', view, state: plain(state), title: o && o.title, size: o && o.size, plugin: o && o.plugin }),
+    use(capability) {
+      let u = used[capability]
+      if (!u) {
+        u = used[capability] = { values: {}, valueFns: {}, eventFns: {} }
+        send({ call: 'serviceWatch', capability })
+      }
+      return {
+        call: (method, ...args) => call({ call: 'serviceCall', capability, method, args: plain(args) }),
+        value: (key) => u.values[key],
+        onValue: (key, f) => (u.valueFns[key] = u.valueFns[key] || []).push(f),
+        on: (event, f) => (u.eventFns[event] = u.eventFns[event] || []).push(f),
+      }
+    },
+    publish: (capability, key, value) => send({ call: 'publish', capability, key, value: plain(value) }),
+    emit: (capability, event, data) => send({ call: 'serviceEmit', capability, event, data: plain(data) }),
     closeModal: (result) => send({ call: 'closeModal', result: plain(result) }),
     get modal() { return !!(info && info.modal) },
     get settings() { return (info && info.settings) || {} },
@@ -107,6 +125,17 @@ export const bootstrap = `(() => {
     }
     if (m.editorKey) (edFns.keys[m.editorKey] || []).forEach((f) => f())
     if (m.settings) { info.settings = m.settings; settingsFns.forEach((f) => f(m.settings)) }
+    // A method of a capability it provides, asked by the page for another plugin.
+    if (m.serviceRequest) {
+      const id = m.serviceRequest, f = services[m.capability] && services[m.capability][m.method]
+      Promise.resolve()
+        .then(() => { if (typeof f !== 'function') throw new Error('no method ' + m.method + ' of ' + m.capability); return f(...(m.args || [])) })
+        .then((result) => send({ call: 'serviceReply', id, result: plain(result) }), (e) => send({ call: 'serviceReply', id, error: String((e && e.message) || e) }))
+    }
+    const setValue = (u, key, value) => { u.values[key] = value; (u.valueFns[key] || []).forEach((f) => f(value)) }
+    if (m.serviceValues && used[m.serviceValues.capability]) for (const [k, v] of Object.entries(m.serviceValues.values)) setValue(used[m.serviceValues.capability], k, v)
+    if (m.serviceValue && used[m.serviceValue.capability]) setValue(used[m.serviceValue.capability], m.serviceValue.key, m.serviceValue.value)
+    if (m.serviceEvent && used[m.serviceEvent.capability]) ((used[m.serviceEvent.capability].eventFns[m.serviceEvent.event]) || []).forEach((f) => f(m.serviceEvent.data))
   }
   window.addEventListener('message', (e) => {
     if (e.source !== parent || port || !e.ports[0]) return
@@ -164,6 +193,9 @@ export function frameDoc(js: string): string {
 export type FrameHost = {
   plugin: string
   name: string
+  /** The capabilities of its manifest: those it may use (ide.use), those it serves. */
+  requires?: string[]
+  provides?: string[]
   /** Its grants now: a grant revoked in Settings is refused at once. */
   grants: () => string[]
   catalogs: Record<string, Record<string, string>>
@@ -228,6 +260,9 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   // A frame moved in the page loads again: each load gets a new channel.
   let port: MessagePort | undefined
   let offs: (() => void)[] = []
+  // What the page asked the frame for another plugin (a method of a capability it serves).
+  const asked = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
+  let nextAsk = 1
   const catalog = () => host.catalogs[lang()] ?? {}
   const handle = (port: MessagePort) => (e: MessageEvent) => {
     const reply = (id: number, r: { result?: unknown; error?: string; code?: string; data?: Record<string, string> }) => port.postMessage({ reply: id, ...r } satisfies PageMessage)
@@ -326,9 +361,12 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       case 'openModal':
         void (async () => {
           if (!(await userInSoon(frame))) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
-          if (!host.openModal || typeof m.view !== 'string') return reply(m.id, { error: t('{name} has no such modal view', { name: host.name }) })
           const size: SandboxModalSize = m.size === 'small' || m.size === 'large' ? m.size : 'medium'
-          host.openModal(m.view, m.state, clip(m.title, 200), size).then(
+          // A modal view of another plugin: one providing a capability this one requires.
+          const other = typeof m.plugin === 'string' && m.plugin !== host.plugin ? m.plugin : ''
+          if ((!other && !host.openModal) || typeof m.view !== 'string') return reply(m.id, { error: t('{name} has no such modal view', { name: host.name }) })
+          const opened = other ? openModalOf(host.requires ?? [], other, m.view, m.state, clip(m.title, 200), size) : host.openModal!(m.view, m.state, clip(m.title, 200), size)
+          opened.then(
             (result) => reply(m.id, { result: result ?? null }),
             (err) => reply(m.id, { error: err instanceof Error ? err.message : String(err) }),
           )
@@ -336,6 +374,36 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         return
       case 'closeModal':
         host.closeModal?.(m.result)
+        return
+      case 'serviceCall': {
+        const svc = use({ name: host.name, requires: host.requires ?? [] }, String(m.capability ?? ''))
+        if (typeof svc === 'string') return reply(m.id, { error: svc })
+        svc.call(String(m.method ?? ''), Array.isArray(m.args) ? m.args : []).then(
+          (result) => reply(m.id, { result }),
+          (err) => reply(m.id, { error: err instanceof Error ? err.message : String(err) }),
+        )
+        return
+      }
+      case 'serviceWatch': {
+        const capability = String(m.capability ?? '')
+        const svc = use({ name: host.name, requires: host.requires ?? [] }, capability)
+        if (typeof svc === 'string') return
+        port.postMessage({ serviceValues: { capability, values: JSON.parse(JSON.stringify(svc.values())) } } satisfies PageMessage)
+        offs.push(svc.onValue((key, value) => port.postMessage({ serviceValue: { capability, key, value } } satisfies PageMessage)))
+        offs.push(svc.on((event, data) => port.postMessage({ serviceEvent: { capability, event, data } } satisfies PageMessage)))
+        return
+      }
+      case 'serviceReply': {
+        const a = asked.get(m.id)
+        asked.delete(m.id)
+        if (a) 'error' in m && m.error !== undefined ? a.reject(new Error(String(m.error))) : a.resolve(m.result)
+        return
+      }
+      case 'publish':
+        if (host.provides?.includes(m.capability) && typeof m.key === 'string') publish(host.plugin, m.capability, m.key.slice(0, 200), m.value)
+        return
+      case 'serviceEmit':
+        if (host.provides?.includes(m.capability) && typeof m.event === 'string') emit(host.plugin, m.capability, m.event.slice(0, 200), m.data)
         return
       case 'editorSet':
         if (typeof m.text === 'string' && m.text.length <= maxEditorText) host.editor?.setText(m.text)
@@ -406,7 +474,17 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     editorKey: (name: string) => send({ editorKey: name }),
     /** Its settings changed. */
     settings: () => host.settings && send({ settings: host.settings() }),
+    /** Asks the frame a method of a capability it serves, for another plugin. */
+    request: (capability: string, method: string, args: unknown[]) =>
+      new Promise<unknown>((resolve, reject) => {
+        if (!port) return reject(new Error(t('{name} is not ready', { name: host.name })))
+        const id = nextAsk++
+        asked.set(id, { resolve, reject })
+        send({ serviceRequest: id, capability, method, args: JSON.parse(JSON.stringify(args)) })
+      }),
     stop: () => {
+      asked.forEach((a) => a.reject(new Error(t('{name} is not ready', { name: host.name }))))
+      asked.clear()
       frame.removeEventListener('load', start)
       observer.disconnect()
       resized.disconnect()

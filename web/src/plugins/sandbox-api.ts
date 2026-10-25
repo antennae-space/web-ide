@@ -13,10 +13,26 @@ export type ToastKind = 'info' | 'warn' | 'error' | 'ok'
 /** A view of the frame: its id in `contributes`, and the state kept with its tab (a tab view). */
 export type SandboxView = { id: string; state?: unknown }
 
-/** What a plugin's module registers: its views by id, its commands by id. */
+/**
+ * What a plugin's module registers: its views by id, its commands by id, and the methods of the
+ * capabilities it provides (run in its background frame, #155).
+ */
 export type SandboxContributions = {
   views?: Record<string, (el: HTMLElement, ide: SandboxAPI) => void>
   commands?: Record<string, (ide: SandboxAPI) => void>
+  services?: Record<string, Record<string, (...args: never[]) => unknown>>
+}
+
+/**
+ * A capability of another external plugin (`ide.use`), one the manifest requires: its methods,
+ * the values its provider publishes, its events.
+ */
+export interface SandboxService {
+  call<T = unknown>(method: string, ...args: unknown[]): Promise<T>
+  /** A value published, undefined before the first one arrives. */
+  value<T = unknown>(key: string): T | undefined
+  onValue(key: string, f: (value: unknown) => void): void
+  on(event: string, f: (data: unknown) => void): void
 }
 
 /** The text and the selection of the editor of a tab (offsets in UTF-16 code units). */
@@ -98,14 +114,21 @@ export interface SandboxAPI {
   pick(o: SandboxPick): Promise<number | null>
   /**
    * Opens one of its modal views (`contributes.modals`) in a modal of the core, while the user is
-   * in the frame; one at a time. Resolves with what the view gives `closeModal`, null when the
+   * in the frame; one at a time. With `plugin`, a modal view of that plugin, which provides a
+   * capability this one requires (#155). Resolves with what the view gives `closeModal`, null when the
    * user closes it.
    */
-  openModal(view: string, state?: unknown, o?: { title?: string; size?: SandboxModalSize }): Promise<unknown>
+  openModal(view: string, state?: unknown, o?: { title?: string; size?: SandboxModalSize; plugin?: string }): Promise<unknown>
   /** In a modal view: closes it, its opener getting result. */
   closeModal(result?: unknown): void
   /** Whether this frame is a modal view. */
   readonly modal: boolean
+  /** A capability the manifest requires, provided by another external plugin (#155). */
+  use(capability: string): SandboxService
+  /** A value of a capability it provides, kept by the page and pushed to its users. */
+  publish(capability: string, key: string, value: unknown): void
+  /** An event of a capability it provides, to its users. */
+  emit(capability: string, event: string, data?: unknown): void
 }
 
 /** What the frame asks the page; `rpc` waits for a `reply` with its `id`. */
@@ -127,7 +150,12 @@ export type FrameCall =
   | { call: 'editorFocus' }
   | { call: 'editorWords'; words: string[] }
   | { call: 'dialog'; id: number; confirm?: SandboxConfirm; prompt?: SandboxPrompt; pick?: SandboxPick }
-  | { call: 'openModal'; id: number; view: string; state?: unknown; title?: string; size?: SandboxModalSize }
+  | { call: 'openModal'; id: number; view: string; state?: unknown; title?: string; size?: SandboxModalSize; plugin?: string }
+  | { call: 'serviceCall'; id: number; capability: string; method: string; args?: unknown[] }
+  | { call: 'serviceWatch'; capability: string }
+  | { call: 'serviceReply'; id: number; result?: unknown; error?: string }
+  | { call: 'publish'; capability: string; key: string; value?: unknown }
+  | { call: 'serviceEmit'; capability: string; event: string; data?: unknown }
   | { call: 'closeModal'; result?: unknown }
 
 /** What the page sends the frame. */
@@ -141,3 +169,7 @@ export type PageMessage =
   | { editor: SandboxEditorState }
   | { editorKey: string }
   | { settings: Record<string, unknown> }
+  | { serviceRequest: number; capability: string; method: string; args: unknown[] }
+  | { serviceValues: { capability: string; values: Record<string, unknown> } }
+  | { serviceValue: { capability: string; key: string; value: unknown } }
+  | { serviceEvent: { capability: string; event: string; data: unknown } }

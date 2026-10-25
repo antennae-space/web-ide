@@ -22,7 +22,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 # The longest first (their times on a CI runner): the workers end together.
-ALL=(relay multipod sync features restore+ externals official database database-ssh identity plugins kanban chat renew desks speech keeper doodle lan preview docker editor questions git agent llm push subagents quota orchestrator kanbanai editing agents kanbangit lsp langpack langpacks langinstall mousenav commands popups keyboard mobile milestones projects help forwards explorer plan kanbanagents mcptools services i18n perf)
+ALL=(relay multipod sync features restore+ externals capabilities official database database-ssh identity plugins kanban chat renew desks speech keeper doodle lan preview docker editor questions git agent llm push subagents quota orchestrator kanbanai editing agents kanbangit lsp langpack langpacks langinstall mousenav commands popups keyboard mobile milestones projects help forwards explorer plan kanbanagents mcptools services i18n perf)
 # A suite is suites/<name>.cjs (the core) or plugins/<id>/e2e/<name>.cjs (a built-in plugin).
 suite_file() {
   local f

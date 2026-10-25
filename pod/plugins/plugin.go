@@ -135,6 +135,9 @@ type Pod interface {
 	Stopping() bool
 	// Plugin is a plugin of the pod by id, to use its exports (the AI uses the Kanban's).
 	Plugin(id string) (Plugin, bool)
+	// CallPlugin runs a method of a plugin in a project, a method of an external plugin by its
+	// backend (#155): how a built-in reaches an external plugin.
+	CallPlugin(ctx context.Context, project, method string, params any) (json.RawMessage, error)
 	// UICall asks a window of project to run a tool of the interface (open_file, focus…): the
 	// window showing the conversation chat first. With wait, it waits for its answer: window
 	// tells whether a window was there, answered whether it answered in time.
