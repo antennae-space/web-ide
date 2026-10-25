@@ -358,7 +358,7 @@ func (s *Server) officialSource() official.Source {
 			log.Printf("plugins: WEBIDE_OFFICIAL_DIR: %v", err)
 		}
 	}
-	return official.Embedded()
+	return s.Official
 }
 
 // officialURL tells whether a repository is the one of an official plugin.

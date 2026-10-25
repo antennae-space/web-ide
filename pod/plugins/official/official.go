@@ -62,6 +62,9 @@ var idRe = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 // List reads and checks the list.
 func (s Source) List() ([]Entry, error) {
 	var out []Entry
+	if s.list == nil {
+		return nil, nil // none (the tests of the server)
+	}
 	if err := json.Unmarshal(s.list, &out); err != nil {
 		return nil, fmt.Errorf("official.json: %v", err)
 	}

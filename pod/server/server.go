@@ -33,6 +33,7 @@ import (
 	"antennae.space/ide/pod/keeper"
 	"antennae.space/ide/pod/plugins"
 	"antennae.space/ide/pod/plugins/backend"
+	"antennae.space/ide/pod/plugins/official"
 	"antennae.space/ide/pod/projects"
 	"antennae.space/ide/pod/push"
 	"antennae.space/ide/pod/runtime"
@@ -54,6 +55,9 @@ type Server struct {
 	// Clipboard is the history of the texts copied in the IDE, shared by every window.
 	Clipboard *clipboard.History
 	Pool      *sshx.Pool
+	// Official are the official plugins the pod installs at start (official.Embedded() in the
+	// pod; none when unset: a test server never downloads them).
+	Official official.Source
 	// Keeper runs the local terminals so that they survive the updates of the pod (nil: the
 	// pod runs them).
 	Keeper *keeper.Client

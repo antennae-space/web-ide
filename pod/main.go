@@ -35,6 +35,7 @@ import (
 	"antennae.space/ide/pod/plugins"
 	"antennae.space/ide/pod/plugins/builtin"
 	"antennae.space/ide/pod/plugins/confine"
+	"antennae.space/ide/pod/plugins/official"
 	"antennae.space/ide/pod/power"
 	"antennae.space/ide/pod/projects"
 	"antennae.space/ide/pod/push"
@@ -198,6 +199,8 @@ func main() {
 		ForceTurn:   *forceTurn,
 		// WEBIDE_TEST_PLUGINS adds the plugins of the browser tests.
 		Plugins: builtin.Registry(os.Getenv("WEBIDE_TEST_PLUGINS") != ""),
+		// The official plugins of this build, installed at start.
+		Official: official.Embedded(),
 	}
 
 	if *static != "" {
