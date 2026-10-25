@@ -14,13 +14,29 @@ import { useEditorView } from '../ui/EditorArea'
 import { useCompletion } from '../ui/Completion'
 import { frameDoc, serveFrame, type FrameEditor } from './sandbox'
 import { pluginSettingValues } from './settings'
-import type { SandboxModalSize } from './sandbox-api'
+import type { PageMessage, SandboxModalSize, SandboxStatusItem } from './sandbox-api'
 import { serve, setModalOpener } from './services'
-import type { PluginContributions, PluginManifest, PluginModule, PluginState } from './types'
+import type { PluginContributions, PluginManifest, PluginModule, PluginState, StatusItem } from './types'
 
 type Bundle = { version: string; js: string; catalogs: Record<string, Record<string, string>> }
 
 type Served = ReturnType<typeof serveFrame>
+
+/** The status items a tab frame gave for its tab (setStatus), and how to answer its choices. */
+const [tabStatus, setTabStatus] = createSignal<Record<string, { items: SandboxStatusItem[]; send: (m: PageMessage) => void }>>({})
+
+/** The items of the status bar of a tab of an external plugin's view. */
+function viewStatus(tab: TabState): StatusItem[] {
+  const st = tabStatus()[tab.id]
+  if (!st) return []
+  return st.items.map((it) => ({
+    id: it.id,
+    text: it.text,
+    title: it.title,
+    testid: `status-${it.id}`,
+    menu: it.menu ? () => it.menu!.map((c) => ({ label: c.label, checked: c.checked, disabled: c.disabled, title: c.title, action: () => st.send({ status: { item: it.id, choice: c.id } }) })) : undefined,
+  }))
+}
 
 /** Whether a modal of a plugin is open: one at a time. */
 let modalOpen = false
@@ -91,12 +107,17 @@ function SandboxFrame(props: {
       closeModal: props.modal?.close,
       // A modal view gets the focus: its fields, its dialogs.
       onReady: props.modal ? () => frame.focus() : undefined,
+      setStatus: props.tab ? (items) => setTabStatus((all) => ({ ...all, [props.tab!.id]: { items, send: served!.send } })) : undefined,
     })
     props.served?.(served)
   })
   createEffect(onSignal(lang, () => served?.lang(), { defer: true }))
   createEffect(onSignal(() => JSON.stringify(pluginSettingValues(props.state.manifest)), () => served?.settings(), { defer: true }))
-  onCleanup(() => served?.stop())
+  onCleanup(() => {
+    served?.stop()
+    const id = props.tab?.id
+    if (id) setTabStatus(({ [id]: _, ...rest }) => rest)
+  })
   return (
     <div class="panel plugin-external-view">
       <iframe
@@ -257,6 +278,7 @@ export async function externalModule(state: PluginState, current: () => PluginSt
         ]),
       ),
       commands: Object.fromEntries((c.commands ?? []).map((x) => [x.id, () => bg.command(x.id)])),
+      viewStatus,
       }
     },
   }

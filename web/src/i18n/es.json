@@ -979,5 +979,8 @@
   "{plugin} does not require {name}": "{plugin} no requiere {name}",
   "nothing provides {name} on this project": "nada proporciona {name} en este proyecto",
   "{name} is not ready": "{name} no está listo",
-  "Send you notifications": "Enviarle notificaciones"
+  "Send you notifications": "Enviarle notificaciones",
+  "Run git in the project with your keys (fetch, push; its hooks run)": "Ejecutar git en el proyecto con sus claves (fetch, push; sus hooks se ejecutan)",
+  "Open pull requests with gh": "Abrir pull requests con gh",
+  "Add and remove the worktrees of the project, and run their setup commands": "Añadir y quitar los worktrees del proyecto, y ejecutar sus órdenes de setup"
 }

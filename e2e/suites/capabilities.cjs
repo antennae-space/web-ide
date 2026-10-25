@@ -8,7 +8,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { execFileSync } = require('child_process')
-const { run, openProject, assert, installOfficial, mcp } = require('../common.cjs')
+const { run, openProject, assert, installOfficial, mcp, WS } = require('../common.cjs')
 
 const alphaJS = `
 let count = 0
@@ -29,8 +29,12 @@ ide.register({
       el.querySelector('#choose').onclick = () => ide.closeModal({ chosen: 'green' })
     },
     note: (el, ide) => {
-      el.innerHTML = '<p id="note">' + JSON.stringify(ide.view.state) + '</p><button id="opened">opened</button><button id="ask">ask</button><button id="answer">answer</button><button id="notify">notify</button><pre id="out"></pre>'
-      for (const b of ['opened', 'ask', 'answer', 'notify'])
+      el.innerHTML = '<p id="note">' + JSON.stringify(ide.view.state) + '</p><button id="opened">opened</button><button id="ask">ask</button><button id="answer">answer</button><button id="notify">notify</button><button id="git">git</button><button id="worktree">worktree</button><button id="unworktree">unworktree</button><button id="md">md</button><pre id="out"></pre><pre id="choice"></pre>'
+      // #157: its status items, a choice of their menu back; the IDE's Markdown.
+      ide.setStatus([{ id: 'alpha-mood', text: 'Mood: calm', title: 'The mood of alpha', menu: [{ id: 'calm', label: 'Calm', checked: true }, { id: 'busy', label: 'Busy' }] }])
+      ide.onStatus((e) => (el.querySelector('#choice').textContent = e.item + '=' + e.choice))
+      el.querySelector('#md').onclick = () => ide.markdown('**bold** <img src=x onerror=alert(1)>').then((h) => (el.querySelector('#out').textContent = h))
+      for (const b of ['opened', 'ask', 'answer', 'notify', 'git', 'worktree', 'unworktree'])
         el.querySelector('#' + b).onclick = () => ide.rpc('alpha.' + b).then((r) => (el.querySelector('#out').textContent = JSON.stringify(r)), (e) => (el.querySelector('#out').textContent = 'error: ' + e.message))
     },
   },
@@ -77,7 +81,7 @@ run(async ({ page }) => {
     process.env['E2E_PLUGIN_' + id.toUpperCase()] = file
   }
   archive('alpha', {
-    name: 'Alpha', provides: ['greeting'],
+    name: 'Alpha', provides: ['greeting'], permissions: ['git', 'worktrees'],
     contributes: {
       modals: [{ id: 'pick', label: 'Pick' }], tabViews: [{ id: 'note', label: 'Note' }], links: [{ param: 'greet', view: 'note' }],
       mcpTools: ['alpha_where'], toolSchemas: { alpha_where: { description: 'Tells the scope of the call', properties: {} } },
@@ -86,6 +90,12 @@ run(async ({ page }) => {
   }, alphaJS)
   archive('beta', { name: 'Beta', requires: ['greeting'], contributes: { tools: [{ id: 'beta', label: 'Beta', icon: 'sparkle', zone: 'right' }] } }, betaJS)
   await installOfficial(['alpha', 'beta'])
+  // The demo project a git repository, for the git of alpha (#157).
+  const demo = path.join(WS, 'demo')
+  const git = (...a) => execFileSync('git', a, { cwd: demo, env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@x', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@x' } })
+  git('init', '-q', '-b', 'main')
+  git('add', '-A')
+  git('commit', '-q', '-m', 'demo')
 
   await openProject(page)
   await page.waitForSelector('.rail-btn[data-id=beta]')
@@ -165,6 +175,27 @@ run(async ({ page }) => {
   assert(got === '"q1=yes"', 'the answer reaches its backend: ' + got)
   got = await alpha('notify')
   assert(got.includes('notify is not granted to Alpha'), 'notify without its grant: ' + got)
+
+  // #157: git by the core, a setting that would run a program refused; a worktree made by git
+  // and registered as a project of the pod, then unregistered.
+  got = await alpha('git')
+  assert(got.startsWith('"true\\n|') && got.includes('core.pager is refused'), 'git by the core: ' + got)
+  got = await alpha('worktree')
+  assert(got.includes('-t9'), 'a worktree registered: ' + got)
+  const projects = () => JSON.parse(fs.readFileSync(path.join(process.env.E2E_DATA, 'projects.json'), 'utf8'))
+  assert(JSON.stringify(projects()).includes('#9 Alpha'), 'its project in the registry')
+  assert((await alpha('unworktree')) === '"unregistered"', 'unregistered')
+  assert(!JSON.stringify(projects()).includes('#9 Alpha'), 'its project gone')
+
+  // Its status item while its tab is in focus, a choice of its menu back to the frame.
+  await note.locator('#note').click()
+  await page.waitForSelector('[data-testid=status-alpha-mood]:has-text("Mood: calm")')
+  await page.click('[data-testid=status-alpha-mood]')
+  await page.click('.ctx-menu >> text=Busy')
+  await note.locator('#choice:has-text("alpha-mood=busy")').waitFor()
+  assert(true, 'a status item of a plugin tab and its menu')
+  got = await alpha('md')
+  assert(got.includes('<strong>bold</strong>') && !got.includes('onerror'), 'the IDE renders Markdown, sanitized: ' + got)
 
   // alpha disabled on the project: beta, which requires it, is off too; back with it.
   page.on('dialog', (d) => d.accept())

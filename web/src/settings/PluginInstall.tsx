@@ -30,6 +30,9 @@ function grantText(g: string): string {
       'socket:docker': t('Use Docker: as much as root on this machine (or the host of an SSH project)'),
       terminal: t('Open terminals in the IDE'),
       notify: t('Send you notifications'),
+      git: t('Run git in the project with your keys (fetch, push; its hooks run)'),
+      gh: t('Open pull requests with gh'),
+      worktrees: t('Add and remove the worktrees of the project, and run their setup commands'),
     }[g] ?? g
   )
 }

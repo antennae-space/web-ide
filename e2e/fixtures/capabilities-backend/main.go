@@ -4,7 +4,9 @@
 // (service.call), beta.listen hears alpha's events (service.on), beta.heard tells the last one,
 // beta.foreign asks a method out of alpha's namespace. alpha also has an MCP tool (alpha_where:
 // the scope of the call), a question (alpha.ask, then questions.list and questions.answer;
-// alpha.answer tells it), the hook project.open (alpha.opened) and a notification (alpha.notify).
+// alpha.answer tells it), the hook project.open (alpha.opened) and a notification (alpha.notify);
+// git by the core (alpha.git), a worktree made and registered as a project (alpha.worktree),
+// then unregistered (alpha.unworktree).
 package main
 
 import (
@@ -179,6 +181,33 @@ func handle(m msg) {
 				return
 			}
 			reply(m.ID, "sent")
+		case "alpha.git":
+			res, e := core("git", map[string]any{"args": []string{"rev-parse", "--is-inside-work-tree"}})
+			if e != "" {
+				reply(m.ID, "refused: "+e)
+				return
+			}
+			var r struct{ Output string }
+			json.Unmarshal(res, &r)
+			_, e = core("git", map[string]any{"args": []string{"-c", "core.pager=sh", "log"}})
+			reply(m.ID, r.Output+"|"+e)
+		case "alpha.worktree":
+			if _, e := core("git", map[string]any{"args": []string{"worktree", "add", "-b", "ticket/9-alpha", ".ide/worktrees/9-alpha", "HEAD"}}); e != "" {
+				reply(m.ID, "refused: "+e)
+				return
+			}
+			res, e := core("worktree.register", map[string]any{"owner": 9, "title": "#9 Alpha", "path": ".ide/worktrees/9-alpha"})
+			if e != "" {
+				reply(m.ID, "refused: "+e)
+				return
+			}
+			reply(m.ID, string(res))
+		case "alpha.unworktree":
+			if _, e := core("worktree.unregister", map[string]any{"owner": 9}); e != "" {
+				reply(m.ID, "refused: "+e)
+				return
+			}
+			reply(m.ID, "unregistered")
 		case "beta.ask":
 			res, e := core("service.call", map[string]any{"capability": "greeting", "method": "alpha.greet", "params": map[string]any{"name": "beta"}})
 			if e != "" {

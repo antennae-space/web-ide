@@ -90,6 +90,8 @@ Each tool and tab view is a frame of its own, running the module and the view of
 | `ide.toast(text, kind)` | a message of the IDE (`info`, `warn`, `error`, `ok`) |
 | `ide.confirm({title, text, ok, danger})`, `ide.prompt({title, label, value, password})`, `ide.pick({title, items})` | the dialogs of the IDE, centered in its window, titled with your plugin's name: a boolean, a text (null if cancelled), the index of the item chosen; only while the user is in your frame (a click, a key) |
 | `ide.openModal(view, state, {title, size})`, `ide.closeModal(result)`, `ide.modal` | one of your views (`contributes.modals: [{"id", "label"}]`) in a modal of the IDE (`small`, `medium`, `large`), while the user is in your frame, one at a time; the view closes it with a result for the promise of its opener (null when the user closes it) |
+| `ide.setStatus(items)`, `ide.onStatus(f)` | in a tab view: the items of the status bar while its tab is in focus (`{id, text, title, menu: [{id, label, checked}]}`), and the choices of their menus (`{item, choice}`) |
+| `ide.markdown(text)`, `ide.openLink(url)`, `ide.help(topic)` | the HTML of a Markdown text as the IDE renders it (sanitized), an http(s) address in a new tab (while the user is in the frame), a page of the IDE's documentation |
 | `ide.theme`, `ide.onTheme(f)` | the colors and fonts of the IDE, also set as CSS variables (`var(--bg)`, `var(--fg)`…, the list is `themeTokens` of the SDK), its `color-scheme`, and `--ide-head-inset`: the room the IDE's buttons take over the frame's top right corner, to leave in the first row of a view (the kit's toolbar does) |
 
 The keys pressed in the frame with a modifier, Escape and F1-F12 reach the IDE's shortcuts.
@@ -153,6 +155,9 @@ The IDE starts it on the first call of a project, through `web-ide-pod plugin-ex
 | `core {method: "questions.changed", params: {asked?}}` | its questions changed: the windows ask again; `asked: true` notifies the devices |
 | `core {method: "notify", params: {kind, query?, tag?, urgency?, texts: {en: {title, body}, fr: …}}}` | a push notification (grant `notify`), of a kind the devices choose (`feedback`, `asks`, `finished`, `tests`), opening the project at `?<query>` |
 | `core {method: "commands.list"}` (and `commands.save`, `commands.run`) | the saved commands of the project, with `core:commands.list`… |
+| `core {method: "git", params: {args, dir?}}` | git in the project or one of its `.ide/worktrees/*` (grant `git`), with the user's keys: answers `{output}`; an option that would run another program (`-c core.pager=…`, `--upload-pack`…) is refused |
+| `core {method: "gh", params: {args}}` | `gh pr …` (grant `gh`) |
+| `core {method: "worktree.register" / "worktree.unregister" / "worktree.setup" / "ide.keepOut"}` | the worktree projects (grant `worktrees`): register a folder of `.ide/worktrees` as the project of a ticket (`{owner, title, path}`), remove it (`{owner}`), run the setup commands of the project in it (`{path}`), keep `.ide` out of git |
 | `emit {event, data}` (no id) | an event to the windows of the project, `<id>.*` only, and to the backends listening to it |
 
 A call waits two minutes at most; a backend that ends three times in a minute stays off until the project opens again. It runs confined: it reads its own folder and the system, writes its data folder (its `HOME` and `TMPDIR`), reads the project with `files:read`, writes it with `files:write`, reaches the network with `net` only; never the home, nor `~/.web-ide`, nor the other processes. A project over SSH is not on the pod: reach its files with `core` calls. Build it static (`CGO_ENABLED=0` for Go): it starts with the system's libraries only. A kernel without Landlock does not run it.
@@ -169,6 +174,7 @@ The user grants each permission at the install, again for a new one asked by an 
 - `socket:docker`: the Docker socket, opened by the pod; whoever holds it is as much as root on the machine, and the user is told so;
 - `terminal`: consoles of the IDE it feeds;
 - `notify`: push notifications to the user's devices;
+- `git`, `gh`, `worktrees`: git and gh in the project with the user's keys (its hooks run: as much as the user), the worktree projects and their setup;
 - `exec`: running programs (reserved);
 - `core:<method>`: its views and its backend call that method of the core (`core:fs.list`, `core:fs.read`…); the files permissions do not open them.
 

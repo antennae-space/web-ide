@@ -9,8 +9,11 @@ import { confirmModal, pick, prompt } from '../ui/overlay'
 import { copyText } from '../ui/clipboard'
 import { capability } from './capabilities'
 import { emit, openModalOf, publish, use } from './services'
+import { renderMarkdown } from '../ui/markdown'
+import { docTarget, openDoc, type HelpTopic } from '../state/docs'
+import topics from '../help/topics.json'
 import { lang, t } from '../i18n'
-import type { FrameCall, PageMessage, SandboxEditorState, SandboxModalSize, SandboxTheme } from './sandbox-api'
+import type { FrameCall, PageMessage, SandboxEditorState, SandboxModalSize, SandboxStatusItem, SandboxTheme } from './sandbox-api'
 
 /** The CSP of a frame: inline scripts and styles, images as data, no network at all. */
 export const frameCSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'"
@@ -29,7 +32,7 @@ export const bootstrap = `(() => {
   // The editor of the tab: its state pushed by the page, and the listeners of the view.
   let ed = null
   const edFns = { change: [], selection: [], keys: {} }
-  const settingsFns = []
+  const settingsFns = [], statusFns = []
   let next = 1
   // What the module sends before the page gives the channel (a call at load) waits for it.
   const queue = []
@@ -77,6 +80,11 @@ export const bootstrap = `(() => {
     },
     publish: (capability, key, value) => send({ call: 'publish', capability, key, value: plain(value) }),
     emit: (capability, event, data) => send({ call: 'serviceEmit', capability, event, data: plain(data) }),
+    setStatus: (items) => send({ call: 'setStatus', items: plain(items || []) }),
+    onStatus: (f) => statusFns.push(f),
+    markdown: (text) => call({ call: 'markdown', text: String(text) }),
+    openLink: (url) => send({ call: 'openLink', url: String(url) }),
+    help: (topic) => send({ call: 'help', topic: String(topic) }),
     closeModal: (result) => send({ call: 'closeModal', result: plain(result) }),
     get modal() { return !!(info && info.modal) },
     get settings() { return (info && info.settings) || {} },
@@ -125,6 +133,7 @@ export const bootstrap = `(() => {
     }
     if (m.editorKey) (edFns.keys[m.editorKey] || []).forEach((f) => f())
     if (m.settings) { info.settings = m.settings; settingsFns.forEach((f) => f(m.settings)) }
+    if (m.status) statusFns.forEach((f) => f(m.status))
     // A method of a capability it provides, asked by the page for another plugin.
     if (m.serviceRequest) {
       const id = m.serviceRequest, f = services[m.capability] && services[m.capability][m.method]
@@ -213,6 +222,8 @@ export type FrameHost = {
   openModal?: (view: string, state: unknown, title: string, size: SandboxModalSize) => Promise<unknown>
   /** A modal view: closes its modal with a result. */
   closeModal?: (result: unknown) => void
+  /** A tab view: the items of the status bar it gives for its tab. */
+  setStatus?: (items: SandboxStatusItem[]) => void
 }
 
 /**
@@ -401,6 +412,29 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       }
       case 'publish':
         if (host.provides?.includes(m.capability) && typeof m.key === 'string') publish(host.plugin, m.capability, m.key.slice(0, 200), m.value)
+        return
+      case 'setStatus':
+        if (Array.isArray(m.items))
+          host.setStatus?.(
+            m.items.slice(0, 8).map((it) => ({
+              id: clip(it?.id, 100),
+              text: clip(it?.text, 100),
+              title: clip(it?.title, 300) || undefined,
+              menu: Array.isArray(it?.menu) ? it.menu.slice(0, 50).map((c) => ({ id: clip(c?.id, 100), label: clip(c?.label, 200), checked: !!c?.checked, disabled: !!c?.disabled, title: clip(c?.title, 300) || undefined })) : undefined,
+            })),
+          )
+        return
+      case 'markdown':
+        reply(m.id, typeof m.text === 'string' && m.text.length <= maxEditorText ? { result: renderMarkdown(m.text) } : { error: 'markdown: a text of 1 MB at most' })
+        return
+      case 'openLink':
+        // Only an http(s) address, while the user is in the frame: no popup of its own.
+        void userInSoon(frame).then((inside) => {
+          if (inside && typeof m.url === 'string' && /^https?:\/\//i.test(m.url)) window.open(m.url, '_blank', 'noopener,noreferrer')
+        })
+        return
+      case 'help':
+        if (typeof m.topic === 'string' && m.topic in topics) openDoc(docTarget(m.topic as HelpTopic))
         return
       case 'serviceEmit':
         if (host.provides?.includes(m.capability) && typeof m.event === 'string') emit(host.plugin, m.capability, m.event.slice(0, 200), m.data)

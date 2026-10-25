@@ -244,6 +244,10 @@ func (s *Server) backendCore(ctx context.Context, rt *runtime.Runtime, e plugins
 		return s.backendQuestionsChanged(rt, e, params)
 	case "notify":
 		return s.pluginNotify(rt, e, params)
+	case "git", "gh":
+		return s.pluginGit(ctx, rt, e, method, params)
+	case "worktree.register", "worktree.unregister", "worktree.setup", "ide.keepOut":
+		return s.pluginWorktree(ctx, rt, e, method, params)
 	}
 	if !slices.Contains(e.Grants, "core:"+method) {
 		return nil, i18n.Errorf("%s is not granted to %s", method, e.Manifest.Name)

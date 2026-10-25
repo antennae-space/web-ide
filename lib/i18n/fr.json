@@ -261,5 +261,15 @@
   "plugin %s: unknown hook %q": "plugin %s : hook inconnu %q",
   "%s asks no questions (contributes.questions)": "%s ne pose pas de questions (contributes.questions)",
   "unknown kind of notification: %s": "type de notification inconnu : %s",
-  "a notification needs its English title": "une notification a besoin de son titre en anglais"
+  "a notification needs its English title": "une notification a besoin de son titre en anglais",
+  "git: %s is refused to a plugin": "git : %s est refusé à un plugin",
+  "git: -c needs a setting": "git : -c a besoin d’un réglage",
+  "git: the setting %s is refused to a plugin": "git : le réglage %s est refusé à un plugin",
+  "git: no command": "git : aucune commande",
+  "git config: only --get for a plugin": "git config : seulement --get pour un plugin",
+  "git %s is refused to a plugin": "git %s est refusé à un plugin",
+  "gh: only its pull requests (gh pr …) for a plugin": "gh : seulement ses pull requests (gh pr …) pour un plugin",
+  "gh is not installed": "gh n’est pas installé",
+  "%s is not a folder of .ide/worktrees": "%s n’est pas un dossier de .ide/worktrees",
+  "worktree.register: owner, the number of its ticket": "worktree.register : owner, le numéro de son ticket"
 }
