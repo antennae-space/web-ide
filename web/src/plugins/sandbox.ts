@@ -5,10 +5,11 @@
 import { on, request } from '../pod/rpc'
 import { openFile, openTab, mutate, type TabState } from '../state/project'
 import { toast } from '../ui/toast'
+import { confirmModal, pick, prompt } from '../ui/overlay'
 import { copyText } from '../ui/clipboard'
 import { capability } from './capabilities'
 import { lang, t } from '../i18n'
-import type { FrameCall, PageMessage, SandboxEditorState, SandboxTheme } from './sandbox-api'
+import type { FrameCall, PageMessage, SandboxEditorState, SandboxModalSize, SandboxTheme } from './sandbox-api'
 
 /** The CSP of a frame: inline scripts and styles, images as data, no network at all. */
 export const frameCSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'"
@@ -54,6 +55,12 @@ export const bootstrap = `(() => {
     t: (k, p) => fill((info && info.catalog && info.catalog[k]) || k.slice(k.indexOf('|') + 1), p),
     tn: (n, one, other, p) => ide.t(n === 1 ? one : other, { n, ...p }),
     onTheme: (f) => themeFns.push(f),
+    confirm: (o) => call({ call: 'dialog', confirm: plain(o) }),
+    prompt: (o) => call({ call: 'dialog', prompt: plain(o) }),
+    pick: (o) => call({ call: 'dialog', pick: plain(o) }),
+    openModal: (view, state, o) => call({ call: 'openModal', view, state: plain(state), title: o && o.title, size: o && o.size }),
+    closeModal: (result) => send({ call: 'closeModal', result: plain(result) }),
+    get modal() { return !!(info && info.modal) },
     get settings() { return (info && info.settings) || {} },
     onSettings: (f) => settingsFns.push(f),
     get editor() {
@@ -163,12 +170,21 @@ export type FrameHost = {
   /** The view of the frame ("" for the hidden one of the commands) and its tab (a tab view). */
   view: string
   tab?: TabState
+  /** The state of a modal view, given by its opener. */
+  state?: unknown
   onReady?: () => void
   /** The editor of the tab (a tab view whose manifest asks it). */
   editor?: FrameEditor
   /** Its settings now (the defaults where the user set nothing). */
   settings?: () => Record<string, unknown>
+  /** Opens one of its modal views in a modal of the core: the result its view closes it with. */
+  openModal?: (view: string, state: unknown, title: string, size: SandboxModalSize) => Promise<unknown>
+  /** A modal view: closes its modal with a result. */
+  closeModal?: (result: unknown) => void
 }
+
+/** A text of a dialog, as plain text of a bounded length. */
+const clip = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : '')
 
 /** What the page does for the frame on the editor of its tab. */
 export interface FrameEditor {
@@ -270,6 +286,34 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       case 'ready':
         host.onReady?.()
         return
+      case 'dialog': {
+        // The dialogs of the core, while the user is in the frame, titled with the plugin.
+        if (document.activeElement !== frame) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
+        const title = `${host.name} · ${clip(m.confirm?.title ?? m.prompt?.title ?? m.pick?.title, 200)}`
+        if (m.confirm) {
+          void confirmModal({ title, text: clip(m.confirm.text, 2000), ok: clip(m.confirm.ok, 60) || undefined, danger: !!m.confirm.danger }).then((result) => reply(m.id, { result }))
+        } else if (m.prompt) {
+          const p = m.prompt
+          void prompt({ title, label: clip(p.label, 2000) || undefined, value: clip(p.value, 10000), password: !!p.password, placeholder: clip(p.placeholder, 200) || undefined }).then((result) => reply(m.id, { result }))
+        } else if (m.pick && Array.isArray(m.pick.items)) {
+          const items = m.pick.items.slice(0, 500).map((it, i) => ({ label: clip(it?.label, 300), detail: clip(it?.detail, 300) || undefined, value: i }))
+          void pick<number>({ placeholder: title, items, initial: Number.isInteger(m.pick.initial) ? m.pick.initial : 0 }).then((result) => reply(m.id, { result: result ?? null }))
+        } else reply(m.id, { error: 'dialog: confirm, prompt or pick' })
+        return
+      }
+      case 'openModal': {
+        if (document.activeElement !== frame) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
+        if (!host.openModal || typeof m.view !== 'string') return reply(m.id, { error: t('{name} has no such modal view', { name: host.name }) })
+        const size: SandboxModalSize = m.size === 'small' || m.size === 'large' ? m.size : 'medium'
+        host.openModal(m.view, m.state, clip(m.title, 200), size).then(
+          (result) => reply(m.id, { result: result ?? null }),
+          (err) => reply(m.id, { error: err instanceof Error ? err.message : String(err) }),
+        )
+        return
+      }
+      case 'closeModal':
+        host.closeModal?.(m.result)
+        return
       case 'editorSet':
         if (typeof m.text === 'string' && m.text.length <= maxEditorText) host.editor?.setText(m.text)
         return
@@ -314,8 +358,9 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     port.onmessage = handle(port)
     frame.contentWindow?.postMessage('ide', '*', [ch.port2])
     // The state of the tab is a proxy of the store: a plain copy crosses the channel.
-    const state = host.tab?.state === undefined ? undefined : JSON.parse(JSON.stringify(host.tab.state))
-    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme(), editor: editorState(), settings: host.settings?.() } })
+    const st = host.tab ? host.tab.state : host.state
+    const state = st === undefined ? undefined : JSON.parse(JSON.stringify(st))
+    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme(), editor: editorState(), settings: host.settings?.(), modal: !!host.closeModal } })
   }
   frame.addEventListener('load', start)
   // The theme and the language follow the page.

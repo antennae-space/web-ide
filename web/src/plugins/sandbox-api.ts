@@ -43,6 +43,15 @@ export interface SandboxEditor {
   onKey(name: string, f: () => void): void
 }
 
+/** A yes or no asked by the core (`ide.confirm`). */
+export type SandboxConfirm = { title: string; text: string; ok?: string; danger?: boolean }
+/** A text asked by the core (`ide.prompt`), a password hidden. */
+export type SandboxPrompt = { title: string; label?: string; value?: string; password?: boolean; placeholder?: string }
+/** An item chosen in a list by the core (`ide.pick`): its index. */
+export type SandboxPick = { title: string; items: { label: string; detail?: string }[]; initial?: number }
+/** The size of a modal view: its width (480, 680, 920 px at most), its height up to 80% of the window. */
+export type SandboxModalSize = 'small' | 'medium' | 'large'
+
 /** The global `ide` of a frame. */
 export interface SandboxAPI {
   register(c: SandboxContributions): void
@@ -80,6 +89,23 @@ export interface SandboxAPI {
   /** Its settings (contributes.settings), the defaults where the user set nothing. */
   readonly settings: Record<string, unknown>
   onSettings(f: (settings: Record<string, unknown>) => void): void
+  /**
+   * The dialogs of the core, centered in the window and titled with the plugin's name, while the
+   * user is in the frame (a click, a key): refused otherwise.
+   */
+  confirm(o: SandboxConfirm): Promise<boolean>
+  prompt(o: SandboxPrompt): Promise<string | null>
+  pick(o: SandboxPick): Promise<number | null>
+  /**
+   * Opens one of its modal views (`contributes.modals`) in a modal of the core, while the user is
+   * in the frame; one at a time. Resolves with what the view gives `closeModal`, null when the
+   * user closes it.
+   */
+  openModal(view: string, state?: unknown, o?: { title?: string; size?: SandboxModalSize }): Promise<unknown>
+  /** In a modal view: closes it, its opener getting result. */
+  closeModal(result?: unknown): void
+  /** Whether this frame is a modal view. */
+  readonly modal: boolean
 }
 
 /** What the frame asks the page; `rpc` waits for a `reply` with its `id`. */
@@ -100,10 +126,13 @@ export type FrameCall =
   | { call: 'editorMark'; range: [number, number] | null }
   | { call: 'editorFocus' }
   | { call: 'editorWords'; words: string[] }
+  | { call: 'dialog'; id: number; confirm?: SandboxConfirm; prompt?: SandboxPrompt; pick?: SandboxPick }
+  | { call: 'openModal'; id: number; view: string; state?: unknown; title?: string; size?: SandboxModalSize }
+  | { call: 'closeModal'; result?: unknown }
 
 /** What the page sends the frame. */
 export type PageMessage =
-  | { init: { view: SandboxView; lang: string; catalog: Record<string, string>; theme: SandboxTheme; editor?: SandboxEditorState; settings?: Record<string, unknown> } }
+  | { init: { view: SandboxView; lang: string; catalog: Record<string, string>; theme: SandboxTheme; editor?: SandboxEditorState; settings?: Record<string, unknown>; modal?: boolean } }
   | { reply: number; result?: unknown; error?: string; code?: string; data?: Record<string, string> }
   | { theme: SandboxTheme }
   | { lang: string; catalog: Record<string, string> }

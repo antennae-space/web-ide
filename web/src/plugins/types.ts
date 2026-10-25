@@ -40,6 +40,8 @@ export interface PluginManifest {
     /** Its actions (#151): a method of its backend and an assistant tool each. */
     actions?: { id: string; label: string; description: string; properties?: Record<string, unknown>; required?: string[]; access: 'read' | 'write'; target?: string }[]
     tabViews?: { id: string; label: string; editor?: { lang: string; size?: number; keys?: Record<string, string> } }[]
+    /** The views an external plugin opens in a modal of the core (#154). */
+    modals?: { id: string; label: string }[]
     assistantTools?: string[]
     mcpTools?: string[]
     /** Actions <plugin>.<id> (or the id as written when it has a prefix of the plugin's namespaces); keys: default shortcuts; replaces: the id of the action before it moved to a plugin. */

@@ -87,6 +87,8 @@ Each tool and tab view is a frame of its own, running the module and the view of
 | `ide.openFile(path, line)`, `ide.openView(view, state, title)`, `ide.setViewState(state)` | open a file, a tab of one of its views, save the state of its tab |
 | `ide.t(text, params)`, `ide.tn(n, one, other, params)`, `ide.lang` | its texts, from its `i18n/<lang>.json` |
 | `ide.toast(text, kind)` | a message of the IDE (`info`, `warn`, `error`, `ok`) |
+| `ide.confirm({title, text, ok, danger})`, `ide.prompt({title, label, value, password})`, `ide.pick({title, items})` | the dialogs of the IDE, centered in its window, titled with your plugin's name: a boolean, a text (null if cancelled), the index of the item chosen; only while the user is in your frame (a click, a key) |
+| `ide.openModal(view, state, {title, size})`, `ide.closeModal(result)`, `ide.modal` | one of your views (`contributes.modals: [{"id", "label"}]`) in a modal of the IDE (`small`, `medium`, `large`), while the user is in your frame, one at a time; the view closes it with a result for the promise of its opener (null when the user closes it) |
 | `ide.theme`, `ide.onTheme(f)` | the colors and fonts of the IDE, also set as CSS variables (`var(--bg)`, `var(--fg)`…, the list is `themeTokens` of the SDK), its `color-scheme`, and `--ide-head-inset`: the room the IDE's buttons take over the frame's top right corner, to leave in the first row of a view (the kit's toolbar does) |
 
 The keys pressed in the frame with a modifier, Escape and F1-F12 reach the IDE's shortcuts.

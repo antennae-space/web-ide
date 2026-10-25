@@ -99,6 +99,49 @@ function PromptHost() {
   )
 }
 
+// ---------- confirm ----------
+
+interface ConfirmReq {
+  title: string
+  text: string
+  ok?: string
+  danger?: boolean
+  resolve: (v: boolean) => void
+}
+const [confirmReq, setConfirmReq] = createSignal<ConfirmReq | null>(null)
+
+/** A yes or no in a modal (the native confirm cannot be styled, nor asked from a frame). */
+export function confirmModal(o: Omit<ConfirmReq, 'resolve'>): Promise<boolean> {
+  return new Promise((resolve) => setConfirmReq({ ...o, resolve }))
+}
+
+function ConfirmHost() {
+  const close = (v: boolean) => {
+    confirmReq()?.resolve(v)
+    setConfirmReq(null)
+  }
+  return (
+    <Show when={confirmReq()}>
+      {(r) => (
+        <Modal title={r().title} onClose={() => close(false)} class="modal-small"
+          footer={
+            <>
+              <span class="grow" />
+              <button class="btn" onClick={() => close(false)}>
+                {t('Cancel')}
+              </button>
+              <button class="btn" classList={{ primary: !r().danger, danger: !!r().danger }} ref={(b) => queueMicrotask(() => b.focus())} onClick={() => close(true)} data-testid="confirm-ok">
+                {r().ok ?? t('OK')}
+              </button>
+            </>
+          }>
+          <p class="confirm-text">{r().text}</p>
+        </Modal>
+      )}
+    </Show>
+  )
+}
+
 // ---------- pick list ----------
 
 export interface PickItem<T = unknown> {
@@ -415,6 +458,7 @@ export function Overlays() {
   return (
     <>
       <PromptHost />
+      <ConfirmHost />
       <PickHost />
       <MenuHost />
     </>

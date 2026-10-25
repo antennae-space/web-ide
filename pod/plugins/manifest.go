@@ -53,6 +53,8 @@ func (m Manifest) Owns(name string) bool {
 type Contributions struct {
 	Tools    []Tool    `json:"tools,omitempty"`
 	TabViews []TabView `json:"tabViews,omitempty"`
+	// Modals are the views an external plugin opens in a modal of the core (#154).
+	Modals []ModalView `json:"modals,omitempty"`
 	// AssistantTools are the names of the tools the plugin offers to the assistant and the MCP;
 	// each one is registered with its handler (Host.AssistantTool).
 	AssistantTools []string `json:"assistantTools,omitempty"`
@@ -195,6 +197,12 @@ type Tool struct {
 }
 
 // TabView is a kind of tab, opened as plugin:<plugin>/<id>.
+// ModalView is a view of a plugin shown in a modal of the core (ide.openModal).
+type ModalView struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
+
 type TabView struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
@@ -264,6 +272,11 @@ func (m Manifest) Check() error {
 			return fmt.Errorf("plugin %s: tool %s has no valid zone (%q)", m.ID, t.ID, t.Zone)
 		}
 		seen[t.ID] = true
+	}
+	for _, v := range m.Contributes.Modals {
+		if !idRe.MatchString(v.ID) || v.Label == "" {
+			return fmt.Errorf("plugin %s: invalid modal view %q", m.ID, v.ID)
+		}
 	}
 	for _, v := range m.Contributes.TabViews {
 		if !idRe.MatchString(v.ID) {
