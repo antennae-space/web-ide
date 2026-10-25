@@ -30,6 +30,9 @@ func TestResolvePath(t *testing.T) {
 			t.Fatalf("%s given: %s", bad, p)
 		}
 	}
+	if p, err := h.ResolvePath(plugins.PathGrant{Name: "X", Candidates: []string{"~", "~/go/pkg/mod"}}); err != nil || p != filepath.Join(home, "go", "pkg", "mod") {
+		t.Fatalf("a refused candidate leaves the next one: %q %v", p, err)
+	}
 	if _, err := h.ResolvePath(plugins.PathGrant{Name: "X", Candidates: []string{"$NOPE", "~/missing"}}); err == nil {
 		t.Fatal("nothing found")
 	}

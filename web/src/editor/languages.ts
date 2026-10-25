@@ -37,8 +37,9 @@ export function grammarDefs(): GrammarDef[] {
   return [...base.map((g) => o[g.id] ?? g), ...Object.values(o).filter((g) => !ids.has(g.id))]
 }
 
+/** The grammar of a language before the user's changes: a pack's, else the core's. */
 export function builtinGrammar(id: string) {
-  return builtinGrammars.find((g) => g.id === id)
+  return packGrammars().find((g) => g.id === id) ?? builtinGrammars.find((g) => g.id === id)
 }
 
 export function grammar(id: string): Grammar {
@@ -106,11 +107,7 @@ const packOf = (ext: string) => packLanguages.find((l) => l.extensions.includes(
 export function lspLanguage(path: string): string {
   const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
   const pack = packOf(ext)
-  if (pack) return pack.id
-  if (['.php', '.phtml'].includes(ext)) return 'php'
-  if (['.py', '.pyi'].includes(ext)) return 'python'
-  if (['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'].includes(ext)) return 'typescript'
-  return ''
+  return pack?.id ?? ''
 }
 
 /** LSP languageId of a file. */
@@ -118,27 +115,5 @@ export function lspLanguageId(path: string): string {
   const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
   const pack = packOf(ext)
   if (pack) return pack.languageIds?.[ext] ?? pack.id
-  switch (ext) {
-    case '.ts':
-    case '.mts':
-    case '.cts':
-      return 'typescript'
-    case '.tsx':
-      return 'typescriptreact'
-    case '.jsx':
-      return 'javascriptreact'
-    case '.js':
-    case '.mjs':
-    case '.cjs':
-      return 'javascript'
-    case '.py':
-    case '.pyi':
-      return 'python'
-    case '.go':
-      return 'go'
-    case '.php':
-    case '.phtml':
-      return 'php'
-  }
   return 'plaintext'
 }

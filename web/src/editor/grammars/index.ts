@@ -6,149 +6,13 @@ const r = String.raw
 
 const num: RuleDef = { token: 'number', regex: r`\b(?:0[xX][\da-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?[nfFlLuU]?)\b|\.\d+\b` }
 const call: RuleDef = { token: 'function', regex: r`[A-Za-z_$][\w$]*(?=\s*\()` }
-const classLike: RuleDef = { token: 'type', regex: r`\b[A-Z][a-z0-9]\w*\b` }
-const op: RuleDef = { token: 'operator', regex: r`[-+*/%=<>!&|^~?:]+` }
-const punct: RuleDef = { token: 'punctuation', regex: r`[{}()\[\];,.]` }
 const blockComment = (end = r`\*/`): RuleDef[] => [
   { token: 'comment', regex: end, next: '@pop' },
   { token: 'comment', regex: r`[^*]+|\*` },
 ]
 
-const jsKeywords = r`break|case|catch|class|const|continue|debugger|default|delete|do|else|export|extends|finally|for|from|function|if|import|in|instanceof|let|new|of|return|super|switch|this|throw|try|typeof|var|void|while|with|yield|async|await|static|get|set|as`
-const tsKeywords = r`interface|type|enum|implements|namespace|module|declare|abstract|private|protected|public|readonly|keyof|infer|is|satisfies|override|unique`
-const tsTypes = r`string|number|boolean|any|unknown|never|object|symbol|bigint|void`
-
-function js(id: string, name: string, extensions: string[], ts: boolean): GrammarDef {
-  const kw = ts ? `${jsKeywords}|${tsKeywords}` : jsKeywords
-  return {
-    id,
-    name,
-    extensions,
-    detect: id === 'javascript' ? r`^#!.*\bnode\b` : undefined,
-    states: {
-      root: [
-        { token: 'comment', regex: r`//.*` },
-        { token: 'comment', regex: r`/\*`, next: 'comment' },
-        { token: 'string', regex: '`', next: 'template' },
-        { token: 'string', regex: r`"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?` },
-        { token: 'regexp', regex: r`(?<=(?:^|[=(,:;!&|?{}\[]|return|typeof)\s*)/(?![*/])(?:[^/\\\[\n]|\\.|\[(?:[^\]\\\n]|\\.)*\])+/[dgimsuyv]*` },
-        { token: 'meta', regex: r`@[A-Za-z_$][\w$.]*` },
-        num,
-        { token: 'keyword', regex: r`\b(?:${kw})\b` },
-        { token: 'constant', regex: r`\b(?:true|false|null|undefined|NaN|Infinity)\b` },
-        ...(ts ? [{ token: 'type', regex: r`\b(?:${tsTypes})\b` }] : []),
-        { token: 'variable', regex: r`\b(?:this|globalThis|window|document|console)\b` },
-        classLike,
-        call,
-        { token: 'property', regex: r`(?<=\.)[A-Za-z_$][\w$]*` },
-        { token: 'text', regex: r`[A-Za-z_$][\w$]*` },
-        { token: 'tag', regex: r`</?[A-Za-z][\w.-]*|/?>` },
-        op,
-        punct,
-      ],
-      comment: blockComment(),
-      template: [
-        { token: 'escape', regex: r`\\.` },
-        { token: 'punctuation', regex: r`\$\{`, next: 'templateExpr' },
-        { token: 'string', regex: '`', next: '@pop' },
-        { token: 'string', regex: r`[^\`\\$]+|\$` },
-      ],
-      templateExpr: [{ token: 'punctuation', regex: r`\}`, next: '@pop' }, { token: '', regex: '', include: 'root' }],
-    },
-  }
-}
-
-const php: GrammarDef = {
-  id: 'php',
-  name: 'PHP',
-  extensions: ['.php', '.phtml', '.php8', '.inc'],
-  detect: r`^<\?php|^#!.*\bphp\b`,
-  states: {
-    root: [
-      { token: 'meta', regex: r`<\?(?:php|=)?`, next: 'php' },
-      { token: 'comment', regex: r`<!--.*?(?:-->|$)` },
-      { token: 'tag', regex: r`</?[A-Za-z][\w:-]*|/?>` },
-      { token: 'string', regex: r`"[^"]*"|'[^']*'` },
-    ],
-    php: [
-      { token: 'meta', regex: r`\?>`, next: '@pop' },
-      { token: 'meta', regex: r`#\[[^\]]*\]?` },
-      { token: 'comment', regex: r`(?://|#).*?(?=\?>|$)` },
-      { token: 'comment', regex: r`/\*`, next: 'comment' },
-      { token: 'string', regex: r`<<<\s*'(\w+)'\s*$`, next: 'nowdoc' },
-      { token: 'string', regex: r`<<<\s*"?(\w+)"?\s*$`, next: 'heredoc' },
-      { token: 'string', regex: '"', next: 'dq' },
-      { token: 'string', regex: "'", next: 'sq' },
-      { token: 'variable', regex: r`\$this\b` },
-      { token: 'variable', regex: r`\$+[A-Za-z_]\w*` },
-      num,
-      { token: 'keyword', regex: r`\b(?:abstract|and|as|break|callable|case|catch|class|clone|const|continue|declare|default|do|echo|else|elseif|empty|enddeclare|endfor|endforeach|endif|endswitch|endwhile|enum|extends|final|finally|fn|for|foreach|function|global|goto|if|implements|include|include_once|instanceof|insteadof|interface|isset|list|match|namespace|new|or|print|private|protected|public|readonly|require|require_once|return|static|switch|throw|trait|try|unset|use|var|while|xor|yield|from)\b`, flags: 'i' },
-      { token: 'constant', regex: r`\b(?:true|false|null|__(?:CLASS|DIR|FILE|FUNCTION|LINE|METHOD|NAMESPACE|TRAIT)__)\b`, flags: 'i' },
-      { token: 'type', regex: r`\b(?:int|float|string|bool|array|void|mixed|never|object|iterable|self|parent|null)\b(?!\s*\()` },
-      { token: 'constant', regex: r`\b[A-Z][A-Z0-9_]+\b` },
-      classLike,
-      call,
-      { token: 'property', regex: r`(?<=->|::)[A-Za-z_]\w*` },
-      { token: 'text', regex: r`[A-Za-z_\\][\w\\]*` },
-      { token: 'operator', regex: r`->|=>|::|[-+*/%=<>!&|^~?:.@]+` },
-      punct,
-    ],
-    comment: blockComment(),
-    dq: [
-      { token: 'escape', regex: r`\\.` },
-      { token: 'variable', regex: r`\{?\$[A-Za-z_]\w*(?:->\w+|\[[^\]]*\])*\}?` },
-      { token: 'string', regex: '"', next: '@pop' },
-      { token: 'string', regex: r`[^"\\$]+|\$` },
-    ],
-    sq: [
-      { token: 'escape', regex: r`\\[\\']` },
-      { token: 'string', regex: "'", next: '@pop' },
-      { token: 'string', regex: r`[^'\\]+|\\` },
-    ],
-    heredoc: [
-      { token: 'string', regex: r`^\s*[A-Za-z_]\w*\b(?=\s*[;,)\]]|\s*$)`, next: '@pop' },
-      { token: 'variable', regex: r`\{?\$[A-Za-z_]\w*(?:->\w+)?\}?` },
-      { token: 'string', regex: r`[^$]+|\$` },
-    ],
-    nowdoc: [
-      { token: 'string', regex: r`^\s*[A-Za-z_]\w*\b(?=\s*[;,)\]]|\s*$)`, next: '@pop' },
-      { token: 'string', regex: r`.+` },
-    ],
-  },
-}
-
-const python: GrammarDef = {
-  id: 'python',
-  name: 'Python',
-  extensions: ['.py', '.pyi', '.pyw'],
-  filenames: ['SConstruct', 'SConscript'],
-  detect: r`^#!.*\bpython`,
-  states: {
-    root: [
-      { token: 'comment', regex: r`#.*` },
-      { token: 'meta', regex: r`^\s*@[\w.]+` },
-      { token: 'string', regex: r`[rRbBuUfF]{0,2}"""`, next: 'tdq' },
-      { token: 'string', regex: r`[rRbBuUfF]{0,2}'''`, next: 'tsq' },
-      { token: 'string', regex: r`[rRbBuUfF]{0,2}(?:"(?:[^"\\]|\\.)*"?|'(?:[^'\\]|\\.)*'?)` },
-      num,
-      { token: 'keyword', regex: r`\b(?:and|as|assert|async|await|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield|match|case)\b` },
-      { token: 'constant', regex: r`\b(?:True|False|None|NotImplemented|Ellipsis|__\w+__)\b` },
-      { token: 'variable', regex: r`\b(?:self|cls)\b` },
-      { token: 'builtin', regex: r`\b(?:print|len|range|enumerate|zip|map|filter|sorted|reversed|isinstance|issubclass|getattr|setattr|hasattr|super|open|int|str|float|bool|list|dict|set|tuple|bytes|type|object|min|max|sum|any|all|abs|repr|iter|next|id|hash|vars|dir|input)\b(?=\s*\()` },
-      { token: 'function', regex: r`(?<=\bdef\s+)\w+` },
-      { token: 'type', regex: r`(?<=\bclass\s+)\w+` },
-      classLike,
-      call,
-      { token: 'property', regex: r`(?<=\.)[A-Za-z_]\w*` },
-      { token: 'text', regex: r`[A-Za-z_]\w*` },
-      op,
-      punct,
-    ],
-    tdq: [{ token: 'string', regex: '"""', next: '@pop' }, { token: 'escape', regex: r`\\.` }, { token: 'string', regex: r`[^"\\]+|"` }],
-    tsq: [{ token: 'string', regex: "'''", next: '@pop' }, { token: 'escape', regex: r`\\.` }, { token: 'string', regex: r`[^'\\]+|'` }],
-  },
-}
-
+// PHP, Python, JavaScript and TypeScript: the grammars of the language packs lang-php,
+// lang-python and lang-typescript (#149).
 // Go: the grammar of the language pack lang-go (#146).
 
 const nginx: GrammarDef = {
@@ -350,10 +214,6 @@ const yaml: GrammarDef = {
 const plain: GrammarDef = { id: 'plaintext', name: 'Text', extensions: ['.txt', '.log'], states: { root: [] } }
 
 export const builtinGrammars: GrammarDef[] = [
-  php,
-  js('javascript', 'JavaScript', ['.js', '.mjs', '.cjs', '.jsx'], false),
-  js('typescript', 'TypeScript', ['.ts', '.tsx', '.mts', '.cts'], true),
-  python,
   nginx,
   sql,
   redis,

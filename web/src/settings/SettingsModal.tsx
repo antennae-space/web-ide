@@ -409,7 +409,8 @@ function download(name: string, data: unknown) {
 }
 
 function Syntax() {
-  const [lang, setLang] = createSignal('php')
+  // PHP when its pack is there (the first grammar listed was always PHP), else JSON.
+  const [lang, setLang] = createSignal(grammarDefs().some((g) => g.id === 'php') ? 'php' : 'json')
   const def = () => grammarDefs().find((g) => g.id === lang())!
   const errors = createMemo(() => new Grammar(structuredClone(def())).errors)
   const edit = (f: (g: GrammarDef) => void) =>

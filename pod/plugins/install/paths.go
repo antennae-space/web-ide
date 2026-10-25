@@ -62,7 +62,10 @@ func within(p, dir string) bool {
 }
 
 // ResolvePath is the folder of a path grant on this host.
+// A candidate refused (it holds the home, the data of the IDE or the SSH keys) leaves the next
+// one a chance (the folder of a phar in ~/.local/bin after a composer vendor folder).
 func (h Host) ResolvePath(g plugins.PathGrant) (string, error) {
+	var refused error
 	for _, c := range g.Candidates {
 		p := h.expand(c)
 		if p == "" || !filepath.IsAbs(p) {
@@ -76,9 +79,15 @@ func (h Host) ResolvePath(g plugins.PathGrant) (string, error) {
 		}
 		ssh := filepath.Join(h.Home, ".ssh")
 		if within(h.Home, p) || within(p, ssh) || within(ssh, p) || (h.Data != "" && (within(p, h.Data) || within(h.Data, p))) {
-			return "", i18n.Errorf("the folder %s of %s is refused: it holds the home, the data of the IDE or the SSH keys", p, g.Name)
+			if refused == nil {
+				refused = i18n.Errorf("the folder %s of %s is refused: it holds the home, the data of the IDE or the SSH keys", p, g.Name)
+			}
+			continue
 		}
 		return p, nil
+	}
+	if refused != nil {
+		return "", refused
 	}
 	return "", i18n.Errorf("no folder found for %s (%s)", g.Name, strings.Join(g.Candidates, ", "))
 }

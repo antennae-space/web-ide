@@ -80,19 +80,8 @@ func isTest(p string) (bool, string) {
 // testNames lists the file names a test of p may have.
 func (r *Runtime) testNames(p string) []string {
 	stem, ext := splitName(p)
-	var names []string
-	switch ext {
-	case ".py":
-		names = []string{"test_" + stem + ".py", stem + "_test.py"}
-	case ".php":
-		names = []string{stem + "Test.php"}
-	case ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts":
-		for _, e := range []string{ext, ".ts", ".tsx", ".js", ".jsx"} {
-			names = append(names, stem+".test"+e, stem+".spec"+e)
-		}
-	default:
-		names = []string{stem + "Test" + ext, stem + "_test" + ext, stem + ".test" + ext}
-	}
+	// The usual names; a language pack adds those of its language (test_{name}.py…).
+	names := []string{stem + "Test" + ext, stem + "_test" + ext, stem + ".test" + ext}
 	if pat, ok := r.Config.Tests[ext]; ok {
 		names = append(names, strings.ReplaceAll(pat, "{name}", stem))
 	}

@@ -39,10 +39,10 @@ func TestPackServers(t *testing.T) {
 		t.Fatalf("command %v, asked %v", got, asked)
 	}
 	if s, _ := m.spec("go"); s.Pack != "lang-go" {
-		t.Fatalf("the pack's go wins over the default: %+v", s)
+		t.Fatalf("the pack's go: %+v", s)
 	}
-	if s, ok := m.spec("php"); !ok || s.Pack != "" {
-		t.Fatal("the defaults stay")
+	if _, ok := m.spec("php"); ok {
+		t.Fatal("no language without its pack")
 	}
 	// Nothing installed on the host: no server.
 	m2 := NewManager(hostRunner{}, "/p", false, nil, func(string) bool { return false }, nil)
@@ -56,7 +56,7 @@ func TestPackLanguageOfFiles(t *testing.T) {
 	old := Packs
 	t.Cleanup(func() { Packs = old })
 	Packs = func() []Spec { return []Spec{toy} }
-	if LangOf("a/b.toy") != "toy" || LangOf("x.php") != "php" || LangOf("x.go") != "" || LanguageID("b.toy") != "toy" {
+	if LangOf("a/b.toy") != "toy" || LangOf("x.php") != "" || LangOf("x.go") != "" || LanguageID("b.toy") != "toy" {
 		t.Fatal("the pack's extension")
 	}
 }
