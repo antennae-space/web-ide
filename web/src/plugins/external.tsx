@@ -2,8 +2,10 @@
 // each tool and tab view a sandboxed frame running the plugin's module, its commands run in a
 // hidden frame of their own. The registry loads it as it loads a built-in.
 import { createEffect, createSignal, on as onSignal, onCleanup, onMount, untrack } from 'solid-js'
+import { render } from 'solid-js/web'
 import { request } from '../pod/rpc'
-import { lang } from '../i18n'
+import { lang, t } from '../i18n'
+import { Modal } from '../ui/overlay'
 import { mutate, setActivePane, type TabState } from '../state/project'
 import { Doc } from '../editor/doc'
 import type { EditorView } from '../editor/view'
@@ -12,15 +14,62 @@ import { useEditorView } from '../ui/EditorArea'
 import { useCompletion } from '../ui/Completion'
 import { frameDoc, serveFrame, type FrameEditor } from './sandbox'
 import { pluginSettingValues } from './settings'
-import type { PageMessage } from './sandbox-api'
+import type { PageMessage, SandboxModalSize } from './sandbox-api'
 import type { PluginContributions, PluginManifest, PluginModule, PluginState } from './types'
 
 type Bundle = { version: string; js: string; catalogs: Record<string, Record<string, string>> }
 
 type Served = ReturnType<typeof serveFrame>
 
-/** A frame of the plugin showing one of its views (a tool, a tab view). */
-function SandboxFrame(props: { state: PluginState; grants: () => string[]; bundle: Bundle; view: string; tab?: TabState; editor?: FrameEditor; served?: (s: Served) => void }) {
+/** Whether a modal of a plugin is open: one at a time. */
+let modalOpen = false
+
+/**
+ * Opens a modal view of a plugin (contributes.modals) in a modal of the core, titled with the
+ * plugin's name: its frame closes it with a result (ide.closeModal); Escape, ✕ or the backdrop
+ * with null.
+ */
+function modalOpener(state: PluginState, grants: () => string[], bundle: Bundle) {
+  return (view: string, viewState: unknown, title: string, size: SandboxModalSize) =>
+    new Promise<unknown>((resolve, reject) => {
+      const def = state.manifest.contributes.modals?.find((v) => v.id === view)
+      if (!def) return reject(new Error(t('{name} has no such modal view', { name: state.manifest.name })))
+      if (modalOpen) return reject(new Error(t('A modal of a plugin is already open')))
+      modalOpen = true
+      const host = document.createElement('div')
+      document.body.append(host)
+      let closed = false
+      const close = (result: unknown) => {
+        if (closed) return
+        closed = true
+        modalOpen = false
+        dispose()
+        host.remove()
+        resolve(result ?? null)
+      }
+      const label = title || (bundle.catalogs[lang()]?.[def.label] ?? def.label)
+      const dispose = render(
+        () => (
+          <Modal title={`${state.manifest.name} · ${label}`} class={`modal-plugin modal-plugin-${size}`} onClose={() => close(null)}>
+            <SandboxFrame state={state} grants={grants} bundle={bundle} view={view} modal={{ state: viewState, close }} />
+          </Modal>
+        ),
+        host,
+      )
+    })
+}
+
+/** A frame of the plugin showing one of its views (a tool, a tab view, a modal view). */
+function SandboxFrame(props: {
+  state: PluginState
+  grants: () => string[]
+  bundle: Bundle
+  view: string
+  tab?: TabState
+  editor?: FrameEditor
+  served?: (s: Served) => void
+  modal?: { state: unknown; close: (result: unknown) => void }
+}) {
   let frame!: HTMLIFrameElement
   let served: Served | undefined
   // Served once: the frame keeps its port for its life (a new state is its own business).
@@ -34,6 +83,11 @@ function SandboxFrame(props: { state: PluginState; grants: () => string[]; bundl
       tab: props.tab,
       editor: props.editor,
       settings: () => pluginSettingValues(props.state.manifest),
+      openModal: modalOpener(props.state, props.grants, props.bundle),
+      state: props.modal?.state,
+      closeModal: props.modal?.close,
+      // A modal view gets the focus: its fields, its dialogs.
+      onReady: props.modal ? () => frame.focus() : undefined,
     })
     props.served?.(served)
   })

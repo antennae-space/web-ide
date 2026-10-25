@@ -32,7 +32,7 @@ ide.register({
       try { void parent.document.title; out.parent = 'open' } catch { out.parent = 'blocked' }
       try { await ide.rpc('fs.list', { path: '' }); out.rpc = 'answered' } catch (e) { out.rpc = 'refused: ' + e.message }
       el.innerHTML = '<p id="hello">' + ide.t('Hello from the frame') + '</p><pre id="checks">' + JSON.stringify(out) + '</pre><button id="open">open</button><button id="view">view</button>'
-      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><button id="targets">targets</button><button id="settings">settings</button><button id="console">console</button><button id="docker">docker</button><button id="terminal">terminal</button><button id="size">size</button><pre id="answer"></pre><pre id="event"></pre>'
+      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><button id="targets">targets</button><button id="settings">settings</button><button id="console">console</button><button id="docker">docker</button><button id="terminal">terminal</button><button id="size">size</button><button id="confirm">confirm</button><button id="prompt">prompt</button><button id="pick">pick</button><button id="later">later</button><button id="modal">modal</button><pre id="answer"></pre><pre id="event"></pre>'
       const show = (p) => p.then((r) => (el.querySelector('#answer').textContent = typeof r === 'string' ? r : JSON.stringify(r)), (e) => (el.querySelector('#answer').textContent = 'error: ' + e.message))
       ide.on('greet.said', (d) => (el.querySelector('#event').textContent = d))
       el.querySelector('#backend').onclick = () => show(ide.rpc('greet.hello'))
@@ -46,9 +46,22 @@ ide.register({
       el.querySelector('#docker').onclick = () => show(ide.rpc('greet.docker'))
       el.querySelector('#size').onclick = () => show(ide.rpc('greet.size'))
       el.querySelector('#terminal').onclick = () => show(ide.rpc('greet.terminal').then((id) => (ide.showConsole(id), id)))
+      // The dialogs of the core and a modal view (#154).
+      el.querySelector('#confirm').onclick = () => show(ide.confirm({ title: 'Delete?', text: 'Delete the greeting?', danger: true }).then(String))
+      el.querySelector('#prompt').onclick = () => show(ide.prompt({ title: 'Name', label: 'Your name' }).then(String))
+      el.querySelector('#pick').onclick = () => show(ide.pick({ title: 'Pick one', items: [{ label: 'first' }, { label: 'second' }] }).then(String))
+      el.querySelector('#later').onclick = () => setTimeout(() => show(ide.confirm({ title: 'Later', text: 'asked later' }).then(String)), 1500)
+      el.querySelector('#modal').onclick = () => show(ide.openModal('form', { name: 'Ada' }, { size: 'small' }).then((r) => JSON.stringify(r)))
       el.querySelector('#list').onclick = () => show(ide.rpc('fs.list', { path: '' }).then(() => 'answered'))
       el.querySelector('#open').onclick = () => ide.openFile('notes.txt')
       el.querySelector('#view').onclick = () => ide.openView('note', { text: 'kept' }, 'Note')
+    },
+    // A modal view: its state, a result for its opener; a second modal refused.
+    form: (el, ide) => {
+      el.innerHTML = '<p id="where">' + (ide.modal ? 'in a modal' : 'not a modal') + '</p><input id="name"><button id="submit">submit</button><button id="nested">nested</button><pre id="out"></pre>'
+      el.querySelector('#name').value = (ide.view.state && ide.view.state.name) || ''
+      el.querySelector('#submit').onclick = () => ide.closeModal({ name: el.querySelector('#name').value })
+      el.querySelector('#nested').onclick = () => ide.openModal('form').then(() => (el.querySelector('#out').textContent = 'opened'), (e) => (el.querySelector('#out').textContent = e.message))
     },
     note: (el, ide) => { el.innerHTML = '<p id="note">' + ((ide.view.state && ide.view.state.text) || '') + '</p>' },
     // A tab with the core's editor above (#151): its text, a key of the manifest, the settings.
@@ -425,6 +438,59 @@ run(async ({ page, errors }) => {
   await showGreet()
   got = await answer('size')
   assert(/^\d+x\d+$/.test(got), 'its size reached the backend: ' + got)
+
+  // Modals drawn by the core (#154): its dialogs, centered, titled with the plugin; a modal view.
+  release('1.5.0', {
+    ide: '^1.0',
+    permissions: ['files:read', 'net', 'core:fs.list', 'dial', 'vault', 'socket:docker', 'terminal'],
+    contributes: { ...contributes, modals: [{ id: 'form', label: 'Form' }], tabViews: [...contributes.tabViews, { id: 'console', label: 'Console', editor: { lang: 'sql', keys: { 'Ctrl+Enter': 'run' } } }] },
+  })
+  await openSettings()
+  await page.click('[data-testid=plugin-update-greet]')
+  await page.waitForFunction(() => document.querySelector('.plugin-row[data-plugin=greet]')?.textContent.includes('1.5.0'))
+  await page.click('.modal-settings .modal-head button')
+  await page.waitForSelector('.modal-settings', { state: 'detached' })
+  await showGreet()
+  const g = frame(page, 'greet')
+  const result = async () => {
+    await g.locator('#answer:not(:empty)').waitFor()
+    const r = await g.locator('#answer').textContent()
+    await g.locator('#answer').evaluate((e) => (e.textContent = ''))
+    return r
+  }
+  await g.locator('#confirm').click()
+  await page.waitForSelector('.modal-backdrop .modal:has-text("Delete the greeting?")')
+  assert((await page.textContent('.modal .modal-head h2')) === 'Greet · Delete?', 'a confirm of the core, titled with the plugin')
+  await page.click('[data-testid=confirm-ok]')
+  assert((await result()) === 'true', 'confirmed')
+  await g.locator('#prompt').click()
+  await page.waitForSelector('.modal .modal-head h2:has-text("Greet · Name")')
+  await page.fill('.modal input', 'Ada')
+  await page.keyboard.press('Enter')
+  assert((await result()) === 'Ada', 'a prompt of the core')
+  await g.locator('#pick').click()
+  await page.click('.pick-item:has-text("second")')
+  assert((await result()) === '1', 'a pick of the core: the index')
+  await g.locator('#later').click()
+  await page.click('[data-testid=plugin-editor] .ed-content')
+  got = await result()
+  assert(got.includes('only while you use the plugin'), 'no dialog when the user is not in the frame: ' + got)
+
+  await g.locator('#modal').click()
+  await page.waitForSelector('.modal-plugin iframe.plugin-frame[data-view=form]')
+  assert((await page.textContent('.modal-plugin .modal-head h2')) === 'Greet · Form', 'its modal view in a modal of the core, titled with the plugin')
+  const form = frame(page, 'form')
+  assert((await form.locator('#where').textContent()) === 'in a modal' && (await form.locator('#name').inputValue()) === 'Ada', 'the view knows it is a modal, with its state')
+  await form.locator('#nested').click()
+  await form.locator('#out:not(:empty)').waitFor()
+  assert((await form.locator('#out').textContent()).includes('already open'), 'one plugin modal at a time')
+  await form.locator('#name').fill('Grace')
+  await form.locator('#submit').click()
+  assert((await result()) === '{"name":"Grace"}' && !(await page.$('.modal-plugin')), 'closed with its result for its opener')
+  await g.locator('#modal').click()
+  await page.waitForSelector('.modal-plugin')
+  await page.click('.modal-plugin .modal-head button')
+  assert((await result()) === 'null', 'closed by the user: null')
 
   echo.close()
   server.close()
