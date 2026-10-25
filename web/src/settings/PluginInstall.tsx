@@ -33,6 +33,9 @@ function grantText(g: string): string {
       git: t('Run git in the project with your keys (fetch, push; its hooks run)'),
       gh: t('Open pull requests with gh'),
       worktrees: t('Add and remove the worktrees of the project, and run their setup commands'),
+      'use:assistant': t('Start and drive conversations of the assistant'),
+      'use:agents': t('Show the sessions of the agents and give them tickets'),
+      'use:terminal': t('Run commands in consoles of the IDE (as much as you)'),
     }[g] ?? g
   )
 }

@@ -982,5 +982,10 @@
   "Send you notifications": "Enviarle notificaciones",
   "Run git in the project with your keys (fetch, push; its hooks run)": "Ejecutar git en el proyecto con sus claves (fetch, push; sus hooks se ejecutan)",
   "Open pull requests with gh": "Abrir pull requests con gh",
-  "Add and remove the worktrees of the project, and run their setup commands": "Añadir y quitar los worktrees del proyecto, y ejecutar sus órdenes de setup"
+  "Add and remove the worktrees of the project, and run their setup commands": "Añadir y quitar los worktrees del proyecto, y ejecutar sus órdenes de setup",
+  "invalid argument: {what}": "argumento inválido: {what}",
+  "{method} is not a method of the bridge of {name}": "{method} no es un método del puente de {name}",
+  "Start and drive conversations of the assistant": "Iniciar y llevar conversaciones del asistente",
+  "Show the sessions of the agents and give them tickets": "Mostrar las sesiones de los agentes y darles tickets",
+  "Run commands in consoles of the IDE (as much as you)": "Ejecutar órdenes en consolas del IDE (tanto como usted)"
 }

@@ -3,7 +3,7 @@
 // one MessageChannel per frame carries what they may ask. The page is the boundary: a method of
 // the core needs its grant, an event must be of the plugin's namespace.
 import { on, request } from '../pod/rpc'
-import { openFile, openTab, mutate, type TabState } from '../state/project'
+import { home, openFile, openTab, mutate, showWorktree, type TabState } from '../state/project'
 import { toast } from '../ui/toast'
 import { confirmModal, pick, prompt } from '../ui/overlay'
 import { copyText } from '../ui/clipboard'
@@ -85,6 +85,7 @@ export const bootstrap = `(() => {
     markdown: (text) => call({ call: 'markdown', text: String(text) }),
     openLink: (url) => send({ call: 'openLink', url: String(url) }),
     help: (topic) => send({ call: 'help', topic: String(topic) }),
+    showWorktree: (project) => send({ call: 'showWorktree', project: String(project) }),
     closeModal: (result) => send({ call: 'closeModal', result: plain(result) }),
     get modal() { return !!(info && info.modal) },
     get settings() { return (info && info.settings) || {} },
@@ -387,7 +388,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         host.closeModal?.(m.result)
         return
       case 'serviceCall': {
-        const svc = use({ name: host.name, requires: host.requires ?? [] }, String(m.capability ?? ''))
+        const svc = use({ name: host.name, requires: host.requires ?? [], grants: host.grants() }, String(m.capability ?? ''))
         if (typeof svc === 'string') return reply(m.id, { error: svc })
         svc.call(String(m.method ?? ''), Array.isArray(m.args) ? m.args : []).then(
           (result) => reply(m.id, { result }),
@@ -397,7 +398,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       }
       case 'serviceWatch': {
         const capability = String(m.capability ?? '')
-        const svc = use({ name: host.name, requires: host.requires ?? [] }, capability)
+        const svc = use({ name: host.name, requires: host.requires ?? [], grants: host.grants() }, capability)
         if (typeof svc === 'string') return
         port.postMessage({ serviceValues: { capability, values: JSON.parse(JSON.stringify(svc.values())) } } satisfies PageMessage)
         offs.push(svc.onValue((key, value) => port.postMessage({ serviceValue: { capability, key, value } } satisfies PageMessage)))
@@ -436,6 +437,12 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       case 'help':
         if (typeof m.topic === 'string' && m.topic in topics) openDoc(docTarget(m.topic as HelpTopic))
         return
+      case 'showWorktree': {
+        // A worktree of the project of the window, or the project itself.
+        const main = home()?.id
+        if (main && typeof m.project === 'string' && (m.project === main || m.project.startsWith(main + '-'))) void showWorktree(m.project).catch(() => {})
+        return
+      }
       case 'serviceEmit':
         if (host.provides?.includes(m.capability) && typeof m.event === 'string') emit(host.plugin, m.capability, m.event.slice(0, 200), m.data)
         return

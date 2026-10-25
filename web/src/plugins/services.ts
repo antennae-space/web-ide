@@ -7,6 +7,7 @@ import { createMutable } from 'solid-js/store'
 import { t } from '../i18n'
 import { pluginEnabled, provide, type Capabilities } from './capabilities'
 import type { SandboxModalSize } from './sandbox-api'
+import { bridgeFor } from './bridges'
 
 /** A capability served by an external plugin, as its consumers see it. */
 export interface ExternalService {
@@ -84,8 +85,13 @@ export function emit(provider: string, name: string, event: string, data: unknow
  * The service a frame of a plugin may use: a capability its manifest requires (an error text
  * otherwise). Its calls fail while no enabled external plugin serves it.
  */
-export function use(plugin: { name: string; requires: string[] }, name: string): ExternalService | string {
+export function use(plugin: { name: string; requires: string[]; grants: string[] }, name: string): ExternalService | string {
   if (!plugin.requires.includes(name)) return t('{plugin} does not require {name}', { plugin: plugin.name, name })
+  // A capability of a built-in: its bridge, with its grant (#167).
+  if (!servedBy(name)) {
+    const b = bridgeFor(name)
+    if (b) return plugin.grants.includes('use:' + name) ? b : t('{method} is not granted to {name}', { method: 'use:' + name, name: plugin.name })
+  }
   return service(name)
 }
 

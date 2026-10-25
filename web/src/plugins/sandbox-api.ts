@@ -147,6 +147,8 @@ export interface SandboxAPI {
   openLink(url: string): void
   /** Opens a page of the IDE's documentation, by its help topic. */
   help(topic: string): void
+  /** Shows in the window a worktree of its project (its id), or the project itself (#167). */
+  showWorktree(project: string): void
 }
 
 /** What the frame asks the page; `rpc` waits for a `reply` with its `id`. */
@@ -178,6 +180,7 @@ export type FrameCall =
   | { call: 'markdown'; id: number; text: string }
   | { call: 'openLink'; url: string }
   | { call: 'help'; topic: string }
+  | { call: 'showWorktree'; project: string }
   | { call: 'closeModal'; result?: unknown }
 
 /** What the page sends the frame. */
