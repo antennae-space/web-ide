@@ -77,13 +77,13 @@ run(async ({ page }) => {
   await page.keyboard.press('ArrowLeft')
   assert(await page.isVisible('.rf-tools .pick-item.selected'), 'ArrowLeft selects a tool')
   await page.keyboard.press('ArrowRight')
-  await page.keyboard.type('Docker')
-  await page.waitForSelector('.rf-tools .pick-item.selected:has-text("Docker")')
+  await page.keyboard.type('Port forwards')
+  await page.waitForSelector('.rf-tools .pick-item.selected:has-text("Port forwards")')
   await page.keyboard.press('Enter')
-  await page.waitForSelector('.zone[data-tool=docker]')
+  await page.waitForSelector('.zone[data-tool=forwards]')
   assert(true, 'a tool chosen in Recent Files is shown')
-  await page.keyboard.press('Alt+9')
-  await page.waitForFunction(() => !document.querySelector('.zone[data-tool=docker]'))
+  await page.click('.rail-btn[data-id=forwards]')
+  await page.waitForFunction(() => !document.querySelector('.zone[data-tool=forwards]'))
 
   // Ctrl+E again: the changed files only (unsaved, or changed for git).
   execSync('git add -A && git -c user.name=e2e -c user.email=e2e@x commit -qm init', { cwd: WS + '/demo' })

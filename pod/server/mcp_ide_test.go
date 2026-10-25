@@ -41,11 +41,6 @@ func TestMCPIDETools(t *testing.T) {
 		t.Fatalf("unknown console: %s", out)
 	}
 
-	// Docker: a wrong call is an error for the model.
-	if out, failed := m.tool("docker_logs", cwd); !failed || !strings.Contains(out, "service or container is missing") {
-		t.Fatalf("docker_logs: %s", out)
-	}
-
 	// share_preview: the saved serve command, offered in the window; nothing runs.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

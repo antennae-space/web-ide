@@ -6,7 +6,6 @@ The built-in plugins of the IDE, one folder each, in the shape of an external pl
 |---|---|
 | [ai](ai/README.md) | Assistant, Agents, doodles, the board |
 | [code](code/README.md) | The file editor (locked) |
-| [docker](docker/README.md) | The Docker tool |
 | [exec](exec/README.md) | Console and saved commands |
 | [files](files/README.md) | The Explorer (locked) |
 | [git](git/README.md) | The Git tool, worktrees |
