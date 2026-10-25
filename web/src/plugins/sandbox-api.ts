@@ -171,7 +171,18 @@ export interface SandboxAPI {
   help(topic: string): void
   /** Shows in the window a worktree of its project (its id), or the project itself (#167). */
   showWorktree(project: string): void
+  /** The project of the window: its id, its main project, its name, its folder (#158). */
+  readonly project: SandboxProject | null
+  /** The title of this frame's tab (a tab view). */
+  setTitle(title: string): void
+  /** Closes this frame's tab (a tab view). */
+  closeView(): void
+  /** Shows one of its tools. */
+  showTool(id: string): void
 }
+
+/** The project of the window, as a frame knows it. */
+export type SandboxProject = { id: string; main: string; name: string; root: string; local: boolean }
 
 /** What the frame asks the page; `rpc` waits for a `reply` with its `id`. */
 export type FrameCall =
@@ -204,11 +215,15 @@ export type FrameCall =
   | { call: 'openLink'; url: string }
   | { call: 'help'; topic: string }
   | { call: 'showWorktree'; project: string }
+  | { call: 'setTitle'; title: string }
+  | { call: 'closeView' }
+  | { call: 'showTool'; id: string }
   | { call: 'closeModal'; result?: unknown }
 
 /** What the page sends the frame. */
 export type PageMessage =
-  | { init: { view: SandboxView; lang: string; catalog: Record<string, string>; theme: SandboxTheme; editor?: SandboxEditorState; settings?: Record<string, unknown>; modal?: boolean } }
+  | { init: { view: SandboxView; lang: string; catalog: Record<string, string>; theme: SandboxTheme; editor?: SandboxEditorState; settings?: Record<string, unknown>; modal?: boolean; project?: SandboxProject } }
+  | { project: SandboxProject }
   | { reply: number; result?: unknown; error?: string; code?: string; data?: Record<string, string> }
   | { theme: SandboxTheme }
   | { lang: string; catalog: Record<string, string> }
