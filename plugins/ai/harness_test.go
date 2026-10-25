@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	kbp "antennae.space/ide/plugins/kanban"
 	"antennae.space/ide/pod/assistant"
 	"antennae.space/ide/pod/commands"
 	"antennae.space/ide/pod/plugins"
@@ -18,14 +17,13 @@ import (
 	"antennae.space/ide/pod/store"
 )
 
-// The unit tests of the plugin run on a pod of their own: real stores, no window, the Kanban
-// plugin registered beside it. The tests through the RPC of a whole pod are in server.
+// The unit tests of the plugin run on a pod of their own: real stores, no window, no Kanban
+// (reached through Pod.CallPlugin). The tests through the RPC of a whole pod are in server.
 
 func init() { assistant.Scratch = "/scratch-of-the-tests" }
 
 type fakePod struct {
 	svc *plugins.Services
-	kb  *kbp.K
 }
 
 func (p *fakePod) Runtime(string) (*runtime.Runtime, error) {
@@ -55,14 +53,9 @@ func (p *fakePod) InstallServer(*runtime.Runtime, string, string) (string, error
 func (p *fakePod) AssistantTools(*runtime.Runtime) []json.RawMessage { return nil }
 func (p *fakePod) Notify(plugins.Note)                               {}
 func (p *fakePod) QuestionsChanged(string, string)                   {}
-func (p *fakePod) Plugin(id string) (plugins.Plugin, bool) {
-	if id == "kanban" {
-		return p.kb, true
-	}
-	return nil, false
-}
+func (p *fakePod) Plugin(id string) (plugins.Plugin, bool)           { return nil, false }
 func (p *fakePod) CallPlugin(context.Context, string, string, any) (json.RawMessage, error) {
-	return nil, nil
+	return nil, errors.New("no Kanban in the tests of the AI")
 }
 func (p *fakePod) UICall(context.Context, string, string, string, any, bool, time.Duration) (plugins.UIResult, bool, bool) {
 	return plugins.UIResult{}, false, false
@@ -106,8 +99,6 @@ func newTestA(t *testing.T, dir string) (*A, string) {
 		t.Fatal(err)
 	}
 	pod := &fakePod{svc: &plugins.Services{Store: st, Projects: reg}}
-	pod.kb = kbp.New()
-	pod.kb.Register(fakeHost{pod})
 	s := New()
 	s.Register(fakeHost{pod})
 	return s, p.ID

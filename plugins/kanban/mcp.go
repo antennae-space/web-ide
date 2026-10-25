@@ -47,16 +47,15 @@ func (sc Scope) id(given int64) (int64, error) {
 }
 
 // mcpGit opens the runtime of the main project for the git side of the tickets.
-func (s *K) mcpGit(sc Scope) (GitCtx, error) {
+func (s *K) mcpGit(sc Scope) (gctx, error) {
 	rt, err := s.pod.Runtime(sc.Root.ID)
 	if err != nil {
-		return GitCtx{}, err
+		return gctx{}, err
 	}
-	return NewGitCtx(sc.Loc, sc.Root, rt, kb.Git{Run: rt.Runner, Root: sc.Root.Path}), nil
+	return gctx{loc: sc.Loc, root: sc.Root, rt: rt, git: kb.Git{Run: rt.Runner, Root: sc.Root.Path}}, nil
 }
 
-// TicketTool binds the arguments of a tool of the MCP on one ticket and announces the change
-// (the conversation tools of the AI use it too).
+// TicketTool binds the arguments of a tool of the MCP on one ticket and announces the change.
 func TicketTool[T any](s *K, f func(ctx context.Context, sc Scope, id int64, a T) (string, error)) func(context.Context, plugins.MCPScope, json.RawMessage) (string, error) {
 	return func(ctx context.Context, ms plugins.MCPScope, raw json.RawMessage) (string, error) {
 		head, err := bind[struct {
@@ -78,7 +77,7 @@ func TicketTool[T any](s *K, f func(ctx context.Context, sc Scope, id int64, a T
 		if err != nil {
 			return "", err
 		}
-		s.Emit(sc.Root.ID, id)
+		s.emitKanban(sc.Root.ID, id, nil)
 		return out, nil
 	}
 }
@@ -213,7 +212,7 @@ func (s *K) mcpTools() []plugins.MCPTool {
 				if err != nil {
 					return "", err
 				}
-				s.Emit(sc.Root.ID, id)
+				s.emitKanban(sc.Root.ID, id, nil)
 				return fmt.Sprintf("Ticket #%d created in the backlog (status New): %s", id, sc.ticketURL(id)), nil
 			},
 		},

@@ -47,6 +47,7 @@ func (s *K) Register(h plugins.Host) {
 	s.registerKanban()
 	s.registerKanbanGit()
 	s.registerKanbanAgent()
+	s.registerAssistantTools()
 	s.registerMilestones()
 	s.registerObjectives()
 	s.registerMCP()

@@ -9,8 +9,6 @@ import (
 	"antennae.space/ide/plugins/ai/acp"
 	"antennae.space/ide/plugins/ai/engine"
 	"antennae.space/ide/plugins/ai/llm"
-	kbp "antennae.space/ide/plugins/kanban"
-	"antennae.space/ide/plugins/kanban/kanban"
 	"antennae.space/ide/pod/assistant"
 	"antennae.space/ide/pod/plugins"
 )
@@ -33,30 +31,27 @@ func (s *A) mcpTools() []plugins.MCPTool {
 			Name:        "kanban_conversation",
 			Needs:       "tickets",
 			Description: "Reads a conversation of the assistant linked to the ticket (see Linked conversations in kanban_get), or the session of the agent developing it (Agent session in kanban_get): the messages of the user and of the assistant, with the questions asked and their answers. Use it to take over a briefing; with last and tools, to review a development (its commands, errors and notes).",
-			Props: map[string]any{"id": kbp.TicketID, "chat": plugins.Str("Conversation id (chat … in kanban_get)"),
+			Props: map[string]any{"id": ticketID, "chat": plugins.Str("Conversation id (chat … in kanban_get)"),
 				"last":  map[string]any{"type": "integer", "description": "Only the last messages, this many (default: all)"},
 				"tools": map[string]any{"type": "boolean", "description": "Also the tool calls (name and arguments, cut), their errors, the answers that failed and the notes and reports of sub-agents"}},
 			Required: []string{"chat"},
-			Run: kbp.TicketTool(s.kb(), func(ctx context.Context, sc kbp.Scope, id int64, a struct {
+			Run: ticketTool(s, func(ctx context.Context, sc plugins.MCPScope, id int64, a struct {
 				Chat  string
 				Last  int
 				Tools bool
 			}) (string, error) {
-				t, err := s.kb().Kanban.Get(sc.Loc, id)
+				t, err := s.kanbanGet(ctx, sc.Root.ID, id)
 				if err != nil {
 					return "", err
 				}
-				linked := false
-				for _, c := range t.ChatList {
-					linked = linked || c.ChatID == a.Chat
-				}
-				if info, entries, ok := s.ticketSession(sc.Root.ID, t); !linked && ok && info.ID == a.Chat {
+				linked := t.linked(a.Chat)
+				if info, entries, ok := s.ticketSession(sc.Root.ID, t.ID, t.Parent); !linked && ok && info.ID == a.Chat {
 					return acpThreadText(info, entries, a.Last, a.Tools), nil
 				}
 				if !linked {
 					return "", fmt.Errorf("conversation %s is not linked to ticket #%d", a.Chat, id)
 				}
-				raw, err := s.LLM.GetChat(llm.ChatLocation{Project: sc.Loc.Project, IdeDir: sc.Loc.IdeDir}, a.Chat)
+				raw, err := s.LLM.GetChat(chatLocOf(sc.Root), a.Chat)
 				if err != nil {
 					return "", err
 				}
@@ -73,10 +68,10 @@ func (s *A) mcpTools() []plugins.MCPTool {
 			Name:        "kanban_reply",
 			Needs:       "tickets",
 			Description: "Writes a message in a conversation of the assistant linked to the ticket, as Claude Code: the assistant reads it and answers (its questions still waiting are left aside; use kanban_answer to answer them). Queued if the conversation is running. Use it to answer a question the assistant asked in its text, or to guide it.",
-			Props:       map[string]any{"id": kbp.TicketID, "chat": plugins.Str("Conversation id (chat … in kanban_get)"), "message": plugins.Str("Your message, in Markdown")},
+			Props:       map[string]any{"id": ticketID, "chat": plugins.Str("Conversation id (chat … in kanban_get)"), "message": plugins.Str("Your message, in Markdown")},
 			Required:    []string{"chat", "message"},
-			Run: kbp.TicketTool(s.kb(), func(ctx context.Context, sc kbp.Scope, id int64, a struct{ Chat, Message string }) (string, error) {
-				lc, err := s.linkedChat(sc, id, a.Chat)
+			Run: ticketTool(s, func(ctx context.Context, sc plugins.MCPScope, id int64, a struct{ Chat, Message string }) (string, error) {
+				lc, err := s.linkedChat(ctx, sc, id, a.Chat)
 				if err != nil {
 					return "", err
 				}
@@ -88,19 +83,19 @@ func (s *A) mcpTools() []plugins.MCPTool {
 			Needs:       "tickets",
 			Description: "Answers the questions of ask_user waiting in a conversation of the assistant linked to the ticket, for the user (kanban_conversation lists them with their options); the assistant then goes on. Answer only what the plan, the ticket or the user already decided; otherwise leave the questions to the user.",
 			Props: map[string]any{
-				"id":   kbp.TicketID,
+				"id":   ticketID,
 				"chat": plugins.Str("Conversation id (chat … in kanban_get)"),
 				"answers": map[string]any{"type": "array", "description": "One list per question, in order: an option label, several for a multiple choice, the order for a rank, or a free text",
 					"items": map[string]any{"type": "array", "items": map[string]any{"type": "string"}}},
 				"notes": plugins.StrList("A note per question (optional, same order)"),
 			},
 			Required: []string{"chat", "answers"},
-			Run: kbp.TicketTool(s.kb(), func(ctx context.Context, sc kbp.Scope, id int64, a struct {
+			Run: ticketTool(s, func(ctx context.Context, sc plugins.MCPScope, id int64, a struct {
 				Chat    string
 				Answers [][]string
 				Notes   []string
 			}) (string, error) {
-				lc, err := s.linkedChat(sc, id, a.Chat)
+				lc, err := s.linkedChat(ctx, sc, id, a.Chat)
 				if err != nil {
 					return "", err
 				}
@@ -117,28 +112,24 @@ type linkedChat struct {
 	project string
 }
 
-func (s *A) linkedChat(sc kbp.Scope, id int64, chatID string) (linkedChat, error) {
-	t, err := s.kb().Kanban.Get(sc.Loc, id)
+func (s *A) linkedChat(ctx context.Context, sc plugins.MCPScope, id int64, chatID string) (linkedChat, error) {
+	t, err := s.kanbanGet(ctx, sc.Root.ID, id)
 	if err != nil {
 		return linkedChat{}, err
 	}
-	linked := false
-	for _, c := range t.ChatList {
-		linked = linked || c.ChatID == chatID
-	}
-	if !linked {
+	if !t.linked(chatID) {
 		return linkedChat{}, fmt.Errorf("conversation %s is not linked to ticket #%d", chatID, id)
 	}
 	loc, root, err := s.ChatLoc(sc.Root.ID)
 	if err != nil {
 		return linkedChat{}, err
 	}
-	return linkedChat{loc: loc, root: root, project: s.ticketChatProject(sc, t, chatID)}, nil
+	return linkedChat{loc: loc, root: root, project: s.ticketChatProject(ctx, sc, t, chatID)}, nil
 }
 
 // ticketChatProject is where the tools of a linked conversation work: the worktree of the
 // ticket (of the root of its lineage) for a development or a correction, else the project.
-func (s *A) ticketChatProject(sc kbp.Scope, t *kanban.Ticket, chatID string) string {
+func (s *A) ticketChatProject(ctx context.Context, sc plugins.MCPScope, t *kbTicket, chatID string) string {
 	role := ""
 	for _, c := range t.ChatList {
 		if c.ChatID == chatID {
@@ -150,7 +141,7 @@ func (s *A) ticketChatProject(sc kbp.Scope, t *kanban.Ticket, chatID string) str
 	}
 	wt := t.Worktree
 	if wt == "" && t.Parent != 0 {
-		if p, err := s.kb().Kanban.Get(sc.Loc, t.Parent); err == nil {
+		if p, err := s.kanbanGet(ctx, sc.Root.ID, t.Parent); err == nil {
 			wt = p.Worktree
 		}
 	}

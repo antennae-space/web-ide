@@ -9,7 +9,6 @@ import (
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/plugins/ai/acp"
 	"antennae.space/ide/plugins/ai/engine"
-	kb "antennae.space/ide/plugins/kanban/kanban"
 	"antennae.space/ide/pod/caps"
 	"antennae.space/ide/pod/plugins"
 	"antennae.space/ide/pod/projects"
@@ -231,12 +230,12 @@ func (c agentsCap) ChatTimes(project string) (map[string]caps.ChatTime, error) {
 
 // ticketSession finds the session of a ticket in the files of the Agents tool of its worktree
 // (the one of the root of its lineage), open or not.
-func (s *A) ticketSession(root string, t *kb.Ticket) (acp.Info, []acp.Entry, bool) {
-	owner := t.ID
-	if t.Parent != 0 {
-		owner = t.Parent
+func (s *A) ticketSession(root string, id, parent int64) (acp.Info, []acp.Entry, bool) {
+	owner := id
+	if parent != 0 {
+		owner = parent
 	}
-	return acp.Find(s.Store.Path("agents", projects.ChildID(root, owner)), t.ID)
+	return acp.Find(s.Store.Path("agents", projects.ChildID(root, owner)), id)
 }
 
 func sessionOf(info acp.Info) caps.AgentSession {
