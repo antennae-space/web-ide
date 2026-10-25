@@ -59,3 +59,15 @@ func TestVersions(t *testing.T) {
 		}
 	}
 }
+
+// The release a build stands for: its tag, or the next minor version for commits after it.
+func TestBaseVersion(t *testing.T) {
+	for in, want := range map[string]string{
+		"v1.23.0": "1.23.0", "v1.23.0-dirty": "1.23.0", "v1.23.0-111-gf8e1f5e": "1.24.0",
+		"v1.23.0-111-gf8e1f5e-dirty": "1.24.0", "v2.0.1-3-gabc": "2.1.0", "dev": "dev", "v1.24.0-rc.1": "1.24.0",
+	} {
+		if got := baseVersion(in); got != want {
+			t.Errorf("%s: %s, want %s", in, got, want)
+		}
+	}
+}

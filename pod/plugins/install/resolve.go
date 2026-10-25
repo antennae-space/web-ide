@@ -3,11 +3,13 @@ package install
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,8 +23,8 @@ import (
 
 // Resolver resolves the versions of the external plugins for this pod.
 type Resolver struct {
-	// IDE is the version of the pod ("dev" or a git describe: its base version counts, a
-	// development build being compatible with any).
+	// IDE is the version of the pod: "dev" fits any plugin; a git describe stands for a release
+	// (baseVersion: commits after a tag, the next minor one).
 	IDE string
 	// Installed are the plugins of the pod and their versions (built-ins and externals).
 	Installed map[string]string
@@ -198,9 +200,22 @@ func (r Resolver) fits(data []byte, v Version) (plugins.Manifest, error) {
 	return m, nil
 }
 
-// baseVersion is the release a build stands for: v1.23.0-51-g2370845-dirty is 1.23.0.
+// baseVersion is the release a build stands for: its tag (v1.23.0, v1.23.0-dirty is 1.23.0);
+// a build of commits after its tag (v1.23.0-51-g2370845) has what its next release will have,
+// so it stands for the next minor version, 1.24.0: the plugins made for that release run on it.
 func baseVersion(s string) string {
 	s = strings.TrimPrefix(s, "v")
-	base, _, _ := strings.Cut(s, "-")
-	return base
+	base, rest, _ := strings.Cut(s, "-")
+	n, hash, ok := strings.Cut(rest, "-")
+	if !ok || !strings.HasPrefix(hash, "g") {
+		return base
+	}
+	if c, err := strconv.Atoi(n); err != nil || c <= 0 {
+		return base
+	}
+	v, err := ParseVersion(base)
+	if err != nil {
+		return base
+	}
+	return fmt.Sprintf("%d.%d.0", v.Major, v.Minor+1)
 }

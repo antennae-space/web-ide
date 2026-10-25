@@ -43,7 +43,7 @@ A release carries one archive per architecture, `<id>-linux-amd64.tar.gz` and `<
 - `id`: lowercase letters, digits and dashes; not the id of a built-in plugin. Its methods are `<id>.*`, its events `<id>.*`.
 - `version`: the version of the release; the tag is `v` + it, and the IDE checks they match.
 - `apiVersion`: `1`.
-- `ide`: the versions of the IDE it runs on, a constraint (`^1.24`, `~1.24`, `>=1.23 <2`, `||` between alternatives). `plugins`: the plugins it needs, with a constraint each.
+- `ide`: the versions of the IDE it runs on, a constraint (`^1.24`, `~1.24`, `>=1.23 <2`, `||` between alternatives). A build of the IDE made of commits after a release (`v1.23.0-111-gf8e1f5e`) counts as the next minor release (1.24.0): it already has what that release will have. `plugins`: the plugins it needs, with a constraint each.
 - `assets`: the address of its archives, `{version}` and `{arch}` (`linux-amd64`, `linux-arm64`) replaced; https only.
 - `backend`: its executable in the archive, `bin/<name>`; none for a plugin made of views only.
 - `permissions`: what it asks, each one granted by the user or not (see *Grants*).
