@@ -188,14 +188,19 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 		Log:   &cappedLog{f: logFile},
 		Files: []*os.File{theirs},
 		Init: map[string]any{"apiVersion": plugins.APIVersion, "plugin": id, "version": e.Version, "grants": e.Grants,
-			"project": map[string]any{"id": rt.P.ID, "root": rt.Root, "local": rt.Local, "main": mainID(rt)}},
+			"project": s.backendProject(rt)},
 		Core: func(ctx context.Context, method string, params json.RawMessage) (any, error) {
 			return s.backendCore(ctx, rt, e, fds, func() *backend.Process { return started.Load() }, method, params)
 		},
-		Emit: func(event string, data json.RawMessage) {
-			// Its own events only, to the windows of the project.
+		Emit: func(event string, data json.RawMessage, family bool) {
+			// Its own events only, to the windows of the project (of its main project and its
+			// worktrees with family: the Kanban's).
 			if strings.HasPrefix(event, id+".") {
-				s.emitter(rt.P.ID)(event, data, "")
+				if family {
+					s.emitFamily(mainID(rt), event, data)
+				} else {
+					s.emitter(rt.P.ID)(event, data, "")
+				}
 				s.backendOf(rt, id).relay(event, data)
 			}
 		},
@@ -215,6 +220,17 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 		fds.close()
 	}()
 	return p, nil
+}
+
+// backendProject is the project a backend serves, as initialize tells it: its id, folder and
+// name, and its main project's (the main project of a worktree keeps the data of both: its
+// kanban, its folder for git).
+func (s *Server) backendProject(rt *runtime.Runtime) map[string]any {
+	out := map[string]any{"id": rt.P.ID, "root": rt.Root, "local": rt.Local, "main": mainID(rt), "name": rt.P.Name, "mainRoot": rt.Root, "mainName": rt.P.Name}
+	if root, err := s.Projects.Root(rt.P.ID); err == nil && root.ID != rt.P.ID {
+		out["mainRoot"], out["mainName"] = root.Path, root.Name
+	}
+	return out
 }
 
 // backendCore runs a method of the core for a backend, with its grant, in the project of rt.
