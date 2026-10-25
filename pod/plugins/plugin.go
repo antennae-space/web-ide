@@ -82,6 +82,21 @@ type PackLanguage struct {
 	Language Language
 }
 
+// PackServer is a server of a language pack on a project: Path where its program is ("" when
+// missing), its recipe, the command installing it, and Needs, the package manager missing to
+// run that command ("" when it is there).
+type PackServer struct {
+	Pack     string         `json:"pack"`
+	PackName string         `json:"packName"`
+	Lang     string         `json:"lang"`
+	Language string         `json:"language"`
+	Program  string         `json:"program"`
+	Path     string         `json:"path,omitempty"`
+	Install  *ServerInstall `json:"install,omitempty"`
+	Command  string         `json:"command,omitempty"`
+	Needs    string         `json:"needs,omitempty"`
+}
+
 type Pod interface {
 	// PackLanguages are the languages of the packs the project of rt uses (all the installed
 	// ones for a nil rt).
@@ -89,6 +104,12 @@ type Pod interface {
 	// PackCommand is the command starting a server of a pack on the project of rt: confined
 	// (plugin-exec) on this machine, its granted program on the host of an SSH project.
 	PackCommand(rt *runtime.Runtime, pack string, s LanguageServer) ([]string, error)
+	// PackServers are the servers of the packs the project of rt uses: found or missing, and
+	// how the IDE installs them (#153).
+	PackServers(rt *runtime.Runtime) []PackServer
+	// InstallServer installs a server of a pack in the pack's folder of tools, in a console of
+	// the project (on its host over SSH), and answers the console.
+	InstallServer(rt *runtime.Runtime, pack, program string) (string, error)
 	// Runtime opens the runtime of a project (a preview of another project of the pod).
 	Runtime(project string) (*runtime.Runtime, error)
 	// OpenRuntime is the runtime of a project if a window has it open.

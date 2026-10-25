@@ -10,6 +10,7 @@ import { resync, watchBuffers } from './sync'
 import { diagnostics, problemCount, ProblemsTool, watchServers } from './problems'
 import { StructureTool } from './structure'
 import { symbolsProvider } from './symbols'
+import { installServer, missingServer, notNow, putOff, servers, watchPackServers } from './servers'
 
 /** Runs an action on the text editor of the active tab (none: the key goes on). */
 const onEditor = (f: (v: NonNullable<ReturnType<typeof theApi.editor.active>>['view'], d: NonNullable<ReturnType<typeof theApi.editor.active>>['doc']) => unknown) => () => {
@@ -23,6 +24,7 @@ export const languages: PluginModule = {
     bindApi(api)
     watchServers()
     watchBuffers()
+    watchPackServers()
     api.provide('language', {
       diagnostics: (path) => diagnostics[path] ?? [],
       complete,
@@ -33,6 +35,11 @@ export const languages: PluginModule = {
         api.showTool('problems')
         desk.set((s) => (s.tab = 'problems'))
       },
+      servers,
+      missingServer,
+      notNow,
+      putOff,
+      installServer,
     })
     const at = (v: { getSelection(): { head: number } }) => v.getSelection().head
     return {

@@ -327,6 +327,26 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
       <Show when={doc()?.deleted()}>
         <div class="banner banner-warn">{t('This file was deleted from the disk. Saving it creates it again.')}</div>
       </Show>
+      <Show when={!doc()?.readOnly && capability('language')?.missingServer(path)} keyed>
+        {(sv) => (
+          <Show when={!capability('language')!.notNow(sv.lang)}>
+            <div class="banner banner-info" data-testid="server-banner">
+              <span>{t('No language server for {language}: no diagnostics, completion nor navigation.', { language: sv.language })}</span>
+              <Show
+                when={sv.install && !sv.needs}
+                fallback={<span>{sv.needs ? t('Install {needs} to install {program}.', { needs: sv.needs, program: sv.program }) : t('Install {program} on the machine of the project.', { program: sv.program })}</span>}
+              >
+                <button class="btn small primary" title={sv.command} onClick={() => void capability('language')!.installServer(sv)}>
+                  {t('Install {program}', { program: sv.program })}
+                </button>
+              </Show>
+              <button class="btn small" onClick={() => capability('language')!.putOff(sv.lang)}>
+                {t('Not now')}
+              </button>
+            </div>
+          </Show>
+        )}
+      </Show>
       <Show when={doc()?.readOnly}>
         <div class="banner banner-info">{t('Read-only: file outside the project ({path})', { path })}</div>
       </Show>

@@ -159,18 +159,18 @@ func (m *Manager) command(lang string) []string {
 	} else if s, ok := m.spec(lang); ok && s.Pack != "" && m.packCommand != nil {
 		// A pack's: the first server whose program is there (confined here, on the host over SSH).
 		for _, sv := range s.Servers {
-			if !m.local && !m.runner.Has(sv.Argv[0]) {
-				continue
-			}
 			if c, err := m.packCommand(s.Pack, sv); err == nil {
 				cmd = c
 				break
 			}
 		}
 	}
-	m.mu.Lock()
-	m.resolved[lang] = cmd
-	m.mu.Unlock()
+	// A server not found is looked for again next time: the IDE may have installed it since (#153).
+	if cmd != nil {
+		m.mu.Lock()
+		m.resolved[lang] = cmd
+		m.mu.Unlock()
+	}
 	return cmd
 }
 

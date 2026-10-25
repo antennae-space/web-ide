@@ -1,7 +1,8 @@
 // Settings > Plugins, with a project open: the plugins of the pod, enabled or disabled on the
 // project (.ide/plugins.json of its main project), their permissions and capabilities; the
 // external ones are installed, updated and removed for the pod (PluginInstall.tsx).
-import { Index, Show } from 'solid-js'
+import { For, Index, Show } from 'solid-js'
+import { capability } from '../plugins/capabilities'
 import { pluginStates, setPluginEnabled } from '../plugins/registry'
 import type { PluginState } from '../plugins/types'
 import { errorToast } from '../ui/toast'
@@ -15,6 +16,34 @@ function dependents(s: PluginState): string[] {
   return pluginStates()
     .filter((o) => o !== s && o.enabled && (o.manifest.requires ?? []).some((c) => provides.includes(c)))
     .map((o) => o.manifest.name)
+}
+
+/** The servers of a language pack on the project: found (where) or missing, Install (#153). */
+function PackServers(props: { id: string }) {
+  const list = () => capability('language')?.servers().filter((sv) => sv.pack === props.id) ?? []
+  return (
+    <Show when={list().length}>
+      <div class="pack-servers small" data-testid={`pack-servers-${props.id}`}>
+        <For each={list()}>
+          {(sv) => (
+            <div class="pack-server" data-testid={`pack-server-${sv.program}`}>
+              <span class="mono">{sv.program}</span>{' '}
+              <Show when={sv.path} fallback={<span class="muted">{t('not installed')}</span>}>
+                <span class="muted mono" title={sv.path}>{sv.path}</span>
+              </Show>{' '}
+              <Show when={sv.install}>
+                <Show when={!sv.needs} fallback={<span class="muted">{t('Install {needs} to install {program}.', { needs: sv.needs!, program: sv.program })}</span>}>
+                  <button title={sv.command} onClick={() => void capability('language')!.installServer(sv)}>
+                    {sv.path ? t('Update') : t('Install')}
+                  </button>
+                </Show>
+              </Show>
+            </div>
+          )}
+        </For>
+      </div>
+    </Show>
+  )
 }
 
 export function PluginsSection() {
@@ -51,6 +80,7 @@ export function PluginsSection() {
             <Show when={s().external}>
               <ExternalRow s={s()} />
             </Show>
+            <PackServers id={s().manifest.id} />
             <PluginSettingsForm s={s()} />
             <PluginAIAccess s={s()} />
           </div>

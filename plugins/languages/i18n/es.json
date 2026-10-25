@@ -44,5 +44,6 @@
   "Symbols": "Símbolos",
   "initialization of %s: %w": "inicialización de %s: %w",
   "language server stopped": "servidor de lenguaje detenido",
-  "no language server for %s (install %s)": "no hay servidor de lenguaje para %s (instala %s)"
+  "no language server for %s (install %s)": "no hay servidor de lenguaje para %s (instala %s)",
+  "Installing {program}: its console shows the progress": "Instalando {program}: su consola muestra el progreso"
 }

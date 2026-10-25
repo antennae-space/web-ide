@@ -55,6 +55,22 @@ func (p *Plugin) Register(h plugins.Host) {
 		a, err := bind[struct{ Path string }](c.Params)
 		return lsp.LangOf(a.Path), err
 	})
+	// The servers of the packs the project uses, found or missing, and their install (#153).
+	h.Handle("lsp.servers", func(ctx context.Context, c plugins.Call) (any, error) {
+		list := pod.PackServers(c.Runtime)
+		if list == nil {
+			list = []plugins.PackServer{}
+		}
+		return list, nil
+	})
+	h.Handle("lsp.install", func(ctx context.Context, c plugins.Call) (any, error) {
+		a, err := bind[struct{ Pack, Program string }](c.Params)
+		if err != nil {
+			return nil, err
+		}
+		id, err := pod.InstallServer(c.Runtime, a.Pack, a.Program)
+		return map[string]string{"console": id}, err
+	})
 	h.Handle("lsp.capabilities", func(ctx context.Context, c plugins.Call) (any, error) {
 		a, err := bind[struct{ Lang string }](c.Params)
 		if err != nil {

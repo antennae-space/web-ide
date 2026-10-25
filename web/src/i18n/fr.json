@@ -970,5 +970,7 @@
   "Use the folder {name} of this machine": "Utiliser le dossier {name} de cette machine",
   "Use Docker: as much as root on this machine (or the host of an SSH project)": "Utiliser Docker : autant que root sur cette machine (ou l’hôte d’un projet SSH)",
   "Open terminals in the IDE": "Ouvrir des terminaux dans l’IDE",
-  "Run {program} on the host of an SSH project (not confined there)": "Lancer {program} sur l'hôte d'un projet SSH (sans confinement là-bas)"
+  "Run {program} on the host of an SSH project (not confined there)": "Lancer {program} sur l'hôte d'un projet SSH (sans confinement là-bas)",
+  "not installed": "non installé",
+  "Install {needs} to install {program}.": "Installer {needs} pour installer {program}."
 }

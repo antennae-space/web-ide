@@ -1,12 +1,15 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"antennae.space/ide/pod/execx"
 	"antennae.space/ide/pod/plugins"
 	"antennae.space/ide/pod/plugins/confine"
 	"antennae.space/ide/pod/runtime"
@@ -24,10 +27,17 @@ func TestPackCommand(t *testing.T) {
 	if err := s.Plugins.SetExternal(plugins.External{Manifest: m, URL: "u", Version: "1.0.0", Grants: []string{"program:toy-lsp"}}); err != nil {
 		t.Fatal(err)
 	}
-	remote := &runtime.Runtime{Root: "/srv/p", Local: false}
-	if argv, err := s.packCommand(remote, "lang-toy", sv); err != nil || strings.Join(argv, " ") != "toy-lsp --stdio" {
-		t.Fatalf("on the SSH host: the bare program: %v %v", argv, err)
+	host := &shellHost{found: "/usr/bin/toy-lsp"}
+	remote := &runtime.Runtime{Root: "/srv/p", Local: false, Runner: host}
+	argv, err := s.packCommand(remote, "lang-toy", sv)
+	if err != nil || argv[0] != "sh" || !strings.Contains(argv[2], "web-ide/tools/lang-toy") || strings.Join(argv[3:], " ") != "toy-lsp --stdio" {
+		t.Fatalf("on the SSH host: the program by its name, the pack's tools first on its PATH: %q %v", argv, err)
 	}
+	host.found = ""
+	if _, err := s.packCommand(remote, "lang-toy", sv); err == nil {
+		t.Fatal("not on the host")
+	}
+	host.found = "/usr/bin/toy-lsp"
 	local := &runtime.Runtime{Root: t.TempDir(), Local: true}
 	if confine.ABI() < 1 {
 		t.Skip("no Landlock")
@@ -36,7 +46,7 @@ func TestPackCommand(t *testing.T) {
 		t.Fatalf("a folder not granted: %v", err)
 	}
 	_ = s.Plugins.SetExternal(plugins.External{Manifest: m, URL: "u", Version: "1.0.0", Grants: []string{"program:toy-lsp", "path:TOYLIB"}})
-	argv, err := s.packCommand(local, "lang-toy", sv)
+	argv, err = s.packCommand(local, "lang-toy", sv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,3 +64,20 @@ func TestPackCommand(t *testing.T) {
 		t.Fatal("a program not granted runs nowhere")
 	}
 }
+
+// shellHost is the host of an SSH project answering `command -v` with found ("" missing).
+type shellHost struct {
+	execx.Runner
+	found string
+	ran   []string
+}
+
+func (h *shellHost) Output(_ context.Context, argv []string, _ string) ([]byte, error) {
+	h.ran = append(h.ran, strings.Join(argv, " "))
+	if h.found == "" {
+		return nil, errors.New("exit status 1")
+	}
+	return []byte(h.found + "\n"), nil
+}
+
+func (h *shellHost) Has(name string) bool { return name == "npm" }

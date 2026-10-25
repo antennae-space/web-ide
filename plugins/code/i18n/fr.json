@@ -22,5 +22,9 @@
   "Line separator": "Séparateur de ligne",
   "File encoding": "Encodage du fichier",
   "{n} space": "{n} espace",
-  "{n} spaces": "{n} espaces"
+  "{n} spaces": "{n} espaces",
+  "No language server for {language}: no diagnostics, completion nor navigation.": "Pas de serveur de langage pour {language} : ni diagnostics, ni complétion, ni navigation.",
+  "Install {program} on the machine of the project.": "Installer {program} sur la machine du projet.",
+  "Install {program}": "Installer {program}",
+  "Not now": "Pas maintenant"
 }
