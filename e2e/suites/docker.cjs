@@ -88,11 +88,13 @@ const menu = async (f, sel, label) => {
   if (!(await f.$(`.ide-menu .ide-menu-item:has-text("${label}")`))) throw new Error(`no ${label} in the menu: ${await f.textContent('.ide-menu')}`)
   await f.click(`.ide-menu .ide-menu-item:has-text("${label}")`)
 }
-/** Answers the modal of the frame: OK, or Cancel when refused. */
-const answer = async (f, ok = true) => {
-  await f.waitForSelector('.ide-modal')
-  const text = await f.textContent('.ide-modal-body')
-  await f.click(`.ide-modal-foot button:has-text("${ok ? 'OK' : 'Cancel'}")`)
+/** Answers a confirm of the IDE (#154: centered, titled with the plugin): yes, or Cancel. */
+const answer = async (page, ok = true) => {
+  await page.waitForSelector('.modal-backdrop .modal .confirm-text')
+  const text = await page.textContent('.modal .confirm-text')
+  const title = await page.textContent('.modal .modal-head h2')
+  if (!title.startsWith('Docker · ')) throw new Error('a confirm titled with the plugin: ' + title)
+  await page.click(ok ? '[data-testid=confirm-ok]' : '.modal-foot button:has-text("Cancel")')
   return text
 }
 
@@ -221,11 +223,11 @@ run(async ({ page }) => {
   assert((await f.textContent(`[data-testid=docker-volume-${name}_data]`)).includes('in use'), 'volume of the stack in use')
   assert((await f.textContent(`[data-testid=docker-volume-${name}-spare]`)).includes('unused'), 'spare volume unused')
   await menu(f, `[data-testid=docker-volume-${name}-spare]`, 'Remove')
-  await answer(f)
+  await answer(page)
   await f.waitForSelector(`[data-testid=docker-volume-${name}-spare]`, { state: 'detached', timeout: 15000 })
   assert(execSync(`docker volume ls -q --filter name=${name}-spare`, { encoding: 'utf8' }).trim() === '', 'unused volume removed')
   await f.click('[data-prune=volumes]')
-  const asked = await answer(f, false)
+  const asked = await answer(page, false)
   await page.waitForTimeout(300)
   assert(asked.includes('EVERY volume') && (await f.isVisible(`[data-testid=docker-volume-${name}_data]`)), 'pruning every volume asks first; refused, nothing happens')
   await page.screenshot({ path: OUT + '/docker-disk.png' })
@@ -234,9 +236,9 @@ run(async ({ page }) => {
   // Down with volumes: the project name typed to confirm.
   await f.waitForSelector('[data-testid=docker-stack]')
   await menu(f, '[data-testid=docker-stack]', 'Down with volumes')
-  await f.waitForSelector('[data-testid=docker-prompt]')
-  await f.fill('[data-testid=docker-prompt]', name)
-  await f.press('[data-testid=docker-prompt]', 'Enter')
+  await page.waitForSelector('.modal .modal-head h2:has-text("Docker · Down with volumes")')
+  await page.fill('.modal input', name)
+  await page.keyboard.press('Enter')
   await page.waitForSelector('.console-tabs .tab.active:has-text("down -v")', { timeout: 10000 })
   assert(await waitDot(f, 'app', 'none', 40000), 'down -v: containers removed')
   const volume = () => execSync(`docker volume ls -q --filter name=${name}_data`, { encoding: 'utf8' }).trim()

@@ -45,6 +45,14 @@ run(async ({ page }) => {
   assert(true, 'the migrated connection, its tables, columns and indexes')
   assert(fs.existsSync(path.join(DATA, 'plugin-data', 'database', 'connections', `${demo.id}.json`)), 'its connections in its data folder')
 
+  // The connections in a modal of the IDE (#154), centered, titled with the plugin.
+  await tool.locator('button[title="Edit the connections"]').click()
+  await page.waitForSelector('.modal-plugin iframe.plugin-frame[data-view=connections]')
+  assert((await page.textContent('.modal-plugin .modal-head h2')) === 'Database explorer · Database connections', 'the connections in a modal of the IDE')
+  await frame(page, 'connections').locator('.conn-item:has-text("Legacy")').waitFor()
+  await page.click('.modal-plugin .modal-head button')
+  await page.waitForSelector('.modal-plugin', { state: 'detached' })
+
   // A table view, paged.
   await tool.locator('.tree-row:has-text("users")').first().dblclick()
   const table = frame(page, 'table')
@@ -62,8 +70,8 @@ run(async ({ page }) => {
   await page.click('[data-testid=plugin-editor] .ed-content')
   await page.keyboard.type('SELECT count(*) AS n FROM users;\nSELECT name FROM users WHERE id < 4;')
   await page.keyboard.press('Control+Enter')
-  await con.locator('.pick-item').first().waitFor()
-  assert((await con.locator('.pick-item.selected').textContent()).includes('WHERE id < 4'), 'the chooser preselects the statement under the caret')
+  await page.waitForSelector('.pick .pick-item')
+  assert((await page.textContent('.pick .pick-item.selected')).includes('WHERE id < 4'), 'the chooser of the IDE preselects the statement under the caret')
   await page.keyboard.press('ArrowUp')
   await page.keyboard.press('Enter')
   await con.locator('.sql-result .grid').waitFor()

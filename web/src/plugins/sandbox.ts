@@ -183,6 +183,27 @@ export type FrameHost = {
   closeModal?: (result: unknown) => void
 }
 
+/**
+ * Whether the user is in the view of a frame: the frame has the focus, or the core's editor of
+ * its tab (a key of the manifest pressed there, Ctrl+Enter of a console).
+ */
+const userIn = (frame: HTMLIFrameElement) => {
+  const a = document.activeElement
+  return a === frame || !!(a && frame.closest('.plugin-editor-tab')?.contains(a))
+}
+
+/**
+ * userIn, a moment allowed: the focus goes to a frame of another process asynchronously, so its
+ * message may come before the page sees the click that sent it.
+ */
+async function userInSoon(frame: HTMLIFrameElement) {
+  for (let i = 0; i < 10; i++) {
+    if (userIn(frame)) return true
+    await new Promise((r) => setTimeout(r, 30))
+  }
+  return false
+}
+
 /** A text of a dialog, as plain text of a bounded length. */
 const clip = (v: unknown, n: number) => (typeof v === 'string' ? v.slice(0, n) : '')
 
@@ -286,31 +307,33 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       case 'ready':
         host.onReady?.()
         return
-      case 'dialog': {
-        // The dialogs of the core, while the user is in the frame, titled with the plugin.
-        if (document.activeElement !== frame) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
-        const title = `${host.name} · ${clip(m.confirm?.title ?? m.prompt?.title ?? m.pick?.title, 200)}`
-        if (m.confirm) {
-          void confirmModal({ title, text: clip(m.confirm.text, 2000), ok: clip(m.confirm.ok, 60) || undefined, danger: !!m.confirm.danger }).then((result) => reply(m.id, { result }))
-        } else if (m.prompt) {
-          const p = m.prompt
-          void prompt({ title, label: clip(p.label, 2000) || undefined, value: clip(p.value, 10000), password: !!p.password, placeholder: clip(p.placeholder, 200) || undefined }).then((result) => reply(m.id, { result }))
-        } else if (m.pick && Array.isArray(m.pick.items)) {
-          const items = m.pick.items.slice(0, 500).map((it, i) => ({ label: clip(it?.label, 300), detail: clip(it?.detail, 300) || undefined, value: i }))
-          void pick<number>({ placeholder: title, items, initial: Number.isInteger(m.pick.initial) ? m.pick.initial : 0 }).then((result) => reply(m.id, { result: result ?? null }))
-        } else reply(m.id, { error: 'dialog: confirm, prompt or pick' })
+      case 'dialog':
+        void (async () => {
+          // The dialogs of the core, while the user is in the view, titled with the plugin.
+          if (!(await userInSoon(frame))) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
+          const title = `${host.name} · ${clip(m.confirm?.title ?? m.prompt?.title ?? m.pick?.title, 200)}`
+          if (m.confirm) {
+            void confirmModal({ title, text: clip(m.confirm.text, 2000), ok: clip(m.confirm.ok, 60) || undefined, danger: !!m.confirm.danger }).then((result) => reply(m.id, { result }))
+          } else if (m.prompt) {
+            const p = m.prompt
+            void prompt({ title, label: clip(p.label, 2000) || undefined, value: clip(p.value, 10000), password: !!p.password, placeholder: clip(p.placeholder, 200) || undefined }).then((result) => reply(m.id, { result }))
+          } else if (m.pick && Array.isArray(m.pick.items)) {
+            const items = m.pick.items.slice(0, 500).map((it, i) => ({ label: clip(it?.label, 300), detail: clip(it?.detail, 300) || undefined, value: i }))
+            void pick<number>({ placeholder: title, items, initial: Number.isInteger(m.pick.initial) ? m.pick.initial : 0 }).then((result) => reply(m.id, { result: result ?? null }))
+          } else reply(m.id, { error: 'dialog: confirm, prompt or pick' })
+        })()
         return
-      }
-      case 'openModal': {
-        if (document.activeElement !== frame) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
-        if (!host.openModal || typeof m.view !== 'string') return reply(m.id, { error: t('{name} has no such modal view', { name: host.name }) })
-        const size: SandboxModalSize = m.size === 'small' || m.size === 'large' ? m.size : 'medium'
-        host.openModal(m.view, m.state, clip(m.title, 200), size).then(
-          (result) => reply(m.id, { result: result ?? null }),
-          (err) => reply(m.id, { error: err instanceof Error ? err.message : String(err) }),
-        )
+      case 'openModal':
+        void (async () => {
+          if (!(await userInSoon(frame))) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
+          if (!host.openModal || typeof m.view !== 'string') return reply(m.id, { error: t('{name} has no such modal view', { name: host.name }) })
+          const size: SandboxModalSize = m.size === 'small' || m.size === 'large' ? m.size : 'medium'
+          host.openModal(m.view, m.state, clip(m.title, 200), size).then(
+            (result) => reply(m.id, { result: result ?? null }),
+            (err) => reply(m.id, { error: err instanceof Error ? err.message : String(err) }),
+          )
+        })()
         return
-      }
       case 'closeModal':
         host.closeModal?.(m.result)
         return
