@@ -4,7 +4,6 @@ package builtin
 import (
 	"antennae.space/ide/plugins/ai"
 	"antennae.space/ide/plugins/code"
-	"antennae.space/ide/plugins/docker"
 	"antennae.space/ide/plugins/exec"
 	"antennae.space/ide/plugins/files"
 	"antennae.space/ide/plugins/git"
@@ -20,7 +19,7 @@ import (
 // Registry holds the built-in plugins; tests adds the plugins of the browser tests.
 func Registry(tests bool) *plugins.Registry {
 	r := plugins.NewRegistry()
-	list := []plugins.Plugin{files.New(), code.New(), exec.New(), search.New(), git.New(), kanban.New(), ai.New(), previews.New(), services.New(), languages.New(), docker.New()}
+	list := []plugins.Plugin{files.New(), code.New(), exec.New(), search.New(), git.New(), kanban.New(), ai.New(), previews.New(), services.New(), languages.New()}
 	if tests {
 		list = append(list, hello.New())
 	}

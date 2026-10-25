@@ -129,7 +129,7 @@ Everything the model does, you can do yourself, in the same windows:
 - **Language servers** (gopls, typescript-language-server, pyright, intelephense…, from the pod's `PATH`): go to definition, references, completion, rename, formatting, diagnostics.
 - **Terminals** in the bottom panel (Ctrl+Shift+`), detachable in their own window.
 - **Git**: changes, staging, commits, branches, history graph, side-by-side diffs, other worktrees.
-- **Databases** (SQLite, PostgreSQL, Redis), **Docker** (Compose stack, containers, logs), and the *Port forwards and previews* tool (SSH port forwards, app previews).
+- **Databases** (SQLite, PostgreSQL, Redis), **Docker** (Compose stack, containers, logs, a shell in a container), and the *Port forwards and previews* tool (SSH port forwards, app previews). Databases and Docker are official plugins: installed with the IDE, they run confined; Docker's permission *Use Docker* is as much as root on the machine of the project, so it can be revoked in *Settings → Plugins*.
 - When a program (the model, a formatter, another editor) changes an open file, the change is merged into your buffer; a real conflict opens a three-pane dialog.
 
 All shortcuts are in *Settings → Keyboard*, with QWERTY and AZERTY presets.

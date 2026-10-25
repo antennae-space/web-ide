@@ -314,10 +314,6 @@ func pluginOptions(o assistant.Options, plugin string) json.RawMessage {
 	if raw, ok := o.Plugins[plugin]; ok {
 		return raw
 	}
-	if plugin == "docker" && o.DockerProfiles != nil { // a page from before the Docker plugin
-		data, _ := json.Marshal(map[string]any{"profiles": o.DockerProfiles})
-		return data
-	}
 	return nil
 }
 

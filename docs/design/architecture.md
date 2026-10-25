@@ -155,7 +155,7 @@ The pitfalls of one area are in its README: [pod](../../pod/packages.md) (git, t
 
 - Code navigation was tested with gopls only; intelephense, phpactor, pyright and typescript-language-server were never tried.
 - Tested in Chromium only.
-- SSH was tested with the in-memory test server, not against a real host; ticket worktrees on SSH projects are untested. The Docker tool of an SSH project is untested (only its port forwards, through the test server).
+- SSH was tested with the in-memory test server, not against a real host; ticket worktrees on SSH projects are untested. The Docker tool of an SSH project (the plugin's socket through the SSH connection) is checked by hand only.
 - Global search uses RE2 syntax (no lookbehind).
 - SQLite on an SSH project goes through the `sqlite3` command on the host (autocommit only).
 - The microphone needs a secure context (localhost or HTTPS): with `-allow-remote` over plain HTTP, dictation is disabled (audio files are still transcribed).

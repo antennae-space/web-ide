@@ -29,7 +29,7 @@ A built-in plugin has the same shape, with its sources instead of built files: `
 
 - **Backend**: a built-in plugin implements the Go interface `plugins.Plugin` inside the pod (`plugins/<id>/*.go`, its `plugin.json` embedded, listed by `pod/plugins/builtin`): `Register(host)` adds its RPC methods, named `<id>.<method>`, and its assistant tools, each one a schema and a handler that gets the project's `runtime`; an external one is a process started by the pod on demand and stopped a while after the last window leaves, like a language server. Same contract on both transports. Go's `plugin` package is ruled out (same toolchain, same build, Linux only).
 - **Front end**: the module's `activate(api)` returns the components of its contributions, by id (`tools`, `views`, `commands`). The `api` (`web/src/plugins/api.ts`): `rpc()` to its backend, `on()` for the events (`fs.changed`, `git.changed`, `plugins.changed`…), `openFile`, `openView` (a tab of one of its views, with a serializable state), `t()`, the port forwards and the app previews of the core (`forwards`, `previews`: core features any plugin may show), and components of `ui/`. Solid is shared through an import map, so a plugin does not ship its own. A built-in plugin's `web/` is imported by the bundle (`web/src/plugins/registry.tsx`), given the same `api`; it imports the API as `@ide/api`, `@ide/types`, `@ide/capabilities` (an alias of `web/src/plugins/`), and one `node_modules` at the root (npm workspaces) gives it the page's `solid-js`.
-- **Example**: Docker. `plugins/docker/` (manifest, the `docker.*` methods, the log streams, `docker_ps` / `docker_logs`) and `plugins/docker/web/` (the tool; `plugin.ts` keeps the `api` it was given, the only door to the core).
+- **Example**: Previews. `plugins/previews/` (manifest, the `tunnels.*` and `preview.*` methods) and `plugins/previews/web/` (the tool). Docker was the first example (#114), until it became the external plugin [plugin-docker](https://github.com/antennae-space/plugin-docker) (#148).
 - **The manifest is the pod's**: the page gets the manifests and their state on the project in `project.open`, then `plugins.changed`; the page module brings only the components.
 - **Lazy loading**: only the plugins enabled on the project are loaded, which also shortens the first load (the iPhone through the relay).
 
@@ -305,7 +305,7 @@ Decided on 2026-10-24 (milestone *Plugins, phase 4*). Phase 3 proved that an ext
 | Today | Phase 4 | Why |
 |---|---|---|
 | Database (`plugins/database`, removed in #144) | [plugin-database](https://github.com/antennae-space/plugin-database), external and official (#144, done) | a tool with a UI, a backend, secrets and AI tools: the full API |
-| Docker (`plugins/docker`) | `plugin-docker`, external | a backend reaching a socket of the system, a terminal fed by a plugin |
+| Docker (`plugins/docker`, removed in #148) | [plugin-docker](https://github.com/antennae-space/plugin-docker), external and official (#148, done) | a backend reaching a socket of the system, a terminal fed by a plugin |
 | Languages (`plugins/languages`) | stays built-in: the **language host** | the LSP client, Problems, Structure, the Symbols provider |
 | The servers of `Defaults` (`plugins/languages/internal/lsp/lsp.go`), the grammars (`web/src/editor/grammars`) | **language packs**, external, one per language: `lang-go` (#146, done), `lang-php`, `lang-python`, `lang-typescript` | data and a server to run, no UI |
 | AI (`plugins/ai`) | stays built-in | it reads the kanban, runs the tools of the other plugins, calls the windows (`ui.call`), runs the ACP agents, which cannot run confined |
@@ -385,6 +385,17 @@ Done in #144: the Database explorer is [plugin-database](https://github.com/ante
 - **For the AI**: the actions `database_connections`, `database_schema`, `database_query` (read-only, enforced by the database: a read-only transaction for Postgres, `query_only` for SQLite, the read commands of Redis) and `database_execute` (writes: the user's AI access per connection, read only by default).
 - **What the move added to the API**: `project.main` at `initialize` (the plugin keys its data by the main project of a worktree); coded errors through the sandbox (a backend's JSON-RPC error with `data.code` becomes a coded error of the page, and `err.code` / `err.data` in the frame; the core's `auth_required` reaches the backend coded too); `openView(view, state, title, key)` (several tabs of one view); `ide.copyText` (while the user is in the frame); what the frame sends before its channel waits for it, and is copied as plain JSON (a store of Solid is a Proxy).
 
+### Docker, moved (#148)
+
+Done in #148: the Docker tool is [plugin-docker](https://github.com/antennae-space/plugin-docker) (id `docker`, its tool `docker`), official, built on the SDK; `plugins/docker` is gone.
+
+- **Its backend reaches Docker through the socket the pod opens** (`socket:docker`, below), and nothing else: the Engine API by the Go client over that connection, and **Compose as a library** (`github.com/docker/compose/v5`), not the `docker` command (a confined backend can neither run it against a socket nor reach `~/.docker`). The containers it makes carry the labels of `docker compose`, so the command and the tool see the same stack; it needs no Compose installed on the host.
+- **Consoles**: a shell in a container (`docker exec`: an exec with a TTY, its resizes from the console) and the long Compose actions (recreate, rebuild, pull, down, down with volumes: their progress as `docker compose` prints it) open consoles of the core (`terminal`), shown by `ide.showConsole`.
+- **Files**: the Compose file, its `.env` and what it includes are read by the backend on a local project (`files:read`); over SSH, the Compose file and its `.env` through the core (`core:fs.read`), and a Compose file that includes or extends another file is refused there.
+- **For the AI**: `docker_ps` and `docker_logs`, its assistant tools (`toolSchemas`), with the Compose profiles chosen in the tool, which its backend keeps per main project (a frame gives no `assistantOptions`).
+- **Limits**: images pulled anonymously (no `~/.docker/config.json` nor credential helper: a private registry fails); the log streams a window left running stop with the backend, eight at most; the tool's tab is not kept in the desk (a frame of a tool has no state).
+- Tested by the e2e suite `docker` against the local Docker (the release archive, or `E2E_PLUGIN_DOCKER`); the socket of an SSH project is checked by hand.
+
 ### Connections opened by the pod
 
 Done in #143. A backend cannot open the network itself without the broad grant `net`; with `dial`, the pod opens each connection for it:
@@ -407,7 +418,7 @@ Done in #143. A backend cannot open the network itself without the broad grant `
 2. Official plugins: installed by default, their archives in the release.
 3. The bricks of the database: the backend side (connections opened by the pod, SSH tunnels, vault entries: #143), the view side (the core editor in a plugin tab, the settings of a plugin, actions with an AI policy: #151, done); then `plugin-database` and `plugins/database` removed (#144).
 4. The pack contributions of the language host, then `lang-go`, the servers and grammar of Go removed from the core.
-5. The bricks of Docker (the socket passed by the pod, a core terminal fed by a plugin), then `plugin-docker` and `plugins/docker` removed.
+5. The bricks of Docker (the socket passed by the pod, a core terminal fed by a plugin: #147), then `plugin-docker` and `plugins/docker` removed (#148).
 6. The other packs: `lang-php`, `lang-python`, `lang-typescript`.
 7. Project templates; then the debug host, then `plugin-adb`, when there is time.
 

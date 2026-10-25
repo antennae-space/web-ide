@@ -1,9 +1,7 @@
 // Plugins (#113): the test plugin hello (WEBIDE_TEST_PLUGINS) adds a tool in the right zone, an
 // RPC method and an assistant tool of the MCP; disabled on the project in Settings > Plugins,
-// its icon, its command and its tool go, its place in the zone stays. Docker (#114) is a
-// built-in plugin: disabled, its tools go and its page module is not downloaded (#124), the
-// Port forwards and previews tool stays. The Database explorer (#115) too: its tabs are views of it, a console keeps its text in its tab,
-// and a desk saved before (sql tabs and sqlText) is migrated. Exec (#116) is locked (#137): its
+// its icon, its command and its tool go, its place in the zone stays. A built-in plugin disabled
+// (Previews) is not downloaded (#124). Exec (#116) is locked (#137): its
 // terminal and the Console tool stay, and the tools that need terminal always answer.
 // Search (#117) gives Search Everywhere its Text tab: off, the tab and the Search tool go. Git
 // (#118) gives the diff view its git sides: off, a diff tab says so, open_diff is refused.
@@ -96,14 +94,9 @@ run(async ({ page }) => {
   assert(!r.result.isError, 'enabled again: ' + text(r))
   await closeSettings()
 
-  // Docker: its tab chosen is kept in the desk; disabled, it goes with its assistant tools and
-  // its command, the Port forwards and previews tool stays; enabled again, it is back on its tab.
-  const docker = '.rail-group[data-zone=bottomRight] .rail-btn[data-id=docker]'
+  // A built-in disabled (Previews): its page module is not downloaded (#124); enabled, it is.
   const forwards = '.rail-group[data-zone=bottomRight] .rail-btn[data-id=forwards]'
   await page.waitForSelector(forwards)
-  await page.click(docker)
-  await page.click('[data-testid=docker-tab-disk]')
-  assert((await tools()).includes('docker_ps'), 'docker_ps listed by the MCP')
   const setPlugin = async (id, on) => {
     await palette('settings')
     await page.waitForSelector('.pick-item.selected:has-text("Settings")')
@@ -112,33 +105,18 @@ run(async ({ page }) => {
     await (on ? page.check(`[data-testid=plugin-${id}]`) : page.uncheck(`[data-testid=plugin-${id}]`))
     await closeSettings()
   }
-  const setDocker = (on) => setPlugin('docker', on)
-  await setDocker(false)
-  await page.waitForSelector(docker, { state: 'detached' })
-  await page.click(forwards)
-  await page.waitForSelector('[data-testid=forwards-tab-previews][aria-selected=true]')
-  r = await mcp('docker_ps', {})
-  assert(r.result.isError && text(r).includes('the Docker plugin is disabled on this project'), 'docker_ps refused: ' + text(r))
-  await palette('docker')
-  await page.waitForTimeout(300)
-  assert(!(await page.$('.pick-item:has-text("Docker")')), 'no Docker command in Search Everywhere')
-  await page.keyboard.press('Escape')
-  // The page module of a disabled plugin is not downloaded (#124); enabled, it is.
+  await setPlugin('previews', false)
+  await page.waitForSelector(forwards, { state: 'detached' })
   const asked = []
   const onRequest = (q) => asked.push(q.url())
   page.on('request', onRequest)
   await page.reload()
   await page.waitForSelector('.rail-btn[data-id=explorer]')
+  assert(asked.some((u) => /plugin-exec-/.test(u)) && !asked.some((u) => /plugin-previews-/.test(u)), 'no chunk of a disabled plugin: ' + asked.filter((u) => u.includes('plugin-')).map((u) => u.split('/').pop()))
+  await setPlugin('previews', true)
   await page.waitForSelector(forwards)
-  assert(asked.some((u) => /plugin-exec-/.test(u)) && !asked.some((u) => /plugin-docker-/.test(u)), 'no chunk of a disabled plugin: ' + asked.filter((u) => u.includes('plugin-')).map((u) => u.split('/').pop()))
-  await setDocker(true)
-  await page.waitForSelector(docker)
-  assert(asked.some((u) => /plugin-docker-/.test(u)), 'its chunk once enabled')
+  assert(asked.some((u) => /plugin-previews-/.test(u)), 'its chunk once enabled')
   page.off('request', onRequest)
-  await page.click(docker)
-  await page.waitForSelector('[data-testid=docker-tab-disk][aria-selected=true]')
-  r = await mcp('docker_ps', {})
-  assert(!text(r).includes('disabled'), 'docker_ps back: ' + text(r))
 
   // Exec is locked (#137): a terminal opens, the Console tool stays with its dependents, and the
   // console tools of the MCP answer.
@@ -152,7 +130,6 @@ run(async ({ page }) => {
   await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('plugin-42'))
   const consoleIcon = '.rail-btn[data-id=console]'
   assert(await page.$(consoleIcon), 'the Console tool of a locked plugin')
-  assert(await page.$(docker), 'Docker stays (terminal is always on)')
   assert(await page.$(forwards), 'Previews stays (terminal is always on)')
   r = await mcp('list_consoles', {})
   assert(!r.result.isError, 'list_consoles answers: ' + text(r))
