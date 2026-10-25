@@ -3,10 +3,10 @@
     "id": "database",
     "url": "https://github.com/antennae-space/plugin-database",
     "constraint": "^1",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "sha256": {
-      "linux-amd64": "fd3d6ce641a8d7110274e0728c1857c62d7c6c1360585a5fb9bf47777802c5cd",
-      "linux-arm64": "b48837250d1cc4a90a1f378bc8032f13ad815902adbe72f83d43b1609002c9b3"
+      "linux-amd64": "e2a2cd2fc9041aa980df950c03fbcc32324d1bf55674c04cc05cbe8f5439952c",
+      "linux-arm64": "9dbfc34d65402a73dd6a4c2925b75fba2f8bee2cce29fc06dbc3815e2c1ab354"
     }
   },
   {
@@ -23,10 +23,10 @@
     "id": "docker",
     "url": "https://github.com/antennae-space/plugin-docker",
     "constraint": "^1",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "sha256": {
-      "linux-amd64": "4a316d38bb105e4c454213f2bcd27939b45caee226c667749b5c58c45cd6a58b",
-      "linux-arm64": "69160f2ea103ff59145b1ee2ac5a81ecf60ef1321465538c082a5a730e26290d"
+      "linux-amd64": "043ca775bc49e3a3ba394f5422a5d8d5d9ca1aab4618d3bfed44687d552f0c99",
+      "linux-arm64": "2db93d1a2f8a5ed66ae438e314588e54f8515cb8a5274faf3f043682656d9336"
     }
   },
   {
