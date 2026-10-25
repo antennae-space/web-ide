@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -51,13 +52,24 @@ func (s *Server) packCommand(rt *runtime.Runtime, pack string, sv plugins.Langua
 		return nil, i18n.Errorf("%s is not granted to %s", "program:"+strings.Join(sv.Argv[:min(1, len(sv.Argv))], ""), e.Manifest.Name)
 	}
 	if !rt.Local {
-		// On the host of the project: the program by its name, no shell.
-		return slices.Clone(sv.Argv), nil
+		// On the host of the project: the program by its name, the pack's folder of tools first
+		// on its PATH (#153).
+		if s.findProgram(context.Background(), rt, pack, sv.Argv[0]) == "" {
+			return nil, i18n.Errorf("%s is not installed (not found on the PATH)", sv.Argv[0])
+		}
+		return append([]string{"sh", "-c", remotePath(pack) + `exec "$0" "$@"`}, sv.Argv...), nil
 	}
 	if confine.ABI() < 1 {
 		return nil, i18n.New("this kernel has no Landlock: an external plugin's backend cannot run confined")
 	}
 	host := install.ThisHost(s.Store.Path())
+	// The pack's folder of tools first (#153): its program, and the @program of its folders.
+	host.Env = func(k string) string {
+		if k == "PATH" {
+			return toolsPath(pack)
+		}
+		return os.Getenv(k)
+	}
 	prog, err := host.ResolveProgram(sv.Argv[0])
 	if err != nil {
 		return nil, err

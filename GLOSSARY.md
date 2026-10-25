@@ -186,7 +186,7 @@ _Avoid_: core plugin, first-party plugin
 The built-in plugin that runs the language servers of the language packs and shows what they give: Problems, Structure, symbols, completion. Today the Languages plugin.
 
 **Language pack** ([plugins](docs/design/plugins.md#language-packs))
-An external plugin that gives one language to the language host: its grammar, its language servers (run confined on this machine with the pack's grants: its program, the folders of the host it needs; on the host of an SSH project as its granted program), its test patterns, later its debug adapter and its project templates.
+An external plugin that gives one language to the language host: its grammar, its language servers (run confined on this machine with the pack's grants: its program, the folders of the host it needs; on the host of an SSH project as its granted program), its test patterns, later its debug adapter and its project templates. A server it gives a recipe is installed by the IDE into the pack's *folder of tools* (`~/.local/share/web-ide/tools/<pack>`), looked up before the PATH.
 _Avoid_: language plugin, language extension
 
 **Project template** ([plugins](docs/design/plugins.md#language-packs))

@@ -27,15 +27,20 @@ var toy = PackSpec(plugins.PackLanguage{Pack: "lang-toy", Language: plugins.Lang
 // whose program is on the SSH host.
 func TestPackServers(t *testing.T) {
 	var asked []string
+	// The pod's command: an error when the program is not on the host (#153: it looks there).
+	onHost := map[string]bool{"toy-lsp": true}
 	cmd := func(pack string, sv plugins.LanguageServer) ([]string, error) {
 		asked = append(asked, pack+":"+sv.Argv[0])
+		if !onHost[sv.Argv[0]] {
+			return nil, errors.New("not installed")
+		}
 		return append([]string{"ssh-host"}, sv.Argv...), nil
 	}
 	m := NewManager(hostRunner{has: map[string]bool{"toy-lsp": true}}, "/p", false, nil, func(string) bool { return false }, nil)
 	m.UsePacks(func() []Spec {
 		return []Spec{toy, PackSpec(plugins.PackLanguage{Pack: "lang-go", Language: plugins.Language{ID: "go", Name: "Go", Extensions: []string{".go"}}})}
 	}, cmd)
-	if got := m.command("toy"); len(got) != 2 || got[1] != "toy-lsp" || len(asked) != 1 || asked[0] != "lang-toy:toy-lsp" {
+	if got := m.command("toy"); len(got) != 2 || got[1] != "toy-lsp" || len(asked) != 2 || asked[1] != "lang-toy:toy-lsp" {
 		t.Fatalf("command %v, asked %v", got, asked)
 	}
 	if s, _ := m.spec("go"); s.Pack != "lang-go" {
@@ -45,6 +50,7 @@ func TestPackServers(t *testing.T) {
 		t.Fatal("no language without its pack")
 	}
 	// Nothing installed on the host: no server.
+	delete(onHost, "toy-lsp")
 	m2 := NewManager(hostRunner{}, "/p", false, nil, func(string) bool { return false }, nil)
 	m2.UsePacks(func() []Spec { return []Spec{toy} }, cmd)
 	if got := m2.command("toy"); got != nil {

@@ -13,10 +13,10 @@
     "id": "lang-go",
     "url": "https://github.com/antennae-space/lang-go",
     "constraint": "^1",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "sha256": {
-      "linux-amd64": "49a12160f2278918185af4abad7dd14b97611fa92fe36e1ae19527b724bfbe6c",
-      "linux-arm64": "49a12160f2278918185af4abad7dd14b97611fa92fe36e1ae19527b724bfbe6c"
+      "linux-amd64": "92cc7417a7e186f9ba247d035bf301cc4f8f910bf1800bd3ba7dd9dc02e29d6e",
+      "linux-arm64": "92cc7417a7e186f9ba247d035bf301cc4f8f910bf1800bd3ba7dd9dc02e29d6e"
     }
   },
   {
@@ -33,30 +33,30 @@
     "id": "lang-php",
     "url": "https://github.com/antennae-space/lang-php",
     "constraint": "^1",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "sha256": {
-      "linux-amd64": "889e2c39ee120d8e870c0180f034afbcabf092a2b97f4df693f0c5734f76748b",
-      "linux-arm64": "889e2c39ee120d8e870c0180f034afbcabf092a2b97f4df693f0c5734f76748b"
+      "linux-amd64": "f08dfbeeec6df71080bdfe009148bc8e6af6163f0e3c9afcdccebe49487e6030",
+      "linux-arm64": "f08dfbeeec6df71080bdfe009148bc8e6af6163f0e3c9afcdccebe49487e6030"
     }
   },
   {
     "id": "lang-python",
     "url": "https://github.com/antennae-space/lang-python",
     "constraint": "^1",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "sha256": {
-      "linux-amd64": "f17613093bfaca030b89a4fae632bfd89efd568f69c09b43843f23ec73259f91",
-      "linux-arm64": "f17613093bfaca030b89a4fae632bfd89efd568f69c09b43843f23ec73259f91"
+      "linux-amd64": "3df7c44da947e1c2a6ea9bb19b331627d287c1a613a8cc350e8237e6acd5a257",
+      "linux-arm64": "3df7c44da947e1c2a6ea9bb19b331627d287c1a613a8cc350e8237e6acd5a257"
     }
   },
   {
     "id": "lang-typescript",
     "url": "https://github.com/antennae-space/lang-typescript",
     "constraint": "^1",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "sha256": {
-      "linux-amd64": "9ffc78cf81ba1cc90ec4c5dfae3c1e7436c05b3f468e9a2e1f5db294a44c01de",
-      "linux-arm64": "9ffc78cf81ba1cc90ec4c5dfae3c1e7436c05b3f468e9a2e1f5db294a44c01de"
+      "linux-amd64": "39249ae54c14e4f76c0cbca568fa9c514e2c7774920609a6fd4f47af53b00c87",
+      "linux-arm64": "39249ae54c14e4f76c0cbca568fa9c514e2c7774920609a6fd4f47af53b00c87"
     }
   }
 ]

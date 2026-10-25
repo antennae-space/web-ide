@@ -48,6 +48,10 @@ func (p *fakePod) PackLanguages(*runtime.Runtime) []plugins.PackLanguage { retur
 func (p *fakePod) PackCommand(*runtime.Runtime, string, plugins.LanguageServer) ([]string, error) {
 	return nil, nil
 }
+func (p *fakePod) PackServers(*runtime.Runtime) []plugins.PackServer { return nil }
+func (p *fakePod) InstallServer(*runtime.Runtime, string, string) (string, error) {
+	return "", nil
+}
 func (p *fakePod) AssistantTools(*runtime.Runtime) []json.RawMessage { return nil }
 func (p *fakePod) Notify(plugins.Note)                               {}
 func (p *fakePod) QuestionsChanged(string, string)                   {}

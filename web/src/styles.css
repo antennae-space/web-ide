@@ -803,6 +803,9 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .plugin-install input:first-of-type { flex: 1 1 260px; }
 .plugin-install input + input { flex: 0 1 140px; }
 .plugin-external { margin-left: 24px; display: flex; flex-direction: column; gap: 4px; }
+.pack-servers { margin-left: 24px; display: flex; flex-direction: column; gap: 2px; }
+.pack-server { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pack-server .mono.muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .plugin-external .row { display: flex; gap: 8px; }
 .plugin-settings, .plugin-ai { margin-left: 24px; display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
 .plugin-setting { display: grid; grid-template-columns: minmax(140px, max-content) minmax(0, 260px); align-items: center; gap: 4px 12px; }

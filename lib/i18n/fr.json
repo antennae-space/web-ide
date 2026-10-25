@@ -250,5 +250,7 @@
   "Docker does not answer on %s: %v": "Docker ne répond pas sur %s : %v",
   "exec: argv must start with the name of a program": "exec : argv doit commencer par le nom d'un programme",
   "exec runs a program on the host of an SSH project; on this machine, the backend runs it itself": "exec lance un programme sur l'hôte d'un projet SSH ; sur cette machine, le backend le lance lui-même",
-  "%s is outside the project": "%s est hors du projet"
+  "%s is outside the project": "%s est hors du projet",
+  "%s is needed to install %s": "%s est nécessaire pour installer %s",
+  "%s has no install recipe in %s": "%s n'a pas de recette d'installation dans %s"
 }

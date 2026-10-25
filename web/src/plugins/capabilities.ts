@@ -151,6 +151,29 @@ export interface LanguageService {
   gotoDeclaration(doc: Doc, offset: number): void
   /** Shows the Problems tool on its list. */
   showProblems(): void
+  /** The servers of the language packs the project uses, found or missing (#153). */
+  servers(): PackServer[]
+  /** The server to offer for a file whose language has a pack but no server found (reactive). */
+  missingServer(path: string): PackServer | null
+  /** Whether the user put off the banner of a language. */
+  notNow(lang: string): boolean
+  putOff(lang: string): void
+  /** Installs a server of a pack in a console of the core, shown. */
+  installServer(s: PackServer): Promise<void>
+}
+
+/** A server of a language pack: path where it is (none: missing), its recipe, the command
+ * installing it, the package manager missing to run that command. */
+export interface PackServer {
+  pack: string
+  packName: string
+  lang: string
+  language: string
+  program: string
+  path?: string
+  install?: { manager: string; packages: string[] }
+  command?: string
+  needs?: string
 }
 
 /** files (the Files plugin): the Explorer. */

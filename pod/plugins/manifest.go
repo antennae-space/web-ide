@@ -97,7 +97,24 @@ type LanguageServer struct {
 	// Env are literal variables of its environment (GOTOOLCHAIN=local: no download, it has no
 	// network), on this machine only.
 	Env map[string]string `json:"env,omitempty"`
+	// Install is how the IDE installs it when it is missing (#153), into the pack's folder of
+	// tools: the core builds the command from it.
+	Install *ServerInstall `json:"install,omitempty"`
 }
+
+// ServerInstall is the recipe of a server: a package manager the core knows (npm, pip, go) and
+// what it installs (npm and pip packages, a Go module@version).
+type ServerInstall struct {
+	Manager  string   `json:"manager"`
+	Packages []string `json:"packages"`
+}
+
+// InstallManagers are the package managers of the recipes.
+var InstallManagers = []string{"npm", "pip", "go"}
+
+// packageRe is a package of a recipe: a name, a version, extras (python-lsp-server[all],
+// typescript@5, golang.org/x/tools/gopls@latest); no space, quote nor shell character.
+var packageRe = regexp.MustCompile(`^[A-Za-z0-9@][A-Za-z0-9@._/+=<>~^,\[\]-]*$`)
 
 // PathGrant is a folder of the host a server needs, by name: the first of its candidates that
 // exists ($GOMODCACHE, $GOPATH/pkg/mod, ~/go/pkg/mod), read only unless Access is write; Env
@@ -329,6 +346,16 @@ func (m Manifest) checkLanguages() error {
 			}
 			if !slices.Contains(m.Permissions, "program:"+sv.Argv[0]) {
 				return fmt.Errorf("plugin %s: language %s: its server %s needs the permission program:%s", m.ID, l.ID, sv.Argv[0], sv.Argv[0])
+			}
+			if in := sv.Install; in != nil {
+				if !slices.Contains(InstallManagers, in.Manager) || len(in.Packages) == 0 || (in.Manager == "go" && len(in.Packages) != 1) {
+					return fmt.Errorf("plugin %s: language %s: invalid install of %s", m.ID, l.ID, sv.Argv[0])
+				}
+				for _, pk := range in.Packages {
+					if !packageRe.MatchString(pk) {
+						return fmt.Errorf("plugin %s: language %s: invalid package %q", m.ID, l.ID, pk)
+					}
+				}
 			}
 			names := map[string]bool{}
 			for _, p := range sv.Paths {
