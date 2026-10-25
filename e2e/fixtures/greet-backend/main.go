@@ -10,10 +10,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -35,6 +37,7 @@ var (
 	out     = json.NewEncoder(os.Stdout)
 	waiting = map[string]chan msg{}
 	root    string
+	size    string // the last size of its console
 )
 
 func write(v any) {
@@ -153,6 +156,15 @@ func handle(m msg) {
 			var v struct{ Value string }
 			json.Unmarshal(got, &v)
 			reply(m.ID, v.Value)
+		case "greet.docker": // the Docker socket the pod opens (#147): the version of the engine
+			reply(m.ID, dockerVersion())
+		case "greet.terminal": // a console of the core it feeds (#147): an echo in upper case
+			reply(m.ID, terminal())
+		case "greet.size":
+			mu.Lock()
+			last := size
+			mu.Unlock()
+			reply(m.ID, last)
 		case "greet.count": // an action that reads (#151)
 			reply(m.ID, 3)
 		case "greet.write": // an action that writes, on the target conn
@@ -173,6 +185,12 @@ func handle(m msg) {
 		default:
 			fail(m.ID, "no "+c.Method)
 		}
+	case "terminal.resize": // a notification of the pod: no answer
+		var r struct{ Cols, Rows int }
+		json.Unmarshal(m.Params, &r)
+		mu.Lock()
+		size = fmt.Sprintf("%dx%d", r.Cols, r.Rows)
+		mu.Unlock()
 	case "tool":
 		reply(m.ID, map[string]any{"content": "Hello from the tool of the backend", "summary": "greeted"})
 	default:
@@ -232,4 +250,56 @@ func receive(id int) (net.Conn, error) {
 	f := os.NewFile(uintptr(fds[0]), "conn")
 	defer f.Close()
 	return net.FileConn(f)
+}
+
+// dockerVersion asks the pod for the Docker socket and the engine's version over it.
+func dockerVersion() string {
+	res, e := core("socket", map[string]any{"name": "docker"})
+	if e != "" {
+		return "refused: " + e
+	}
+	var r struct{ Fd int }
+	json.Unmarshal(res, &r)
+	conn, err := receive(r.Fd)
+	if err != nil {
+		return "no socket: " + err.Error()
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(5 * time.Second))
+	fmt.Fprint(conn, "GET /version HTTP/1.0\r\nHost: docker\r\n\r\n")
+	body, _ := io.ReadAll(conn)
+	if i := strings.Index(string(body), `"ApiVersion":"`); i >= 0 {
+		return "docker api " + strings.SplitN(string(body)[i+14:], `"`, 2)[0]
+	}
+	return "no version: " + string(body)
+}
+
+// terminal opens a console of the core and echoes what is typed there in upper case.
+func terminal() string {
+	res, e := core("terminal.open", map[string]any{"title": "Greet shell"})
+	if e != "" {
+		return "refused: " + e
+	}
+	var r struct {
+		Console string
+		Fd      int
+	}
+	json.Unmarshal(res, &r)
+	conn, err := receive(r.Fd)
+	if err != nil {
+		return "no socket: " + err.Error()
+	}
+	fmt.Fprint(conn, "greet> ")
+	go func() {
+		defer conn.Close()
+		b := make([]byte, 1024)
+		for {
+			n, err := conn.Read(b)
+			if err != nil {
+				return
+			}
+			conn.Write([]byte(strings.ToUpper(strings.ReplaceAll(string(b[:n]), "\r", "\r\n"))))
+		}
+	}()
+	return r.Console
 }

@@ -67,6 +67,8 @@ export interface SandboxAPI {
   /** The state of this frame's tab, kept with it (a tab view only). */
   setViewState(state: unknown): void
   toast(text: string, kind?: ToastKind): void
+  /** Shows a console of the core in the Console tool: one its backend feeds (terminal.open). */
+  showConsole(id: string): void
   /** Copies a text to the clipboard (the frame has no access to it), with the IDE's clipboard history. */
   copyText(text: string): void
   /** A text of its catalog, `{name}` filled from `params`. */
@@ -89,6 +91,7 @@ export type FrameCall =
   | { call: 'setViewState'; state: unknown }
   | { call: 'toast'; text: string; kind?: ToastKind }
   | { call: 'copyText'; text: string }
+  | { call: 'showConsole'; id: string }
   | { call: 'key'; key: string; code: string; ctrl: boolean; shift: boolean; alt: boolean; meta: boolean }
   | { call: 'focus' }
   | { call: 'ready' }

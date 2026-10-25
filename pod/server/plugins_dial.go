@@ -153,9 +153,13 @@ func (s *Server) dialFor(ctx context.Context, a dialArgs) (net.Conn, error) {
 // socketFile is a socket the backend can use: a TCP connection's own, else (an SSH channel)
 // one end of a socketpair bridged to it.
 func socketFile(conn net.Conn) (*os.File, error) {
-	if tc, ok := conn.(*net.TCPConn); ok {
-		f, err := tc.File() // a dup: the connection itself closes
-		tc.Close()
+	if fc, ok := conn.(interface {
+		File() (*os.File, error)
+		Close() error
+	}); ok {
+		// A socket of the system (TCP, unix): a dup of it, the connection itself closes.
+		f, err := fc.File()
+		fc.Close()
 		return f, err
 	}
 	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)

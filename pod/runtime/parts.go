@@ -1,6 +1,10 @@
 package runtime
 
 import (
+	"errors"
+
+	"golang.org/x/crypto/ssh"
+
 	"antennae.space/ide/pod/sshx"
 	"antennae.space/ide/pod/store"
 )
@@ -66,6 +70,16 @@ func (r *Runtime) Emit(event string, data any) { r.emit(event, data, "") }
 
 // Pool is the SSH pool of the pod (an SSH project reaches its host again with it).
 func (r *Runtime) Pool() *sshx.Pool { return r.pool }
+
+// SSHClient is the SSH connection of an SSH project to its host (the pool's, with the
+// credentials it remembers): a socket of the host reached through it (Docker's).
+func (r *Runtime) SSHClient() (*ssh.Client, error) {
+	if r.Local || r.pool == nil {
+		return nil, errors.New("not an SSH project")
+	}
+	_, creds, _ := r.pool.Pinned(r.target)
+	return r.pool.Get(r.target, creds)
+}
 
 // Store is the data folder of the pod (nil in some tests).
 func (r *Runtime) Store() *store.Store { return r.store }

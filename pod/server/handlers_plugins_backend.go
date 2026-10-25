@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"antennae.space/ide/lib/i18n"
@@ -161,6 +162,8 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 		logFile.Close()
 		return nil, err
 	}
+	// The process, once started: a console it feeds tells it its resizes.
+	var started atomic.Pointer[backend.Process]
 	p, err := backend.Start(ctx, backend.Config{
 		Argv:  argv,
 		Env:   []string{"PATH=/usr/local/bin:/usr/bin:/bin", "HOME=" + data, "TMPDIR=" + filepath.Join(data, "tmp"), "LANG=C.UTF-8"},
@@ -170,7 +173,7 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 		Init: map[string]any{"apiVersion": plugins.APIVersion, "plugin": id, "version": e.Version, "grants": e.Grants,
 			"project": map[string]any{"id": rt.P.ID, "root": rt.Root, "local": rt.Local, "main": mainID(rt)}},
 		Core: func(ctx context.Context, method string, params json.RawMessage) (any, error) {
-			return s.backendCore(ctx, rt, e, fds, method, params)
+			return s.backendCore(ctx, rt, e, fds, func() *backend.Process { return started.Load() }, method, params)
 		},
 		Emit: func(event string, data json.RawMessage) {
 			// Its own events only, to the windows of the project.
@@ -180,6 +183,9 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 		},
 	})
 	theirs.Close() // the backend's now
+	if err == nil {
+		started.Store(p)
+	}
 	if err != nil {
 		logFile.Close()
 		fds.close()
@@ -194,7 +200,7 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 }
 
 // backendCore runs a method of the core for a backend, with its grant, in the project of rt.
-func (s *Server) backendCore(ctx context.Context, rt *runtime.Runtime, e plugins.External, fds *fdChannel, method string, params json.RawMessage) (res any, err error) {
+func (s *Server) backendCore(ctx context.Context, rt *runtime.Runtime, e plugins.External, fds *fdChannel, proc func() *backend.Process, method string, params json.RawMessage) (res any, err error) {
 	// The grants of now: revoked in Settings, refused at once.
 	if cur, ok := s.Plugins.External(e.Manifest.ID); ok {
 		e = cur
@@ -202,6 +208,10 @@ func (s *Server) backendCore(ctx context.Context, rt *runtime.Runtime, e plugins
 	switch method {
 	case "dial":
 		return s.pluginDial(ctx, rt, e, fds, params)
+	case "socket":
+		return s.pluginSocket(ctx, rt, e, fds, params)
+	case "terminal.open":
+		return s.pluginTerminal(rt, e, fds, proc, params)
 	case "vault.get", "vault.set", "vault.delete":
 		return s.pluginVault(e, method, params)
 	case "settings.get", "ai.targets":

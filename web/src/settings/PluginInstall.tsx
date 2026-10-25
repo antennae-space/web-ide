@@ -26,6 +26,8 @@ function grantText(g: string): string {
       dial: t('Connect where you allow it, through the IDE'),
       ssh: t('Open SSH tunnels with your keys'),
       vault: t('Keep its secrets in the vault'),
+      'socket:docker': t('Use Docker: as much as root on this machine (or the host of an SSH project)'),
+      terminal: t('Open terminals in the IDE'),
     }[g] ?? g
   )
 }

@@ -294,6 +294,15 @@ func (p *Process) core(m message) {
 	_ = p.send(reply)
 }
 
+// Notify tells the backend something, with no answer (terminal.resize).
+func (p *Process) Notify(method string, params any) error {
+	raw, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+	return p.send(message{Method: method, Params: raw})
+}
+
 // Stop asks the backend to shut down, then kills it after a second.
 func (p *Process) Stop() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
