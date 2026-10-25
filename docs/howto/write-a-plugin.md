@@ -135,7 +135,7 @@ The IDE starts it on the first call of a project, through `web-ide-pod plugin-ex
 
 | From the IDE | |
 |---|---|
-| `initialize {apiVersion, plugin, version, grants, project: {id, root, local}}` | answer `{}` |
+| `initialize {apiVersion, plugin, version, grants, project: {id, root, local, main, name, mainRoot, mainName}}` | answer `{}`; `main`, `mainRoot`, `mainName`: the main project of a worktree (the project itself otherwise) |
 | `call {method, params, lang, from?}` | an `<id>.*` method of one of its views, or of another plugin's backend using a capability it provides (`from`: that plugin's id): answer its result |
 | `event {event, data}` (no id) | an event of the backend of a capability it listens to (`service.on`) |
 | `mcp {name, args, lang, scope: {project, main, ticket, url}}` | one of its MCP tools (`contributes.mcpTools`, described in `toolSchemas`): `project` of the client's folder, `main` its main project, `ticket` that of its worktree (0 elsewhere), `url` the address of the IDE; answer `{content, error}` |
@@ -157,10 +157,10 @@ The IDE starts it on the first call of a project, through `web-ide-pod plugin-ex
 | `core {method: "questions.changed", params: {asked?}}` | its questions changed: the windows ask again; `asked: true` notifies the devices |
 | `core {method: "notify", params: {kind, query?, tag?, urgency?, texts: {en: {title, body}, fr: …}}}` | a push notification (grant `notify`), of a kind the devices choose (`feedback`, `asks`, `finished`, `tests`), opening the project at `?<query>` |
 | `core {method: "commands.list"}` (and `commands.save`, `commands.run`) | the saved commands of the project, with `core:commands.list`… |
-| `core {method: "git", params: {args, dir?}}` | git in the project or one of its `.ide/worktrees/*` (grant `git`), with the user's keys: answers `{output}`; an option that would run another program (`-c core.pager=…`, `--upload-pack`…) is refused |
+| `core {method: "git", params: {args, dir?, anyExit?}}` | git in the project or one of its `.ide/worktrees/*` (grant `git`), with the user's keys: answers `{output, exit}` (with `anyExit`, whatever its exit code: `diff --no-index`); an option that would run another program (`-c core.pager=…`, `--upload-pack`…) is refused |
 | `core {method: "gh", params: {args}}` | `gh pr …` (grant `gh`) |
 | `core {method: "worktree.register" / "worktree.unregister" / "worktree.setup" / "ide.keepOut"}` | the worktree projects (grant `worktrees`): register a folder of `.ide/worktrees` as the project of a ticket (`{owner, title, path}`), remove it (`{owner}`), run the setup commands of the project in it (`{path}`), keep `.ide` out of git |
-| `emit {event, data}` (no id) | an event to the windows of the project, `<id>.*` only, and to the backends listening to it |
+| `emit {event, data, family?}` (no id) | an event to the windows of the project (with `family`, of its main project and of its worktrees), `<id>.*` only, and to the backends listening to it |
 
 A call waits two minutes at most; a backend that ends three times in a minute stays off until the project opens again. It runs confined: it reads its own folder and the system, writes its data folder (its `HOME` and `TMPDIR`), reads the project with `files:read`, writes it with `files:write`, reaches the network with `net` only; never the home, nor `~/.web-ide`, nor the other processes. A project over SSH is not on the pod: reach its files with `core` calls. Build it static (`CGO_ENABLED=0` for Go): it starts with the system's libraries only. A kernel without Landlock does not run it.
 

@@ -5,7 +5,8 @@
 // The pod asks it `initialize {apiVersion, plugin, grants, project}`, `call {method, params,
 // lang}` (an <id>.* method of a window), `tool {name, args, lang}` (one of its assistant tools)
 // and `shutdown`; it asks the pod `core {method, params}` (a method of the core, which the pod
-// refuses without its grant) and tells it `emit {event, data}` (an event to the windows).
+// refuses without its grant) and tells it `emit {event, data, family?}` (an event to the windows
+// of the project, or of its main project and its worktrees with family).
 package backend
 
 import (
@@ -44,7 +45,7 @@ type Config struct {
 	Init any
 	// Core answers a call of the backend to the core; Emit takes its events.
 	Core func(ctx context.Context, method string, params json.RawMessage) (any, error)
-	Emit func(event string, data json.RawMessage)
+	Emit func(event string, data json.RawMessage, family bool)
 }
 
 // Process is a running backend.
@@ -256,11 +257,12 @@ func (p *Process) read(out io.Reader) {
 			}
 		case m.Method == "emit":
 			var e struct {
-				Event string          `json:"event"`
-				Data  json.RawMessage `json:"data"`
+				Event  string          `json:"event"`
+				Data   json.RawMessage `json:"data"`
+				Family bool            `json:"family"`
 			}
 			if json.Unmarshal(m.Params, &e) == nil && p.cfg.Emit != nil {
-				p.cfg.Emit(e.Event, e.Data)
+				p.cfg.Emit(e.Event, e.Data, e.Family)
 			}
 		case m.Method == "core" && m.ID != nil:
 			go p.core(m)

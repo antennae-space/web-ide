@@ -10,6 +10,7 @@ import (
 
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/pod/commands"
+	"antennae.space/ide/pod/execx"
 	"antennae.space/ide/pod/plugins"
 	"antennae.space/ide/pod/projects"
 	"antennae.space/ide/pod/runtime"
@@ -99,6 +100,9 @@ func (s *Server) pluginGit(ctx context.Context, rt *runtime.Runtime, e plugins.E
 	a, err := bind[struct {
 		Args []string `json:"args"`
 		Dir  string   `json:"dir"`
+		// AnyExit: the output and the exit code whatever it is (git diff --no-index exits 1 on a
+		// difference), an error only when git could not run.
+		AnyExit bool `json:"anyExit"`
 	}](params)
 	if err != nil {
 		return nil, err
@@ -119,14 +123,17 @@ func (s *Server) pluginGit(ctx context.Context, rt *runtime.Runtime, e plugins.E
 		return nil, i18n.New("gh is not installed")
 	}
 	out, err := rt.Runner.Output(ctx, append([]string{prog}, a.Args...), dir)
+	exit := 0
 	if err != nil {
-		return nil, err
+		if exit = execx.ExitCode(err); !a.AnyExit || exit < 0 {
+			return nil, err
+		}
 	}
 	truncated := len(out) > maxExecOutput
 	if truncated {
 		out = out[:maxExecOutput]
 	}
-	return map[string]any{"output": string(out), "truncated": truncated}, nil
+	return map[string]any{"output": string(out), "truncated": truncated, "exit": exit}, nil
 }
 
 // pluginWorktree runs the core calls of the worktree projects (grant worktrees):

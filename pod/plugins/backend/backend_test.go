@@ -81,7 +81,11 @@ func fake() {
 func start(t *testing.T, core func(context.Context, string, json.RawMessage) (any, error), emit func(string, json.RawMessage)) *Process {
 	t.Helper()
 	exe, _ := os.Executable()
-	p, err := Start(context.Background(), Config{Argv: []string{exe}, Env: []string{"BACKEND_FAKE=1"}, Log: io.Discard, Init: map[string]any{"plugin": "greet"}, Core: core, Emit: emit})
+	p, err := Start(context.Background(), Config{Argv: []string{exe}, Env: []string{"BACKEND_FAKE=1"}, Log: io.Discard, Init: map[string]any{"plugin": "greet"}, Core: core, Emit: func(e string, d json.RawMessage, _ bool) {
+		if emit != nil {
+			emit(e, d)
+		}
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
