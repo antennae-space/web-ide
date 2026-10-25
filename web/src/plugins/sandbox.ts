@@ -6,6 +6,7 @@ import { on, request } from '../pod/rpc'
 import { openFile, openTab, mutate, type TabState } from '../state/project'
 import { toast } from '../ui/toast'
 import { copyText } from '../ui/clipboard'
+import { capability } from './capabilities'
 import { lang, t } from '../i18n'
 import type { FrameCall, PageMessage, SandboxEditorState, SandboxTheme } from './sandbox-api'
 
@@ -49,6 +50,7 @@ export const bootstrap = `(() => {
     setViewState: (state) => send({ call: 'setViewState', state: plain(state) }),
     toast: (text, kind) => send({ call: 'toast', text: String(text), kind }),
     copyText: (text) => send({ call: 'copyText', text: String(text) }),
+    showConsole: (id) => send({ call: 'showConsole', id: String(id) }),
     t: (k, p) => fill((info && info.catalog && info.catalog[k]) || k.slice(k.indexOf('|') + 1), p),
     tn: (n, one, other, p) => ide.t(n === 1 ? one : other, { n, ...p }),
     onTheme: (f) => themeFns.push(f),
@@ -239,6 +241,19 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       }
       case 'toast':
         toast(String(m.text ?? '').slice(0, 500), m.kind && ['info', 'warn', 'error', 'ok'].includes(m.kind) ? m.kind : 'info')
+        return
+      case 'showConsole':
+        // Only a console the IDE lists (the frame cannot make one up), once console.created came.
+        if (typeof m.id === 'string') {
+          const id = m.id
+          const until = Date.now() + 3000
+          const tryShow = () => {
+            const term = capability('terminal')
+            if (term?.consoles().some((c) => c.id === id)) term.show(id)
+            else if (Date.now() < until) setTimeout(tryShow, 100)
+          }
+          tryShow()
+        }
         return
       case 'copyText':
         // Only while the user is in the frame, as the keys: a plugin cannot fill the clipboard on its own.

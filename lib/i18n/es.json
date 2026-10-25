@@ -244,5 +244,8 @@
   "invalid target %q": "destino no válido %q",
   "no folder found for %s (%s)": "no se encontró ninguna carpeta para %s (%s)",
   "%s is not installed (not found on the PATH)": "%s no está instalado (no está en el PATH)",
-  "the folder %s of %s is refused: it holds the home, the data of the IDE or the SSH keys": "la carpeta %s de %s se rechaza: contiene la carpeta personal, los datos del IDE o las claves SSH"
+  "the folder %s of %s is refused: it holds the home, the data of the IDE or the SSH keys": "la carpeta %s de %s se rechaza: contiene la carpeta personal, los datos del IDE o las claves SSH",
+  "DOCKER_HOST %s is not a unix socket": "DOCKER_HOST %s no es un socket unix",
+  "unknown socket: %s": "socket desconocido: %s",
+  "Docker does not answer on %s: %v": "Docker no responde en %s: %v"
 }

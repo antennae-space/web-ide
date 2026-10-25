@@ -32,7 +32,7 @@ ide.register({
       try { void parent.document.title; out.parent = 'open' } catch { out.parent = 'blocked' }
       try { await ide.rpc('fs.list', { path: '' }); out.rpc = 'answered' } catch (e) { out.rpc = 'refused: ' + e.message }
       el.innerHTML = '<p id="hello">' + ide.t('Hello from the frame') + '</p><pre id="checks">' + JSON.stringify(out) + '</pre><button id="open">open</button><button id="view">view</button>'
-      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><button id="targets">targets</button><button id="settings">settings</button><button id="console">console</button><pre id="answer"></pre><pre id="event"></pre>'
+      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><button id="targets">targets</button><button id="settings">settings</button><button id="console">console</button><button id="docker">docker</button><button id="terminal">terminal</button><button id="size">size</button><pre id="answer"></pre><pre id="event"></pre>'
       const show = (p) => p.then((r) => (el.querySelector('#answer').textContent = typeof r === 'string' ? r : JSON.stringify(r)), (e) => (el.querySelector('#answer').textContent = 'error: ' + e.message))
       ide.on('greet.said', (d) => (el.querySelector('#event').textContent = d))
       el.querySelector('#backend').onclick = () => show(ide.rpc('greet.hello'))
@@ -43,6 +43,9 @@ ide.register({
       el.querySelector('#targets').onclick = () => show(ide.rpc('greet.targets'))
       el.querySelector('#settings').onclick = () => show(ide.rpc('greet.settings'))
       el.querySelector('#console').onclick = () => ide.openView('console', {}, 'Console')
+      el.querySelector('#docker').onclick = () => show(ide.rpc('greet.docker'))
+      el.querySelector('#size').onclick = () => show(ide.rpc('greet.size'))
+      el.querySelector('#terminal').onclick = () => show(ide.rpc('greet.terminal').then((id) => (ide.showConsole(id), id)))
       el.querySelector('#list').onclick = () => show(ide.rpc('fs.list', { path: '' }).then(() => 'answered'))
       el.querySelector('#open').onclick = () => ide.openFile('notes.txt')
       el.querySelector('#view').onclick = () => ide.openView('note', { text: 'kept' }, 'Note')
@@ -383,6 +386,45 @@ run(async ({ page, errors }) => {
   await closeSettings()
   r = await mcp('greet_write', { conn: 'main' })
   assert(r.result?.content?.[0]?.text === '"written main"' && !(await page.$(modal)), 'allowed: ' + JSON.stringify(r))
+
+  // The bricks of Docker (#147): the Docker socket opened by the pod (as much as root, said so);
+  // a console of the core fed by the backend.
+  release('1.4.0', {
+    ide: '^1.0',
+    permissions: ['files:read', 'net', 'core:fs.list', 'dial', 'vault', 'socket:docker', 'terminal'],
+    contributes: { ...contributes, tabViews: [...contributes.tabViews, { id: 'console', label: 'Console', editor: { lang: 'sql', keys: { 'Ctrl+Enter': 'run' } } }] },
+  })
+  await openSettings()
+  await page.click('[data-testid=plugin-update-greet]')
+  await page.waitForSelector('.plugin-grants')
+  const docker = await page.textContent('.plugin-grants')
+  assert(docker.includes('as much as root'), 'the Docker grant says what it is worth: ' + docker)
+  await page.check('[data-testid="plugin-grant-socket:docker"]')
+  await page.check('[data-testid=plugin-grant-terminal]')
+  await page.click('[data-testid=plugin-grants-accept]')
+  await page.waitForFunction(() => document.querySelector('.plugin-row[data-plugin=greet]')?.textContent.includes('1.4.0'))
+  await closeSettings()
+  await showGreet()
+  let dockerUp = true
+  try {
+    execFileSync('docker', ['version', '--format', '{{.Server.APIVersion}}'], { stdio: 'ignore' })
+  } catch {
+    dockerUp = false
+  }
+  got = await answer('docker')
+  if (dockerUp) assert(got.startsWith('docker api '), 'the engine answers through the socket the pod opened: ' + got)
+  else assert(got.includes('Docker does not answer'), 'no Docker here: ' + got)
+  got = await answer('terminal')
+  assert(/^[0-9a-f]+$/.test(got), 'a console opened: ' + got)
+  await page.waitForFunction(() => [...document.querySelectorAll('.xterm-rows')].some((r) => r.textContent.includes('greet>')), null, { timeout: 15000 })
+  await page.click('.xterm:has-text("greet>")')
+  await page.keyboard.type('hello')
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => [...document.querySelectorAll('.xterm-rows')].some((r) => r.textContent.includes('HELLO')))
+  assert(true, 'the console of the core shows what the backend writes, and gives it what is typed')
+  await showGreet()
+  got = await answer('size')
+  assert(/^\d+x\d+$/.test(got), 'its size reached the backend: ' + got)
 
   echo.close()
   server.close()
