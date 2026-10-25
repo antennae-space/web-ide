@@ -307,7 +307,7 @@ Decided on 2026-10-24 (milestone *Plugins, phase 4*). Phase 3 proved that an ext
 | Database (`plugins/database`, removed in #144) | [plugin-database](https://github.com/antennae-space/plugin-database), external and official (#144, done) | a tool with a UI, a backend, secrets and AI tools: the full API |
 | Docker (`plugins/docker`, removed in #148) | [plugin-docker](https://github.com/antennae-space/plugin-docker), external and official (#148, done) | a backend reaching a socket of the system, a terminal fed by a plugin |
 | Languages (`plugins/languages`) | stays built-in: the **language host** | the LSP client, Problems, Structure, the Symbols provider |
-| The servers of `Defaults` (`plugins/languages/internal/lsp/lsp.go`), the grammars (`web/src/editor/grammars`) | **language packs**, external, one per language: `lang-go` (#146, done), `lang-php`, `lang-python`, `lang-typescript` | data and a server to run, no UI |
+| The servers of `Defaults` (`plugins/languages/internal/lsp/lsp.go`, removed in #149), the grammars (`web/src/editor/grammars`) | **language packs**, external, one per language: `lang-go` (#146), `lang-php`, `lang-python`, `lang-typescript` (#149), all done | data and a server to run, no UI |
 | AI (`plugins/ai`) | stays built-in | it reads the kanban, runs the tools of the other plugins, calls the windows (`ui.call`), runs the ACP agents, which cannot run confined |
 
 Explorer, Editor and the consoles stay core and locked (decision 6). Later, on the same model: a **debug host** (a DAP client, built-in) fed by the packs' debug adapters, `plugin-adb`.
@@ -341,6 +341,8 @@ Done in #145:
 - Settings words the grants (*Run gopls (a language server, confined)*, *Use the folder GOMODCACHE of this machine*); an official pack gets them without asking.
 
 Done in #146: [lang-go](https://github.com/antennae-space/lang-go), the first pack, official: the Go grammar of the editor (as data), gopls with `GOROOT` (its `bin` on the server's `PATH`) and `GOMODCACHE` granted read only, `GOTOOLCHAIN=local` and `GOPROXY=off` (it has no network: no toolchain nor module download), the test pattern `{name}_test.go`. Go left the core: `lsp.Defaults`, the extension mappings of the pod and the page, the built-in grammar, the test pattern of `runtime/related.go`. Two additions for it: a candidate `@<program>/rest`, the real path of a program found on the host's `PATH` (`@go/../..` is the `GOROOT` of the `go` there), still without running it; `servers[].env`, literal variables (not `PATH`, `HOME`, `TMPDIR`).
+
+Done in #149: [lang-php](https://github.com/antennae-space/lang-php) (intelephense, then phpactor), [lang-python](https://github.com/antennae-space/lang-python) (pyright, basedpyright, then pylsp) and [lang-typescript](https://github.com/antennae-space/lang-typescript) (typescript-language-server, two languages, `typescript` and `javascript`, each its grammar and its server instance), official. The core now knows no language server (`lsp.Defaults` gone, nor any extension mapping of the pod or the page) and keeps the grammars a project needs without any pack: plain text, Markdown, JSON, YAML, shell, CSS, HTML, SQL and Redis (the Database consoles), nginx. Their test names (`test_{name}.py`, `{name}Test.php`, `{name}.spec.ts`) are the packs'; the core keeps the usual `{name}Test`, `{name}_test`, `{name}.test`. A server that is a script runs with its interpreter and its package granted (`NODE` = `@node/../..`, the package from the real path of the program, a venv from `@pylsp/../..`); a candidate refused (one holding the home) now leaves the next one a chance. Tested by the e2e suite `langpacks` with intelephense, pyright, pylsp and typescript-language-server installed by npm and pip.
 
 A **project template** is a contribution of a pack: a raw one is data (files and a `.ide` filled in), a framework one (Symfony, Angular, Android…) names the commands that create it, which the core runs in a console the user sees, after the user agrees; the confined backend never runs them itself. Templates planned: PHP (raw, Symfony), JavaScript/TypeScript (raw, Angular, Vue), Java (raw, Android), Go, Rust, Python, C, C#.
 
@@ -419,7 +421,7 @@ Done in #143. A backend cannot open the network itself without the broad grant `
 3. The bricks of the database: the backend side (connections opened by the pod, SSH tunnels, vault entries: #143), the view side (the core editor in a plugin tab, the settings of a plugin, actions with an AI policy: #151, done); then `plugin-database` and `plugins/database` removed (#144).
 4. The pack contributions of the language host, then `lang-go`, the servers and grammar of Go removed from the core.
 5. The bricks of Docker (the socket passed by the pod, a core terminal fed by a plugin: #147), then `plugin-docker` and `plugins/docker` removed (#148).
-6. The other packs: `lang-php`, `lang-python`, `lang-typescript`.
+6. The other packs: `lang-php`, `lang-python`, `lang-typescript` (#149).
 7. Project templates; then the debug host, then `plugin-adb`, when there is time.
 
 ## Open questions

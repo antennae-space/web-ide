@@ -28,5 +28,35 @@
       "linux-amd64": "4a316d38bb105e4c454213f2bcd27939b45caee226c667749b5c58c45cd6a58b",
       "linux-arm64": "69160f2ea103ff59145b1ee2ac5a81ecf60ef1321465538c082a5a730e26290d"
     }
+  },
+  {
+    "id": "lang-php",
+    "url": "https://github.com/antennae-space/lang-php",
+    "constraint": "^1",
+    "version": "1.0.0",
+    "sha256": {
+      "linux-amd64": "889e2c39ee120d8e870c0180f034afbcabf092a2b97f4df693f0c5734f76748b",
+      "linux-arm64": "889e2c39ee120d8e870c0180f034afbcabf092a2b97f4df693f0c5734f76748b"
+    }
+  },
+  {
+    "id": "lang-python",
+    "url": "https://github.com/antennae-space/lang-python",
+    "constraint": "^1",
+    "version": "1.0.0",
+    "sha256": {
+      "linux-amd64": "f17613093bfaca030b89a4fae632bfd89efd568f69c09b43843f23ec73259f91",
+      "linux-arm64": "f17613093bfaca030b89a4fae632bfd89efd568f69c09b43843f23ec73259f91"
+    }
+  },
+  {
+    "id": "lang-typescript",
+    "url": "https://github.com/antennae-space/lang-typescript",
+    "constraint": "^1",
+    "version": "1.0.0",
+    "sha256": {
+      "linux-amd64": "9ffc78cf81ba1cc90ec4c5dfae3c1e7436c05b3f468e9a2e1f5db294a44c01de",
+      "linux-arm64": "9ffc78cf81ba1cc90ec4c5dfae3c1e7436c05b3f468e9a2e1f5db294a44c01de"
+    }
   }
 ]

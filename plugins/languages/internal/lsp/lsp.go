@@ -48,26 +48,9 @@ func PackSpec(pl plugins.PackLanguage) Spec {
 	return s
 }
 
-// Packs gives the specs of the languages of the installed packs (set by the plugin), which
-// win over a default of the same language.
+// Packs gives the specs of the languages of the installed packs (set by the plugin): every
+// language and its servers come from a pack (#146, #149), the core knows none.
 var Packs = func() []Spec { return nil }
-
-// specs are the defaults and the packs' (all of them, or those of a project).
-func specs(packs []Spec) []Spec {
-	out := slices.Clone(packs)
-	for _, d := range Defaults {
-		if !slices.ContainsFunc(packs, func(p Spec) bool { return p.Lang == d.Lang }) {
-			out = append(out, d)
-		}
-	}
-	return out
-}
-
-var Defaults = []Spec{
-	{Lang: "php", Candidates: [][]string{{"intelephense", "--stdio"}, {"phpactor", "language-server"}}, Markers: []string{"composer.json"}, Exts: []string{".php", ".phtml"}},
-	{Lang: "python", Candidates: [][]string{{"pyright-langserver", "--stdio"}, {"basedpyright-langserver", "--stdio"}, {"pylsp"}}, Markers: []string{"pyproject.toml", "setup.py", "requirements.txt", "Pipfile"}, Exts: []string{".py", ".pyi"}},
-	{Lang: "typescript", Candidates: [][]string{{"typescript-language-server", "--stdio"}}, Markers: []string{"package.json", "tsconfig.json", "jsconfig.json"}, Exts: []string{".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts"}},
-}
 
 // LanguageID is the language id of a document for textDocument/didOpen.
 func LanguageID(p string) string {
@@ -80,27 +63,13 @@ func LanguageID(p string) string {
 			return s.Lang
 		}
 	}
-	switch ext {
-	case ".php", ".phtml":
-		return "php"
-	case ".py", ".pyi":
-		return "python"
-	case ".ts", ".mts", ".cts":
-		return "typescript"
-	case ".tsx":
-		return "typescriptreact"
-	case ".jsx":
-		return "javascriptreact"
-	case ".js", ".mjs", ".cjs":
-		return "javascript"
-	}
 	return "plaintext"
 }
 
 // LangOf returns the server language handling a file, from its extension.
 func LangOf(p string) string {
 	ext := strings.ToLower(path.Ext(p))
-	for _, s := range specs(Packs()) {
+	for _, s := range Packs() {
 		for _, e := range s.Exts {
 			if e == ext {
 				return s.Lang
@@ -163,9 +132,9 @@ func (m *Manager) UsePacks(packs func() []Spec, command func(pack string, sv plu
 
 func (m *Manager) specs() []Spec {
 	if m.packs == nil {
-		return Defaults
+		return nil
 	}
-	return specs(m.packs())
+	return m.packs()
 }
 
 func (m *Manager) spec(lang string) (Spec, bool) {
@@ -194,13 +163,6 @@ func (m *Manager) command(lang string) []string {
 				continue
 			}
 			if c, err := m.packCommand(s.Pack, sv); err == nil {
-				cmd = c
-				break
-			}
-		}
-	} else if ok {
-		for _, c := range s.Candidates {
-			if m.runner.Has(c[0]) {
 				cmd = c
 				break
 			}
