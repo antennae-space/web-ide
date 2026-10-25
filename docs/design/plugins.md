@@ -1,6 +1,6 @@
 # Plugins
 
-Status: **phases 1, 2 and 3 done, phase 4 decided** (2026-10-24, [Phase 4](#phase-4-official-external-plugins): Database, Docker and the languages become external plugins). Milestone *Plugins, phase 1*: the core of the plugin system (#113), then Docker (#114) and the database (#115) moved onto it, all built-in, one lineage. The core is in place (#113), and Docker (#114) and the Database explorer (#115) are plugins: phase 1 is done. Whether Git, the editor, the kanban and the assistant become plugins too is decided after Docker (see [Decisions](#decisions)). The direction was explored on 2026-10-16.
+Status: **phases 1 to 3 done, phase 4 developed, phase 5 decided** (2026-10-24, [Phase 4](#phase-4-official-external-plugins): Database, Docker and the languages become external plugins; 2026-10-25, [Phase 5](#phase-5-the-kanban-and-the-ai-external): the Kanban, the Agents tool, the assistant and the doodle). Milestone *Plugins, phase 1*: the core of the plugin system (#113), then Docker (#114) and the database (#115) moved onto it, all built-in, one lineage. The core is in place (#113), and Docker (#114) and the Database explorer (#115) are plugins: phase 1 is done. Whether Git, the editor, the kanban and the assistant become plugins too is decided after Docker (see [Decisions](#decisions)). The direction was explored on 2026-10-16.
 
 ## Vision
 
@@ -308,7 +308,7 @@ Decided on 2026-10-24 (milestone *Plugins, phase 4*). Phase 3 proved that an ext
 | Docker (`plugins/docker`, removed in #148) | [plugin-docker](https://github.com/antennae-space/plugin-docker), external and official (#148, done) | a backend reaching a socket of the system, a terminal fed by a plugin |
 | Languages (`plugins/languages`) | stays built-in: the **language host** | the LSP client, Problems, Structure, the Symbols provider |
 | The servers of `Defaults` (`plugins/languages/internal/lsp/lsp.go`, removed in #149), the grammars (`web/src/editor/grammars`) | **language packs**, external, one per language: `lang-go` (#146), `lang-php`, `lang-python`, `lang-typescript` (#149), all done | data and a server to run, no UI |
-| AI (`plugins/ai`) | stays built-in | it reads the kanban, runs the tools of the other plugins, calls the windows (`ui.call`), runs the ACP agents, which cannot run confined |
+| AI (`plugins/ai`) | stays built-in in phase 4; external in [phase 5](#phase-5-the-kanban-and-the-ai-external) | it reads the kanban, runs the tools of the other plugins, calls the windows (`ui.call`), runs the ACP agents, which cannot run confined: phase 5 has the core run them |
 
 Explorer, Editor and the consoles stay core and locked (decision 6). Later, on the same model: a **debug host** (a DAP client, built-in) fed by the packs' debug adapters, `plugin-adb`.
 
@@ -427,6 +427,73 @@ Done in #143. A backend cannot open the network itself without the broad grant `
 5. The bricks of Docker (the socket passed by the pod, a core terminal fed by a plugin: #147), then `plugin-docker` and `plugins/docker` removed (#148).
 6. The other packs: `lang-php`, `lang-python`, `lang-typescript` (#149).
 7. Project templates; then the debug host, then `plugin-adb`, when there is time.
+
+## Phase 5: the Kanban and the AI external
+
+Decided on 2026-10-25 (milestone *Plugins, phase 5*). The Kanban and the AI leave the repository too, the AI as three plugins: the Agents tool, the assistant, and the doodle they share. Each becomes official, external and confined; what they lack becomes API, open to every external plugin.
+
+### What leaves
+
+| Today | Phase 5 | Provides |
+|---|---|---|
+| Kanban (`plugins/kanban`) | [plugin-kanban](https://github.com/antennae-space/plugin-kanban), id `kanban` | `tickets` |
+| The Agents tool (`plugins/ai/acp`, `plugins/ai/web/agents`) | [plugin-acp-agents](https://github.com/antennae-space/plugin-acp-agents), id `acp-agents`, its tool `agents` | `agents`, `threads` |
+| The assistant (the rest of `plugins/ai`) | [plugin-assistant](https://github.com/antennae-space/plugin-assistant), id `assistant` | `assistant`, `threads` |
+| The doodle (`plugins/ai/web/llm/doodle`, `request_doodle`) | [plugin-doodle](https://github.com/antennae-space/plugin-doodle), id `doodle` | `doodle` |
+| The transcription (`plugins/ai/web/llm/whisper.worker.ts`) | stays in the core, a service offered to the plugins | |
+
+Each can be disabled on its own: a project using Claude Code only loads no assistant. The ids of the tools (`kanban`, `assistant`, `agents`) do not change, so the desks and the tabs need no migration but the plugin's id of their views.
+
+### How they run, decided on 2026-10-25
+
+- **What cannot run confined is run by the core**, on a grant the user sees at the install, never by an unconfined plugin (official still means trusted to be installed, not to run unconfined):
+  - `agent:<name>`: the core starts the ACP agent of the catalog in the keeper (so a session outlives a restart of the pod), unconfined as today, with the MCP server of the IDE and its token; the backend speaks ACP over the pipes the core hands it (`dial`'s channel). The agents are installed by the core from the recipes of #153 (`install {manager: npm, packages}`).
+  - `shell`: the core runs a command of the assistant in the project, unconfined, its output streamed to the backend (`runtime.RunShellIn` today); `terminal` stays for the commands shown in a console.
+  - `tools`: the backend lists and runs the assistant tools of the other plugins (`RunAssistantTool`), each refused where its plugin is disabled.
+  - `ui`: a call to the windows of the project (`ui.call`: open a file, a diff, show a message).
+  - Requests kept by the keeper: an HTTP request to a model server sent by the keeper, its answer read back after a restart of the pod (the keeper relay of `llm` today).
+- **The transcription is a service of the core**: `ide.transcribe()` in a frame (grant `microphone`) records and transcribes in the page (Whisper, as today) and gives the text only; a sandboxed frame has neither the microphone nor the network to fetch the model.
+
+### Services between external plugins
+
+Today an external plugin's `provides` are not given to the others. They are, from phase 5:
+
+- **On the pod**: the core call `plugin {id, method, params}` runs a method of another plugin's backend, allowed when the caller `requires` a capability that plugin provides; the callee sees the caller's id. Its events reach the caller's backend when it subscribes (`plugin.on`).
+- **On the page**: a capability of an external plugin is a set of calls and events relayed by the page between frames, and a proxy for the core where it uses one (the ticket of a worktree in the project bar, the `?ticket=` links). A plugin opens another's view and gets its result back (`ide.openModal` of a view of another plugin: the doodle drawn for the assistant).
+- **Links**: `contributes.links [{param, view}]`: `?ticket=12` opens the view `ticket` of the plugin, in place of the core knowing the Kanban.
+
+### What the Kanban adds to the API
+
+- **MCP tools of an external plugin**: `contributes.mcpTools` with their schemas, run by its backend with the scope of the call (the project of the client's folder, its main project, the ticket of its worktree, the public address, the language), as `Host.MCPTool` does for a built-in. The `kanban_*` tools are the Kanban's, `kanban_conversation`, `kanban_reply` and `kanban_answer` included: it reads and answers the thread of a ticket through `threads`, whichever plugin holds it.
+- **Git by the core**: grants `git` (state, branches, changes, patches, merged or not) and `git:write` (worktrees added and removed, branches, merge, a pull request through `gh`), the core calls running `pod/git` in the project; the backend runs no `git` itself (a confined backend cannot reach `~/.gitconfig` nor the keys).
+- **Notifications**: grant `notify`, the core call `notify {kind, path, tag, urgency, texts}` (`Pod.Notify` today), the push notifications of the pod.
+- **Hooks of the project**: the events `project.open` and `worktree.setup` to the backend; the saved commands read and written (`commands.list`, `commands.save`, `commands.start`), so the setup of a worktree stays a saved command.
+- **Statuses**: `viewStatus` of a tab of the plugin's views (a ticket's status, priority and size) given by its frame.
+- **Its data**: `<project>/.ide/kanban.db` stays where it is for a local project (`files:write`); the base of a remote project moves from the pod's store to the plugin's data folder, once.
+
+### Threads
+
+A conversation of the assistant and a session of an agent are both a **thread**, kept and shown the same way:
+
+- **The thread kit of the SDK**: in Go (`plugin-sdk/thread`), one SQLite schema (the messages, their parts: text, thinking, tool call, attachment; the turns and their usage) and the statistics (speeds, the time generating, thinking and in the tools, the failures of the tools, the context and its compactions); in the page, the thread, the message box and the statistics panel. Each plugin keeps its base in its data folder.
+- **The sessions of the agents get the statistics of the assistant**: each `session/update` a part of the base, the speeds measured on the streamed chunks (the agents give no time of pure generation), the context from what the agent reports (input and cache read of the last turn; a percentage only when the agent gives the size of its window), the time of a tool from its `tool_call` to its last `tool_call_update`. The files of the sessions of today are imported at the first start; the prices (`prices.json`) and the statistics of a ticket go with the Agents.
+- **The capability `threads`**, given by both: list, read, send, answer a question; the Kanban and its MCP tools see no difference between a conversation and a session.
+- **Questions** (#156): `contributes.questions` opens the Questions tool to an external source (`ask_user` of the assistant, the permissions of an agent), its backend listing and answering them (`Host.Questions` today).
+
+### Settings pages
+
+`contributes.settingsPages [{id, label, icon?}]`: a view of the plugin drawn by the core in the right column of Settings, with its entry in the side bar, titled with the plugin's name, its frame living while the page is open. `contributes.settings` stays for simple values. The models of the assistant are its settings page; their API keys are its entries of the vault (`vault`), synced as today.
+
+### Steps
+
+1. Services between external plugins and links (#155); their MCP tools, questions, notifications, hooks of the project (#156).
+2. Git by the core, statuses of the tabs, the kit's missing pieces (#157); then `plugin-kanban`, `plugins/kanban` removed (#158).
+3. The thread kit of the SDK, Go and page (#159).
+4. Settings pages of the plugins (#160).
+5. The transcription as a service of the core (#161).
+6. `plugin-doodle` (#162).
+7. The agents run by the core, `agent:<name>` (#163), then `plugin-acp-agents`, its sessions in the thread base with the statistics (#164).
+8. `shell`, `tools`, `ui`, the requests kept by the keeper (#165); then `plugin-assistant`, `plugins/ai` removed (#166).
 
 ## Open questions
 

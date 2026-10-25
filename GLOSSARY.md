@@ -193,6 +193,9 @@ _Avoid_: language plugin, language extension
 What a new project starts from, given by a language pack: files and a `.ide` filled in, or the commands of a framework that the core runs in a console the user sees.
 _Avoid_: skeleton, boilerplate, scaffold
 
+**Settings page** ([plugins](docs/design/plugins.md#settings-pages))
+A view of a plugin drawn by the core as a page of Settings, with its entry in the side bar; for what simple values (`contributes.settings`) cannot hold, like the models of the assistant.
+
 **AI access** ([plugins](docs/design/plugins.md#editor-tabs-settings-and-actions))
 What the AI may do with a plugin's actions that change something, per target (a connection): read only (the default), ask the user, or allowed; set by the user in Settings → Plugins, never by the plugin.
 _Avoid_: AI permission (a grant is the plugin's), AI policy (in UI texts)
@@ -245,6 +248,10 @@ _Avoid_: chat, session
 **Session**
 A run of an agent, from its start to its end, with its thread.
 _Avoid_: conversation; for the state of a desk
+
+**Thread** ([plugins](docs/design/plugins.md#threads))
+The messages of a conversation or of a session, their parts (text, thinking, tool calls, attachments) and their usage, kept in one SQLite schema of the plugin SDK and shown by its thread kit; the capability `threads` lists, reads and answers them, whichever plugin holds them.
+_Avoid_: chat, history
 
 **Mode**
 How the assistant works in a conversation: Orchestrator, Build, Plan, Briefing.
