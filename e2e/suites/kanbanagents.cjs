@@ -73,6 +73,7 @@ run(async ({ page }) => {
   await kp.click('[data-testid=ticket-more]')
   await kp.click(':is(.ctx-menu, .ide-menu) button:has-text("Abandon the ticket")')
   await kp.click('.modal-small button[type=submit]')
+
   await kp.waitForSelector('[data-testid=ticket-status]:has-text("Abandoned")', { timeout: 15000 })
   const left = fs.readdirSync(process.env.E2E_DATA + '/agents').filter((d) => d.endsWith('-t1'))
   assert(left.length === 0, 'the sessions of the worktree are removed: ' + left)

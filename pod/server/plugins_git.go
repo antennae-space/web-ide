@@ -85,6 +85,11 @@ func checkGitArgs(args []string) error {
 // its worktrees (.ide/worktrees/<name>).
 func (s *Server) projectDir(rt *runtime.Runtime, dir string) (string, *projects.Project, error) {
 	root, err := s.Projects.Root(rt.P.ID)
+	if err != nil && rt.P.Parent != "" {
+		// The project of a worktree just removed (its runtime closes a moment later): its main
+		// project's.
+		root, err = s.Projects.Root(rt.P.Parent)
+	}
 	if err != nil {
 		return "", nil, err
 	}
@@ -195,7 +200,16 @@ func (s *Server) pluginWorktree(ctx context.Context, rt *runtime.Runtime, e plug
 	case "worktree.unregister":
 		child := projects.ChildID(root.ID, a.Owner)
 		if _, ok := s.Projects.Get(child); ok {
-			s.closeRuntime(child)
+			if child == rt.P.ID {
+				// Asked by the backend of that worktree (its window shows it): its runtime, the
+				// backend with it, closes once the call that asked has answered.
+				go func() {
+					time.Sleep(3 * time.Second)
+					s.closeRuntime(child)
+				}()
+			} else {
+				s.closeRuntime(child)
+			}
 			_ = s.Projects.Delete(child)
 			s.Desks.Delete(child)
 			s.broadcast("projects.changed", nil, nil)
