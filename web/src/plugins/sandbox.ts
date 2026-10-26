@@ -298,7 +298,10 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   // follows (a pick, then the text of its choice) is the same action of the user, whose focus
   // went elsewhere.
   let dialogDone = 0
-  const userAct = async () => Date.now() - dialogDone < 2000 || (await userInSoon(frame))
+  // When the page last asked it a service on a click of the user (a card of the assistant
+  // starting a ticket in the Kanban's background frame): the dialogs of that work are the user's.
+  let askedByUser = 0
+  const userAct = async () => Date.now() - dialogDone < 2000 || Date.now() - askedByUser < 10000 || (await userInSoon(frame))
   // What the page asked the frame for another plugin (a method of a capability it serves).
   const asked = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   let nextAsk = 1
@@ -389,7 +392,9 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
             dialogDone = Date.now()
             reply(m.id, { result })
           }
-          const title = `${host.name} · ${clip(m.confirm?.title ?? m.prompt?.title ?? m.pick?.title, 200)}`
+          const own = clip(m.confirm?.title ?? m.prompt?.title ?? m.pick?.title, 200)
+          // Titled with the plugin's name, once when the dialog's title is that name or none.
+          const title = !own || own === host.name ? host.name : `${host.name} · ${own}`
           if (m.confirm) {
             void confirmModal({ title, text: clip(m.confirm.text, 2000), ok: clip(m.confirm.ok, 60) || undefined, danger: !!m.confirm.danger }).then(answered)
           } else if (m.prompt) {
@@ -590,6 +595,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         if (!port) return reject(new Error(t('{name} is not ready', { name: host.name })))
         const id = nextAsk++
         asked.set(id, { resolve, reject })
+        if (navigator.userActivation?.isActive) askedByUser = Date.now()
         send({ serviceRequest: id, capability, method, args: JSON.parse(JSON.stringify(args)) })
       }),
     stop: () => {

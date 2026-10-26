@@ -53,7 +53,7 @@ ide.register({
       el.querySelector('#confirm').onclick = () => show(ide.confirm({ title: 'Delete?', text: 'Delete the greeting?', danger: true }).then(String))
       el.querySelector('#prompt').onclick = () => show(ide.prompt({ title: 'Name', label: 'Your name' }).then(String))
       el.querySelector('#pick').onclick = () => show(ide.pick({ title: 'Pick one', items: [{ label: 'first' }, { label: 'second' }] }).then(String))
-      el.querySelector('#later').onclick = () => setTimeout(() => show(ide.confirm({ title: 'Later', text: 'asked later' }).then(String)), 1500)
+      el.querySelector('#later').onclick = () => setTimeout(() => show(ide.confirm({ title: 'Later', text: 'asked later' }).then(String)), 3000)
       el.querySelector('#modal').onclick = () => show(ide.openModal('form', { name: 'Ada' }, { size: 'small' }).then((r) => JSON.stringify(r)))
       el.querySelector('#list').onclick = () => show(ide.rpc('fs.list', { path: '' }).then(() => 'answered'))
       el.querySelector('#open').onclick = () => ide.openFile('notes.txt')
