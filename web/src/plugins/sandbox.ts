@@ -294,8 +294,9 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   // A frame moved in the page loads again: each load gets a new channel.
   let port: MessagePort | undefined
   let offs: (() => void)[] = []
-  // When its last dialog was answered: a dialog that follows (a pick, then the text of its
-  // choice) is the same action of the user, whose focus went to the first.
+  // When its last dialog was answered, or a choice of its status items made: a dialog that
+  // follows (a pick, then the text of its choice) is the same action of the user, whose focus
+  // went elsewhere.
   let dialogDone = 0
   const userAct = async () => Date.now() - dialogDone < 2000 || (await userInSoon(frame))
   // What the page asked the frame for another plugin (a method of a capability it serves).
@@ -532,7 +533,10 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         m satisfies never
     }
   }
-  const send = (m: PageMessage) => port?.postMessage(m)
+  const send = (m: PageMessage) => {
+    if ('status' in m) dialogDone = Date.now()
+    port?.postMessage(m)
+  }
   // The theme, and the room of the buttons over its corner (headInset), last sent.
   let inset = ''
   const theme = (): SandboxTheme => {

@@ -77,7 +77,7 @@ run(async ({ page }) => {
   // Everything done: the user validates the milestone.
   await kp.click('[data-testid=milestone-feedback-link]')
   await kp.waitForSelector('[data-testid=ticket-view] .tk-num:has-text("#2")')
-  await kp.click('.pane.active [data-testid=ticket-more]')
+  await kp.click('[data-testid=ticket-more]')
   await kp.click(':is(.ctx-menu, .ide-menu) button:has-text("Delete the ticket")')
   await kp.click('.pane .tab:has-text("Exports")')
   await kp.waitForSelector('[data-testid=milestone-progress]:has-text("1/1")')
