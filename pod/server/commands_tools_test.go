@@ -23,19 +23,10 @@ func TestSavedCommandsForModels(t *testing.T) {
 	id := a.call("projects.create", map[string]any{"type": "local", "path": dir})["result"].(map[string]any)["id"].(string)
 	a.call("project.open", map[string]any{"id": id})
 
-	// The setup command of the kanban settings (an older project) becomes a setup command, once,
-	// when the project opens.
-	a.call("kanban.meta.set", map[string]any{"values": map[string]string{"setup": "npm ci"}})
-	a.call("project.open", map[string]any{"id": id})
+	a.call("commands.save", map[string]any{"commands": []map[string]any{{"name": "Worktree setup", "command": "npm ci", "flag": "setup"}}})
 	l := a.call("commands.list", nil)["result"].(map[string]any)["commands"].([]any)
-	if len(l) != 1 || l[0].(map[string]any)["flag"] != "setup" || l[0].(map[string]any)["command"] != "npm ci" {
-		t.Fatalf("migrated: %+v", l)
-	}
-	if m := a.call("kanban.list", nil)["result"].(map[string]any)["meta"].(map[string]any); m["setup"] != "" {
-		t.Fatalf("meta: %+v", m)
-	}
-	if l := a.call("commands.list", nil)["result"].(map[string]any)["commands"].([]any); len(l) != 1 {
-		t.Fatalf("migrated twice: %+v", l)
+	if len(l) != 1 || l[0].(map[string]any)["flag"] != "setup" {
+		t.Fatalf("setup: %+v", l)
 	}
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

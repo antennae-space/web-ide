@@ -297,7 +297,7 @@ A named feature a plugin or the core provides and others require (`terminal`, `w
 _Avoid_: service (an HTTP service shared between pods), dependency (a ticket waiting for another)
 
 **Bridge** ([plugins](docs/design/plugins.md#bridges))
-The core's code exposing a reviewed part of a capability a built-in provides (the consoles, the assistant, the agents) to the external plugins requiring it, on the grant `use:<capability>`.
+The core's code exposing a reviewed part of a capability a built-in provides (the consoles, the assistant, the agents, the saved commands) to the external plugins requiring or using it, on the grant `use:<capability>`.
 
 **Background frame** ([plugins](docs/design/plugins.md#services-between-external-plugins))
 The hidden frame of an external plugin: it runs its commands and serves the capabilities it provides to the frames of the other plugins.

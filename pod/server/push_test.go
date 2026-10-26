@@ -102,19 +102,10 @@ func TestPushNotifications(t *testing.T) {
 	a.call("commands.run", map[string]any{"id": tests})
 	none("the kind is off")
 
-	// Feedback: by the user, nothing; by the assistant, a notification in French for a device
-	// that subscribed in French.
+	// A device subscribed in French (the feedback of the Kanban notifies through notify, #156).
 	a.call("client.lang", map[string]any{"lang": "fr"})
 	a.call("push.subscribe", map[string]any{"device": "dev1", "sub": "sub1", "p256dh": identity.B64u(ua.PublicKey().Bytes()), "auth": identity.B64u(auth)})
-	a.call("kanban.create", map[string]any{"title": "Export"})
-	a.call("kanban.feedback", map[string]any{"id": 1, "feedback": map[string]any{"op": "add", "kind": "info", "text": "mine"}})
-	none("feedback by the user")
 	mc := &mcpClient{t: t, url: ts.URL, token: s.Token}
-	mc.tool("kanban_feedback", map[string]any{"cwd": dir, "id": 1, "action": "add", "kind": "bug", "complexity": "low", "text": "the export fails"})
-	m = read("feedback")
-	if m["title"] != "Retour sur #1 Export" || !strings.HasSuffix(m["body"], "the export fails") || !strings.Contains(m["url"], "ticket%3D1") {
-		t.Fatalf("feedback: %+v", m)
-	}
 
 	// A question of an agent through MCP (Questions tool): the agent asks.
 	done := make(chan string, 1)
