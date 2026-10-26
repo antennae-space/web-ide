@@ -226,9 +226,9 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 // name, and its main project's (the main project of a worktree keeps the data of both: its
 // kanban, its folder for git).
 func (s *Server) backendProject(rt *runtime.Runtime) map[string]any {
-	out := map[string]any{"id": rt.P.ID, "root": rt.Root, "local": rt.Local, "main": mainID(rt), "name": rt.P.Name, "mainRoot": rt.Root, "mainName": rt.P.Name}
+	out := map[string]any{"id": rt.P.ID, "root": rt.Root, "local": rt.Local, "main": mainID(rt), "name": rt.P.Name(), "mainRoot": rt.Root, "mainName": rt.P.Name()}
 	if root, err := s.Projects.Root(rt.P.ID); err == nil && root.ID != rt.P.ID {
-		out["mainRoot"], out["mainName"] = root.Path, root.Name
+		out["mainRoot"], out["mainName"] = root.Path, root.Name()
 	}
 	return out
 }

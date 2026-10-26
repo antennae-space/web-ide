@@ -181,8 +181,8 @@ export interface SandboxAPI {
   showTool(id: string): void
 }
 
-/** The project of the window, as a frame knows it. */
-export type SandboxProject = { id: string; main: string; name: string; root: string; local: boolean }
+/** The project of the window, as a frame knows it, and the address of the IDE (origin: a frame's own is opaque). */
+export type SandboxProject = { id: string; main: string; name: string; root: string; local: boolean; origin: string }
 
 /** What the frame asks the page; `rpc` waits for a `reply` with its `id`. */
 export type FrameCall =

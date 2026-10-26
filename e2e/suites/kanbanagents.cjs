@@ -4,7 +4,7 @@
 // through it); the ticket opens its session; abandoning the ticket ends it.
 const fs = require('fs')
 const { execSync } = require('child_process')
-const { run, openProject, assert, mcp, WS, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, mcp, WS, OUT, installOfficial, acceptConfirms } = require('../common.cjs')
 
 const repo = WS + '/demo'
 const env = { ...process.env, GIT_AUTHOR_NAME: 'e2e', GIT_AUTHOR_EMAIL: 'e2e@x', GIT_COMMITTER_NAME: 'e2e', GIT_COMMITTER_EMAIL: 'e2e@x' }
@@ -16,7 +16,10 @@ git('commit -q -m "initial state"')
 const tab = '[data-testid=agent-tab]'
 
 run(async ({ page }) => {
+  // The Kanban is an external official plugin (#158): its release, or E2E_PLUGIN_KANBAN.
+  await installOfficial('kanban')
   page.on('dialog', (d) => d.accept())
+  acceptConfirms(page)
   await openProject(page)
 
   // Kanban settings: Claude Code develops the tickets.
@@ -66,7 +69,7 @@ run(async ({ page }) => {
   // Abandoning the ticket removes its worktree and ends its session.
   await page.click('.tab:has-text("#1")')
   await page.click('[data-testid=ticket-more]')
-  await page.click('.ctx-menu button:has-text("Abandon the ticket")')
+  await page.click(':is(.ctx-menu, .ide-menu) button:has-text("Abandon the ticket")')
   await page.click('.modal-small button[type=submit]')
   await page.waitForSelector('[data-testid=ticket-status]:has-text("Abandoned")', { timeout: 15000 })
   const left = fs.readdirSync(process.env.E2E_DATA + '/agents').filter((d) => d.endsWith('-t1'))

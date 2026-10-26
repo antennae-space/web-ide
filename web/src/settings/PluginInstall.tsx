@@ -36,6 +36,7 @@ function grantText(g: string): string {
       'use:assistant': t('Start and drive conversations of the assistant'),
       'use:agents': t('Show the sessions of the agents and give them tickets'),
       'use:terminal': t('Run commands in consoles of the IDE (as much as you)'),
+      'use:commands': t('Read the saved commands and open their editor'),
     }[g] ?? g
   )
 }

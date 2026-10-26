@@ -2,7 +2,7 @@
 // kanban_create / kanban_list from any conversation, writing tools only when linked,
 // Briefing mode (tickets created and linked to the conversation).
 const http = require('http')
-const { run, openProject, assert, unfold, OUT, WS } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, unfold, OUT, WS, installOfficial, acceptConfirms } = require('../common.cjs')
 
 const requests = []
 const sse = (res, delta) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`)
@@ -231,8 +231,11 @@ const fake = http.createServer(async (req, res) => {
 })
 
 run(async ({ page }) => {
+  // The Kanban is an external official plugin (#158): its release, or E2E_PLUGIN_KANBAN.
+  await installOfficial('kanban')
   await new Promise((r) => fake.listen(0, '127.0.0.1', r))
   page.on('dialog', (d) => d.accept())
+  acceptConfirms(page)
   try {
     await openProject(page)
     await page.click('.rail-right .rail-btn[title^="Assistant"]')
@@ -240,7 +243,7 @@ run(async ({ page }) => {
     await page.fill('.ai-servers input[name=url]', `127.0.0.1:${fake.address().port}`)
     await page.click('.ai-servers button:has-text("Add")')
     await page.waitForSelector('.ai-server-row:has-text("127.0.0.1")')
-    await page.click('.ai-servers .modal-head button')
+    await page.click('.ai-servers :is(.modal-head, .ide-modal-head) button')
     await page.waitForSelector('[data-testid=model-pill]:has-text("fake-model")')
 
     await page.fill('.ai-composer .ed-content', 'Write down a ticket for the export')

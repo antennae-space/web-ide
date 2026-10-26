@@ -114,7 +114,7 @@ exports.mcp = (name, args = {}) =>
   }).then((r) => r.json())
 
 /** Opens a folded section of the ticket view by its title. */
-exports.unfold = (page, title) => page.click(`.tk-section.folded .tk-section-toggle:has-text("${title}")`)
+exports.unfold = (page, title) => exports.inFrames(page).click(`.tk-section.folded .tk-section-toggle:has-text("${title}")`)
 
 /** Dispatches a two-finger pinch on an element and tells whether the page refused it (the
  * guards of the phone layout). A Touch cannot be built with new Touch() in Chromium. */
@@ -243,4 +243,106 @@ exports.installOfficial = async (ids, before) => {
   const all = () => entries.every((e) => locked(e.id))
   for (let i = 0; i < 100 && !all(); i++) await new Promise((r) => setTimeout(r, 100))
   return typeof ids === 'string' ? locked(ids) : Object.fromEntries(entries.map((e) => [e.id, locked(e.id)]))
+}
+
+/**
+ * The page and its frames as one (#158): a selector is looked for in the page, then in every
+ * frame of it (the views of an external plugin, each a frame), the first that has it answering.
+ * For the suites of a plugin that moved out of the IDE: page.click(sel) becomes
+ * inFrames(page).click(sel); the keyboard, the mouse, goto and reload stay the page's.
+ */
+exports.inFrames = (page) => {
+  const visible = async (h) => h && (await h.isVisible().catch(() => false))
+  // The frames shown: a tab switched to is a new frame, and the one of the tab left goes a moment
+  // later; a frame whose <iframe> left the page, or is hidden, is not looked into.
+  const frames = async () => {
+    const out = [page.mainFrame()]
+    for (const f of page.frames()) {
+      if (f === page.mainFrame() || f.isDetached()) continue
+      const el = await f.frameElement().catch(() => null)
+      if (el && (await el.isVisible().catch(() => false))) out.push(f)
+    }
+    return out
+  }
+  // The frame showing the selector (visible unless asked otherwise), waited for.
+  async function frameOf(sel, opts = {}) {
+    const until = Date.now() + (opts.timeout ?? 30000)
+    for (;;) {
+      for (const f of await frames()) {
+        const h = await f.$(sel).catch(() => null)
+        if (h && (opts.state === 'attached' || (await visible(h)))) return f
+      }
+      if (Date.now() > until) throw new Error(`inFrames: no frame shows ${sel}`)
+      await page.waitForTimeout(100)
+    }
+  }
+  const first = async (sel) => {
+    for (const f of await frames()) if (await f.$(sel).catch(() => null)) return f
+    return null
+  }
+  // What reads an element, or sets the files of a hidden input, needs it present, not shown.
+  const present = ['textContent', 'innerHTML', 'getAttribute', 'isChecked', 'isDisabled', 'isEnabled', 'setInputFiles', 'dispatchEvent', 'inputValue']
+  const delegate = (name) => async (sel, ...args) => (await frameOf(sel, present.includes(name) ? { state: 'attached' } : {}))[name](sel, ...args)
+  const api = {
+    waitForSelector: async (sel, opts = {}) => {
+      const state = opts.state ?? 'visible'
+      const until = Date.now() + (opts.timeout ?? 30000)
+      for (;;) {
+        let found = null
+        for (const f of await frames()) {
+          const h = await f.$(sel).catch(() => null)
+          if (h && (state === 'attached' || state === 'detached' || (await visible(h)))) found = h
+          if (found) break
+        }
+        if (state === 'detached' || state === 'hidden') {
+          if (!found || (state === 'hidden' && !(await visible(found)))) return null
+        } else if (found) return found
+        if (Date.now() > until) throw new Error(`inFrames: ${sel} not ${state} in time`)
+        await page.waitForTimeout(100)
+      }
+    },
+    $: async (sel) => {
+      const f = await first(sel)
+      return f ? f.$(sel) : null
+    },
+    $$: async (sel) => (await Promise.all((await frames()).map((f) => f.$$(sel).catch(() => [])))).flat(),
+    $eval: async (sel, fn, arg) => {
+      const f = await first(sel)
+      if (!f) throw new Error(`inFrames: no element ${sel}`)
+      return f.$eval(sel, fn, arg)
+    },
+    // Over the frames having the selector: arrays put together, numbers added, else the first.
+    $$eval: async (sel, fn, arg) => {
+      const results = []
+      for (const f of await frames()) if (await f.$(sel).catch(() => null)) results.push(await f.$$eval(sel, fn, arg))
+      if (!results.length) return page.$$eval(sel, fn, arg)
+      if (results.every(Array.isArray)) return results.flat()
+      if (results.every((r) => typeof r === 'number')) return results.reduce((a, b) => a + b, 0)
+      return results[0]
+    },
+    isVisible: async (sel) => {
+      for (const f of await frames()) if (await visible(await f.$(sel).catch(() => null))) return true
+      return false
+    },
+    locator: (sel) => ({
+      waitFor: (opts) => api.waitForSelector(sel, opts),
+      click: (o) => api.click(sel, o),
+      textContent: () => api.textContent(sel),
+      count: async () => (await api.$$(sel)).length,
+    }),
+    frameOf,
+  }
+  for (const m of ['click', 'dblclick', 'fill', 'type', 'press', 'check', 'uncheck', 'hover', 'textContent', 'innerText', 'innerHTML', 'getAttribute', 'isChecked', 'isDisabled', 'isEnabled', 'selectOption', 'inputValue', 'focus', 'dispatchEvent', 'setInputFiles', 'tap'])
+    api[m] = delegate(m)
+  return api
+}
+
+/**
+ * Accepts every confirm of the IDE while the page lives (#158): the dialogs of a plugin's frame
+ * are the IDE's (ide.confirm), not the browser's, which page.on('dialog') accepted.
+ */
+exports.acceptConfirms = (page) => {
+  const timer = setInterval(() => void page.click('[data-testid=confirm-ok]', { timeout: 200 }).catch(() => {}), 300)
+  page.on('close', () => clearInterval(timer))
+  return () => clearInterval(timer)
 }

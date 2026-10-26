@@ -68,6 +68,17 @@ const bridges: { [K in keyof Capabilities]?: Bridge<K> } = {
       catalog: ([project]) => g.catalog(str(project, 200)),
     }),
   },
+  commands: {
+    methods: (c) => ({
+      load: () => c.load(),
+      // The editor of the saved commands (a modal of the IDE), on one of them or a draft.
+      edit: async ([o]) => {
+        const x = (o ?? {}) as { select?: unknown; draft?: Record<string, unknown> }
+        c.edit({ select: str(x.select, 200), draft: x.draft ? { name: str(x.draft.name, 200), command: str(x.draft.command, 4000), flag: ['serve', 'build', 'test', 'lint', 'setup', 'other'].includes(String(x.draft.flag)) ? (x.draft.flag as never) : undefined } : undefined })
+      },
+    }),
+    values: (c) => ({ list: c.list() }),
+  },
   terminal: {
     methods: (term) => ({
       open: async ([o]) => {

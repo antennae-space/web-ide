@@ -82,8 +82,8 @@ export function emit(provider: string, name: string, event: string, data: unknow
 }
 
 /**
- * The service a frame of a plugin may use: a capability its manifest requires (an error text
- * otherwise). Its calls fail while no enabled external plugin serves it.
+ * The service a frame of a plugin may use: a capability its manifest requires or uses, or one it
+ * provides (its frames share the state of its background frame so; an error text otherwise). Its calls fail while no enabled external plugin serves it.
  */
 export function use(plugin: { name: string; requires: string[]; grants: string[] }, name: string): ExternalService | string {
   if (!plugin.requires.includes(name)) return t('{plugin} does not require {name}', { plugin: plugin.name, name })

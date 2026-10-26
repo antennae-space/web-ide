@@ -278,7 +278,7 @@ export interface FrameEditor {
 export function projectInfo(): SandboxProject | undefined {
   const p = project()
   const h = home()
-  return p ? { id: p.id, main: h?.id ?? p.id, name: p.name, root: root(), local: isLocal() } : undefined
+  return p ? { id: p.id, main: h?.id ?? p.id, name: p.name, root: root(), local: isLocal(), origin: location.origin } : undefined
 }
 
 /** The largest text of an editor pushed to a frame. */
@@ -408,7 +408,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         host.closeModal?.(m.result)
         return
       case 'serviceCall': {
-        const svc = use({ name: host.name, requires: host.requires ?? [], grants: host.grants() }, String(m.capability ?? ''))
+        const svc = use({ name: host.name, requires: [...(host.requires ?? []), ...(host.provides ?? [])], grants: host.grants() }, String(m.capability ?? ''))
         if (typeof svc === 'string') return reply(m.id, { error: svc })
         svc.call(String(m.method ?? ''), Array.isArray(m.args) ? m.args : []).then(
           (result) => reply(m.id, { result }),
@@ -418,7 +418,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       }
       case 'serviceWatch': {
         const capability = String(m.capability ?? '')
-        const svc = use({ name: host.name, requires: host.requires ?? [], grants: host.grants() }, capability)
+        const svc = use({ name: host.name, requires: [...(host.requires ?? []), ...(host.provides ?? [])], grants: host.grants() }, capability)
         if (typeof svc === 'string') return
         port.postMessage({ serviceValues: { capability, values: JSON.parse(JSON.stringify(svc.values())) } } satisfies PageMessage)
         offs.push(svc.onValue((key, value) => port.postMessage({ serviceValue: { capability, key, value } } satisfies PageMessage)))
