@@ -87,3 +87,35 @@ func (s *Server) migrateConnections(rt *runtime.Runtime) {
 		log.Printf("migrations: %v", err)
 	}
 }
+
+// migrateKanban moves the bases of the kanbans of the projects over SSH (kanban/<project>.db of
+// the pod, with their WAL files) to the data folder of the external Kanban (#158), once; the
+// base of a project of this machine stays in its .ide.
+func (s *Server) migrateKanban() {
+	done := map[string]bool{}
+	if err := s.Store.ReadJSON(migrationsFile, &done); err != nil && !store.IsNotExist(err) {
+		log.Printf("migrations: %v", err)
+		return
+	}
+	if done["kanban"] {
+		return
+	}
+	from, to := s.Store.Path("kanban"), s.Store.Path("plugin-data", "kanban", "kanban")
+	if entries, err := os.ReadDir(from); err == nil && len(entries) > 0 {
+		if err := os.MkdirAll(to, 0o700); err != nil {
+			log.Printf("migrations: kanban: %v", err)
+			return
+		}
+		for _, e := range entries {
+			if err := os.Rename(filepath.Join(from, e.Name()), filepath.Join(to, e.Name())); err != nil {
+				log.Printf("migrations: kanban: %v", err)
+				return
+			}
+		}
+		_ = os.Remove(from)
+	}
+	done["kanban"] = true
+	if err := s.Store.WriteJSON(migrationsFile, done); err != nil {
+		log.Printf("migrations: %v", err)
+	}
+}

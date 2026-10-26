@@ -191,7 +191,8 @@ export function setSize(part: keyof PanelSizes, value: number) {
 on('session.changed', (e: { session: SessionData; desk: number }, from?: string) => {
   if (!e?.session || !project() || (from && from !== home()?.id) || e.desk !== desk()) return
   applyingRemote = true
-  setSession(reconcile(normalize(e.session)))
+  // Merged: what did not change keeps its objects, so the views shown (a plugin's frame) stay.
+  setSession(reconcile(normalize(e.session), { merge: true }))
   applyingRemote = false
   syncDocsWithTabs()
 })

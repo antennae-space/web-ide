@@ -28,7 +28,6 @@ const builtins: Record<string, () => Promise<PluginModule>> = {
   files: () => import('../../../plugins/files/web').then((m) => m.files),
   git: () => import('../../../plugins/git/web').then((m) => m.git),
   hello: () => import('../../../plugins/hello/web').then((m) => m.hello),
-  kanban: () => import('../../../plugins/kanban/web').then((m) => m.kanban),
   languages: () => import('../../../plugins/languages/web').then((m) => m.languages),
   previews: () => import('../../../plugins/previews/web').then((m) => m.previews),
   search: () => import('../../../plugins/search/web').then((m) => m.search),

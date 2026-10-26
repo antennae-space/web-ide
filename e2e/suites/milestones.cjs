@@ -2,10 +2,13 @@
 // reminder in How to test, the milestone page validating its ticket To test, a feedback made
 // into a ticket, then the milestone validated by the user once everything is done. Then the
 // objectives: one given to a milestone, ordered, filtered, its page, reached by the user.
-const { run, openProject, assert, mcp, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, mcp, OUT, installOfficial, acceptConfirms } = require('../common.cjs')
 
 run(async ({ page }) => {
+  // The Kanban is an external official plugin (#158): its release, or E2E_PLUGIN_KANBAN.
+  await installOfficial('kanban')
   page.on('dialog', (d) => d.accept())
+  acceptConfirms(page)
   await openProject(page)
   await page.click('.rail-left .rail-btn[title^="Kanban"]')
   await page.waitForSelector('[data-testid=kanban-panel]')
@@ -18,8 +21,8 @@ run(async ({ page }) => {
 
   // A new milestone from the ticket.
   await page.selectOption('select[data-testid=ticket-milestone]', '-1')
-  await page.waitForSelector('.modal input')
-  await page.fill('.modal input', 'Exports')
+  await page.waitForSelector(':is(.modal, .ide-modal) input')
+  await page.fill(':is(.modal, .ide-modal) input', 'Exports')
   await page.keyboard.press('Enter')
   await page.waitForFunction(() => document.querySelector('select[data-testid=ticket-milestone]')?.value === '1')
   assert(true, 'a milestone created from the ticket, which joins it')
@@ -73,7 +76,7 @@ run(async ({ page }) => {
   await page.click('[data-testid=milestone-feedback-link]')
   await page.waitForSelector('[data-testid=ticket-view] .tk-num:has-text("#2")')
   await page.click('.pane.active [data-testid=ticket-more]')
-  await page.click('.ctx-menu button:has-text("Delete the ticket")')
+  await page.click(':is(.ctx-menu, .ide-menu) button:has-text("Delete the ticket")')
   await page.click('.pane .tab:has-text("Exports")')
   await page.waitForSelector('[data-testid=milestone-progress]:has-text("1/1")')
   await page.click('[data-testid=milestone-feedback-check]')
@@ -121,8 +124,8 @@ run(async ({ page }) => {
 
   // Objectives: a new one as the default objective of a milestone, whose tickets follow.
   await page.selectOption('select[data-testid=milestone-objective]', '-1')
-  await page.waitForSelector('.modal input')
-  await page.fill('.modal input', 'MVP')
+  await page.waitForSelector(':is(.modal, .ide-modal) input')
+  await page.fill(':is(.modal, .ide-modal) input', 'MVP')
   await page.keyboard.press('Enter')
   await page.waitForFunction(() => document.querySelector('select[data-testid=milestone-objective]')?.value === '1')
   const step = await mcp('kanban_get', { id: 4 })
@@ -164,7 +167,7 @@ run(async ({ page }) => {
   await page.goto(page.url().replace(/[?#].*$/, '') + '?ticket=6')
   await page.waitForSelector('[data-testid=ticket-view] [data-testid=ticket-title]:has-text("Lone")')
   await page.click('[data-testid=ticket-more]')
-  await page.click('.ctx-menu button:has-text("Change the status…")')
+  await page.click(':is(.ctx-menu, .ide-menu) button:has-text("Change the status…")')
   await page.waitForSelector('.pick-input')
   await page.keyboard.type('Done')
   await page.keyboard.press('Enter')

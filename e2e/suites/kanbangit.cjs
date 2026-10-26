@@ -5,7 +5,7 @@ const fs = require('fs')
 const path = require('path')
 const http = require('http')
 const { execSync } = require('child_process')
-const { run, openProject, assert, mcp, unfold, WS, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, mcp, unfold, WS, OUT, installOfficial, acceptConfirms } = require('../common.cjs')
 
 const repo = WS + '/demo'
 const env = { ...process.env, GIT_AUTHOR_NAME: 'e2e', GIT_AUTHOR_EMAIL: 'e2e@x', GIT_COMMITTER_NAME: 'e2e', GIT_COMMITTER_EMAIL: 'e2e@x' }
@@ -54,8 +54,11 @@ const fake = http.createServer(async (req, res) => {
 })
 
 run(async ({ page, ctx }) => {
+  // The Kanban is an external official plugin (#158): its release, or E2E_PLUGIN_KANBAN.
+  await installOfficial('kanban')
   await new Promise((r) => fake.listen(0, '127.0.0.1', r))
   page.on('dialog', (d) => d.accept())
+  acceptConfirms(page)
   try {
     await openProject(page)
     // The dialog offering to untrack the .ide files is accepted (page.on dialog).
@@ -67,7 +70,7 @@ run(async ({ page, ctx }) => {
     await page.fill('.ai-servers input[name=url]', `127.0.0.1:${fake.address().port}`)
     await page.click('.ai-servers button:has-text("Add")')
     await page.waitForSelector('.ai-server-row:has-text("127.0.0.1")')
-    await page.click('.ai-servers .modal-head button')
+    await page.click('.ai-servers :is(.modal-head, .ide-modal-head) button')
     await page.waitForSelector('[data-testid=model-pill]:has-text("fake-model")')
 
     // Kanban settings: the setup of a worktree is the project commands flagged setup, edited
@@ -84,7 +87,7 @@ run(async ({ page, ctx }) => {
     await page.keyboard.type('echo installed > setup.log')
     await page.click('[data-testid=cmd-save]')
     await page.waitForSelector('[data-testid=cmd-save]:disabled')
-    await page.click('.cmd-modal .modal-foot button:has-text("Cancel")')
+    await page.click('.cmd-modal :is(.modal-foot, .ide-modal-foot) button:has-text("Cancel")')
     await page.click('[data-testid=kanban-settings]')
     await page.waitForSelector('[data-testid=kanban-setup-list]:has-text("in this order: Install.")')
     assert(true, 'the kanban settings list the setup commands')
