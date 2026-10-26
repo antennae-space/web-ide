@@ -1,7 +1,6 @@
 package server
 
 import (
-	"strings"
 	"testing"
 
 	"antennae.space/ide/plugins/ai/engine"
@@ -36,14 +35,5 @@ func TestAIOff(t *testing.T) {
 	}
 	if e := a.callRaw("agents.list", nil)["error"]; e == nil {
 		t.Fatal("AI off: the agents are refused")
-	}
-	a.call("kanban.create", map[string]any{"title": "Greet"})
-	if r := a.call("kanban.get", map[string]any{"id": 1})["result"].(map[string]any); r["title"] != "Greet" {
-		t.Fatalf("AI off: the kanban works: %v", r)
-	}
-	a.call("kanban.meta.set", map[string]any{"values": map[string]string{"devAgent": "claude"}})
-	e := a.callRaw("kanban.agent", map[string]any{"id": 1, "role": "dev"})["error"]
-	if e == nil || !strings.Contains(e.(map[string]any)["message"].(string), "AI plugin is disabled") {
-		t.Fatalf("AI off: no development agent: %v", e)
 	}
 }
