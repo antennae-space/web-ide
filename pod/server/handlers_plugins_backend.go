@@ -157,10 +157,16 @@ func (s *Server) startBackend(ctx context.Context, rt *runtime.Runtime, id strin
 	}
 	argv := []string{exe, "plugin-exec", "-plugin", dir, "-data", data}
 	write, read := slices.Contains(e.Grants, "files:write"), slices.Contains(e.Grants, "files:read")
-	// The files of a project on this machine, as granted; an SSH project is reached through the
-	// core calls only.
+	// The files of a project on this machine, as granted (a worktree's: its main project's); an
+	// SSH project is reached through the core calls only.
 	if rt.Local && (read || write) {
-		argv = append(argv, "-project", rt.Root)
+		// The main project's folder, which holds its worktrees (.ide/worktrees): the backend
+		// of a worktree reaches the data of its project (the base of the Kanban).
+		folder := rt.Root
+		if root, err := s.Projects.Root(rt.P.ID); err == nil && root.ID != rt.P.ID && root.Type == "local" {
+			folder = root.Path
+		}
+		argv = append(argv, "-project", folder)
 		if write {
 			argv = append(argv, "-write")
 		}

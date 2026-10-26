@@ -88,7 +88,7 @@ export const bootstrap = `(() => {
     markdown: (text) => call({ call: 'markdown', text: String(text) }),
     openLink: (url) => send({ call: 'openLink', url: String(url) }),
     help: (topic) => send({ call: 'help', topic: String(topic) }),
-    showWorktree: (project) => send({ call: 'showWorktree', project: String(project) }),
+    showWorktree: (project) => call({ call: 'showWorktree', project: String(project) }).then(() => undefined),
     get project() { return (info && info.project) || null },
     setTitle: (title) => send({ call: 'setTitle', title: String(title) }),
     closeView: () => send({ call: 'closeView' }),
@@ -483,9 +483,15 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         if (typeof m.topic === 'string' && m.topic in topics) openDoc(docTarget(m.topic as HelpTopic))
         return
       case 'showWorktree': {
-        // A worktree of the project of the window, or the project itself.
+        // A worktree of the project of the window, or the project itself; answered once shown.
         const main = home()?.id
-        if (main && typeof m.project === 'string' && (m.project === main || m.project.startsWith(main + '-'))) void showWorktree(m.project).catch(() => {})
+        const done = (r: { result?: unknown; error?: string }) => m.id !== undefined && reply(m.id, r)
+        if (main && typeof m.project === 'string' && (m.project === main || m.project.startsWith(main + '-')))
+          void showWorktree(m.project).then(
+            () => done({ result: null }),
+            (e) => done({ error: e instanceof Error ? e.message : String(e) }),
+          )
+        else done({ error: t('{name} is not a worktree of this project', { name: String(m.project) }) })
         return
       }
       case 'setTitle':

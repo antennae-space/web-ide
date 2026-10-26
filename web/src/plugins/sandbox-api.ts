@@ -169,8 +169,8 @@ export interface SandboxAPI {
   openLink(url: string): void
   /** Opens a page of the IDE's documentation, by its help topic. */
   help(topic: string): void
-  /** Shows in the window a worktree of its project (its id), or the project itself (#167). */
-  showWorktree(project: string): void
+  /** Shows in the window a worktree of its project (its id), or the project itself (#167); resolves once shown. */
+  showWorktree(project: string): Promise<void>
   /** The project of the window: its id, its main project, its name, its folder (#158). */
   readonly project: SandboxProject | null
   /** The title of this frame's tab (a tab view). */
@@ -214,7 +214,7 @@ export type FrameCall =
   | { call: 'markdown'; id: number; text: string }
   | { call: 'openLink'; url: string }
   | { call: 'help'; topic: string }
-  | { call: 'showWorktree'; project: string }
+  | { call: 'showWorktree'; id?: number; project: string }
   | { call: 'setTitle'; title: string }
   | { call: 'closeView' }
   | { call: 'showTool'; id: string }

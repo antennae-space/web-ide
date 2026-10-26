@@ -23,12 +23,18 @@ import (
 // options that would run another program refused), gh (`gh`, its pull requests only) and the
 // worktree projects (`worktrees`).
 
-// gitOptions are the options of git refused to a plugin: they run another program, or reach
-// past the folder of the call.
-var gitOptions = []string{"-C", "--git-dir", "--work-tree", "--exec-path", "--upload-pack", "--receive-pack", "--exec", "--ext-diff", "--textconv", "--output", "--config-env", "--namespace"}
+// gitGlobal are the options of git itself (before its command) refused to a plugin: they reach
+// past the folder of the call or change the program run; after the command, the same words are
+// its own (rev-parse --git-dir asks the folder of the repository).
+var gitGlobal = []string{"-C", "--git-dir", "--work-tree", "--exec-path", "--config-env", "--namespace"}
 
-// gitSafeConfig are the settings a plugin may give with -c.
-var gitSafeConfig = []string{"core.quotepath", "color.ui"}
+// gitOptions are the options of a command refused to a plugin, wherever they are: they run
+// another program, or write a file the plugin names.
+var gitOptions = []string{"--upload-pack", "--receive-pack", "--exec", "--ext-diff", "--textconv", "--output"}
+
+// gitSafeConfig are the settings a plugin may give with -c; core.editor only as true (no
+// editor: a rebase going on by itself).
+var gitSafeConfig = []string{"core.quotepath", "color.ui", "core.commentchar"}
 
 // checkGitArgs refuses what would make git run a program the plugin chooses.
 func checkGitArgs(args []string) error {
@@ -43,13 +49,17 @@ func checkGitArgs(args []string) error {
 				return i18n.New("git: -c needs a setting")
 			}
 			i++
-			key, _, _ := strings.Cut(args[i], "=")
-			if !slices.Contains(gitSafeConfig, strings.ToLower(key)) {
+			key, val, _ := strings.Cut(args[i], "=")
+			if !slices.Contains(gitSafeConfig, strings.ToLower(key)) && !(strings.ToLower(key) == "core.editor" && val == "true") {
 				return i18n.Errorf("git: the setting %s is refused to a plugin", key)
 			}
 			continue
 		}
-		for _, o := range gitOptions {
+		refused := gitOptions
+		if sub == "" {
+			refused = append(append([]string{}, gitGlobal...), gitOptions...)
+		}
+		for _, o := range refused {
 			if a == o || strings.HasPrefix(a, o+"=") {
 				return i18n.Errorf("git: %s is refused to a plugin", o)
 			}
@@ -121,6 +131,10 @@ func (s *Server) pluginGit(ctx context.Context, rt *runtime.Runtime, e plugins.E
 	}
 	if prog == "gh" && !rt.Runner.Has("gh") {
 		return nil, i18n.New("gh is not installed")
+	}
+	// gh --version asks whether it is there: answered without running it.
+	if prog == "gh" && len(a.Args) == 1 {
+		return map[string]any{"output": "", "truncated": false, "exit": 0}, nil
 	}
 	out, err := rt.Runner.Output(ctx, append([]string{prog}, a.Args...), dir)
 	exit := 0

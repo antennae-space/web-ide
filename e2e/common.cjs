@@ -341,6 +341,15 @@ exports.inFrames = (page) => {
       if (results.every((r) => typeof r === 'number')) return results.reduce((a, b) => a + b, 0)
       return results[0]
     },
+    // A condition true in one of the frames shown (the page's included), waited for.
+    waitForFunction: async (fn, arg, opts = {}) => {
+      const until = Date.now() + (opts.timeout ?? 30000)
+      for (;;) {
+        for (const f of await frames()) if (await f.evaluate(fn, arg).catch(() => false)) return true
+        if (Date.now() > until) throw new Error('inFrames: waitForFunction timed out')
+        await page.waitForTimeout(100)
+      }
+    },
     isVisible: async (sel) => {
       for (const f of await frames()) if (await visible(await f.$(sel).catch(() => null))) return true
       return false
