@@ -6,7 +6,7 @@
 // started from a card is followed by the orchestrator; another conversation is adopted with
 // agent_adopt: it announces itself with a note, says who follows it and is nested.
 const http = require('http')
-const { run, openProject, assert, mcp, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, mcp, OUT, installOfficial, inFrames, acceptConfirms } = require('../../../e2e/common.cjs')
 
 const sse = (res, delta) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`)
 function end(res, reason = 'stop') {
@@ -74,17 +74,21 @@ run(
     page.on('dialog', (d) => d.accept())
     await new Promise((r) => fake.listen(0, '127.0.0.1', r))
     try {
+      // The Kanban is an external official plugin (#158).
+      await installOfficial('kanban')
       await openProject(page)
+      const kp = inFrames(page)
+      acceptConfirms(page)
       // Two planned tickets.
       await page.click('.rail-left .rail-btn[title^="Kanban"]')
       for (const [i, title] of ['Login page', 'Dark theme'].entries()) {
-        await page.click('[data-testid=kanban-open-board]')
-        await page.click('[data-testid=kanban-new]')
-        await page.fill('[data-testid=kanban-title]', title)
-        await page.click('[data-testid=kanban-create]')
-        await page.waitForSelector(`[data-testid=ticket-view]:has-text("${title}")`)
+        await kp.click('[data-testid=kanban-open-board]')
+        await kp.click('[data-testid=kanban-new]')
+        await kp.fill('[data-testid=kanban-title]', title)
+        await kp.click('[data-testid=kanban-create]')
+        await kp.waitForSelector(`[data-testid=ticket-view]:has-text("${title}")`)
         await mcp('kanban_set_plan', { id: i + 1, plan: 'The plan', goals: [], size: 's', complexity: 'medium' })
-        await page.waitForSelector('[data-testid=ticket-status]:has-text("To do")')
+        await kp.waitForSelector('[data-testid=ticket-status]:has-text("To do")')
       }
 
       await page.click('.rail-right .rail-btn[title^="Assistant"]')

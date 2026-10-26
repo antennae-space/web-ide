@@ -5,7 +5,7 @@
 // loaded; closing the tab ends the session. Work time and cost: on the tab, the project, and
 // the ticket of a session run in its worktree.
 const { execSync } = require('child_process')
-const { run, openProject, assert, mcp, OUT, WS } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, mcp, OUT, WS, installOfficial, inFrames } = require('../../../e2e/common.cjs')
 
 const tab = '[data-testid=agent-tab]'
 const state = (page) => page.getAttribute(tab, 'data-state')
@@ -27,6 +27,8 @@ async function prompt(page, text) {
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
 
 run(async ({ page }) => {
+  // The Kanban is an external official plugin (#158).
+  await installOfficial('kanban')
   await openProject(page)
   await page.click('.rail-btn[data-id=agents]')
   await page.waitForSelector('[data-testid=agents-launcher] [data-testid=agent-card-claude]')
@@ -225,7 +227,8 @@ run(async ({ page }) => {
   await page.waitForSelector('[data-testid=agent-user]:has-text("hello")')
   await waitState(page, 'ready')
   await page.goto(home + '?ticket=' + n)
-  await page.waitForSelector('[data-testid=ticket-agent-stats]')
-  const badge = await page.textContent('[data-testid=ticket-agent-stats]')
+  const kp = inFrames(page)
+  await kp.waitForSelector('[data-testid=ticket-agent-stats]')
+  const badge = await kp.textContent('[data-testid=ticket-agent-stats]')
   assert(/^Agents: \d+ s · \$0\.\d+$/.test(badge), 'time and cost on the ticket: ' + badge)
 })
