@@ -35,6 +35,12 @@ const [frameTabMenu, setFrameTabMenu] = createSignal<Record<string, { items: San
 const frameMenuItems = (st: { items: SandboxToolMenuItem[]; send: (m: PageMessage) => void }): MenuItem[] =>
   st.items.map((it) => ({ label: it.label, hint: it.hint, title: it.title, checked: !!it.checked, disabled: !!it.disabled, separator: !!it.separator, action: () => st.send({ toolMenu: { item: it.id } }) }))
 
+/** The titles the tab frames gave their tabs (setTitle), by tab id: the window's, not the desk's. */
+const [tabTitles, setTabTitles] = createSignal<Record<string, string>>({})
+
+/** The title of a tab of an external plugin's view: the one its frame gave. */
+const viewTitle = (tab: TabState) => tabTitles()[tab.id]
+
 /** The items of the status bar of a tab of an external plugin's view. */
 function viewStatus(tab: TabState): StatusItem[] {
   const st = tabStatus()[tab.id]
@@ -124,6 +130,7 @@ function SandboxFrame(props: {
         props.tab
           ? setFrameTabMenu((all) => ({ ...all, [props.tab!.id]: { items, send: served!.send } }))
           : setFrameToolMenu((all) => ({ ...all, [props.view]: { items, send: served!.send } })),
+      setTitle: props.tab ? (title) => setTabTitles((all) => ({ ...all, [props.tab!.id]: title })) : undefined,
     })
     props.served?.(served)
   })
@@ -311,6 +318,7 @@ export async function externalModule(state: PluginState, current: () => PluginSt
         ...Object.fromEntries((c.tools ?? []).map((x) => [x.id, () => (frameToolMenu()[x.id] ? frameMenuItems(frameToolMenu()[x.id]!) : [])])),
         ...Object.fromEntries((c.tabViews ?? []).map((v) => [v.id, (tab?: TabState) => (tab && frameTabMenu()[tab.id] ? frameMenuItems(frameTabMenu()[tab.id]!) : [])])),
       },
+      viewTitle,
       aloneViews: (c.tabViews ?? []).filter((v) => v.alone).map((v) => v.id),
       }
     },

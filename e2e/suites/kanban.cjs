@@ -198,8 +198,6 @@ run(async ({ page, ctx }) => {
   await kp.click('.pane.active .tab:has-text("Kanban")')
   await kp.waitForSelector('[data-testid=kanban-board]')
   assert(!(await kp.isVisible('[data-testid=ticket-card-1]')), 'closed ticket hidden from the board')
-  // The board was just shown again: it reloads its tickets first.
-  await page.waitForTimeout(1000)
   await kp.click('.kb-toolbar button:has-text("Done and abandoned")')
   await kp.waitForSelector('[data-testid=ticket-card-1]')
   assert(true, 'closed ticket in the done column')
@@ -245,6 +243,7 @@ run(async ({ page, ctx }) => {
   assert((await kp.textContent('[data-testid=ticket-card-4] [data-testid=card-blocked]')).includes('#3'), 'card of a step: parent and blocker badges')
   assert(await kp.isVisible('[data-testid=ticket-card-5] [data-testid=card-blocked]'), 'card of a dependent ticket: blocker badge')
   await kp.click('[data-testid=ticket-card-4]')
+  await page.waitForTimeout(3000)
   await kp.waitForSelector('[data-testid=ticket-view] [data-testid=ticket-parent]:has-text("#3")')
   assert((await kp.textContent('[data-testid=ticket-blockers]')).includes('#3: root not started'), 'the blockers of a step are shown')
   assert(await kp.isDisabled('[data-testid=ticket-start]'), 'a blocked ticket cannot start')

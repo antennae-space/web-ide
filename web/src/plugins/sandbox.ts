@@ -234,6 +234,8 @@ export type FrameHost = {
   closeModal?: (result: unknown) => void
   /** Its tools (it may show them). */
   tools?: string[]
+  /** A tab view: the title it gives its tab. */
+  setTitle?: (title: string) => void
   /** A tab view: the items of the status bar it gives for its tab. */
   setStatus?: (items: SandboxStatusItem[]) => void
   /** Its tool or its tab: the items it adds to the options menu (the ⋮) of the zone or tile. */
@@ -292,6 +294,10 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   // A frame moved in the page loads again: each load gets a new channel.
   let port: MessagePort | undefined
   let offs: (() => void)[] = []
+  // When its last dialog was answered: a dialog that follows (a pick, then the text of its
+  // choice) is the same action of the user, whose focus went to the first.
+  let dialogDone = 0
+  const userAct = async () => Date.now() - dialogDone < 2000 || (await userInSoon(frame))
   // What the page asked the frame for another plugin (a method of a capability it serves).
   const asked = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   let nextAsk = 1
@@ -377,16 +383,20 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       case 'dialog':
         void (async () => {
           // The dialogs of the core, while the user is in the view, titled with the plugin.
-          if (!(await userInSoon(frame))) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
+          if (!(await userAct())) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
+          const answered = (result: unknown) => {
+            dialogDone = Date.now()
+            reply(m.id, { result })
+          }
           const title = `${host.name} · ${clip(m.confirm?.title ?? m.prompt?.title ?? m.pick?.title, 200)}`
           if (m.confirm) {
-            void confirmModal({ title, text: clip(m.confirm.text, 2000), ok: clip(m.confirm.ok, 60) || undefined, danger: !!m.confirm.danger }).then((result) => reply(m.id, { result }))
+            void confirmModal({ title, text: clip(m.confirm.text, 2000), ok: clip(m.confirm.ok, 60) || undefined, danger: !!m.confirm.danger }).then(answered)
           } else if (m.prompt) {
             const p = m.prompt
-            void prompt({ title, label: clip(p.label, 2000) || undefined, value: clip(p.value, 10000), password: !!p.password, placeholder: clip(p.placeholder, 200) || undefined }).then((result) => reply(m.id, { result }))
+            void prompt({ title, label: clip(p.label, 2000) || undefined, value: clip(p.value, 10000), password: !!p.password, placeholder: clip(p.placeholder, 200) || undefined }).then(answered)
           } else if (m.pick && Array.isArray(m.pick.items)) {
             const items = m.pick.items.slice(0, 500).map((it, i) => ({ label: clip(it?.label, 300), detail: clip(it?.detail, 300) || undefined, value: i }))
-            void pick<number>({ placeholder: title, items, initial: Number.isInteger(m.pick.initial) ? m.pick.initial : 0 }).then((result) => reply(m.id, { result: result ?? null }))
+            void pick<number>({ placeholder: title, items, initial: Number.isInteger(m.pick.initial) ? m.pick.initial : 0 }).then((result) => answered(result ?? null))
           } else reply(m.id, { error: 'dialog: confirm, prompt or pick' })
         })()
         return
@@ -478,15 +488,11 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         if (main && typeof m.project === 'string' && (m.project === main || m.project.startsWith(main + '-'))) void showWorktree(m.project).catch(() => {})
         return
       }
-      case 'setTitle': {
-        const tab = host.tab
-        if (tab && typeof m.title === 'string')
-          mutate((s) => {
-            const cur = s.tabs[tab.id]
-            if (cur?.kind.startsWith(`plugin:${host.plugin}/`)) cur.title = m.title.slice(0, 100)
-          })
+      case 'setTitle':
+        // The title of its tab, kept by the window (not in the desk: every window showing the
+        // tab sets it, and the desk is shared).
+        if (typeof m.title === 'string') host.setTitle?.(m.title.slice(0, 100))
         return
-      }
       case 'closeView': {
         const tab = host.tab
         if (tab) for (const l of leaves()) if (l.tabs.includes(tab.id)) closeTab(l.id, tab.id, true)
