@@ -16,6 +16,8 @@ func TestCheckGitArgs(t *testing.T) {
 		{"worktree", "add", "-b", "ticket/1", ".ide/worktrees/1", "main"},
 		{"config", "--get", "remote.origin.url"},
 		{"push", "origin", "ticket/1"},
+		{"-c", "color.ui=false", "rev-parse", "--git-dir"},
+		{"-c", "core.editor=true", "-c", "core.commentChar=auto", "rebase", "--continue"},
 	} {
 		if err := checkGitArgs(ok); err != nil {
 			t.Errorf("%v: %v", ok, err)
@@ -27,6 +29,7 @@ func TestCheckGitArgs(t *testing.T) {
 	}{
 		{[]string{"-c", "core.pager=sh", "log"}, "core.pager"},
 		{[]string{"-c", "core.sshCommand=x", "fetch"}, "core.sshCommand"},
+		{[]string{"-c", "core.editor=vim", "rebase", "-i"}, "core.editor"},
 		{[]string{"-C", "/etc", "status"}, "-C"},
 		{[]string{"--git-dir=/x", "status"}, "--git-dir"},
 		{[]string{"fetch", "--upload-pack=sh"}, "--upload-pack"},
