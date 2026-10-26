@@ -253,6 +253,17 @@ exports.installOfficial = async (ids, before) => {
  */
 exports.inFrames = (page) => {
   const visible = async (h) => h && (await h.isVisible().catch(() => false))
+  // A frame just made runs in a process of its own (an opaque origin): the input routed to it
+  // a moment after it appears may be lost, so an action waits until the frame is 600 ms old.
+  const born = (page.__framesBorn ??= new WeakMap())
+  if (!page.__framesWatched) {
+    page.__framesWatched = true
+    page.on('frameattached', (f) => born.set(f, Date.now()))
+  }
+  const settle = async (f) => {
+    const age = Date.now() - (born.get(f) ?? 0)
+    if (age < 600) await page.waitForTimeout(600 - age)
+  }
   // The frames shown: a tab switched to is a new frame, and the one of the tab left goes a moment
   // later; a frame whose <iframe> left the page, or is hidden, is not looked into.
   const frames = async () => {
@@ -282,7 +293,17 @@ exports.inFrames = (page) => {
   }
   // What reads an element, or sets the files of a hidden input, needs it present, not shown.
   const present = ['textContent', 'innerHTML', 'getAttribute', 'isChecked', 'isDisabled', 'isEnabled', 'setInputFiles', 'dispatchEvent', 'inputValue']
-  const delegate = (name) => async (sel, ...args) => (await frameOf(sel, present.includes(name) ? { state: 'attached' } : {}))[name](sel, ...args)
+  const delegate = (name) => async (sel, ...args) => {
+    const f = await frameOf(sel, present.includes(name) ? { state: 'attached' } : {})
+    if (!present.includes(name)) await settle(f)
+    // A plain click in a plugin's frame: by the DOM, after the focus (which the IDE checks for
+    // its dialogs): the mouse's may not reach a frame of another process in time.
+    if (name === 'click' && f !== page.mainFrame() && !args.length) {
+      await f.focus(sel).catch(() => {})
+      return f.$eval(sel, (el) => el.click())
+    }
+    return f[name](sel, ...args)
+  }
   const api = {
     waitForSelector: async (sel, opts = {}) => {
       const state = opts.state ?? 'visible'
@@ -342,7 +363,7 @@ exports.inFrames = (page) => {
  * are the IDE's (ide.confirm), not the browser's, which page.on('dialog') accepted.
  */
 exports.acceptConfirms = (page) => {
-  const timer = setInterval(() => void page.click('[data-testid=confirm-ok]', { timeout: 200 }).catch(() => {}), 300)
+  const timer = setInterval(() => void page.evaluate(() => document.querySelector('[data-testid=confirm-ok]')?.click()).catch(() => {}), 300)
   page.on('close', () => clearInterval(timer))
   return () => clearInterval(timer)
 }
