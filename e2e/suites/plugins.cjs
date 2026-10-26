@@ -9,13 +9,13 @@
 // (#120): off, Problems, Structure, the Symbols tab and the code actions go, the editor still edits.
 // Files and Code (#121) are locked, like Exec; the Explorer takes the colors of Git and the terminal of Exec.
 // Status bar items (#127): hello's while its tool has the focus, a ticket's status, priority and
-// size changed from the bar. Kanban (#122): off, its tool and the kanban_* tools go, a ticket tab says its plugin is off;
-// a ticket tab of a desk saved before is migrated. AI (#123): off, no Assistant nor Agents, the
+// size changed from the bar. Kanban (#122, external since #158): off, its tool and the kanban_* tools go, a ticket tab
+// says its plugin is off; a ticket tab of a desk saved before is migrated. AI (#123): off, no Assistant nor Agents, the
 // MCP still answers (a doodle apart).
 const fs = require('fs')
 const path = require('path')
 const { execSync } = require('child_process')
-const { run, openProject, open, assert, mcp, WS } = require('../common.cjs')
+const { run, openProject, open, assert, mcp, WS, installOfficial, inFrames } = require('../common.cjs')
 
 const text = (r) => r.result?.content?.[0]?.text ?? JSON.stringify(r)
 const tools = () =>
@@ -28,7 +28,10 @@ const tools = () =>
     .then((r) => r.result.tools.map((t) => t.name))
 
 run(async ({ page }) => {
+  // The Kanban is an external official plugin (#158).
+  await installOfficial('kanban')
   await openProject(page)
+  const kp = inFrames(page)
   const icon = '.rail-group[data-zone=right] .rail-btn[data-id=hello]'
 
   // The tool of the plugin, after those of the core in its zone, renders what its backend answers.
@@ -189,16 +192,17 @@ run(async ({ page }) => {
   await setPlugin('git', false)
   await page.waitForSelector('.rail-btn[data-id=git]', { state: 'detached' })
   await page.waitForSelector('.pane:has-text("The plugin of this tab is disabled")')
-  assert(!(await page.$('.rail-btn[data-id=kanban]')), 'Kanban off with Git')
   r = await mcp('open_diff', { path: 'notes.txt' })
   assert(r.result.isError && text(r).includes('Git plugin is off'), 'open_diff refused: ' + text(r))
+  assert(!(await page.$('.rail-btn[data-id=kanban]')), 'Kanban off with Git')
   r = await mcp('kanban_list', {})
-  assert(r.result.isError && text(r).includes('the Kanban plugin is disabled'), 'kanban_list refused: ' + text(r))
+  assert(r.result?.isError && text(r).includes('the Kanban plugin is disabled'), 'kanban_list refused: ' + text(r))
   await palette('settings')
   await page.waitForSelector('.pick-item.selected:has-text("Settings")')
   await page.keyboard.press('Enter')
   await page.click('.settings-nav button:has-text("Plugins")')
-  assert((await page.textContent('[data-plugin=kanban]')).includes('needs worktrees'), 'Kanban says what it lacks')
+  const lacks = await page.textContent('.plugin-row[data-plugin=kanban]')
+  assert(lacks.includes('needs worktrees'), 'Kanban says what it lacks: ' + lacks)
   await closeSettings()
   await setPlugin('git', true)
   await page.waitForSelector('.diff-view .diff-line.add:has-text("a line for the diff")')
@@ -274,11 +278,13 @@ run(async ({ page }) => {
   r = await mcp('kanban_create', { title: 'Plugin ticket' })
   const id = Number(/#(\d+)/.exec(text(r))[1])
   await page.click('.rail-btn[data-id=kanban]')
-  await page.click(`[data-testid=kanban-panel] [data-testid=ticket-card-${id}]`)
-  await page.waitForSelector(`[data-testid=ticket-view] .tk-num:has-text("#${id}")`)
-  assert((await page.textContent('.tab.active .tab-title')).startsWith(`#${id} Plugin ticket`), 'ticket tab titled by the plugin')
+  await kp.click(`[data-testid=kanban-panel] [data-testid=ticket-card-${id}]`)
+  await kp.waitForSelector(`[data-testid=ticket-view] .tk-num:has-text("#${id}")`)
+  await page.waitForFunction((id) => document.querySelector('.tab.active .tab-title')?.textContent.startsWith(`#${id} Plugin ticket`), id)
+  assert(true, 'ticket tab titled by the plugin')
   // The ticket in the status bar: its status, priority and size, changed through their menus.
-  await page.click('[data-testid=ticket-view] .tk-num')
+  // A real click: the focus of the window goes to the pane of the tab.
+  await kp.click('[data-testid=ticket-view] .tk-num', {})
   await page.waitForSelector('[data-testid=status-ticket-status]:has-text("New")')
   assert((await page.textContent('[data-testid=status-ticket-size]')) === 'Size not estimated', 'size in the bar')
   await page.click('[data-testid=status-ticket-priority]')
@@ -286,17 +292,18 @@ run(async ({ page }) => {
   await page.waitForSelector('[data-testid=status-ticket-priority]:has-text("High priority")')
   await page.click('[data-testid=status-ticket-status]')
   await page.click('.ctx-menu .ctx-item:has-text("To do")')
-  await page.waitForSelector('.modal-small input')
+  await kp.waitForSelector(':is(.modal, .ide-modal) input')
   await page.keyboard.press('Enter')
   await page.waitForSelector('[data-testid=status-ticket-status]:has-text("To do")')
-  assert((await page.getAttribute('[data-testid=ticket-view]', 'data-status')) === 'todo', 'the view follows the status changed in the bar')
+  await kp.waitForSelector('[data-testid=ticket-view][data-status=todo]')
+  assert(true, 'the view follows the status changed in the bar')
   await setPlugin('kanban', false)
   await page.waitForSelector('.rail-btn[data-id=kanban]', { state: 'detached' })
   await page.waitForSelector('.pane:has-text("The plugin of this tab is disabled")')
   r = await mcp('kanban_list', {})
   assert(r.result.isError && text(r).includes('the Kanban plugin is disabled'), 'kanban_list refused: ' + text(r))
   await setPlugin('kanban', true)
-  await page.waitForSelector(`[data-testid=ticket-view] .tk-num:has-text("#${id}")`)
+  await kp.waitForSelector(`[data-testid=ticket-view] .tk-num:has-text("#${id}")`)
   assert(!(await mcp('kanban_list', {})).result.isError, 'kanban_list back')
 
   // AI: off, no Assistant nor Agents, the MCP still answers but a doodle (the AI's); on, back.
@@ -310,9 +317,9 @@ run(async ({ page }) => {
   assert(r.result.isError && text(r).includes('needs the assistant capability'), 'request_doodle refused: ' + text(r))
   // A briefing asked from a ticket says AI is off, nothing breaks.
   const nid = Number(/#(\d+)/.exec(text(await mcp('kanban_create', { title: 'Without AI' })))[1])
-  if (!(await page.isVisible('[data-testid=kanban-panel]'))) await page.click('.rail-btn[data-id=kanban]')
-  await page.click(`[data-testid=kanban-panel] [data-testid=ticket-card-${nid}]`)
-  await page.click('[data-testid=ticket-view] [data-testid=ticket-briefing]')
+  if (!(await kp.isVisible('[data-testid=kanban-panel]').catch(() => false))) await page.click('.rail-btn[data-id=kanban]')
+  await kp.click(`[data-testid=kanban-panel] [data-testid=ticket-card-${nid}]`)
+  await kp.click('[data-testid=ticket-view] [data-testid=ticket-briefing]')
   await page.waitForSelector('.toast:has-text("The AI plugin is disabled")')
   await page.click(`.tab:has-text("#${id} Plugin ticket")`)
   await setPlugin('ai', true)
@@ -337,5 +344,5 @@ run(async ({ page }) => {
   fs.writeFileSync(deskFile, JSON.stringify(old))
   execSync(`bash ${path.join(process.env.E2E_TMP, 'launch-pod.sh')}`)
   await page.reload()
-  await page.waitForSelector(`[data-testid=ticket-view] .tk-num:has-text("#${id}")`, { timeout: 15000 })
+  await kp.waitForSelector(`[data-testid=ticket-view] .tk-num:has-text("#${id}")`, { timeout: 15000 })
 })

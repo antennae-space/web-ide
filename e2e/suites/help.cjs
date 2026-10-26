@@ -1,9 +1,12 @@
 // Help: the documentation embedded in the pod opens read only in a tab, from the Help menu, the
 // palette and the "?" of the interface; relative links, Back, anchors and pictures stay inside the docs.
-const { run, openProject, assert, OUT } = require('../common.cjs')
+const { run, openProject, assert, OUT, installOfficial, inFrames } = require('../common.cjs')
 
 run(async ({ page }) => {
+  // The Kanban is an external official plugin (#158).
+  await installOfficial('kanban')
   await openProject(page)
+  const kp = inFrames(page)
   const doc = () => page.getAttribute('[data-testid=doc-view]', 'data-doc')
   const title = () => page.textContent('.tab.active .tab-title')
   const shown = (path) => page.waitForFunction((p) => document.querySelector('[data-testid=doc-view]')?.dataset.shown === p, path)
@@ -80,10 +83,10 @@ run(async ({ page }) => {
   await shown('docs/guide.md#agents-claude-code-opencode-pi')
   const a = await top('agents-claude-code-opencode-pi')
   assert(a >= 0 && a < 60, 'the Agents "?" scrolls to its heading (top ' + a + ')')
-  await page.click('.rail-left .rail-btn[title^="Kanban"]')
-  await page.click('[data-testid=kanban-open-board]')
-  await page.waitForSelector('[data-testid=help-kanban]')
-  await page.click('[data-testid=help-kanban]')
+  await page.click('.rail-left .rail-btn[title="Kanban"]')
+  await kp.click('[data-testid=kanban-open-board]')
+  await kp.waitForSelector('[data-testid=help-kanban]')
+  await kp.click('[data-testid=help-kanban]')
   await shown('docs/design/kanban.md')
 
   // The tab comes back after a reload.

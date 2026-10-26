@@ -302,6 +302,8 @@ exports.inFrames = (page) => {
       await f.focus(sel).catch(() => {})
       return f.$eval(sel, (el) => el.click())
     }
+    // A choice in a select of a plugin's frame: focused first, as the user's.
+    if (name === 'selectOption' && f !== page.mainFrame()) await f.focus(sel).catch(() => {})
     return f[name](sel, ...args)
   }
   const api = {
