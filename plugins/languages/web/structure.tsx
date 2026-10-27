@@ -2,17 +2,37 @@
 // as a tree. A twisty folds the children of a symbol (the folded state is kept per file in the
 // desk), one click selects a row, a double click jumps to it (one click with "Navigate with
 // Single Click"), a lock next to the glyph tells an exported symbol from a private one (the rules
-// of web/visibility.json), the ⋮ menu holds the choices of the tree.
-import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show } from 'solid-js'
+// of web/visibility.json), the ⋮ menu holds the choices of the tree. Speed Search filters the
+// rows by typing (or Ctrl+F) while the tree has the focus; "Always Select Opened Element" keeps
+// the row of the symbol around the caret selected.
+import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show, untrack } from 'solid-js'
 import type { MenuItem } from '@ide/api'
 import { api, contextMenu, desk, EmptyState, Icon, t } from './plugin'
-import { documentSymbols, filterPrivate, sortByExportability, sortSymbols, symbolId, treeRows, type DocumentSymbol, type TreeRow } from './client'
+import { documentSymbols, enclosingSymbols, filterPrivate, filterSymbols, sortByExportability, sortSymbols, symbolId, treeRows, type DocumentSymbol, type TreeRow } from './client'
 import { SymGlyph } from './glyph'
 
 const activePath = () => (api.activeFile() ?? '')
 
 /** The tree each file was last shown with: the commands work even when the tool is closed. */
 const shownTrees = new Map<string, DocumentSymbol[]>()
+
+/** The filter box of the shown tool (null: the tool is closed), for the palette's command. */
+let askFilter: ((seed?: string) => void) | null = null
+let filterWanted = false
+
+/** Opens the Speed Search box, showing the tool when it is closed. */
+export function openStructureSearch() {
+  if (askFilter) askFilter()
+  else {
+    filterWanted = true
+    api.showTool('structure')
+  }
+}
+
+/** Switches "Always Select Opened Element" (the ⋮ menu and the palette do the same). */
+export function toggleAlwaysSelectStructure() {
+  desk.set((s) => (s.selectOpened = !s.selectOpened))
+}
 
 async function treeOf(path: string): Promise<DocumentSymbol[]> {
   const known = shownTrees.get(path)
@@ -62,8 +82,8 @@ function optionsMenu(ev: MouseEvent) {
     { label: t('Collapse all'), action: () => void collapseAllStructure() },
     { separator: true, label: '' },
     { label: t('Navigate with Single Click'), checked: desk.get().singleClick, action: () => desk.set((s) => (s.singleClick = !s.singleClick)) },
-    { label: t('Always Select Opened Element'), disabled: true, title: soon },
-    { label: t('Speed Search'), disabled: true, title: soon },
+    { label: t('Always Select Opened Element'), checked: desk.get().selectOpened, action: toggleAlwaysSelectStructure },
+    { label: t('Speed Search'), action: openStructureSearch },
     { separator: true, label: '' },
     { label: t('Sort in the file'), checked: desk.get().structureSort === 'file', action: () => desk.set((s) => (s.structureSort = 'file')) },
     { label: t('Sort alphabetically'), checked: desk.get().structureSort === 'alpha', action: () => desk.set((s) => (s.structureSort = 'alpha')) },
@@ -79,6 +99,10 @@ export function StructureTool() {
   const path = activePath
   const [tick, setTick] = createSignal(0)
   const [selected, setSelected] = createSignal<string | null>(null)
+  const [query, setQuery] = createSignal('')
+  const [searching, setSearching] = createSignal(false)
+  let filterEl: HTMLInputElement | undefined
+  let rootEl: HTMLDivElement | undefined
   let timer: number | undefined
   createEffect(
     on([path, api.buffers.version], () => {
@@ -103,13 +127,15 @@ export function StructureTool() {
       }
     },
   )
+  const filtering = () => searching() && !!query()
   const rows = createMemo(() => {
     const list = symbols()?.list ?? []
     const lang = path() ? api.editor.serverLanguage(path()) : ''
     const sort = desk.get().structureSort
     const sorted = sort === 'alpha' ? sortSymbols(list) : sort === 'export' ? sortByExportability(list, lang) : list
     const shown = desk.get().showPrivate ? sorted : filterPrivate(sorted, lang)
-    return treeRows(shown, foldedIds(path()), lang)
+    // While filtering, the folds are set aside: a match must not hide under a folded parent.
+    return treeRows(filtering() ? filterSymbols(shown, query()) : shown, filtering() ? new Set<string>() : foldedIds(path()), lang)
   })
   const jump = (s: DocumentSymbol) => api.openFile({ path: path(), line: s.selectionRange.start.line, col: s.selectionRange.start.character })
   const toggle = (r: TreeRow) => {
@@ -120,8 +146,81 @@ export function StructureTool() {
     else ids.add(id)
     setFolded(path(), [...ids])
   }
+  /** Unfolds the ancestors of a symbol, and only when one of them is actually folded. */
+  const revealSymbol = (p: string, ids: string[]) => {
+    const folded = desk.get().folded[p] ?? []
+    const hidden = new Set(ids)
+    const kept = folded.filter((id) => !hidden.has(id))
+    if (kept.length !== folded.length) setFolded(p, kept)
+  }
+  const rowEls = () => [...document.querySelectorAll<HTMLElement>('.structure .tree-row')]
+  /** Back to the tree: the selected row when it is still shown, the first one else. */
+  const focusTree = () => {
+    const id = untrack(selected)
+    const els = rowEls()
+    ;(els.find((e) => e.dataset.sym === id) ?? els[0])?.focus()
+  }
+  const openSearch = (seed?: string) => {
+    setSearching(true)
+    setQuery(seed ?? '')
+    queueMicrotask(() => filterEl?.focus())
+  }
+  const clearSearch = () => {
+    setQuery('')
+    setSearching(false)
+    queueMicrotask(focusTree)
+  }
+  askFilter = openSearch
+  onCleanup(() => {
+    if (askFilter === openSearch) askFilter = null
+  })
+  if (filterWanted) {
+    filterWanted = false
+    openSearch()
+  }
+  // Ctrl+F belongs to the editor: the tool takes it only while the tree owns the focus (its
+  // handler, registered last, runs before the editor's).
+  let disarmFind: (() => void) | null = null
+  const armFind = () => {
+    if (disarmFind) return
+    disarmFind = api.keys.register('search.find', () => void openSearch())
+  }
+  const lowerFind = () => {
+    disarmFind?.()
+    disarmFind = null
+  }
+  onCleanup(lowerFind)
+  // "Always Select Opened Element": the row of the symbol around the caret follows the caret.
+  let followTimer: number | undefined
+  const followCaret = (p: string, line: number, col: number) => {
+    const list = untrack(() => symbols()?.list) ?? shownTrees.get(p) ?? []
+    const chain = enclosingSymbols(list, line - 1, col - 1)
+    const target = chain[chain.length - 1]
+    if (!target) return
+    const id = symbolId(target)
+    revealSymbol(p, chain.map(symbolId))
+    setSelected(id)
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`.structure .tree-row[data-sym="${id}"]`)?.scrollIntoView({ block: 'nearest' }))
+  }
+  createEffect(() => {
+    if (!desk.get().selectOpened) return
+    const p = path()
+    const c = api.editor.cursor()
+    if (!p || !c || api.activeFile() !== p) return
+    clearTimeout(followTimer)
+    followTimer = window.setTimeout(() => followCaret(p, c.line, c.col), 200)
+  })
+  onCleanup(() => clearTimeout(followTimer))
   return (
-    <div class="panel structure">
+    <div
+      class="panel structure"
+      ref={rootEl}
+      onFocusIn={armFind}
+      onFocusOut={(ev) => {
+        const next = ev.relatedTarget as Node | null
+        if (!next || !rootEl?.contains(next)) lowerFind()
+      }}
+    >
       <div class="panel-head">
         <span class="panel-title">{t('Structure')}</span>
         <span class="grow" />
@@ -131,6 +230,9 @@ export function StructureTool() {
         <button class="icon-btn" data-testid="structure-collapse" title={t('Collapse all')} onClick={() => void collapseAllStructure()}>
           <Icon name="collapseAll" size={14} />
         </button>
+        <button class="icon-btn" data-testid="structure-search" title={t('Speed Search')} onClick={() => openSearch()}>
+          <Icon name="search" size={14} />
+        </button>
         <button class="icon-btn" title={t('Refresh')} onClick={() => setTick((t) => t + 1)}>
           <Icon name="refresh" size={14} />
         </button>
@@ -138,10 +240,36 @@ export function StructureTool() {
           <Icon name="more" size={14} />
         </button>
       </div>
+      <Show when={searching()}>
+        <div class="tree-filter">
+          <input
+            class="input small"
+            data-testid="structure-filter"
+            placeholder={t('Filter symbols')}
+            value={query()}
+            ref={filterEl}
+            onInput={(ev) => setQuery(ev.currentTarget.value)}
+            onKeyDown={(ev) => {
+              if (ev.key === 'Escape') clearSearch()
+              else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+                const els = rowEls()
+                els[ev.key === 'ArrowDown' ? 0 : els.length - 1]?.focus()
+              } else return
+              ev.preventDefault()
+            }}
+          />
+          <button class="icon-btn" title={t('Clear')} onClick={clearSearch}>
+            <Icon name="close" size={12} />
+          </button>
+        </div>
+      </Show>
       <div class="panel-body tree" role="tree">
         <Show when={path()} fallback={<EmptyState icon="outline" text={t('No active file.')} />}>
           <Show when={symbols()?.error}>
             <p class="muted pad small">{symbols()!.error}</p>
+          </Show>
+          <Show when={filtering() && !rows().length}>
+            <p class="muted pad small">{t('No symbol matches.')}</p>
           </Show>
           <For each={rows()}>
             {(r) => {
@@ -151,6 +279,7 @@ export function StructureTool() {
                   class="tree-row"
                   role="treeitem"
                   tabIndex={-1}
+                  data-sym={id()}
                   aria-expanded={r.hasChildren ? !r.folded : undefined}
                   aria-selected={selected() === id()}
                   classList={{ selected: selected() === id() }}
@@ -171,7 +300,6 @@ export function StructureTool() {
                     jump(r.s)
                   }}
                   onKeyDown={(ev) => {
-                    const rowEls = () => [...document.querySelectorAll<HTMLElement>('.structure .tree-row')]
                     if (ev.key === 'Enter') jump(r.s)
                     else if (ev.key === 'ArrowRight' && r.hasChildren) {
                       if (r.folded) toggle(r)
@@ -192,6 +320,8 @@ export function StructureTool() {
                     } else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
                       const els = rowEls()
                       els[els.indexOf(ev.currentTarget) + (ev.key === 'ArrowDown' ? 1 : -1)]?.focus()
+                    } else if (!ev.ctrlKey && !ev.altKey && !ev.metaKey && ev.key.length === 1) {
+                      openSearch(ev.key) // Speed Search: typing in the focused tree filters it
                     } else return
                     ev.preventDefault()
                   }}

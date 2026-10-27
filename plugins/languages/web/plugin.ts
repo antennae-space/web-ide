@@ -15,13 +15,15 @@ export interface LanguagesDesk extends Record<string, unknown> {
   showPrivate: boolean
   /** Structure: one click jumps to the symbol instead of only selecting it. */
   singleClick: boolean
+  /** Structure: the row of the symbol around the caret stays selected (the opened element). */
+  selectOpened: boolean
   /** Structure: the ids (symbolId) of the folded symbols of each file. */
   folded: Record<string, string[]>
 }
 
 export let desk: ReturnType<typeof deskOf>
 const deskOf = (a: PluginApi) =>
-  a.desk<LanguagesDesk>({ tab: 'problems', structureSort: 'file', showPrivate: true, singleClick: false, folded: {} })
+  a.desk<LanguagesDesk>({ tab: 'problems', structureSort: 'file', showPrivate: true, singleClick: false, selectOpened: false, folded: {} })
 
 export function bindApi(a: PluginApi) {
   api = a
@@ -35,3 +37,4 @@ export const toast: PluginApi['ui']['toast'] = (...a) => api.ui.toast(...a)
 export const contextMenu: PluginApi['ui']['contextMenu'] = (...a) => api.ui.contextMenu(...a)
 export const prompt: PluginApi['ui']['prompt'] = (...a) => api.ui.prompt(...a)
 export const pick: PluginApi['ui']['pick'] = (...a) => api.ui.pick(...a)
+export const fuzzy: PluginApi['ui']['fuzzy'] = (...a) => api.ui.fuzzy(...a)

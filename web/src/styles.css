@@ -223,6 +223,9 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .tree-detail { color: var(--sym-detail); font-size: 12px; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; }
 .tree-link { color: var(--fg-faint); }
 .tree-error { color: var(--danger); font-size: 12px; padding: 2px 8px; }
+/* Speed Search: the filter box of a tree, under the head of its panel. */
+.tree-filter { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--line); flex: none; }
+.tree-filter .input { flex: 1; }
 /* Glyph of a symbol kind: its letter in a disc tinted with the color of its family. */
 .sym-glyph { width: 18px; height: 18px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-code); font-size: 11px; }
 .sym-glyph.f-type { color: var(--sym-type); background: color-mix(in srgb, var(--sym-type) 18%, transparent); }

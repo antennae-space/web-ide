@@ -2,7 +2,7 @@
 import type { Doc, PickItem } from '@ide/api'
 import kindsJson from './kinds.json'
 import { visibilityOf, type Visibility } from './visibility'
-import { api, pick, t, toast } from './plugin'
+import { api, fuzzy, pick, t, toast } from './plugin'
 
 export interface Position {
   line: number
@@ -203,10 +203,29 @@ export function filterPrivate(list: DocumentSymbol[], lang: string): DocumentSym
     .map((s) => (s.children?.length ? { ...s, children: filterPrivate(s.children, lang) } : s))
 }
 
-/** Chain of symbols containing a position, outermost first. */
-function enclosing(symbols: DocumentSymbol[], line: number, ch: number): DocumentSymbol[] {
+/**
+ * Speed Search: the symbols kept by a query. A match keeps its whole subtree; a parent of a
+ * match stays with its kept children only. An empty query changes nothing.
+ */
+export function filterSymbols(list: DocumentSymbol[], q: string): DocumentSymbol[] {
+  if (!q) return list
+  const out: DocumentSymbol[] = []
+  for (const s of list) {
+    const self = fuzzy(q, s.name) > 0 || (!!s.detail && fuzzy(q, s.detail) > 0)
+    if (self) {
+      out.push(s)
+      continue
+    }
+    const kept = s.children?.length ? filterSymbols(s.children, q) : []
+    if (kept.length) out.push({ ...s, children: kept })
+  }
+  return out
+}
+
+/** Chain of symbols containing a position, outermost first (the opened element is its last one). */
+export function enclosingSymbols(symbols: DocumentSymbol[], line: number, ch: number): DocumentSymbol[] {
   for (const s of symbols) {
-    if (contains(s.range, line, ch)) return [s, ...enclosing(s.children ?? [], line, ch)]
+    if (contains(s.range, line, ch)) return [s, ...enclosingSymbols(s.children ?? [], line, ch)]
   }
   return []
 }
@@ -218,7 +237,7 @@ const typeKinds = new Set([5, 10, 11, 23])
 export async function gotoSuperMethod(doc: Doc, offset: number) {
   try {
     const { line, col } = doc.pos(offset)
-    const chain = enclosing(await documentSymbols(doc.path), line, col)
+    const chain = enclosingSymbols(await documentSymbols(doc.path), line, col)
     const method = [...chain].reverse().find((s) => methodKinds.has(s.kind))
     const cls = [...chain].reverse().find((s) => typeKinds.has(s.kind))
     if (!method || !cls) {

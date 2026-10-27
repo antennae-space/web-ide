@@ -196,6 +196,13 @@ The group a symbol kind belongs to, which gives its color: *type*, *function*, *
 Whether a symbol is visible outside its file. `plugins/languages/web/visibility.json` is the one table of rules the Structure tool and the pod read: Go, an uppercase first letter (*Greeter* exported, *maxFrame* private); JavaScript and TypeScript, `export`, and `private`, `protected` or `#field` for the reverse; Python, a leading underscore for private; PHP, its modifiers. A language with no entry has no badge.
 _Avoid_: public member (for *exported*), visible symbol
 
+**Speed Search** ([plugins](docs/design/plugins.md#language-packs))
+The inline filter of a tree (Structure today): typing in the focused tree, Ctrl+F or the magnifier opens a box, and only the symbols whose name fuzzy-matches the query stay, along with the parents that lead to them. Escape clears it and brings the folds back.
+_Avoid_: filter box, quick open (for the file list)
+
+**Opened element** ([plugins](docs/design/plugins.md#language-packs))
+The innermost symbol containing the caret. *Always Select Opened Element* keeps its row selected in the Structure tree as the caret moves, unfolding its folded ancestors as needed.
+
 **Project template** ([plugins](docs/design/plugins.md#language-packs))
 What a new project starts from, given by a language pack: files and a `.ide` filled in, or the commands of a framework that the core runs in a console the user sees.
 _Avoid_: skeleton, boilerplate, scaffold

@@ -22,7 +22,9 @@
       { "id": "lsp.format", "label": "Reformat the code", "category": "Code" },
       { "id": "nav.fileStructure", "label": "File structure", "category": "Navigation" },
       { "id": "structure.expandAll", "label": "Expand all", "category": "Structure" },
-      { "id": "structure.collapseAll", "label": "Collapse all", "category": "Structure" }
+      { "id": "structure.collapseAll", "label": "Collapse all", "category": "Structure" },
+      { "id": "structure.speedSearch", "label": "Speed Search", "category": "Structure" },
+      { "id": "structure.alwaysSelect", "label": "Always Select Opened Element", "category": "Structure" }
     ]
   }
 }
