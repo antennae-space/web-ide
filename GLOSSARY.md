@@ -203,6 +203,10 @@ _Avoid_: filter box, quick open (for the file list)
 **Opened element** ([plugins](docs/design/plugins.md#language-packs))
 The innermost symbol containing the caret. *Always Select Opened Element* keeps its row selected in the Structure tree as the caret moves, unfolding its folded ancestors as needed.
 
+**Package view** ([plugins](docs/design/plugins.md#language-packs))
+The second view of the Structure tree, switched by *Show Package Structure*: the symbols of the *package* — the files of the folder of the active file served by the same language server, `app.php` apart from a Go package — each file as a foldable node with its symbols under it, at most 40 of them. A file not open in an editor is opened in the server for the request, then closed.
+_Avoid_: package tree (the pod's Go packages), folder view
+
 **Project template** ([plugins](docs/design/plugins.md#language-packs))
 What a new project starts from, given by a language pack: files and a `.ide` filled in, or the commands of a framework that the core runs in a console the user sees.
 _Avoid_: skeleton, boilerplate, scaffold

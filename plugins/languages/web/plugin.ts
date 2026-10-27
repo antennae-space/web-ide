@@ -17,13 +17,15 @@ export interface LanguagesDesk extends Record<string, unknown> {
   singleClick: boolean
   /** Structure: the row of the symbol around the caret stays selected (the opened element). */
   selectOpened: boolean
+  /** Structure: the symbols of the whole package (the files of the folder of the active file). */
+  showPackage: boolean
   /** Structure: the ids (symbolId) of the folded symbols of each file. */
   folded: Record<string, string[]>
 }
 
 export let desk: ReturnType<typeof deskOf>
 const deskOf = (a: PluginApi) =>
-  a.desk<LanguagesDesk>({ tab: 'problems', structureSort: 'file', showPrivate: true, singleClick: false, selectOpened: false, folded: {} })
+  a.desk<LanguagesDesk>({ tab: 'problems', structureSort: 'file', showPrivate: true, singleClick: false, selectOpened: false, showPackage: false, folded: {} })
 
 export function bindApi(a: PluginApi) {
   api = a

@@ -24,6 +24,8 @@ export interface DocumentSymbol {
   range: Range
   selectionRange: Range
   children?: DocumentSymbol[]
+  /** The file a node stands for (a file node of the package view); its children belong to it too. */
+  file?: string
 }
 
 /**
@@ -169,37 +171,47 @@ export function sortSymbols(list: DocumentSymbol[]): DocumentSymbol[] {
   return out.map((s) => (s.children?.length ? { ...s, children: sortSymbols(s.children) } : s))
 }
 
-/** A row of the tree: a symbol, its depth, whether it folds, whether it is folded, its lock. */
+/** A row of the tree: a symbol, its depth, whether it folds, whether it is folded, its lock, its file. */
 export interface TreeRow {
   s: DocumentSymbol
   depth: number
   hasChildren: boolean
   folded: boolean
   visibility: Visibility
+  /** The file the symbol belongs to (the active file in the single-file view). */
+  file: string
 }
 
-/** The visible rows, in tree order (the children of a folded symbol are left out). */
-export function treeRows(list: DocumentSymbol[], folded: Set<string>, lang: string, depth = 0, out: TreeRow[] = []): TreeRow[] {
+/** A folded id, distinct for two files that hold a symbol of the same name. */
+export function rowKey(file: string, id: string): string {
+  return `${file}#${id}`
+}
+
+/** The visible rows, in tree order (the children of a folded symbol are left out). `file` is the
+ * file of the symbols of this level: a file node of the package view carries its own, and gives it
+ * to its children. */
+export function treeRows(list: DocumentSymbol[], folded: Set<string>, lang: string, depth = 0, out: TreeRow[] = [], file = ''): TreeRow[] {
   for (const s of list) {
+    const own = s.file ?? file
     const has = !!s.children?.length
-    const isFolded = folded.has(symbolId(s))
-    out.push({ s, depth, hasChildren: has, folded: isFolded, visibility: visibilityOf(lang, s) })
-    if (has && !isFolded) treeRows(s.children!, folded, lang, depth + 1, out)
+    const isFolded = folded.has(rowKey(own, symbolId(s)))
+    out.push({ s, depth, hasChildren: has, folded: isFolded, visibility: s.file ? 'none' : visibilityOf(lang, s), file: own })
+    if (has && !isFolded) treeRows(s.children!, folded, lang, depth + 1, out, own)
   }
   return out
 }
 
 /** Exported symbols first, private after, at every level: file order kept, children kept under their parent. */
 export function sortByExportability(list: DocumentSymbol[], lang: string): DocumentSymbol[] {
-  const isPrivate = (s: DocumentSymbol) => visibilityOf(lang, s) === 'private'
+  const isPrivate = (s: DocumentSymbol) => !s.file && visibilityOf(lang, s) === 'private'
   const out = [...list.filter((s) => !isPrivate(s)), ...list.filter(isPrivate)]
   return out.map((s) => (s.children?.length ? { ...s, children: sortByExportability(s.children, lang) } : s))
 }
 
-/** The tree without the private symbols: a private symbol takes its children with it. */
+/** The tree without the private symbols: a private symbol takes its children with it (a file node is never private). */
 export function filterPrivate(list: DocumentSymbol[], lang: string): DocumentSymbol[] {
   return list
-    .filter((s) => visibilityOf(lang, s) !== 'private')
+    .filter((s) => !!s.file || visibilityOf(lang, s) !== 'private')
     .map((s) => (s.children?.length ? { ...s, children: filterPrivate(s.children, lang) } : s))
 }
 
@@ -283,7 +295,7 @@ export async function gotoSuperMethod(doc: Doc, offset: number) {
 }
 
 /** Symbols of a file that may not be open: opened in the server for the request. */
-async function symbolsOf(path: string): Promise<DocumentSymbol[]> {
+export async function symbolsOf(path: string): Promise<DocumentSymbol[]> {
   try {
     const s = await documentSymbols(path)
     if (s.length) return s
@@ -291,6 +303,7 @@ async function symbolsOf(path: string): Promise<DocumentSymbol[]> {
     /* fall through */
   }
   const lang = api.editor.serverLanguage(path)
+  if (!lang) return []
   const f = await api.files.read(path)
   const uri = api.project.fileUri(path)
   await api.rpc('lsp.notify', { lang, method: 'textDocument/didOpen', params: { textDocument: { uri, languageId: api.editor.serverLanguageId(path), version: 1, text: f.content } } })
@@ -299,6 +312,68 @@ async function symbolsOf(path: string): Promise<DocumentSymbol[]> {
   } finally {
     await api.rpc('lsp.notify', { lang, method: 'textDocument/didClose', params: { textDocument: { uri } } })
   }
+}
+
+/** The folder a path lives in, as the project shows it ('' for the root of the project). */
+export function dirOf(path: string): string {
+  const rel = api.project.relPath(path)
+  const i = rel.lastIndexOf('/')
+  return i < 0 ? '' : rel.slice(0, i)
+}
+
+/** The most sibling files the package view lists: the cost stays that of a folder, not of the project. */
+export const packageFileCap = 40
+
+interface FsEntry {
+  name: string
+  path: string
+  dir: boolean
+  link?: boolean
+  size: number
+}
+
+/**
+ * The package of a file: the files of its folder served by the same language server (`app.php`
+ * never joins a Go package, `.ts` and `.tsx` stay together), its `_test.go` files left out, as
+ * well as the hidden files and the excluded folders. Name order, capped at `packageFileCap`;
+ * `total` tells whether the cap cut the list.
+ */
+export async function packageFiles(path: string): Promise<{ files: string[]; total: number }> {
+  const lang = api.editor.serverLanguage(path)
+  if (!lang) return { files: [path], total: 1 }
+  let entries: FsEntry[]
+  try {
+    entries = await api.rpc<FsEntry[]>('fs.list', { path: dirOf(path) })
+  } catch {
+    entries = []
+  }
+  const kept = entries
+    .filter((e) => !e.dir && !e.link && !e.name.startsWith('.') && !api.folders.inExcluded(e.path))
+    .filter((e) => !(lang === 'go' && e.name.endsWith('_test.go')) && (api.editor.serverLanguage(e.path) === lang || e.path === path))
+    .map((e) => e.path)
+  if (!kept.includes(path)) kept.push(path)
+  kept.sort((a, b) => api.project.basename(a).localeCompare(api.project.basename(b)))
+  return { files: kept.slice(0, packageFileCap), total: kept.length }
+}
+
+/** Symbols of several files, four at a time (a server is not flooded with `didOpen`). */
+export async function packageSymbols(paths: string[]): Promise<Map<string, DocumentSymbol[]>> {
+  const out = new Map<string, DocumentSymbol[]>()
+  let next = 0
+  const work = async () => {
+    while (next < paths.length) {
+      const p = paths[next++]
+      out.set(p, await symbolsOf(p).catch(() => [] as DocumentSymbol[]))
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(4, paths.length) }, work))
+  return out
+}
+
+/** The node a file gets in the package view (its range stands for the file, it is never jumped to). */
+export function fileSymbol(path: string): DocumentSymbol {
+  const start = { line: 0, character: 0 }
+  return { name: api.project.basename(path), kind: 1, detail: dirOf(path), range: { start, end: start }, selectionRange: { start, end: start }, file: path }
 }
 
 export async function hoverText(doc: Doc, offset: number): Promise<string> {

@@ -1,6 +1,8 @@
 // Structure tool: the symbols of the active file (classes, functions, methods), from its server,
-// as a tree. A twisty folds the children of a symbol (the folded state is kept per file in the
-// desk), one click selects a row, a double click jumps to it (one click with "Navigate with
+// as a tree — or, with "Show Package Structure", the symbols of the whole package: one node per
+// file of the active file's folder served by the same language server, its symbols under it. A
+// twisty folds the children of a symbol or of a file node (the folded state is kept per file in
+// the desk), one click selects a row, a double click jumps to it (one click with "Navigate with
 // Single Click"), a lock next to the glyph tells an exported symbol from a private one (the rules
 // of web/visibility.json), the ⋮ menu holds the choices of the tree. Speed Search filters the
 // rows by typing (or Ctrl+F) while the tree has the focus, highlighting what the query matches;
@@ -8,7 +10,24 @@
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show, untrack } from 'solid-js'
 import type { MenuItem } from '@ide/api'
 import { api, contextMenu, desk, EmptyState, Icon, t } from './plugin'
-import { documentSymbols, enclosingSymbols, filterPrivate, filterSymbols, fuzzyMarks, sortByExportability, sortSymbols, symbolId, treeRows, type DocumentSymbol, type TreeRow } from './client'
+import {
+  dirOf,
+  documentSymbols,
+  enclosingSymbols,
+  fileSymbol,
+  filterPrivate,
+  filterSymbols,
+  fuzzyMarks,
+  packageFiles,
+  packageSymbols,
+  rowKey,
+  sortByExportability,
+  sortSymbols,
+  symbolId,
+  treeRows,
+  type DocumentSymbol,
+  type TreeRow,
+} from './client'
 import { SymGlyph } from './glyph'
 
 /** A name or a detail, with the characters the Speed Search query hit set apart. */
@@ -34,6 +53,105 @@ const activePath = () => (api.activeFile() ?? '')
 
 /** The tree each file was last shown with: the commands work even when the tool is closed. */
 const shownTrees = new Map<string, DocumentSymbol[]>()
+/** The package tree each folder was last shown with: its file nodes, the files seen, the files kept. */
+interface PackageTree {
+  tree: DocumentSymbol[]
+  total: number
+  shown: number
+}
+
+const packageTrees = new Map<string, PackageTree>()
+
+/**
+ * The package tree of a file: one node per sibling file of the same language server, its symbols
+ * as children. Cached by folder; a `fs` event drops it (see the listeners of the tool).
+ */
+async function packageTreeOf(path: string): Promise<PackageTree> {
+  const dir = dirOf(path)
+  const known = packageTrees.get(dir)
+  if (known) return known
+  const { files, total } = await packageFiles(path)
+  const found = await packageSymbols(files)
+  for (const p of files) shownTrees.set(p, found.get(p) ?? [])
+  const tree = files.map((p) => ({ ...fileSymbol(p), children: found.get(p) ?? [] }))
+  const entry = { tree, total, shown: files.length }
+  packageTrees.set(dir, entry)
+  return entry
+}
+
+/** Drops the cached trees of a folder (and of the files it holds). */
+function forgetPackage(dir: string) {
+  const entry = packageTrees.get(dir)
+  if (!entry) return false
+  packageTrees.delete(dir)
+  for (const node of entry.tree) shownTrees.delete(node.file!)
+  return true
+}
+
+/** The tree each file was last shown with, fetched when the tool has not seen it. */
+async function treeOf(path: string): Promise<DocumentSymbol[]> {
+  const known = shownTrees.get(path)
+  if (known) return known
+  const list = await documentSymbols(path).catch(() => [] as DocumentSymbol[])
+  shownTrees.set(path, list)
+  return list
+}
+
+/** The folded ids of the given files, keyed by file so two files never share a fold. */
+function foldedIds(files: string[]): Set<string> {
+  const out = new Set<string>()
+  const all = desk.get().folded
+  for (const f of files) for (const id of all[f] ?? []) out.add(rowKey(f, id))
+  return out
+}
+
+function setFolded(path: string, ids: string[]) {
+  desk.set((s) => {
+    s.folded[path] = ids
+  })
+}
+
+/**
+ * The package tree: the file nodes stay in name order, the active file first with "Sort in the
+ * file"; the alphabetical and exportability sorts apply inside each file.
+ */
+function sortPackage(tree: DocumentSymbol[], sort: string, lang: string, active: string): DocumentSymbol[] {
+  const files = sort === 'file' ? [...tree.filter((f) => f.file === active), ...tree.filter((f) => f.file !== active)] : tree
+  if (sort === 'file') return files
+  return files.map((f) => ({ ...f, children: sort === 'alpha' ? sortSymbols(f.children ?? []) : sortByExportability(f.children ?? [], lang) }))
+}
+
+/** Unfolds every symbol of the shown tree. */
+export async function expandAllStructure() {
+  const p = activePath()
+  if (!p) return
+  const files = desk.get().showPackage ? (await packageTreeOf(p)).tree.map((n) => n.file!) : [p]
+  for (const f of files) setFolded(f, [])
+}
+
+/** Folds every symbol of the shown tree that has children (a file node folds its whole file). */
+export async function collapseAllStructure() {
+  const p = activePath()
+  if (!p) return
+  const collect = (list: DocumentSymbol[], ids: string[]) => {
+    for (const s of list) {
+      if (!s.children?.length) continue
+      ids.push(symbolId(s))
+      collect(s.children, ids)
+    }
+  }
+  if (!desk.get().showPackage) {
+    const ids: string[] = []
+    collect(await treeOf(p), ids)
+    setFolded(p, ids)
+    return
+  }
+  for (const node of (await packageTreeOf(p)).tree) {
+    const ids: string[] = []
+    collect([node], ids)
+    setFolded(node.file!, ids)
+  }
+}
 
 /** The filter box of the shown tool (null: the tool is closed), for the palette's command. */
 let askFilter: ((seed?: string) => void) | null = null
@@ -53,51 +171,16 @@ export function toggleAlwaysSelectStructure() {
   desk.set((s) => (s.selectOpened = !s.selectOpened))
 }
 
-async function treeOf(path: string): Promise<DocumentSymbol[]> {
-  const known = shownTrees.get(path)
-  if (known) return known
-  const list = await documentSymbols(path).catch(() => [] as DocumentSymbol[])
-  shownTrees.set(path, list)
-  return list
-}
-
-function foldedIds(path: string): Set<string> {
-  return new Set(desk.get().folded[path] ?? [])
-}
-
-function setFolded(path: string, ids: string[]) {
-  desk.set((s) => {
-    s.folded[path] = ids
-  })
-}
-
-/** Unfolds every symbol of the active file. */
-export function expandAllStructure() {
-  const p = activePath()
-  if (p) setFolded(p, [])
-}
-
-/** Folds every symbol of the active file that has children. */
-export async function collapseAllStructure() {
-  const p = activePath()
-  if (!p) return
-  const ids: string[] = []
-  const walk = (list: DocumentSymbol[]) => {
-    for (const s of list) {
-      if (!s.children?.length) continue
-      ids.push(symbolId(s))
-      walk(s.children)
-    }
-  }
-  walk(await treeOf(p))
-  setFolded(p, ids)
+/** Switches the package view (the ⋮ menu and the palette do the same). */
+export function togglePackageStructure() {
+  desk.set((s) => (s.showPackage = !s.showPackage))
 }
 
 function optionsMenu(ev: MouseEvent) {
   const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
-  const soon = t('Coming soon')
+  const lang = api.editor.serverLanguage(activePath())
   const items: MenuItem[] = [
-    { label: t('Expand all'), action: expandAllStructure },
+    { label: t('Expand all'), action: () => void expandAllStructure() },
     { label: t('Collapse all'), action: () => void collapseAllStructure() },
     { separator: true, label: '' },
     { label: t('Navigate with Single Click'), checked: desk.get().singleClick, action: () => desk.set((s) => (s.singleClick = !s.singleClick)) },
@@ -108,7 +191,7 @@ function optionsMenu(ev: MouseEvent) {
     { label: t('Sort alphabetically'), checked: desk.get().structureSort === 'alpha', action: () => desk.set((s) => (s.structureSort = 'alpha')) },
     { label: t('Sort by Exportability'), checked: desk.get().structureSort === 'export', action: () => desk.set((s) => (s.structureSort = 'export')) },
     { separator: true, label: '' },
-    { label: t('Show Package Structure'), disabled: true, title: soon },
+    { label: t('Show Package Structure'), checked: desk.get().showPackage, disabled: !lang, title: lang ? undefined : t('No language server for this file type'), action: togglePackageStructure },
     { label: t('Show Private Members'), checked: desk.get().showPrivate, action: () => desk.set((s) => (s.showPrivate = !s.showPrivate)) },
   ]
   contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.bottom + 2 }), items)
@@ -117,6 +200,7 @@ function optionsMenu(ev: MouseEvent) {
 export function StructureTool() {
   const path = activePath
   const [tick, setTick] = createSignal(0)
+  const [rev, setRev] = createSignal(0)
   const [selected, setSelected] = createSignal<string | null>(null)
   const [query, setQuery] = createSignal('')
   const [searching, setSearching] = createSignal(false)
@@ -134,36 +218,59 @@ export function StructureTool() {
       onCleanup(off)
     }),
   )
+  // A sibling file changed (here or in another window): the package tree of its folder is fetched again.
+  const offDir = api.on('fs.dir', (e: { path: string }) => {
+    if (forgetPackage(e.path)) setRev((r) => r + 1)
+  })
+  const offFile = api.on('fs.changed', (e: { path: string }) => {
+    if (forgetPackage(dirOf(e.path)) || shownTrees.delete(e.path)) setRev((r) => r + 1)
+  })
+  onCleanup(offDir)
+  onCleanup(offFile)
   const [symbols] = createResource(
-    () => (path() ? { p: path(), t: tick(), v: api.buffers.version() } : null),
-    async ({ p }) => {
+    () => (path() ? { p: path(), pkg: desk.get().showPackage, t: tick(), v: api.buffers.version(), r: rev() } : null),
+    async ({ p, pkg }): Promise<PackageTree & { error: string }> => {
       try {
+        if (pkg) return { ...(await packageTreeOf(p)), error: '' }
         const list = await documentSymbols(p)
         shownTrees.set(p, list)
-        return { list, error: '' }
+        return { tree: list, total: 0, shown: 0, error: '' }
       } catch (e) {
-        return { list: [] as DocumentSymbol[], error: (e as Error).message }
+        return { tree: [] as DocumentSymbol[], total: 0, shown: 0, error: (e as Error).message }
       }
     },
   )
   const filtering = () => searching() && !!query()
   const rows = createMemo(() => {
-    const list = symbols()?.list ?? []
+    const entry = symbols()
+    const list = entry?.tree ?? []
     const lang = path() ? api.editor.serverLanguage(path()) : ''
     const sort = desk.get().structureSort
-    const sorted = sort === 'alpha' ? sortSymbols(list) : sort === 'export' ? sortByExportability(list, lang) : list
+    const pkg = desk.get().showPackage
+    const sorted = pkg
+      ? sortPackage(list, sort, lang, path())
+      : sort === 'alpha'
+        ? sortSymbols(list)
+        : sort === 'export'
+          ? sortByExportability(list, lang)
+          : list
     const shown = desk.get().showPrivate ? sorted : filterPrivate(sorted, lang)
+    const files = pkg ? list.map((n) => n.file!) : [path()]
     // While filtering, the folds are set aside: a match must not hide under a folded parent.
-    return treeRows(filtering() ? filterSymbols(shown, query()) : shown, filtering() ? new Set<string>() : foldedIds(path()), lang)
+    return treeRows(filtering() ? filterSymbols(shown, query()) : shown, filtering() ? new Set<string>() : foldedIds(files), lang, 0, [], path())
   })
-  const jump = (s: DocumentSymbol) => api.openFile({ path: path(), line: s.selectionRange.start.line, col: s.selectionRange.start.character })
+  const capLine = () => {
+    const e = symbols()
+    return desk.get().showPackage && !filtering() && !!e && e.total > e.shown
+  }
+  const jump = (r: TreeRow) => api.openFile({ path: r.file, line: r.s.selectionRange.start.line, col: r.s.selectionRange.start.character })
   const toggle = (r: TreeRow) => {
     if (!r.hasChildren) return
-    const ids = foldedIds(path())
+    const ids = new Set(desk.get().folded[r.file] ?? [])
     const id = symbolId(r.s)
     if (ids.has(id)) ids.delete(id)
     else ids.add(id)
-    setFolded(path(), [...ids])
+    setFolded(r.file, [...ids])
   }
   /** Unfolds the ancestors of a symbol, and only when one of them is actually folded. */
   const revealSymbol = (p: string, ids: string[]) => {
@@ -171,6 +278,12 @@ export function StructureTool() {
     const hidden = new Set(ids)
     const kept = folded.filter((id) => !hidden.has(id))
     if (kept.length !== folded.length) setFolded(p, kept)
+  }
+  const refresh = () => {
+    const p = path()
+    forgetPackage(dirOf(p))
+    shownTrees.delete(p)
+    setTick((t) => t + 1)
   }
   const rowEls = () => [...document.querySelectorAll<HTMLElement>('.structure .tree-row')]
   /** Back to the tree: the selected row when it is still shown, the first one else. */
@@ -212,12 +325,14 @@ export function StructureTool() {
   // "Always Select Opened Element": the row of the symbol around the caret follows the caret.
   let followTimer: number | undefined
   const followCaret = (p: string, line: number, col: number) => {
-    const list = untrack(() => symbols()?.list) ?? shownTrees.get(p) ?? []
+    const list = shownTrees.get(p) ?? []
     const chain = enclosingSymbols(list, line - 1, col - 1)
     const target = chain[chain.length - 1]
     if (!target) return
-    const id = symbolId(target)
-    revealSymbol(p, chain.map(symbolId))
+    const ids = chain.map(symbolId)
+    if (desk.get().showPackage) ids.push(symbolId(fileSymbol(p))) // the file node itself
+    revealSymbol(p, ids)
+    const id = rowKey(p, symbolId(target))
     setSelected(id)
     requestAnimationFrame(() => document.querySelector<HTMLElement>(`.structure .tree-row[data-sym="${id}"]`)?.scrollIntoView({ block: 'nearest' }))
   }
@@ -243,7 +358,7 @@ export function StructureTool() {
       <div class="panel-head">
         <span class="panel-title">{t('Structure')}</span>
         <span class="grow" />
-        <button class="icon-btn" data-testid="structure-expand" title={t('Expand all')} onClick={expandAllStructure}>
+        <button class="icon-btn" data-testid="structure-expand" title={t('Expand all')} onClick={() => void expandAllStructure()}>
           <Icon name="expandAll" size={14} />
         </button>
         <button class="icon-btn" data-testid="structure-collapse" title={t('Collapse all')} onClick={() => void collapseAllStructure()}>
@@ -252,7 +367,7 @@ export function StructureTool() {
         <button class="icon-btn" data-testid="structure-search" title={t('Speed Search')} onClick={() => openSearch()}>
           <Icon name="search" size={14} />
         </button>
-        <button class="icon-btn" title={t('Refresh')} onClick={() => setTick((t) => t + 1)}>
+        <button class="icon-btn" title={t('Refresh')} onClick={refresh}>
           <Icon name="refresh" size={14} />
         </button>
         <button class="icon-btn" data-testid="structure-options" title={t('Options')} onClick={optionsMenu}>
@@ -290,9 +405,12 @@ export function StructureTool() {
           <Show when={filtering() && !rows().length}>
             <p class="muted pad small">{t('No symbol matches.')}</p>
           </Show>
+          <Show when={capLine()}>
+            <p class="muted pad small">{t('Package: {n} files, showing the first {m}', { n: symbols()!.total, m: symbols()!.shown })}</p>
+          </Show>
           <For each={rows()}>
             {(r) => {
-              const id = () => symbolId(r.s)
+              const id = () => rowKey(r.file, symbolId(r.s))
               return (
                 <div
                   class="tree-row"
@@ -311,15 +429,15 @@ export function StructureTool() {
                       toggle(r)
                       return
                     }
-                    if (desk.get().singleClick || api.tiles.phone()) jump(r.s)
+                    if (desk.get().singleClick || api.tiles.phone()) jump(r)
                     else toggle(r)
                   }}
                   onDblClick={(ev) => {
                     if (desk.get().singleClick || (ev.target as Element).closest('.tree-twist')) return
-                    jump(r.s)
+                    jump(r)
                   }}
                   onKeyDown={(ev) => {
-                    if (ev.key === 'Enter') jump(r.s)
+                    if (ev.key === 'Enter') jump(r)
                     else if (ev.key === 'ArrowRight' && r.hasChildren) {
                       if (r.folded) toggle(r)
                       else {
