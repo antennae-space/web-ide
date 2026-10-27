@@ -8,7 +8,7 @@ import { formatDocument, renameSymbol } from './refactor'
 import { complete, resolveItem, triggerCharacters } from './completion'
 import { resync, watchBuffers } from './sync'
 import { diagnostics, problemCount, ProblemsTool, watchServers } from './problems'
-import { StructureTool } from './structure'
+import { StructureTool, collapseAllStructure, expandAllStructure, openStructureSearch, toggleAlwaysSelectStructure } from './structure'
 import { symbolsProvider } from './symbols'
 import { installServer, missingServer, notNow, putOff, servers, watchPackServers } from './servers'
 
@@ -54,6 +54,10 @@ export const languages: PluginModule = {
         'lsp.references': onEditor((v, d) => lspc.findReferences(d, at(v))),
         'lsp.rename': onEditor((v, d) => renameSymbol(v, d)),
         'lsp.format': onEditor((v, d) => formatDocument(v, d)),
+        'structure.expandAll': () => expandAllStructure(),
+        'structure.collapseAll': () => void collapseAllStructure(),
+        'structure.speedSearch': () => openStructureSearch(),
+        'structure.alwaysSelect': () => toggleAlwaysSelectStructure(),
         'lsp.hover': onEditor(async (v, d) => {
           const off = at(v)
           try {

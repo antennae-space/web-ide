@@ -1,0 +1,33 @@
+{
+  "default": "none",
+  "languages": {
+    "go": {
+      "default": "private",
+      "rules": [{ "field": "name", "match": "^[A-Z]", "visibility": "exported" }]
+    },
+    "javascript": {
+      "default": "private",
+      "rules": [
+        { "field": "name", "match": "^#", "visibility": "private" },
+        { "field": "detail", "match": "\\b(private|protected)\\b", "visibility": "private" },
+        { "field": "detail", "match": "\\bexport\\b", "visibility": "exported" }
+      ]
+    },
+    "typescript": {
+      "default": "private",
+      "rules": [
+        { "field": "name", "match": "^#", "visibility": "private" },
+        { "field": "detail", "match": "\\b(private|protected)\\b", "visibility": "private" },
+        { "field": "detail", "match": "\\bexport\\b", "visibility": "exported" }
+      ]
+    },
+    "python": {
+      "default": "exported",
+      "rules": [{ "field": "name", "match": "^_", "visibility": "private" }]
+    },
+    "php": {
+      "default": "exported",
+      "rules": [{ "field": "detail", "match": "\\b(private|protected)\\b", "visibility": "private" }]
+    }
+  }
+}

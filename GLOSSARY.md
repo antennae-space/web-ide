@@ -189,6 +189,24 @@ The built-in plugin that runs the language servers of the language packs and sho
 An external plugin that gives one language to the language host: its grammar, its language servers (run confined on this machine with the pack's grants: its program, the folders of the host it needs; on the host of an SSH project as its granted program), its test patterns, later its debug adapter and its project templates. A server it gives a recipe is installed by the IDE into the pack's *folder of tools* (`~/.local/share/web-ide/tools/<pack>`), looked up before the PATH.
 _Avoid_: language plugin, language extension
 
+**Glyph family** ([plugins](docs/design/plugins.md#language-packs))
+The group a symbol kind belongs to, which gives its color: *type*, *function*, *variable*, *value*, *other*. `plugins/languages/web/kinds.json` is the one table of the kinds (name, glyph, family) the Structure tool, the Symbols tab, the file structure list and the assistant's `lsp_*` tools read; a theme colors each family (`--sym-type`…) and the detail of a symbol (`--sym-detail`).
+
+**Exportable** / **Private member** ([plugins](docs/design/plugins.md#language-packs))
+Whether a symbol is visible outside its file. `plugins/languages/web/visibility.json` is the one table of rules the Structure tool and the pod read: Go, an uppercase first letter (*Greeter* exported, *maxFrame* private); JavaScript and TypeScript, `export`, and `private`, `protected` or `#field` for the reverse; Python, a leading underscore for private; PHP, its modifiers. A language with no entry has no badge.
+_Avoid_: public member (for *exported*), visible symbol
+
+**Speed Search** ([plugins](docs/design/plugins.md#language-packs))
+The inline filter of a tree (Structure today): typing in the focused tree, Ctrl+F or the magnifier opens a box, and only the symbols whose name fuzzy-matches the query stay, along with the parents that lead to them, the characters the query hits highlighted. Escape clears it and brings the folds back.
+_Avoid_: filter box, quick open (for the file list)
+
+**Opened element** ([plugins](docs/design/plugins.md#language-packs))
+The innermost symbol containing the caret. *Always Select Opened Element* keeps its row selected in the Structure tree as the caret moves, unfolding its folded ancestors as needed.
+
+**Package view** ([plugins](docs/design/plugins.md#language-packs))
+The second view of the Structure tree, switched by *Show Package Structure*: the symbols of the *package* — the files of the folder of the active file served by the same language server, `app.php` apart from a Go package — each file as a foldable node with its symbols under it, at most 40 of them. A file not open in an editor is opened in the server for the request, then closed.
+_Avoid_: package tree (the pod's Go packages), folder view
+
 **Project template** ([plugins](docs/design/plugins.md#language-packs))
 What a new project starts from, given by a language pack: files and a `.ide` filled in, or the commands of a framework that the core runs in a console the user sees.
 _Avoid_: skeleton, boilerplate, scaffold

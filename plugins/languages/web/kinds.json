@@ -1,0 +1,31 @@
+{
+  "families": ["type", "function", "variable", "value", "other"],
+  "kinds": {
+    "1": ["File", "F", "other"],
+    "2": ["Module", "M", "other"],
+    "3": ["Namespace", "N", "type"],
+    "4": ["Package", "P", "other"],
+    "5": ["Class", "C", "type"],
+    "6": ["Method", "m", "function"],
+    "7": ["Property", "p", "variable"],
+    "8": ["Field", "f", "variable"],
+    "9": ["Constructor", "C", "function"],
+    "10": ["Enum", "E", "type"],
+    "11": ["Interface", "I", "type"],
+    "12": ["Function", "ƒ", "function"],
+    "13": ["Variable", "v", "variable"],
+    "14": ["Constant", "c", "variable"],
+    "15": ["String", "s", "value"],
+    "16": ["Number", "#", "value"],
+    "17": ["Boolean", "b", "value"],
+    "18": ["Array", "A", "value"],
+    "19": ["Object", "O", "value"],
+    "20": ["Key", "k", "value"],
+    "21": ["Null", "n", "value"],
+    "22": ["Enum member", "e", "value"],
+    "23": ["Struct", "S", "type"],
+    "24": ["Event", "e", "variable"],
+    "25": ["Operator", "±", "other"],
+    "26": ["Type parameter", "T", "type"]
+  }
+}

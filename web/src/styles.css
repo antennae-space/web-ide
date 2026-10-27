@@ -10,6 +10,9 @@
   --radius: 5px;
   /* Folder marks of the explorer. */
   --mark-source: #4a90e2; --mark-tests: #4caf50; --mark-excluded: #e0823d;
+  /* Symbol kinds (Structure, Symbols): a color per family, the detail of a symbol, and its lock. */
+  --sym-type: #ffcb6b; --sym-function: #82aaff; --sym-variable: #f07178; --sym-value: #c3e88d; --sym-other: #7fdbca; --sym-detail: #ff9e64;
+  --sym-export: #c3e88d; --sym-private: #f07178;
   color-scheme: dark;
 }
 
@@ -217,10 +220,24 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .tree-twist.open { transform: rotate(90deg); }
 .tree-twist.none { visibility: hidden; }
 .tree-name { overflow: hidden; text-overflow: ellipsis; }
-.tree-detail { color: var(--fg-faint); font-size: 12px; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; }
+.tree-detail { color: var(--sym-detail); font-size: 12px; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; }
 .tree-link { color: var(--fg-faint); }
 .tree-error { color: var(--danger); font-size: 12px; padding: 2px 8px; }
-.sym-kind { width: 18px; text-align: center; font-family: var(--font-code); font-size: 12px; color: var(--accent); flex: none; }
+/* Speed Search: the filter box of a tree, under the head of its panel. */
+.tree-filter { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--line); flex: none; }
+.tree-filter .input { flex: 1; }
+.tree-row mark { background: var(--match-bg); color: inherit; border-radius: 2px; }
+/* Glyph of a symbol kind: its letter in a disc tinted with the color of its family. */
+.sym-glyph { width: 18px; height: 18px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-code); font-size: 11px; }
+.sym-glyph.f-type { color: var(--sym-type); background: color-mix(in srgb, var(--sym-type) 18%, transparent); }
+.sym-glyph.f-function { color: var(--sym-function); background: color-mix(in srgb, var(--sym-function) 18%, transparent); }
+.sym-glyph.f-variable { color: var(--sym-variable); background: color-mix(in srgb, var(--sym-variable) 18%, transparent); }
+.sym-glyph.f-value { color: var(--sym-value); background: color-mix(in srgb, var(--sym-value) 18%, transparent); }
+.sym-glyph.f-other { color: var(--sym-other); background: color-mix(in srgb, var(--sym-other) 18%, transparent); }
+/* Lock of a symbol in the Structure tree: open for an exported one, closed for a private one. */
+.sym-lock { flex: none; display: inline-flex; align-items: center; }
+.sym-lock.exported { color: var(--sym-export); }
+.sym-lock.private { color: var(--sym-private); }
 .toolbar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--line); flex: none; flex-wrap: wrap; background: var(--bg-2); }
 .toolbar.compact { gap: 2px; padding: 3px 6px; }
 

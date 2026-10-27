@@ -12,6 +12,7 @@ import (
 	"antennae.space/ide/pod/caps"
 
 	"antennae.space/ide/lib/i18n"
+	"antennae.space/ide/plugins/languages"
 	"antennae.space/ide/pod/assistant"
 	"antennae.space/ide/pod/runtime"
 )
@@ -19,14 +20,10 @@ import (
 // Language server tools of the assistant. A file is opened in its server for the request (the pod
 // counts the opens: a file a window already has open stays open, with the unsaved text).
 
-var symbolKinds = map[int]string{
-	1: "File", 2: "Module", 3: "Namespace", 4: "Package", 5: "Class", 6: "Method", 7: "Property", 8: "Field", 9: "Constructor", 10: "Enum",
-	11: "Interface", 12: "Function", 13: "Variable", 14: "Constant", 15: "String", 16: "Number", 17: "Boolean", 18: "Array", 19: "Object",
-	20: "Key", 21: "Null", 22: "Enum member", 23: "Struct", 24: "Event", 25: "Operator", 26: "Type parameter",
-}
-
+// The symbol kinds come from the Languages plugin's table (web/kinds.json, embedded by
+// plugins/languages/kinds.go): the same names the Structure tool shows.
 func kindName(k int) string {
-	if n, ok := symbolKinds[k]; ok {
+	if n := languages.SymbolKindName(k); n != "" {
 		return n
 	}
 	return "?"

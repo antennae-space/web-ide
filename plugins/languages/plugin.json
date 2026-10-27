@@ -5,7 +5,7 @@
   "apiVersion": 1,
   "permissions": ["exec"],
   "provides": ["language"],
-  "namespaces": ["lsp", "nav"],
+  "namespaces": ["lsp", "nav", "structure"],
   "contributes": {
     "tools": [
       { "id": "problems", "label": "Problems", "icon": "problems", "zone": "bottomRight", "before": "forwards" },
@@ -20,7 +20,11 @@
       { "id": "lsp.hover", "label": "Quick documentation", "category": "Code" },
       { "id": "lsp.rename", "label": "Rename the symbol…", "category": "Code" },
       { "id": "lsp.format", "label": "Reformat the code", "category": "Code" },
-      { "id": "nav.fileStructure", "label": "File structure", "category": "Navigation" }
+      { "id": "nav.fileStructure", "label": "File structure", "category": "Navigation" },
+      { "id": "structure.expandAll", "label": "Expand all", "category": "Structure" },
+      { "id": "structure.collapseAll", "label": "Collapse all", "category": "Structure" },
+      { "id": "structure.speedSearch", "label": "Speed Search", "category": "Structure" },
+      { "id": "structure.alwaysSelect", "label": "Always Select Opened Element", "category": "Structure" }
     ]
   }
 }
