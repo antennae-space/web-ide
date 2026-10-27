@@ -495,12 +495,14 @@ run(async ({ page, errors }) => {
   await page.click('.modal-plugin .modal-head button')
   assert((await result()) === 'null', 'closed by the user: null')
 
-  // The options menu of a tool (#175): a tool whose plugin contributes nothing shows only the
-  // core items.
+  // The options menu of a tool (#175, #176): the core items, then those its plugin contributes.
   const menuLabels = () => page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
   await page.click('[data-tool=explorer] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')
-  assert(JSON.stringify(await menuLabels()) === JSON.stringify(['Open in a window', 'Close']), 'no contributed item: ' + JSON.stringify(await menuLabels()))
+  assert(
+    JSON.stringify(await menuLabels()) === JSON.stringify(['Open in a window', 'Close', 'New file…', 'New folder…', 'Show the hidden files', 'Show the excluded folders', 'Open files with a single click', 'Always select the opened file', 'Refresh all']),
+    'the items of the Explorer, after the core ones: ' + JSON.stringify(await menuLabels()),
+  )
   await page.keyboard.press('Escape')
   await page.waitForSelector('.ctx-menu', { state: 'detached' })
 

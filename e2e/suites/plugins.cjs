@@ -43,8 +43,11 @@ run(async ({ page }) => {
   await page.click('.pane.active').catch(() => {})
   await page.waitForSelector('[data-testid=status-hello]', { state: 'detached' })
 
-  // The items the plugin adds to the ⋮ menu of its tool, after the core ones (#175).
+  // The items the plugin adds to the ⋮ menu of its tool, after the core ones (#175), and the
+  // button it puts in the corner of its zone (#176).
   await page.waitForSelector('[data-tool=hello] [data-testid=zone-menu]')
+  const helloCorner = await page.$$eval('[data-tool=hello] .zone-corner button', (b) => b.map((x) => x.getAttribute('data-testid')))
+  assert(JSON.stringify(helloCorner) === JSON.stringify(['hello-corner', 'zone-menu', 'zone-close']), 'the corner group of the plugin tool: ' + JSON.stringify(helloCorner))
   await page.click('[data-tool=hello] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')
   const helloMenu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))

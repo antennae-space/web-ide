@@ -135,6 +135,16 @@ run(async ({ ctx, page }) => {
   await page.waitForSelector('.pane .tile-tool[data-tool=git] .panel')
   assert((await panes()) === 1, 'the first tile takes the empty pane')
   assert(!(await page.isVisible('.pane:has([data-tool=git]) > .tabbar')) && (await page.isVisible('[data-tool=git] [data-testid=tile-close]')), 'a tool alone in its tile has no tab bar, a close button instead')
+  // The head of the tool holds its title only: its Refresh button sits in the corner group (#176).
+  assert(!(await page.$$('.tile-tool[data-tool=git] .panel-head button').length), 'no button left in the head of the Git tool')
+  const gitCorner = await page.$$eval('.tile-tool[data-tool=git] .tile-corner button', (b) => b.map((x) => x.getAttribute('data-testid')))
+  assert(JSON.stringify(gitCorner) === JSON.stringify(['git-refresh', 'tile-menu', 'tile-close']), 'the corner group of the Git tile: ' + JSON.stringify(gitCorner))
+  await page.click('[data-tool=git] [data-testid=tile-menu]')
+  await page.waitForSelector('.ctx-menu')
+  const gitMenu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
+  assert(gitMenu.at(-1) === 'Refresh', 'the ⋮ of the Git tile, its contributed item last: ' + JSON.stringify(gitMenu))
+  await page.keyboard.press('Escape')
+  await page.waitForSelector('.ctx-menu', { state: 'detached' })
   await launch('New terminal')
   await page.waitForSelector('.pane .tile-console .xterm')
   assert((await panes()) === 2 && (await activeTool()) === 'console', 'a terminal opens in a new tile beside')
@@ -173,6 +183,25 @@ run(async ({ ctx, page }) => {
   await page.keyboard.press('Escape')
   await page.click('[data-tool=hello] [data-testid=tile-close]')
   await page.waitForSelector('[data-tool=hello]', { state: 'detached' })
+  // The Explorer as a tile: its corner holds its buttons, its ⋮ its options (#176).
+  await launch('Explorer')
+  await page.waitForSelector('.pane .tile-tool[data-tool=explorer]')
+  const explorerTile = await page.$$eval('.tile-tool[data-tool=explorer] .tile-corner button', (b) => b.map((x) => x.getAttribute('data-testid')))
+  assert(
+    JSON.stringify(explorerTile) === JSON.stringify(['explorer-locate', 'explorer-expand', 'explorer-collapse', 'tile-menu', 'tile-close']),
+    'the corner group of the Explorer tile: ' + JSON.stringify(explorerTile),
+  )
+  await page.click('.tile-tool[data-tool=explorer] [data-testid=tile-menu]')
+  await page.waitForSelector('.ctx-menu')
+  const explorerMenu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
+  assert(
+    explorerMenu.slice(0, 3).join() === 'Open in a tab,Open in a window,Close' && explorerMenu.slice(-2).join() === 'Always select the opened file,Refresh all',
+    'the ⋮ of the Explorer tile, its options last: ' + JSON.stringify(explorerMenu),
+  )
+  await page.keyboard.press('Escape')
+  await page.waitForSelector('.ctx-menu', { state: 'detached' })
+  await page.click('.tile-tool[data-tool=explorer] [data-testid=tile-close]')
+  await page.waitForSelector('.tile-tool[data-tool=explorer]', { state: 'detached' })
   await page.click('.pane .tile-console .xterm')
   const xOf = (sel) => page.$eval(sel, (e) => e.getBoundingClientRect().left)
   assert((await xOf('.pane .tile-console')) > (await xOf('.pane [data-tool=git]')), 'by default a new tile opens on the right')

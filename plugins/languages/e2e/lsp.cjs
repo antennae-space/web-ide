@@ -66,6 +66,14 @@ run(async ({ page }) => {
   await page.click(row('Greeter') + ' .tree-twist')
   await page.waitForTimeout(300)
   assert(!(await names()).includes('Name'), 'the twisty folds the field under Greeter: ' + JSON.stringify(await names()))
+  // The head of the Structure tool holds its title only: its four buttons sit in the corner group
+  // of its zone, before the ⋮ (#176).
+  assert(!(await page.$$('.structure .panel-head button').length), 'no button left in the head of the Structure tool')
+  const structureCorner = await page.$$eval('[data-tool=structure] .zone-corner button', (b) => b.map((x) => x.getAttribute('data-testid')))
+  assert(
+    JSON.stringify(structureCorner) === JSON.stringify(['structure-expand', 'structure-collapse', 'structure-search', 'structure-refresh', 'zone-menu', 'zone-close']),
+    'the corner group of the Structure zone: ' + JSON.stringify(structureCorner),
+  )
   await page.click('[data-testid=structure-expand]')
   await page.waitForTimeout(300)
   assert((await names()).includes('Name'), 'Expand all brings the field back')

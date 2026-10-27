@@ -167,6 +167,8 @@ export function useProjectActions() {
 // A tool just shown may still be loading: the preferred targets are awaited a few frames.
 const focusTargets = ['.xterm-helper-textarea', '.cmd-launcher .cmd-tile[tabindex="0"]', '.ai-composer .ed-content', '[role=tree] [aria-selected=true]', '[role=tree] [tabindex]', '.tree-row.active', '.tree-row', 'input:not([type=checkbox]), textarea']
 const fallbackTarget = '.panel-body button:not(:disabled), .tool-body button:not(:disabled), [tabindex="0"]:not(.corner-btn), button:not(:disabled):not(.corner-btn)'
+/** The corner group is the chrome of the zone, not a target of the keyboard. */
+const inCorner = (x: HTMLElement) => !!x.closest('.zone-corner, .tile-corner')
 
 function focusZone(zone: Zone, tries = 10, from = document.activeElement) {
   const el = document.querySelector<HTMLElement>(`.zone-${zone}`)
@@ -177,7 +179,7 @@ function focusZone(zone: Zone, tries = 10, from = document.activeElement) {
   // While it waits, the user may put the focus elsewhere (a modal opened…): it stays there.
   const moved = () => document.activeElement !== from && document.activeElement !== document.body
   if (!target && tries > 0) return void requestAnimationFrame(() => !moved() && focusZone(zone, tries - 1, from))
-  ;(target ?? (phone() ? el : ([...el.querySelectorAll<HTMLElement>(fallbackTarget)].find(visible) ?? el))).focus()
+  ;(target ?? (phone() ? el : ([...el.querySelectorAll<HTMLElement>(fallbackTarget)].find((x) => visible(x) && !inCorner(x)) ?? el))).focus()
   // The rows of a tool still loading can be rendered again: the focus is given back if it is
   // lost in the next frames.
   if (tries > 0) keepZoneFocus(zone, 30)
