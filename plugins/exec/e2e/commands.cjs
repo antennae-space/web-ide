@@ -248,6 +248,16 @@ run(async ({ page }) => {
   assert(true, 'Search Everywhere shows the shortcut of the command')
   await page.keyboard.press('Escape')
 
+  // The palette command "Run a command…" (console.run) runs an ad hoc task.
+  await palette('run a command')
+  await page.waitForSelector('.pick-item.selected:has-text("Run a command…")')
+  await page.keyboard.press('Enter')
+  await page.waitForSelector('.modal input')
+  await page.fill('.modal input', 'echo palette-run')
+  await page.keyboard.press('Enter')
+  await page.waitForSelector('.console-tabs .tab.active:has-text("echo palette-run") .ok')
+  assert(true, 'console.run from the palette')
+
   // Ctrl+Shift+N: a new terminal.
   await page.waitForTimeout(300)
   const before = (await tabs(page)).length
