@@ -205,7 +205,7 @@ export function Launcher() {
                 onClick={() => activate(tile)}
               >
                 <span class="cmd-tile-icon">
-                  <Icon name={icon} size={26} />
+                  <Icon name={icon} size={22} />
                   <Show when={b}>
                     <span class={`cmd-badge ${b!.cls}`} title={b!.cls === 'running' ? t('Running') : undefined} data-testid="cmd-badge">
                       {b!.text}
