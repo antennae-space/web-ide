@@ -86,6 +86,22 @@ run(async ({ page }) => {
   await page.dblclick(row('(Greeter).Hello'))
   await page.waitForFunction(() => document.querySelector('[data-testid=status-cursor]')?.textContent.startsWith('8:'), null, { timeout: 5000 }).catch(() => {})
   assert((await line()).startsWith('8:'), 'a double click jumps to the symbol: ' + (await line()))
+  const singleClickItem = async () => {
+    await page.click('[data-testid=structure-options]')
+    await page.waitForSelector('.ctx-menu')
+    await page.click('.ctx-item:has-text("Navigate with Single Click")')
+    await page.waitForTimeout(300)
+  }
+  await singleClickItem()
+  await page.click(row('main'))
+  await page.waitForFunction(() => document.querySelector('[data-testid=status-cursor]')?.textContent.startsWith('12:'), null, { timeout: 5000 }).catch(() => {})
+  assert((await line()).startsWith('12:'), 'Navigate with Single Click: one click jumps: ' + (await line()))
+  await singleClickItem() // back to select on click
+  await page.click('[data-testid=structure-options]')
+  await page.waitForSelector('.ctx-menu')
+  await page.click('.ctx-item:has-text("Sort in the file")')
+  await page.waitForTimeout(300)
+  assert((await names()).join() === ['Greeter', 'Name', '(Greeter).Hello', 'main'].join(), 'Sort in the file puts the tree back in the order of the file: ' + JSON.stringify(await names()))
   // Diagnostics
   await page.click('.pane.active .ed-content')
   await page.keyboard.press('Control+End')
