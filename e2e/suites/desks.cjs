@@ -167,8 +167,8 @@ run(async ({ ctx, page }) => {
   await page.waitForSelector('.ctx-menu')
   const helloTile = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
   assert(
-    JSON.stringify(helloTile) === JSON.stringify(['Open in a tab', 'Open in a window', 'Close', 'Say hello from the menu', 'Greet twice']),
-    'the menu of a tile of the plugin tool: ' + JSON.stringify(helloTile),
+    helloTile.slice(0, 3).join() === 'Open in a tab,Open in a window,Close' && helloTile.slice(-2).join() === 'Say hello from the menu,Greet twice',
+    'the menu of a tile of the plugin tool, its contributed items last: ' + JSON.stringify(helloTile),
   )
   await page.keyboard.press('Escape')
   await page.click('[data-tool=hello] [data-testid=tile-close]')

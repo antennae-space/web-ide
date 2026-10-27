@@ -504,12 +504,16 @@ run(async ({ page, errors }) => {
   await page.keyboard.press('Escape')
   await page.waitForSelector('.ctx-menu', { state: 'detached' })
 
-  // Its frame pushes items, in its own language, and gets the choice the user makes.
+  // Its frame pushes items, in its own language, and gets the choice the user makes. A frame
+  // keeps the items it pushed: it pushes them again when its language changes (here, a reload).
   await page.click('.menubar button[title^="Settings"]')
   await page.click('.settings-nav button:has-text("Language")')
   await page.selectOption('[data-testid=settings-language]', 'fr')
   await page.waitForFunction(() => document.querySelector('.menubar .menus')?.textContent.includes('Fichier'))
   await closeSettings()
+  await page.waitForTimeout(900) // the language is kept by the pod a moment after a change
+  await page.reload()
+  await page.waitForSelector('.menubar')
   await showGreet()
   await page.click('[data-tool=greet] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')

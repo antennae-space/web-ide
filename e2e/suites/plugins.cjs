@@ -44,7 +44,6 @@ run(async ({ page }) => {
   await page.waitForSelector('[data-testid=status-hello]', { state: 'detached' })
 
   // The items the plugin adds to the ⋮ menu of its tool, after the core ones (#175).
-  await page.click(icon)
   await page.waitForSelector('[data-tool=hello] [data-testid=zone-menu]')
   await page.click('[data-tool=hello] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')
