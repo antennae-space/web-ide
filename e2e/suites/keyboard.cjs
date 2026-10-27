@@ -37,7 +37,7 @@ run(async ({ page }) => {
   await page.waitForFunction(() => document.activeElement?.closest('.zone-bottomLeft'))
   await page.waitForTimeout(500)
   if (!(await page.$('.zone-bottomLeft .xterm'))) {
-    await page.click('.zone-bottomLeft .empty-state button')
+    await page.click('.zone-bottomLeft [data-testid=cmd-tile]:has-text("New terminal")')
     await page.waitForSelector('.zone-bottomLeft .xterm')
     await page.click('.zone-bottomLeft .xterm')
   }

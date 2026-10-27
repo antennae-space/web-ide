@@ -66,9 +66,10 @@ run(async ({ page }) => {
     // Console: two terminals; the focused console moves, even with the pointer on the editor.
     await page.keyboard.press('Alt+F12')
     await page.waitForSelector('.zone-bottomLeft')
-    await page.click('.zone-bottomLeft .empty-state button')
+    await page.click('.zone-bottomLeft [data-testid=cmd-tile]:has-text("New terminal")')
     await page.waitForSelector('.zone-bottomLeft .console-tabs .tab')
-    await page.click('.zone-bottomLeft button[title^="New terminal"]')
+    await page.click('.zone-bottomLeft [data-testid=console-new-tab-button]')
+    await page.click('.zone-bottomLeft [data-testid=cmd-tile]:has-text("New terminal")')
     await page.waitForFunction(() => document.querySelectorAll('.zone-bottomLeft .console-tabs .tab').length === 2)
     const consoleTab = () => page.evaluate(() => [...document.querySelectorAll('.zone-bottomLeft .console-tabs .tab')].findIndex((t) => t.classList.contains('active')))
     const second = await consoleTab()

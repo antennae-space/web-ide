@@ -189,7 +189,9 @@ run(async ({ page }) => {
     assert(onDisk.includes('edited through alpha'), 'the change is saved on bravo: ' + JSON.stringify(onDisk))
 
     // A terminal of the project runs on bravo.
-    await page.keyboard.press('Control+Shift+Backquote')
+    await page.keyboard.press('Control+Shift+N')
+    await page.waitForSelector('[data-testid=cmd-launcher]')
+    await page.click('[data-testid=cmd-tile]:has-text("New terminal")') // the new tab becomes a terminal
     await page.waitForSelector('.xterm', { timeout: 5000 })
     await page.waitForTimeout(800)
     await page.keyboard.type('pwd\n')

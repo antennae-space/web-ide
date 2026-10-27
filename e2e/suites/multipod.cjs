@@ -271,11 +271,14 @@ async function openProject(page, app, name, ws, label, own = false, { keep = fal
 /** A terminal of the active project, ready to type in (by its shortcut or by the button of the
  * console panel: the panel can come up collapsed on a page opened from another pod). */
 async function openTerm(page, app) {
-  await page.keyboard.press('Control+Shift+Backquote')
+  await page.keyboard.press('Control+Shift+N')
+  await app.waitForSelector('[data-testid=cmd-launcher]')
+  await app.click('[data-testid=cmd-tile]:has-text("New terminal")') // the new tab becomes a terminal
   try {
     await app.waitForSelector('.xterm', { state: 'attached', timeout: 8000 })
   } catch {
-    await app.click('.console-tabs .icon-btn.small[title^="New terminal"]')
+    await app.click('.console-tabs [data-testid=console-new-tab-button]')
+    await app.click('[data-testid=cmd-tile]:has-text("New terminal")')
     await app.waitForSelector('.xterm', { state: 'attached', timeout: 20000 })
   }
   await app.waitForTimeout(800)

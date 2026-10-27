@@ -449,7 +449,7 @@ run(async ({ page }) => {
 
   // Tabs of files sharing a name: the end of their folders tells them apart.
   const openPath = async (p) => {
-    await page.keyboard.press('Control+Shift+n')
+    await page.keyboard.press('Control+p')
     await page.waitForSelector('.pick-input')
     await page.keyboard.type(p)
     await page.waitForFunction((x) => document.querySelector('.pick-item.selected')?.textContent.includes(x), p)

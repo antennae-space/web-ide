@@ -133,7 +133,7 @@ run(
     assert(typeof own === 'string', 'the app is heard: ' + JSON.stringify(own))
 
     // Editing: typing and saving go through the rpc channel, the file lands on disk.
-    await page.keyboard.press('Control+Shift+n')
+    await page.keyboard.press('Control+p')
     await app.waitForSelector('.pick-input')
     await page.keyboard.type('notes.txt')
     await app.waitForFunction(() => document.querySelector('.pick-item.selected')?.textContent.includes('notes.txt'))
@@ -148,8 +148,12 @@ run(
 
     // Terminal: its own channel (term:<id>).
     await app.focus('.pane.active .ed-content')
-    await page.keyboard.press('Control+Shift+Backquote')
+    await page.keyboard.press('Control+Shift+N')
+    await app.waitForSelector('[data-testid=cmd-launcher]')
+    await app.click('[data-testid=cmd-tile]:has-text("New terminal")') // the new tab becomes a terminal
     await app.waitForSelector('.xterm', { timeout: 15000 })
+    // A console opened from a tile: its terminal takes the keyboard a moment later.
+    await app.waitForFunction(() => document.activeElement?.className === 'xterm-helper-textarea', null, { timeout: 8000 })
     await page.keyboard.type('echo relay-$((6*7))\n')
     await app.waitForTimeout(1200)
     const xrows = await app.textContent('.xterm-rows')

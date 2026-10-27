@@ -5,21 +5,52 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
-import type { MenuItem } from '@ide/api'
 import type { ConsoleInfo } from '@ide/capabilities'
-import { api, contextMenu, copyText, desk, EmptyState, errorToast, Icon, prompt, t, WorktreeChip } from './plugin'
-import { adHocCommand, commands, flagIcon, loadCommands, openApp, runCommand, runningConsole, servesApp } from './commands'
+import { api, contextMenu, copyText, desk, errorToast, Icon, prompt, t, WorktreeChip } from './plugin'
+import { adHocCommand, loadCommands } from './commands'
 import { openCommands } from './CommandsModal'
+import { Launcher } from './Launcher'
 
 export type { ConsoleInfo }
 
 const [consoles, setConsoles] = createSignal<ConsoleInfo[]>([])
 export { consoles, setConsoles }
 
+/** The Console never has zero tab: the least it holds is a **new tab**, which shows the launcher.
+ *  Picking a tile converts it into the console of that command (same place in the tabs). */
+export const NEW_TAB = 'new'
+const [newTab, setNewTab] = createSignal(false)
+export { newTab, setNewTab }
+// Whether the consoles of the window have been listed once: without that, the Console would show
+// its new tab while the list is still on its way.
+const [listed, setListed] = createSignal(false)
+
+/** The new tab is the one shown: the next console created takes its place. */
+export function converting() {
+  return newTab() && desk.get().active === NEW_TAB
+}
+
+/** Escape in the launcher: the grid lets go of the keyboard (set by ConsoleTool). */
+export let releaseNewTabFocus = () => {}
+
+/** Shows the new tab (the launcher) without forcing the tool open. There is only one. */
+export function showNewTab() {
+  setNewTab(true)
+  desk.set((s) => (s.active = NEW_TAB))
+}
+
+/** + and console.new: shows the Console tool on the new tab. */
+export function openNewTab() {
+  showNewTab()
+  api.showTool('console')
+  void loadCommands()
+}
+
 /** Consoles of a worktree of the window (its project by default). */
 export function setConsoleList(list: ConsoleInfo[], pid = api.project.id()) {
   const mine = list.map((c) => ({ ...c, project: pid }))
   setConsoles((l) => [...l.filter((c) => c.project !== pid), ...mine])
+  if (pid === api.project.id()) setListed(true)
   // Forget the terminals that do not exist in the pod anymore.
   for (const id of terms.keys()) if (!consoles().some((c) => c.id === id)) disposeTerm(id)
 }
@@ -216,7 +247,7 @@ export function TermView(props: { id: string; focus?: boolean }) {
     requestAnimationFrame(() => {
       fit()
       // A popup opened meanwhile (a launcher) keeps the keyboard.
-      if (props.focus && !document.activeElement?.closest('.pick, .modal, .ctx-menu')) t.term.focus()
+      if (props.focus && !document.activeElement?.closest('.pick, .modal, .ctx-menu, .cmd-launcher')) t.term.focus()
     })
     onCleanup(() => {
       ro.disconnect()
@@ -233,6 +264,8 @@ export async function newConsole(o: { cwd?: string; command?: string[]; title?: 
   try {
     const info: ConsoleInfo = { ...(await api.rpc('console.create', { kind: o.kind ?? 'terminal', title: o.title, command: o.command, cwd: o.cwd, cols: 120, rows: 30 })), project: api.project.current() }
     setConsoles((l) => (l.some((x) => x.id === info.id) ? l : [...l, info]))
+    // The new tab shown converts into this console.
+    if (converting()) setNewTab(false)
     if (o.show !== false) api.showTool('console')
     desk.set((s) => (s.active = info.id))
     return info
@@ -247,63 +280,6 @@ export async function runTask() {
   await newConsole({ kind: 'task', command: ['sh', '-c', cmd], title: cmd })
 }
 
-/** Menu of the ▶ button: the saved commands, an ad hoc command, the modal. */
-async function commandsMenu(button: HTMLElement) {
-  await loadCommands()
-  const r = button.getBoundingClientRect()
-  const at = { clientX: r.left, clientY: r.bottom + 2, preventDefault() {}, stopPropagation() {} } as MouseEvent
-  const adHoc = adHocCommand()
-  const items: MenuItem[] = commands().map((c) => ({ label: c.name, hint: (runningConsole(c.id) ? '● ' : '') + c.flag, action: () => void runCommand(c) }))
-  // The apps of the serve commands with a port, opened as previews.
-  for (const c of commands().filter(servesApp)) items.push({ label: t('Open “{name}” in a preview', { name: c.name }), hint: `:${c.port}`, action: () => void openApp(c) })
-  if (items.length) items.push({ label: '', separator: true })
-  items.push({ label: t('Run a command…'), action: () => void runTask() })
-  if (adHoc) items.push({ label: t('Save “{command}” as a command…', { command: adHoc.length > 40 ? adHoc.slice(0, 40) + '…' : adHoc }), action: () => openCommands({ draft: { name: adHoc.split('\n')[0].slice(0, 40), command: adHoc } }) })
-  items.push({ label: t('Edit commands…'), action: () => openCommands() })
-  contextMenu(at, items)
-}
-
-/** Empty Console: the saved commands at hand (arrows + Enter), a new terminal. */
-function QuickCommands() {
-  onMount(() => void loadCommands())
-  const focusAt = (el: HTMLElement, dir: number) => {
-    const list = [...(el.closest('.quick-cmds')?.querySelectorAll<HTMLButtonElement>('.quick-cmd') ?? [])]
-    list[(list.indexOf(el as HTMLButtonElement) + dir + list.length) % list.length]?.focus()
-  }
-  return (
-    <div class="quick-cmds" data-testid="quick-commands">
-      <Show when={commands().length} fallback={<EmptyState icon="terminal" text={t('No open console.')} action={t('New terminal')} onAction={() => newConsole()} />}>
-        <p class="muted small">{t('No open console. Run a command of the project:')}</p>
-        <For each={commands()}>
-          {(c) => (
-            <button
-              class="quick-cmd"
-              title={c.description || c.command}
-              onClick={() => void runCommand(c)}
-              onKeyDown={(e) => (e.key === 'ArrowDown' || e.key === 'ArrowUp') && (e.preventDefault(), focusAt(e.currentTarget, e.key === 'ArrowDown' ? 1 : -1))}
-              data-testid="quick-command"
-            >
-              <Icon name={flagIcon[c.flag]} size={13} />
-              <span class="quick-cmd-name">{c.name}</span>
-              <span class="muted small">{c.flag}</span>
-            </button>
-          )}
-        </For>
-      </Show>
-      <div class="quick-cmds-actions">
-        <Show when={commands().length}>
-          <button class="btn small" onClick={() => newConsole()}>
-            {t('New terminal')}
-          </button>
-        </Show>
-        <button class="btn small" onClick={() => openCommands(commands().length ? {} : { draft: {} })} data-testid="quick-edit-commands">
-          {commands().length ? t('Edit commands…') : t('Create a command…')}
-        </button>
-      </div>
-    </div>
-  )
-}
-
 async function closeConsole(id: string) {
   try {
     await api.rpcIn(projectOf(id), 'console.close', { id })
@@ -313,6 +289,8 @@ async function closeConsole(id: string) {
   setConsoles((l) => l.filter((c) => c.id !== id))
   disposeTerm(id)
   if (desk.get().active === id) desk.set((s) => (s.active = consoles()[0]?.id ?? null))
+  // The Console is never left without a tab.
+  if (!consoles().length) showNewTab()
 }
 
 async function renameConsole(c: ConsoleInfo) {
@@ -376,12 +354,50 @@ function moveConsole(id: string, index: number) {
 let dragged: string | null = null
 
 export function ConsoleTool() {
-  // A console that no longer exists (pod restarted) falls back to the first one.
+  // A console that no longer exists (pod restarted) falls back to the first one, or to the new tab.
   const active = () => {
     const a = desk.get().active
-    return consoles().some((c) => c.id === a) ? a : (ordered()[0]?.id ?? null)
+    if (a === NEW_TAB && newTab()) return NEW_TAB
+    if (consoles().some((c) => c.id === a)) return a
+    return ordered()[0]?.id ?? (newTab() ? NEW_TAB : null)
   }
   const setActive = (id: string) => desk.set((s) => (s.active = id))
+  // The new tab shown: the keyboard goes to the launcher (a few frames: the tiles are rebuilt
+  // when the commands and the consoles settle). Escape in the launcher breaks it.
+  let focusToken = 0
+  releaseNewTabFocus = () => focusToken++
+  const focusLauncher = (token = ++focusToken, frames = 12) =>
+    requestAnimationFrame(() => {
+      if (token !== focusToken || active() !== NEW_TAB) return
+      const el = document.querySelector<HTMLElement>('.cmd-launcher .cmd-tile[tabindex="0"]')
+      const ae = document.activeElement
+      // Nothing else owns the keyboard (no modal, no terminal): the grid takes it, and keeps it
+      // while the tiles are rebuilt.
+      if (el && (!ae || ae === document.body || ae.closest('.cmd-launcher') || !ae.closest('.modal, .pick, .ctx-menu, .xterm'))) el.focus()
+      if (frames > 1) focusLauncher(token, frames - 1)
+    })
+  createEffect(
+    on(
+      active,
+      (a) => {
+        if (a !== NEW_TAB) return
+        void loadCommands()
+        focusLauncher()
+      },
+      { defer: true },
+    ),
+  )
+  // The Console is never without a tab: with no console, the new tab (the launcher) is shown.
+  if (listed() && !consoles().length && !newTab()) showNewTab()
+  createEffect(
+    on(
+      () => consoles().length,
+      (n) => {
+        if (!n && listed() && !newTab()) showNewTab()
+      },
+      { defer: true },
+    ),
+  )
 
   return (
     <div class="panel">
@@ -416,6 +432,7 @@ export function ConsoleTool() {
                   ...(api.tiles.active() ? [{ label: t('Open in a new tile'), action: () => api.tiles.open({ kind: 'console', console: c.id }) }] : []),
                   { label: t('Open in a window'), action: () => api.tiles.detach({ id: '', kind: 'console', console: c.id }) },
                   { label: t('Rename…'), action: () => void renameConsole(c) },
+                  ...(adHocCommand(c) ? [{ label: t('Save “{command}” as a command…', { command: adHocCommand(c)!.length > 40 ? adHocCommand(c)!.slice(0, 40) + '…' : adHocCommand(c)! }), action: () => openCommands({ draft: { name: c.command![2].split('\n')[0].slice(0, 40), command: c.command![2] } }) }] : []),
                   { label: t('Close'), action: () => void closeConsole(c.id) },
                 ])
               }
@@ -433,16 +450,25 @@ export function ConsoleTool() {
             </div>
           )}
         </For>
-        <button class="icon-btn small" title={`${t('New terminal')} (${api.keys.shortcut('console.new')})`} onClick={() => newConsole()}>
+        <Show when={newTab()}>
+          <div class="tab" role="tab" aria-selected={active() === NEW_TAB} classList={{ active: active() === NEW_TAB }} title={t('New tab: pick a command, or a new terminal')} data-testid="console-new-tab" onClick={() => (setActive(NEW_TAB), queueMicrotask(() => document.querySelector<HTMLElement>('.cmd-launcher .cmd-tile[tabindex="0"]')?.focus()))}>
+            <Icon name="plus" size={13} />
+            <span class="tab-title">{t('New tab')}</span>
+            <WorktreeChip project={api.project.current()} />
+            <Show when={consoles().length}>
+              <button class="tab-close" title={t('Close')} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => (e.stopPropagation(), (setNewTab(false), desk.set((s) => (s.active = ordered()[0]?.id ?? null))))}>
+                <span class="x">✕</span>
+              </button>
+            </Show>
+          </div>
+        </Show>
+        <button class="icon-btn small" title={`${t('New tab')} (${api.keys.shortcut('console.new')})`} onClick={openNewTab} data-testid="console-new-tab-button">
           <Icon name="plus" />
-        </button>
-        <button class="icon-btn small" title={t('Commands of the project')} onClick={(e) => void commandsMenu(e.currentTarget)} data-testid="console-commands">
-          <Icon name="play" />
         </button>
       </div>
       <div class="tool-body">
-        <Show when={consoles().length === 0}>
-          <QuickCommands />
+        <Show when={active() === NEW_TAB}>
+          <Launcher />
         </Show>
         <For each={consoles()}>
           {(c) => (

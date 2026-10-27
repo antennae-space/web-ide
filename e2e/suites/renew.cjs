@@ -39,8 +39,12 @@ run(
     else await app.click('.ws-dir:has-text("demo")')
     await app.waitForSelector('.menubar')
     await app.focus('.menubar')
-    await page.keyboard.press('Control+Shift+Backquote')
+    await page.keyboard.press('Control+Shift+N')
+    await app.waitForSelector('[data-testid=cmd-launcher]')
+    await app.click('[data-testid=cmd-tile]:has-text("New terminal")') // the new tab becomes a terminal
     await app.waitForSelector('.xterm', { timeout: 15000 })
+    // A console opened from a tile: its terminal takes the keyboard a moment later.
+    await app.waitForFunction(() => document.activeElement?.className === 'xterm-helper-textarea', null, { timeout: 8000 })
     await page.keyboard.type('echo renewed-$((6*7))\n')
     await app.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('renewed-42'), null, { timeout: 10000 })
 

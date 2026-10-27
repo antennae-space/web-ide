@@ -69,7 +69,9 @@ const consecutive = (n) => n.every((v, i) => i === 0 || v === n[i - 1] + 1)
 run(async ({ page }) => {
   assert(/keeper: .*keeper\.sock/.test(fs.readFileSync(process.env.E2E_DATA + '/../pod.log', 'utf8')), 'the pod uses the keeper of the test')
   await openProject(page)
-  await page.keyboard.press('Control+Shift+Backquote')
+  await page.keyboard.press('Control+Shift+N')
+  await page.waitForSelector('[data-testid=cmd-launcher]')
+  await page.click('[data-testid=cmd-tile]:has-text("New terminal")') // the new tab becomes a terminal
   await page.waitForSelector('.xterm', { timeout: 5000 })
   await page.waitForTimeout(800)
   await page.keyboard.type('i=0; while true; do echo tick $i; i=$((i+1)); sleep 0.2; done\n')

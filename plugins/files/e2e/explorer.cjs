@@ -54,7 +54,7 @@ run(async ({ page }) => {
   const marks = JSON.parse(fs.readFileSync(demo + '/.ide/folders.json', 'utf8')).folders
   assert(marks.gen === 'excluded' && marks.tests === 'tests' && marks.src === 'source', 'marks saved in .ide/folders.json')
   assert(await page.isVisible(row('gen') + '.excluded .file-icon.mark-excluded'), 'excluded folder dimmed, orange icon')
-  await page.keyboard.press('Control+Shift+n')
+  await page.keyboard.press('Control+p')
   await page.waitForSelector('.pick-input')
   await page.keyboard.type('generated')
   await page.waitForTimeout(500)
