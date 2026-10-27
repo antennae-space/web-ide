@@ -3,7 +3,7 @@
 // through the proxy of the pod (127.0.0.1 here: the fake tailscale of e2e/bin is not running);
 // a second click reuses it; a request without the cookie of the IDE is refused; Stop and the
 // end of the command kill the URL; the Previews tab of the Docker tool lists them. A saved
-// serve command opens from the ▶ menu of the Console, and share_preview without command
+// serve command opens from the screen button of its tile in the launcher of the Console, and share_preview without command
 // offers it (one console for both).
 const fs = require('fs')
 const http = require('http')
@@ -132,14 +132,14 @@ run(async ({ page, ctx }) => {
     await page.waitForSelector('[data-testid=ai-preview-open]:has-text("Start and open the app")', { timeout: 5000 })
     assert((await get(url3))[0] === 0, 'the URL is dead once the command stops')
 
-    // A saved serve command with a port: opened from the ▶ menu of the Console.
+    // A saved serve command with a port: opened from the screen button of its tile (▶ launcher).
     savedPort = await freePort()
     fs.mkdirSync(WS + '/demo/.ide', { recursive: true })
     const serve = `node -e "require('http').createServer((q, s) => s.end('saved app')).listen(${savedPort}, '127.0.0.1')"`
     fs.writeFileSync(WS + '/demo/.ide/commands.json', JSON.stringify({ commands: [{ id: 'srv1', name: 'Saved app', command: serve, flag: 'serve', port: savedPort }] }))
     await page.click('[data-testid=console-commands]')
-    await page.waitForSelector(`.ctx-item:has-text("Open “Saved app” in a preview"):has-text(":${savedPort}")`)
-    const [tab4] = await Promise.all([ctx.waitForEvent('page'), page.click('.ctx-item:has-text("Open “Saved app” in a preview")')])
+    await page.waitForSelector(`[data-testid=cmd-launcher] [data-testid=cmd-tile]:has-text("Saved app") [data-testid=cmd-tile-app]`)
+    const [tab4] = await Promise.all([ctx.waitForEvent('page'), page.click(`[data-testid=cmd-launcher] [data-testid=cmd-tile]:has-text("Saved app") [data-testid=cmd-tile-app]`)])
     await tab4.waitForFunction(() => document.body?.textContent.startsWith('saved app'), null, { timeout: 30000 })
     await page.waitForSelector('.console-tabs .tab.active:has-text("Saved app")', { timeout: 5000 })
     assert(true, 'the saved serve command opens as a preview, in its console')

@@ -433,13 +433,33 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .sev-2 { color: var(--warn); }
 .sev-3, .sev-4 { color: var(--info); }
 .output-log { height: 100%; margin: 0; overflow: auto; padding: 6px 10px; font-family: var(--font-code); font-size: 12px; color: var(--fg-muted); white-space: pre-wrap; }
-/* Saved commands: quick access of the empty Console, modal list + detail. */
-.quick-cmds { height: 100%; overflow: auto; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px; }
-.quick-cmds > p { margin: 0 0 6px; }
-.quick-cmd { display: flex; align-items: center; gap: 8px; width: min(420px, 100%); padding: 5px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg-3); cursor: pointer; text-align: left; }
-.quick-cmd:hover, .quick-cmd:focus-visible { background: var(--bg-hover); border-color: var(--accent); }
-.quick-cmd-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.quick-cmds-actions { display: flex; gap: 8px; margin-top: 10px; }
+/* Console launcher: an Android-style grid of tiles (empty Console, panel under ▶), modal list + detail. */
+.cmd-launcher { height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 14px; background: var(--bg-2); }
+.cmd-launcher.float { position: fixed; z-index: 120; height: auto; max-height: min(440px, calc(100vh - 90px)); width: min(520px, calc(100vw - 24px)); background: var(--bg-3); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 12px 36px rgb(0 0 0 / 0.45); padding: 10px; }
+.cmd-launcher > p { margin: 0; }
+.cmd-query { display: flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); color: var(--fg-muted); font-family: var(--font-code); font-size: 12px; }
+.cmd-query > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; align-content: start; }
+.cmd-tile { --tint: var(--fg-muted); position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 8px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-3); cursor: pointer; text-align: center; }
+.cmd-tile:hover, .cmd-tile:focus-visible { background: var(--bg-hover); border-color: var(--accent); }
+.cmd-tile.flag-serve { --tint: var(--info); }
+.cmd-tile.flag-build { --tint: var(--warn); }
+.cmd-tile.flag-test { --tint: var(--ok); }
+.cmd-tile.flag-lint { --tint: var(--mark-excluded); }
+.cmd-tile.flag-setup { --tint: var(--accent); }
+.cmd-tile-icon { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 10px; color: var(--tint); background: color-mix(in srgb, var(--tint) 20%, var(--bg)); }
+.cmd-tile-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.cmd-tile-count { position: absolute; top: 6px; right: 8px; }
+.cmd-badge { position: absolute; top: 5px; left: 6px; font-size: 11px; line-height: 16px; min-width: 16px; text-align: center; border-radius: 8px; }
+.cmd-badge.running { color: var(--ok); }
+.cmd-badge.ok { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
+.cmd-badge.danger { background: color-mix(in srgb, var(--danger) 22%, transparent); color: var(--danger); }
+.cmd-tile-app { position: absolute; bottom: 4px; right: 4px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 5px; background: var(--bg-2); color: var(--fg-muted); cursor: pointer; }
+.cmd-tile-app:hover { background: var(--bg-hover); color: var(--fg); }
+.cmd-tile.back .cmd-tile-icon, .cmd-tile.new .cmd-tile-icon, .cmd-tile.run .cmd-tile-icon, .cmd-tile.edit .cmd-tile-icon, .cmd-tile.save .cmd-tile-icon { color: var(--fg-muted); background: var(--bg); }
+@media (max-width: 700px) {
+  .cmd-grid { grid-template-columns: repeat(2, 1fr); }
+}
 .cmd-modal .modal-body { padding: 0; display: flex; }
 .cmd-layout { display: flex; flex: 1; min-height: 420px; }
 .cmd-side { width: 260px; flex: none; display: flex; flex-direction: column; gap: 6px; padding: 10px; border-right: 1px solid var(--line); }

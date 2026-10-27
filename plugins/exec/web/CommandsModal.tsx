@@ -187,7 +187,7 @@ function CommandsModal(props: { select?: string; draft?: Partial<Command>; onClo
               )}
             </For>
           </div>
-          <p class="muted small">{t('Alt+↑ / Alt+↓ or drag: order of the ▶ menu.')}</p>
+          <p class="muted small">{t('Alt+↑ / Alt+↓ or drag: order of the launcher.')}</p>
         </div>
         <Show when={current() && selected()} keyed fallback={<div class="cmd-detail muted">{t('Create a command with +.')}</div>}>
           {(_id: string) => {

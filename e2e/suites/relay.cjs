@@ -133,7 +133,7 @@ run(
     assert(typeof own === 'string', 'the app is heard: ' + JSON.stringify(own))
 
     // Editing: typing and saving go through the rpc channel, the file lands on disk.
-    await page.keyboard.press('Control+Shift+n')
+    await page.keyboard.press('Control+p')
     await app.waitForSelector('.pick-input')
     await page.keyboard.type('notes.txt')
     await app.waitForFunction(() => document.querySelector('.pick-item.selected')?.textContent.includes('notes.txt'))
@@ -148,7 +148,7 @@ run(
 
     // Terminal: its own channel (term:<id>).
     await app.focus('.pane.active .ed-content')
-    await page.keyboard.press('Control+Shift+Backquote')
+    await page.keyboard.press('Control+Shift+N')
     await app.waitForSelector('.xterm', { timeout: 15000 })
     await page.keyboard.type('echo relay-$((6*7))\n')
     await app.waitForTimeout(1200)

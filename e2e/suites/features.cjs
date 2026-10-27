@@ -5,7 +5,7 @@ run(async ({ page }) => {
   await page.waitForTimeout(400)
 
   // Go to file (fuzzy)
-  await page.keyboard.press('Control+Shift+n')
+  await page.keyboard.press('Control+p')
   await page.waitForSelector('.pick-input')
   await page.keyboard.type('apph')
   await page.waitForTimeout(400)
@@ -58,7 +58,7 @@ run(async ({ page }) => {
   assert(JSON.stringify(await tabs('.pane.active .tab')) === JSON.stringify(['app.php', 'main.go']), 'a tab already open keeps its place')
 
   // Terminal
-  await page.keyboard.press('Control+Shift+Backquote')
+  await page.keyboard.press('Control+Shift+N')
   await page.waitForSelector('.xterm', { timeout: 5000 })
   await page.waitForTimeout(800)
   await page.keyboard.type('echo pod-$((40+2))\n')

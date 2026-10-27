@@ -132,7 +132,7 @@ async function widenRight(page, width = 560) {
 
 /** Opens a file with "go to file" and puts the caret after the first match of `at`. */
 async function openAt(page, file, at) {
-  await page.keyboard.press('Control+Shift+n')
+  await page.keyboard.press('Control+p')
   await page.waitForSelector('.pick-input')
   await page.keyboard.type(file)
   await page.waitForFunction((f) => document.querySelector('.pick-item.selected')?.textContent.includes(f.split('/').pop()), file)
@@ -306,7 +306,7 @@ async function say(page, text) {
     await page.click('.rail-right .rail-btn[title="Assistant"]')
     await page.click('.rail-left .rail-btn[title="Explorer"]')
     await openAt(page, 'pod/main.go', 'flag.Parse()')
-    await page.keyboard.press('Control+Shift+Backquote')
+    await page.keyboard.press('Control+Shift+N')
     await page.waitForSelector('.xterm', { timeout: 10_000 })
     await page.waitForTimeout(1500)
     // A neutral prompt rather than the one of the user running the scenario.

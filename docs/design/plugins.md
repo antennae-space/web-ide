@@ -108,7 +108,7 @@ Exec (#116) is the first plugin the rest of the IDE *uses*: a dozen parts of the
 - **The pod lent to built-ins** (`Host.Pod()`): the runtime of another project, the name and host of a project, events to every window or to a project, and, until #137, the pod-wide managers of the port forwards and of the previews (now the Previews plugin's). `Window.Project()`.
 - **Lifecycle hooks**: `Host.OnProjectOpen(f)` (a window opens a project where the plugin is enabled: the enabled port forwards of an SSH project open) and `Host.OnWindows(f)` (the number of windows of the pod, in order: the forwards close `ForwardIdle` after the last one). The server knows nothing of the forwards any more.
 - **Home contribution** (`PluginModule.home(api)`): a component of the home page, whatever the projects (the open port forwards).
-- The **previews** capability (list, open, close, public, URL), used by the assistant's card, `share_preview` of the agents and the ▶ menu of the Console; `share_preview` and `list_previews` stay the assistant's, offered with `previews` on. `api.transport.inTunnel`.
+- The **previews** capability (list, open, close, public, URL), used by the assistant's card, `share_preview` of the agents and the launcher of the Console; `share_preview` and `list_previews` stay the assistant's, offered with `previews` on. `api.transport.inTunnel`.
 - `api.forwards` and `api.previews` (#114) are gone: the previews are `api.use('previews')`. A removal is a change of version, but no plugin outside the IDE existed yet: v1 keeps its number, this exception is the only one.
 
 ## What Languages added to the API

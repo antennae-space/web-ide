@@ -5,11 +5,9 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
-import type { MenuItem } from '@ide/api'
 import type { ConsoleInfo } from '@ide/capabilities'
-import { api, contextMenu, copyText, desk, EmptyState, errorToast, Icon, prompt, t, WorktreeChip } from './plugin'
-import { adHocCommand, commands, flagIcon, loadCommands, openApp, runCommand, runningConsole, servesApp } from './commands'
-import { openCommands } from './CommandsModal'
+import { api, contextMenu, copyText, desk, errorToast, Icon, prompt, t, WorktreeChip } from './plugin'
+import { Launcher } from './Launcher'
 
 export type { ConsoleInfo }
 
@@ -216,7 +214,7 @@ export function TermView(props: { id: string; focus?: boolean }) {
     requestAnimationFrame(() => {
       fit()
       // A popup opened meanwhile (a launcher) keeps the keyboard.
-      if (props.focus && !document.activeElement?.closest('.pick, .modal, .ctx-menu')) t.term.focus()
+      if (props.focus && !document.activeElement?.closest('.pick, .modal, .ctx-menu, .cmd-launcher')) t.term.focus()
     })
     onCleanup(() => {
       ro.disconnect()
@@ -247,61 +245,10 @@ export async function runTask() {
   await newConsole({ kind: 'task', command: ['sh', '-c', cmd], title: cmd })
 }
 
-/** Menu of the ▶ button: the saved commands, an ad hoc command, the modal. */
-async function commandsMenu(button: HTMLElement) {
-  await loadCommands()
-  const r = button.getBoundingClientRect()
-  const at = { clientX: r.left, clientY: r.bottom + 2, preventDefault() {}, stopPropagation() {} } as MouseEvent
-  const adHoc = adHocCommand()
-  const items: MenuItem[] = commands().map((c) => ({ label: c.name, hint: (runningConsole(c.id) ? '● ' : '') + c.flag, action: () => void runCommand(c) }))
-  // The apps of the serve commands with a port, opened as previews.
-  for (const c of commands().filter(servesApp)) items.push({ label: t('Open “{name}” in a preview', { name: c.name }), hint: `:${c.port}`, action: () => void openApp(c) })
-  if (items.length) items.push({ label: '', separator: true })
-  items.push({ label: t('Run a command…'), action: () => void runTask() })
-  if (adHoc) items.push({ label: t('Save “{command}” as a command…', { command: adHoc.length > 40 ? adHoc.slice(0, 40) + '…' : adHoc }), action: () => openCommands({ draft: { name: adHoc.split('\n')[0].slice(0, 40), command: adHoc } }) })
-  items.push({ label: t('Edit commands…'), action: () => openCommands() })
-  contextMenu(at, items)
-}
-
-/** Empty Console: the saved commands at hand (arrows + Enter), a new terminal. */
-function QuickCommands() {
-  onMount(() => void loadCommands())
-  const focusAt = (el: HTMLElement, dir: number) => {
-    const list = [...(el.closest('.quick-cmds')?.querySelectorAll<HTMLButtonElement>('.quick-cmd') ?? [])]
-    list[(list.indexOf(el as HTMLButtonElement) + dir + list.length) % list.length]?.focus()
-  }
-  return (
-    <div class="quick-cmds" data-testid="quick-commands">
-      <Show when={commands().length} fallback={<EmptyState icon="terminal" text={t('No open console.')} action={t('New terminal')} onAction={() => newConsole()} />}>
-        <p class="muted small">{t('No open console. Run a command of the project:')}</p>
-        <For each={commands()}>
-          {(c) => (
-            <button
-              class="quick-cmd"
-              title={c.description || c.command}
-              onClick={() => void runCommand(c)}
-              onKeyDown={(e) => (e.key === 'ArrowDown' || e.key === 'ArrowUp') && (e.preventDefault(), focusAt(e.currentTarget, e.key === 'ArrowDown' ? 1 : -1))}
-              data-testid="quick-command"
-            >
-              <Icon name={flagIcon[c.flag]} size={13} />
-              <span class="quick-cmd-name">{c.name}</span>
-              <span class="muted small">{c.flag}</span>
-            </button>
-          )}
-        </For>
-      </Show>
-      <div class="quick-cmds-actions">
-        <Show when={commands().length}>
-          <button class="btn small" onClick={() => newConsole()}>
-            {t('New terminal')}
-          </button>
-        </Show>
-        <button class="btn small" onClick={() => openCommands(commands().length ? {} : { draft: {} })} data-testid="quick-edit-commands">
-          {commands().length ? t('Edit commands…') : t('Create a command…')}
-        </button>
-      </div>
-    </div>
-  )
+/** A new terminal, tile-aware: in a tiled layout it gets its own tile (console.new, launcher). */
+export function newTerminal() {
+  if (api.tiles.active() && !api.tiles.phone()) void newConsole({ show: false }).then((c) => c && api.tiles.open({ kind: 'console', console: c.id }))
+  else void newConsole()
 }
 
 async function closeConsole(id: string) {
@@ -382,6 +329,8 @@ export function ConsoleTool() {
     return consoles().some((c) => c.id === a) ? a : (ordered()[0]?.id ?? null)
   }
   const setActive = (id: string) => desk.set((s) => (s.active = id))
+  // ▶ opens the launcher as a floating panel under the button; null when closed.
+  const [launcherAt, setLauncherAt] = createSignal<HTMLElement | null>(null)
 
   return (
     <div class="panel">
@@ -436,13 +385,13 @@ export function ConsoleTool() {
         <button class="icon-btn small" title={`${t('New terminal')} (${api.keys.shortcut('console.new')})`} onClick={() => newConsole()}>
           <Icon name="plus" />
         </button>
-        <button class="icon-btn small" title={t('Commands of the project')} onClick={(e) => void commandsMenu(e.currentTarget)} data-testid="console-commands">
+        <button class="icon-btn small" title={t('Commands of the project')} aria-expanded={!!launcherAt()} onClick={(e) => setLauncherAt((cur) => (cur ? null : e.currentTarget))} data-testid="console-commands">
           <Icon name="play" />
         </button>
       </div>
       <div class="tool-body">
         <Show when={consoles().length === 0}>
-          <QuickCommands />
+          <Launcher />
         </Show>
         <For each={consoles()}>
           {(c) => (
@@ -452,6 +401,9 @@ export function ConsoleTool() {
           )}
         </For>
       </div>
+      <Show when={launcherAt()}>
+        {(btn) => <Launcher float anchor={btn()} onClose={() => setLauncherAt(null)} />}
+      </Show>
     </div>
   )
 }

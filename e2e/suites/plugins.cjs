@@ -122,7 +122,7 @@ run(async ({ page }) => {
   // console tools of the MCP answer.
   page.on('dialog', (d) => d.accept())
   await page.click('.pane.active .ed-content').catch(() => {})
-  await page.keyboard.press('Control+Shift+Backquote')
+  await page.keyboard.press('Control+Shift+N')
   await page.waitForSelector('.xterm-helper-textarea')
   await page.waitForTimeout(500)
   await page.keyboard.type('echo plugin-$((6*7))')

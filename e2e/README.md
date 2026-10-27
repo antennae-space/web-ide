@@ -27,7 +27,7 @@ flowchart LR
 - `agent` [ai]: Assistant, features of the assistant: system prompt built from the editable template
 - `agents` [ai]: Agents tool: ACP sessions with the fake agent of e2e/bin (claude-agent-acp): opened from the launcher, a prompt streams thought
 - `chat` [ai]: Assistant, conversation features: side bar order, Ctrl+click on @file
-- `commands` [exec]: Saved commands of the project: quick access of the empty Console, modal list + detail (bash editor), ▶ menu
+- `commands` [exec]: Saved commands of the project: launcher of the empty Console and panel under ▶ (grid of tiles, groups by flag, keyboard), modal list + detail (bash editor)
 - `desks`: Desks (docs/design/desks.md): each desk of a project has its own layout; the URL names the desk; two windows on two desks do not t
 - `docker`: The Docker tool as an official external plugin (#148), against the local Docker: its release archive (or `E2E_PLUGIN_DOCKER`) installed at start; the Compose stack of the project (profiles, start, stop, details and statistics, logs with filter and ANSI colors), a shell and the long Compose actions in consoles of the core, the Host and Disk tabs, docker_ps and docker_logs for the assistant, down with volumes
 - `doodle` [ai]: Assistant, doodles: paperclip menu, modal with the conversation, pen, marker under the pen

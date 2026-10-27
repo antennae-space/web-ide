@@ -58,9 +58,34 @@ export async function saveCommands(list: Command[]) {
   return saved
 }
 
+/** A flag and the commands saved under it, in the saved order. */
+export interface FlagGroup {
+  flag: Flag
+  cmds: Command[]
+}
+
+/** The commands grouped by flag: the first appearance of a flag fixes the place of its group. */
+export function groupByFlag(list: Command[] = commands()): FlagGroup[] {
+  const by = new Map<Flag, FlagGroup>()
+  for (const c of list) {
+    const g = by.get(c.flag)
+    if (g) g.cmds.push(c)
+    else by.set(c.flag, { flag: c.flag, cmds: [c] })
+  }
+  return [...by.values()]
+}
+
+/** The console of a command in the worktree shown, while it is listed: the one running, else the
+ *  last one that ended (its exit code). */
+export function consoleOfCommand(id: string) {
+  const mine = consoles().filter((c) => c.commandId === id && c.project === api.project.current())
+  return mine.find((c) => !c.exited) ?? mine[mine.length - 1]
+}
+
 /** The console of a command in the worktree shown, while it runs. */
 export function runningConsole(id: string) {
-  return consoles().find((c) => c.commandId === id && !c.exited && c.project === api.project.current())
+  const c = consoleOfCommand(id)
+  return c && !c.exited ? c : undefined
 }
 
 /** Runs a saved command; when it runs already, Restart is offered (same place in the tabs). */

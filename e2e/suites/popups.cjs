@@ -42,7 +42,7 @@ run(async ({ page }) => {
   await page.waitForSelector('.pick.se')
   assert((await tab()) === 'Actions', 'the command palette is the Actions tab')
   assert((await page.evaluate(() => getSelection().toString() || document.activeElement.value.slice(document.activeElement.selectionStart, document.activeElement.selectionEnd))) === 'Println', 'previous query selected')
-  await page.keyboard.press('Control+Shift+n')
+  await page.keyboard.press('Control+p')
   assert((await tab()) === 'Files', 'Go to file switches the open popup to Files')
   await page.keyboard.press('Escape')
   assert(!(await page.$('.pick.se')), 'Escape closes the popup')

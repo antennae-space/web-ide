@@ -271,7 +271,7 @@ async function openProject(page, app, name, ws, label, own = false, { keep = fal
 /** A terminal of the active project, ready to type in (by its shortcut or by the button of the
  * console panel: the panel can come up collapsed on a page opened from another pod). */
 async function openTerm(page, app) {
-  await page.keyboard.press('Control+Shift+Backquote')
+  await page.keyboard.press('Control+Shift+N')
   try {
     await app.waitForSelector('.xterm', { state: 'attached', timeout: 8000 })
   } catch {

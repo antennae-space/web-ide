@@ -58,7 +58,7 @@ exports.openProject = async (page) => {
 exports.composerText = (page, scope = '') => page.$eval((scope + ' .ai-composer .ed-content').trim(), (e) => e.textContent.replace(/\n$/, ''))
 
 exports.open = async (page, name) => {
-  await page.keyboard.press('Control+Shift+n')
+  await page.keyboard.press('Control+p')
   await page.waitForSelector('.pick-input')
   await page.keyboard.type(name)
   await page.waitForFunction((n) => document.querySelector('.pick-item.selected')?.textContent.includes(n), name)

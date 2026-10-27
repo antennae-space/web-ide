@@ -65,7 +65,7 @@
       "Ctrl+Shift+KeyF"
     ],
     "nav.gotoFile": [
-      "Ctrl+Shift+KeyN"
+      "Ctrl+KeyP"
     ],
     "nav.gotoSymbol": [
       "Ctrl+Alt+Shift+KeyN"
@@ -162,7 +162,7 @@
       "Ctrl+Shift+KeyA"
     ],
     "console.new": [
-      "Ctrl+Shift+Backquote"
+      "Ctrl+Shift+KeyN"
     ],
     "sql.execute": [
       "Ctrl+Enter"

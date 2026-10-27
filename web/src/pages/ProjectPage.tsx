@@ -165,7 +165,7 @@ export function useProjectActions() {
 // Where the keyboard lands in a tool given the focus: its terminal, its prompt, the selected
 // row of its tree, its first field, else its first button.
 // A tool just shown may still be loading: the preferred targets are awaited a few frames.
-const focusTargets = ['.xterm-helper-textarea', '.ai-composer .ed-content', '[role=tree] [aria-selected=true]', '[role=tree] [tabindex]', '.tree-row.active', '.tree-row', 'input:not([type=checkbox]), textarea']
+const focusTargets = ['.xterm-helper-textarea', '.cmd-launcher .cmd-tile[tabindex="0"]', '.ai-composer .ed-content', '[role=tree] [aria-selected=true]', '[role=tree] [tabindex]', '.tree-row.active', '.tree-row', 'input:not([type=checkbox]), textarea']
 const fallbackTarget = '.panel-body button:not(:disabled), .tool-body button:not(:disabled), [tabindex="0"]:not(.detach), button:not(:disabled):not(.detach)'
 
 function focusZone(zone: Zone, tries = 10, from = document.activeElement) {
