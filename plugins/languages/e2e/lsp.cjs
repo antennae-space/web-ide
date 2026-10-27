@@ -83,7 +83,7 @@ run(async ({ page }) => {
   // The tool has no ⋮ of its own any more: its choices come after the core items of the zone menu (#175).
   const head = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
   assert(head[0] === 'Open in a window' && head[1] === 'Close' && head[2] === 'Expand all', 'the menu of the Structure zone: ' + JSON.stringify(head))
-  assert(!(await page.$('.side-right [data-testid=structure-options]')), 'the tool keeps no Options button of its own')
+  assert(!(await page.$('.side-right .panel-head button[title="Options"]')), 'the tool keeps no Options button of its own')
   const pkgItem = await page.$('.ctx-item:has-text("Show Package Structure")')
   assert(!!pkgItem && !(await pkgItem.evaluate((e) => e.disabled)), 'Show Package Structure is a live entry of the menu')
   assert(!(await pkgItem.evaluate((e) => e.getAttribute('aria-checked') === 'true')), 'and it is off by default')
