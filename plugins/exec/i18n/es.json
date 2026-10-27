@@ -1,5 +1,9 @@
 {
   "Consoles": "Consolas",
+  "New console tab": "Nueva pestaña de consola",
+  "New tab": "Nueva pestaña",
+  "New tab: pick a command, or a new terminal": "Nueva pestaña: elige un comando o un terminal nuevo",
+  "A terminal of its own, in this tab": "Un terminal propio, en esta pestaña",
   "Open a terminal here": "Abrir un terminal aquí",
   "Rename the console": "Renombrar la consola",
   "Run a command": "Ejecutar un comando",

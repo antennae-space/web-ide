@@ -307,6 +307,8 @@ async function say(page, text) {
     await page.click('.rail-left .rail-btn[title="Explorer"]')
     await openAt(page, 'pod/main.go', 'flag.Parse()')
     await page.keyboard.press('Control+Shift+N')
+    await page.waitForSelector('[data-testid=cmd-launcher]')
+    await page.click('[data-testid=cmd-tile]:has-text("New terminal")') // the new tab becomes a terminal
     await page.waitForSelector('.xterm', { timeout: 10_000 })
     await page.waitForTimeout(1500)
     // A neutral prompt rather than the one of the user running the scenario.

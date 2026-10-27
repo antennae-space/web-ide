@@ -123,6 +123,8 @@ run(async ({ page }) => {
   page.on('dialog', (d) => d.accept())
   await page.click('.pane.active .ed-content').catch(() => {})
   await page.keyboard.press('Control+Shift+N')
+  await page.waitForSelector('[data-testid=cmd-launcher]')
+  await page.click('[data-testid=cmd-tile]:has-text("New terminal")') // the new tab becomes a terminal
   await page.waitForSelector('.xterm-helper-textarea')
   await page.waitForTimeout(500)
   await page.keyboard.type('echo plugin-$((6*7))')

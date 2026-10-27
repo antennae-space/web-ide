@@ -2,7 +2,7 @@
 // terminal and commands capabilities other parts of the IDE use.
 import type { PluginModule } from '@ide/types'
 import { bindApi } from './plugin'
-import { ConsoleTool, navigateConsoles, newConsole, newTerminal, refreshConsoles, runTask, setConsoleList, TermView, consoles, watchConsoles } from './consoles'
+import { ConsoleTool, navigateConsoles, newConsole, openNewTab, refreshConsoles, runTask, setConsoleList, TermView, consoles, watchConsoles } from './consoles'
 import { commands, loadCommands, show, watchCommands } from './commands'
 import { CommandsHost, openCommands } from './CommandsModal'
 
@@ -18,8 +18,8 @@ export const exec: PluginModule = {
       explorerItems: (e) => [{ label: a.t('Open a terminal here'), action: () => void newConsole({ cwd: e.folder }) }],
       hosts: [CommandsHost],
       commands: {
-        // A new terminal: a tile of its own in the Grid and Scroll modes.
-        'console.new': () => newTerminal(),
+        // The new tab of the Console: the launcher, which converts into a console.
+        'console.new': () => openNewTab(),
         // An ad hoc command, the same prompt as the launcher.
         'console.run': () => void runTask(),
       },

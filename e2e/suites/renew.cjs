@@ -40,6 +40,8 @@ run(
     await app.waitForSelector('.menubar')
     await app.focus('.menubar')
     await page.keyboard.press('Control+Shift+N')
+    await page.waitForSelector('[data-testid=cmd-launcher]')
+    await page.click('[data-testid=cmd-tile]:has-text("New terminal")') // the new tab becomes a terminal
     await app.waitForSelector('.xterm', { timeout: 15000 })
     await page.keyboard.type('echo renewed-$((6*7))\n')
     await app.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('renewed-42'), null, { timeout: 10000 })

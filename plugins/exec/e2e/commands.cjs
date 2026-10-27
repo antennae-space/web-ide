@@ -1,7 +1,7 @@
-// Saved commands of the project: launcher of the empty Console and panel under ▶ (grid of tiles,
-// groups by flag, keyboard), modal list + detail (bash editor), one console per command with
-// Restart in the same tab, ad hoc command saved, .ide/commands.json; the commands in Search
-// Everywhere and their shortcuts.
+// Saved commands of the project: the new tab of the Console and its launcher (grid of tiles,
+// groups by flag, keyboard, a pick converts the tab), modal list + detail (bash editor), one
+// console per command with Restart in the same tab, ad hoc command saved, .ide/commands.json;
+// the commands in Search Everywhere and their shortcuts.
 const fs = require('fs')
 const { run, openProject, assert, OUT, WS } = require('../../../e2e/common.cjs')
 
@@ -9,6 +9,13 @@ const demo = WS + '/demo'
 const file = demo + '/.ide/commands.json'
 const tabs = (page) => page.$$eval('.console-tabs .tab .tab-title', (l) => l.map((e) => e.textContent))
 const tiles = (page) => page.$$eval('[data-testid=cmd-launcher] .cmd-tile-name', (l) => l.map((e) => e.textContent))
+const tile = (name) => `[data-testid=cmd-launcher] [data-testid=cmd-tile]:has-text("${name}")`
+/** + (or Ctrl+Shift+N): the new tab shown, the launcher under the keyboards. */
+const newTab = async (page) => {
+  await page.click('[data-testid=console-new-tab-button]')
+  await page.waitForSelector('[data-testid=cmd-launcher]')
+  await page.waitForTimeout(200)
+}
 
 run(async ({ page }) => {
   // Dialogs (confirm): answered by `answer`, their text kept in `asked`.
@@ -21,7 +28,9 @@ run(async ({ page }) => {
   // The tool shown takes the keyboard a few frames later: typing in the modal waits for it.
   await page.waitForTimeout(500)
 
-  // Empty Console without commands: a grid with New terminal first, Create a command last.
+  // The Console is never empty: its only tab is the new one, showing the launcher.
+  assert((await tabs(page)).join() === 'New tab', 'the new tab is the least the Console holds: ' + (await tabs(page)))
+  assert(!(await page.isVisible('[data-testid=console-commands]')), 'no ▶ button anymore')
   assert((await tiles(page)).join() === 'New terminal,Create a command…', 'empty launcher: ' + (await tiles(page)))
   assert(await page.evaluate(() => document.activeElement?.classList.contains('cmd-tile') && document.activeElement?.textContent?.includes('New terminal')), 'New terminal focused when the launcher opens')
   await page.click('[data-testid=cmd-tile]:has-text("Create a command")')
@@ -69,7 +78,7 @@ run(async ({ page }) => {
   await page.click('.cmd-modal .modal-foot button:has-text("Cancel")')
   await page.waitForSelector('.cmd-modal', { state: 'detached' })
 
-  // Launcher of the empty Console: New terminal, the commands in the saved order, then the rest.
+  // The launcher of the new tab: New terminal, the commands in the saved order, then the rest.
   await page.waitForSelector('[data-testid=cmd-launcher]')
   await page.waitForTimeout(300)
   assert((await tiles(page)).join() === 'New terminal,Build,Dev server,Run a command…,Edit commands…', 'grid: ' + (await tiles(page)))
@@ -79,76 +88,71 @@ run(async ({ page }) => {
   await page.keyboard.press('ArrowRight')
   assert(await page.evaluate(() => document.activeElement?.classList.contains('cmd-tile') && document.activeElement?.textContent?.includes('Dev server')), 'arrows move the focus in the grid')
   await page.keyboard.press('Enter')
+  // The new tab converted into the console of the command: it is the only tab.
   await page.waitForSelector('.console-tabs .tab.active:has-text("Dev server")')
+  assert((await tabs(page)).join() === 'Dev server', 'the new tab converted into the console: ' + (await tabs(page)))
   await page.waitForFunction(() => /dev in .*\/demo\/src/.test(document.querySelector('.term-slot[style*="block"] .xterm-rows')?.textContent ?? ''), null, { timeout: 10000 })
   assert(true, 'the command runs in its folder')
 
-  // ▶ opens the same grid as a floating panel: running dot, screen button of the serve command.
-  await page.click('[data-testid=console-commands]')
-  await page.waitForSelector('.cmd-launcher.float')
-  assert(!(await page.isVisible('.ctx-menu')), 'no context menu anymore')
-  const tile = (name) => `[data-testid=cmd-launcher] [data-testid=cmd-tile]:has-text("${name}")`
+  // + opens a new tab above the open consoles: running dot, screen button of the serve command.
+  await newTab(page)
+  assert((await tabs(page)).join() === 'Dev server,New tab', 'the new tab joins the consoles: ' + (await tabs(page)))
   assert((await page.textContent(tile('Dev server') + ' [data-testid=cmd-badge]')) === '●', 'running command marked on its tile')
   assert(await page.isVisible(tile('Dev server') + ' [data-testid=cmd-tile-app]'), 'a serve command with a port gets its preview button')
   assert(!(await page.isVisible(tile('Build') + ' [data-testid=cmd-tile-app]')), 'not a build command')
   await page.screenshot({ path: OUT + '/commands-launcher.png' })
   await page.click(tile('Build'))
-  await page.waitForSelector('.cmd-launcher', { state: 'detached' })
   await page.waitForSelector('.console-tabs .tab.active:has-text("Build")')
   await page.waitForSelector('.console-tabs .tab:has-text("Build") .ok')
-  assert((await tabs(page)).join() === 'Dev server,Build', 'tabs: ' + (await tabs(page)))
+  assert((await tabs(page)).join() === 'Dev server,Build', 'the new tab converted in its place: ' + (await tabs(page)))
 
-  // Escape closes the panel and gives the focus back.
-  await page.click('[data-testid=console-commands]')
-  await page.waitForSelector('.cmd-launcher.float')
+  // Escape with nothing to back out of: the focus goes back to the editor.
+  await page.keyboard.press('Control+p')
+  await page.waitForSelector('.pick-input')
+  await page.keyboard.type('main.go')
+  await page.waitForSelector('.pick-item:has-text("main.go")')
+  await page.keyboard.press('Enter')
+  await page.waitForSelector('.pane .ed-content')
+  await newTab(page)
   await page.keyboard.press('Escape')
-  await page.waitForSelector('.cmd-launcher', { state: 'detached' })
-  assert(await page.evaluate(() => document.activeElement?.hasAttribute('data-testid') && document.activeElement.getAttribute('data-testid') === 'console-commands'), 'Escape gives the focus back to ▶')
+  assert(!(await page.evaluate(() => document.activeElement?.closest?.('.cmd-launcher'))), 'Escape gives the focus back to the editor')
+  assert(await page.isVisible('[data-testid=cmd-launcher]'), 'the new tab stays open')
 
   // Typing filters across the groups; Escape clears the filter first.
-  await page.click('[data-testid=console-commands]')
-  await page.waitForSelector('.cmd-launcher.float')
+  await page.click('.console-tabs [data-testid=console-new-tab]')
+  await page.waitForTimeout(200)
   await page.keyboard.type('dev')
   await page.waitForSelector('[data-testid=cmd-query]')
   assert((await tiles(page)).join() === 'Dev server', 'typing filters across the groups: ' + (await tiles(page)))
   await page.keyboard.press('Escape')
   assert((await tiles(page)).join() === 'New terminal,Build,Dev server,Run a command…,Edit commands…', 'Escape clears the filter: ' + (await tiles(page)))
-  await page.keyboard.press('Escape')
-  await page.waitForSelector('.cmd-launcher', { state: 'detached' })
 
   // Exit code of the console of a command, while it is listed.
-  await page.click('[data-testid=console-commands]')
-  await page.waitForSelector('.cmd-launcher.float')
   assert((await page.textContent(tile('Build') + ' [data-testid=cmd-badge]')) === '0', 'exit code on the tile of the ended command')
-  await page.keyboard.press('Escape')
 
   // Running again: Restart offered; the console keeps the place of its tab.
-  await page.click('[data-testid=console-commands]')
-  await page.waitForSelector('.cmd-launcher.float')
   asked = ''
   await page.click(tile('Dev server'))
   await page.waitForFunction(() => document.querySelectorAll('.console-tabs .tab').length === 2 && document.querySelector('.console-tabs .tab.active')?.textContent.includes('Dev server'))
   assert(/Restart/.test(asked), 'Restart asked: ' + asked)
   assert((await tabs(page)).join() === 'Dev server,Build', 'restarted in the same tab: ' + (await tabs(page)))
   // An ended command runs again without asking, in its tab.
+  await newTab(page)
   asked = ''
-  await page.click('[data-testid=console-commands]')
-  await page.waitForSelector('.cmd-launcher.float')
   await page.click(tile('Build'))
   await page.waitForSelector('.console-tabs .tab.active:has-text("Build")')
   await page.waitForTimeout(300)
   assert(asked === '' && (await tabs(page)).length === 2, 'an ended command restarts without asking')
 
-  // Ad hoc command saved as a command, under the build flag.
-  await page.click('[data-testid=console-commands]')
-  await page.waitForSelector('.cmd-launcher.float')
+  // An ad hoc task, then saved as a command from the menu of its tab, under the build flag.
+  await newTab(page)
   await page.click('[data-testid=cmd-tile]:has-text("Run a command")')
   await page.fill('.modal input', 'echo adhoc-1')
   await page.keyboard.press('Enter')
   await page.waitForSelector('.console-tabs .tab.active:has-text("echo adhoc-1")')
-  await page.click('[data-testid=console-commands]')
-  await page.waitForSelector('.cmd-launcher.float')
-  await page.click('[data-testid=cmd-tile]:has-text("as a command")')
+  assert((await tabs(page)).join() === 'Dev server,Build,echo adhoc-1', 'the new tab converted into the task: ' + (await tabs(page)))
+  await page.click('.console-tabs .tab:has-text("echo adhoc-1")', { button: 'right' })
+  await page.click('.ctx-item:has-text("as a command")')
   await page.waitForSelector('.cmd-modal [data-testid=cmd-name]')
   assert((await page.inputValue('[data-testid=cmd-name]')) === 'echo adhoc-1', 'draft named after the command')
   await page.selectOption('[data-testid=cmd-flag]', 'build')
@@ -158,22 +162,17 @@ run(async ({ page }) => {
   assert(JSON.parse(fs.readFileSync(file, 'utf8')).commands.length === 3, 'Save and run saved the third command')
 
   // Two commands under one flag: one group tile, opened in place, back with Escape.
-  await page.click('[data-testid=console-commands]')
-  await page.waitForSelector('.cmd-launcher.float')
+  await newTab(page)
   assert((await tiles(page)).join() === 'New terminal,build,Dev server,Run a command…,Edit commands…', 'one tile per flag: ' + (await tiles(page)))
-  assert((await page.textContent('[data-testid=cmd-launcher] .cmd-tile.group .cmd-tile-count')) === '2', 'the group tile counts its commands')
+  assert((await page.textContent('[data-testid=cmd-launcher] .cmd-tile.group [data-testid=cmd-tile-count]')) === '2', 'the group tile counts its commands')
   await page.click('[data-testid=cmd-tile].group')
   await page.waitForSelector('[data-testid=cmd-tile].back')
   assert((await tiles(page)).join() === 'Back,Build,echo adhoc-1', 'the group opens in place: ' + (await tiles(page)))
   await page.screenshot({ path: OUT + '/commands-group.png' })
   await page.keyboard.press('Escape')
   assert((await tiles(page)).join() === 'New terminal,build,Dev server,Run a command…,Edit commands…', 'Escape goes back to the groups: ' + (await tiles(page)))
-  await page.keyboard.press('Escape')
-  await page.waitForSelector('.cmd-launcher', { state: 'detached' })
 
   // Delete from the modal.
-  await page.click('[data-testid=console-commands]')
-  await page.waitForSelector('.cmd-launcher.float')
   await page.click('[data-testid=cmd-tile]:has-text("Edit commands")')
   await page.click('[data-testid=cmd-item]:has-text("Dev server")')
   assert(await page.isVisible('[data-testid=cmd-open-app]'), 'Start and open the app offered for a serve command with a port')
@@ -230,8 +229,7 @@ run(async ({ page }) => {
   await page.waitForSelector('.settings', { state: 'detached' })
 
   // Renamed, the command keeps its shortcut (bound by id), which runs it.
-  await page.click('[data-testid=console-commands]')
-  await page.waitForSelector('.cmd-launcher.float')
+  await newTab(page)
   await page.click('[data-testid=cmd-tile]:has-text("Edit commands")')
   await page.click('[data-testid=cmd-item]:has-text("Build")')
   await page.fill('[data-testid=cmd-name]', 'Build all')
@@ -258,10 +256,20 @@ run(async ({ page }) => {
   await page.waitForSelector('.console-tabs .tab.active:has-text("echo palette-run") .ok')
   assert(true, 'console.run from the palette')
 
-  // Ctrl+Shift+N: a new terminal.
+  // Ctrl+Shift+N: the new tab, Enter converts it into a terminal.
   await page.waitForTimeout(300)
-  const before = (await tabs(page)).length
   await page.keyboard.press('Control+Shift+N')
-  await page.waitForFunction((n) => document.querySelectorAll('.console-tabs .tab').length === n + 1, before, { timeout: 8000 })
-  assert(true, 'Ctrl+Shift+N opens a terminal')
+  await page.waitForSelector('[data-testid=cmd-launcher]')
+  await page.waitForTimeout(400)
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(() => !document.querySelector('[data-testid=console-new-tab]') && document.querySelectorAll('.console-tabs .tab').length >= 5, null, { timeout: 8000 })
+  assert(!(await page.isVisible('[data-testid=console-new-tab]')), 'Ctrl+Shift+N + Enter: the new tab became a terminal')
+
+  // Closing the consoles leaves the new tab: the Console is never empty.
+  for (let i = 0; i < 8 && (await page.$('.console-tabs .tab:has(.tab-close)')); i++) {
+    await page.click('.console-tabs .tab:has(.tab-close) .tab-close')
+    await page.waitForTimeout(400)
+  }
+  assert((await tabs(page)).join() === 'New tab', 'the Console keeps a new tab: ' + (await tabs(page)))
+  assert(await page.isVisible('[data-testid=cmd-launcher]'), 'the launcher is back')
 })

@@ -149,6 +149,8 @@ run(
     // Terminal: its own channel (term:<id>).
     await app.focus('.pane.active .ed-content')
     await page.keyboard.press('Control+Shift+N')
+    await page.waitForSelector('[data-testid=cmd-launcher]')
+    await page.click('[data-testid=cmd-tile]:has-text("New terminal")') // the new tab becomes a terminal
     await app.waitForSelector('.xterm', { timeout: 15000 })
     await page.keyboard.type('echo relay-$((6*7))\n')
     await app.waitForTimeout(1200)

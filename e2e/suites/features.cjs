@@ -59,6 +59,8 @@ run(async ({ page }) => {
 
   // Terminal
   await page.keyboard.press('Control+Shift+N')
+  await page.waitForSelector('[data-testid=cmd-launcher]')
+  await page.click('[data-testid=cmd-tile]:has-text("New terminal")') // the new tab becomes a terminal
   await page.waitForSelector('.xterm', { timeout: 5000 })
   await page.waitForTimeout(800)
   await page.keyboard.type('echo pod-$((40+2))\n')
@@ -135,7 +137,8 @@ run(async ({ page }) => {
   assert(rows.includes('multi-5') && !rows.includes('200~'), 'run on Enter, no marker shown')
   assert(await page.isVisible('.console-tabs.tabbar .tab.active .tab-close'), 'console tabs styled like the file tabs')
   assert(!(await page.$('.console-tabs [title="Detach in a window"]')), 'no detach button on a console tab')
-  await page.click('.console-tabs button[title^="New terminal"]')
+  await page.click('.console-tabs [data-testid=console-new-tab-button]')
+  await page.click('[data-testid=cmd-tile]:has-text("New terminal")')
   await page.waitForFunction(() => document.querySelectorAll('.console-tabs .tab').length === 2)
   await page.click('.console-tabs .tab >> nth=1')
   await page.dblclick('.console-tabs .tab >> nth=1')

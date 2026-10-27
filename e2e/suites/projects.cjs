@@ -97,6 +97,18 @@ run(async ({ page, ctx }) => {
   await page.waitForSelector('.console-tabs .tab:has-text("Worktree setup") [data-testid=worktree-chip]:has-text("feature")', { timeout: 5000 })
   assert(true, 'the setup console carries the chip of the worktree')
 
+  // The launcher of the new tab: the chip of the worktree shown, and its commands run at its root.
+  fs.writeFileSync(WS + '/demo/.ide/commands.json', JSON.stringify({ commands: [{ id: 'inst', name: 'Install', command: 'echo installed > setup.log', flag: 'setup' }, { id: 'where', name: 'Where', command: 'pwd > where.log', flag: 'other' }] }))
+  await page.keyboard.press('Control+Shift+N')
+  await page.waitForSelector('[data-testid=console-new-tab] [data-testid=worktree-chip]:has-text("feature")', { timeout: 5000 })
+  await page.waitForSelector('[data-testid=cmd-launcher]')
+  assert((await page.textContent('[data-testid=console-new-tab]')).includes('feature'), 'the new tab carries the chip of the worktree shown')
+  await page.click('[data-testid=cmd-tile]:has-text("Where")')
+  await page.waitForSelector('.console-tabs .tab [data-testid=worktree-chip]:has-text("feature")', { timeout: 8000 })
+  const deadlineW = Date.now() + 8000
+  while (!fs.existsSync(wt + '/where.log') && Date.now() < deadlineW) await page.waitForTimeout(100)
+  assert(fs.existsSync(wt + '/where.log') && !fs.existsSync(WS + '/demo/where.log'), 'the command ran at the root of the worktree: ' + (fs.existsSync(wt + '/where.log') ? fs.readFileSync(wt + '/where.log', 'utf8').trim() : 'no file') + ' / ' + fs.existsSync(WS + '/demo/where.log'))
+
   // The explorer shows the worktree; its files open with a chip, and stay open in the main folder.
   fs.writeFileSync(wt + '/feature.txt', 'feature\n')
   if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title="Explorer"]')
@@ -114,6 +126,14 @@ run(async ({ page, ctx }) => {
   await page.waitForSelector('.tab.active:has-text("main.txt")')
   assert(!(await page.isVisible('.tab:has-text("main.txt") [data-testid=worktree-chip]')) && (await page.isVisible('.tab:has-text("feature.txt") [data-testid=worktree-chip]')), 'both files open, chip only on the worktree one')
   assert((await page.textContent('[data-testid=branch-selector]')).includes('main') && ctx.pages().length === pages, 'back on the main folder in the same window')
+  // Back on the main folder: the new tab has no chip and its commands run there.
+  await page.keyboard.press('Control+Shift+N')
+  await page.waitForSelector('[data-testid=cmd-launcher]', { timeout: 5000 })
+  assert(!(await page.isVisible('[data-testid=console-new-tab] [data-testid=worktree-chip]')), 'no chip on the new tab of the main folder')
+  await page.click('[data-testid=cmd-tile]:has-text("Where")')
+  const deadlineM = Date.now() + 8000
+  while (!fs.existsSync(WS + '/demo/where.log') && Date.now() < deadlineM) await page.waitForTimeout(100)
+  assert(fs.existsSync(WS + '/demo/where.log'), 'the command ran at the root of the project')
   // An edit saved in the worktree file goes to the worktree.
   await page.click('.tab:has-text("feature.txt")')
   await page.click('.pane.active .ed-content')

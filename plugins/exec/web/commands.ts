@@ -3,7 +3,7 @@
 import { createEffect, createRoot, createSignal } from 'solid-js'
 import type { SavedCommand } from '@ide/capabilities'
 import { api, desk, errorToast, t } from './plugin'
-import { consoles, ordered, setConsoles, type ConsoleInfo } from './consoles'
+import { consoles, converting, ordered, setConsoles, setNewTab, type ConsoleInfo } from './consoles'
 
 export type Command = SavedCommand
 
@@ -100,6 +100,8 @@ export async function runCommand(cmd: Command, restart = false) {
     }
     const info: ConsoleInfo = { ...r.console!, project: api.project.current() }
     setConsoles((l) => [...l.filter((c) => c.id !== r.replaced && c.id !== info.id), info])
+    // The new tab shown converts into this console.
+    if (converting()) setNewTab(false)
     // The new console takes the tab of the one it replaces.
     if (r.replaced && tabs.includes(r.replaced)) desk.set((s) => (s.order = tabs.map((id) => (id === r.replaced ? info.id : id))))
     show(info.id)
@@ -131,12 +133,13 @@ export async function openApp(cmd: Command) {
 
 export function show(id: string) {
   api.showTool('console')
+  if (converting()) setNewTab(false)
   desk.set((s) => (s.active = id))
 }
 
-/** Command of the active console, for "Save as command" (an ad hoc task: sh -c <cmd>). */
-export function adHocCommand(): string | null {
-  const c = consoles().find((x) => x.id === desk.get().active)
-  if (!c || c.kind !== 'task' || c.commandId || c.command?.[0] !== 'sh' || c.command[1] !== '-c') return null
-  return c.command[2] ?? null
+/** Command of the active console, for "Save as a command…" (an ad hoc task: sh -c <cmd>). */
+export function adHocCommand(c?: ConsoleInfo): string | null {
+  const x = c ?? consoles().find((y) => y.id === desk.get().active)
+  if (!x || x.kind !== 'task' || x.commandId || x.command?.[0] !== 'sh' || x.command[1] !== '-c') return null
+  return x.command[2] ?? null
 }
