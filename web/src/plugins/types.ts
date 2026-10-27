@@ -85,6 +85,12 @@ export interface PluginContributions {
    * current state, given the tab when there is one (a tool in a zone has none).
    */
   toolMenu?: Record<string, (tab?: TabState) => MenuItem[]>
+  /**
+   * The buttons the tool puts in the corner of the zone or of the tile that shows it, before the ⋮
+   * and the ✕, by tool or view id (#176). A tool has no button of its own in its head: the core
+   * renders these, in a zone, in a bare tile, or at the right of the tab bar of a tabbed tile.
+   */
+  toolCorner?: Record<string, () => JSX.Element[]>
   /** Tools of the interface the pod asks the window to run (ui.call), by name: the AI draws a page of its board. */
   uiTools?: Record<string, UiTool>
   commands?: Record<string, () => void>

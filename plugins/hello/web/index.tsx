@@ -29,6 +29,10 @@ export const hello: PluginModule = {
           { label: api.t('Greet twice'), checked: twice(), action: () => setTwice(!twice()) },
         ],
       },
+      // One button in the corner of its zone or tile, before the ⋮ (toolCorner, #176).
+      toolCorner: {
+        hello: () => [<button class="icon-btn" data-testid="hello-corner" title={api.t('Say hello')} onClick={() => api.ui.toast(api.t('Hello from the corner'))} />],
+      },
     }
   },
 }

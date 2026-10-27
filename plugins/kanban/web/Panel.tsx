@@ -1,11 +1,32 @@
 // Side panel of the kanban: the open tickets of the project, grouped by status.
-import { For, onMount, Show } from 'solid-js'
+import { For, onMount, Show, type JSX } from 'solid-js'
+import type { MenuItem } from '@ide/api'
 import { Card } from './Board'
 import { board, ensureBoard, openBoard, refreshBoard, setNewTicketOpen, statusLabels, type Status } from './state'
 import './kanban.css'
 import { EmptyState, Icon, t } from './plugin'
 
 const shown: Status[] = ['in_progress', 'to_test', 'todo', 'new']
+
+/** The items the Kanban plugin adds to the ⋮ menu of its tool (`toolMenu` contribution). */
+export function kanbanMenu(): MenuItem[] {
+  return [
+    { label: t('New ticket'), action: () => setNewTicketOpen(true) },
+    { label: t('Refresh'), action: () => refreshBoard() },
+  ]
+}
+
+/** The buttons of the Kanban tool in the corner of its zone or tile (`toolCorner` contribution). */
+export function kanbanCorner(): JSX.Element[] {
+  return [
+    <button class="icon-btn" data-testid="kanban-new-ticket" title={t('New ticket')} onClick={() => setNewTicketOpen(true)}>
+      <Icon name="plus" size={14} />
+    </button>,
+    <button class="icon-btn" data-testid="kanban-refresh" title={t('Refresh')} onClick={() => refreshBoard()}>
+      <Icon name="refresh" size={14} />
+    </button>,
+  ]
+}
 
 export function KanbanPanel() {
   onMount(ensureBoard)
@@ -14,13 +35,6 @@ export function KanbanPanel() {
     <div class="panel" data-testid="kanban-panel">
       <div class="panel-head">
         <span class="panel-title">Kanban</span>
-        <span class="grow" />
-        <button class="icon-btn" title={t('New ticket')} onClick={() => setNewTicketOpen(true)}>
-          <Icon name="plus" size={14} />
-        </button>
-        <button class="icon-btn" title={t('Refresh')} onClick={() => refreshBoard()}>
-          <Icon name="refresh" size={14} />
-        </button>
       </div>
       {/* The views of the board, each one opening it there. */}
       <div class="kb-panel-views">

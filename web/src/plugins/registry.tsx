@@ -302,6 +302,24 @@ export function toolMenuFor(target: { tool: string } | { tab: TabState }): MenuI
   return m && pluginEnabled(m[1]) ? (active[m[1]]?.toolMenu?.[m[2]]?.(tab) ?? []) : []
 }
 
+/**
+ * The buttons a tool gives to the corner of the zone or of the tile showing it (before the ⋮ and
+ * the ✕), or to the tab bar of a tabbed tile. The same resolution as `toolMenuFor`.
+ */
+export function toolCornerFor(target: { tool: string } | { tab: TabState }): JSX.Element[] {
+  if ('tool' in target) {
+    for (const s of enabled()) {
+      const f = active[s.manifest.id].toolCorner?.[target.tool]
+      if (f) return f()
+    }
+    return []
+  }
+  const tab = target.tab
+  if (tab.kind === 'tool' && tab.tool) return toolCornerFor({ tool: tab.tool })
+  const m = /^plugin:([^/]+)\/(.+)$/.exec(tab.kind)
+  return m && pluginEnabled(m[1]) ? (active[m[1]]?.toolCorner?.[m[2]]?.() ?? []) : []
+}
+
 /** The label of a tab view, as its manifest declares it. */
 export function pluginViewLabel(kind: string) {
   const m = /^plugin:([^/]+)\/(.+)$/.exec(kind)

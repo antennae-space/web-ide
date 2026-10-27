@@ -5,6 +5,7 @@ import { Icon } from './icons'
 import { contextMenu, type MenuItem } from './overlay'
 import { shortcutOf } from '../keys/bindings'
 import { t } from '../i18n'
+import { createEffect, For, onCleanup, type JSX } from 'solid-js'
 import { closeTab, mutate, session, type TabState } from '../state/project'
 import { shownIn, toggleTool, type Zone } from '../state/zones'
 import { detachTab, openInBrowserTab, tileMode } from '../state/tiles'
@@ -27,18 +28,20 @@ function subjectTab(s: ToolSubject): TabState | null {
  * (a desk of tiles only for the browser tab: Full keeps its zones), *Close* — it hides the tool
  * from its zone, closes the tab of a tile — then the items of the tab (`extra`), then the items the
  * tool's plugin contributes (`toolMenu` contribution point, #175). The same list from the ⋮ of a
- * zone, of a tile, and from a right click on either.
+ * zone, of a tile, and from a right click on either. `close` replaces the core Close when the tab
+ * is not a tab of a pane (a console of the Console tool: its own Close).
  */
-export function toolMenuItems(subject: ToolSubject, extra: MenuItem[] = []): MenuItem[] {
+export function toolMenuItems(subject: ToolSubject, extra: MenuItem[] = [], close?: MenuItem): MenuItem[] {
   const tab = subjectTab(subject)
   const openable = !!tab && (tab.kind === 'tool' || tab.kind === 'console')
   const items: MenuItem[] = []
   if (openable && tileMode()) items.push({ label: t('Open in a tab'), action: () => openInBrowserTab(tab!) })
   if (openable) items.push({ label: t('Open in a window'), action: () => detachTab(tab!) })
   items.push(
-    'zone' in subject
-      ? { label: t('Close'), action: () => mutate((s) => toggleTool(s, shownIn(s, subject.zone) ?? '')) }
-      : { label: t('Close'), hint: shortcutOf('view.closeTab'), action: () => closeTab(subject.pane, subject.tab.id) },
+    close ??
+      ('zone' in subject
+        ? { label: t('Close'), action: () => mutate((s) => toggleTool(s, shownIn(s, subject.zone) ?? '')) }
+        : { label: t('Close'), hint: shortcutOf('view.closeTab'), action: () => closeTab(subject.pane, subject.tab.id) }),
   )
   if (extra.length) items.push({ separator: true, label: '' }, ...extra)
   const contributed = tab ? toolMenuFor({ tab }) : []
@@ -46,7 +49,7 @@ export function toolMenuItems(subject: ToolSubject, extra: MenuItem[] = []): Men
   return items
 }
 
-/** The corner of a zone or of a tile: the ⋮ opening the menu, and the ✕ beside it. */
+/** The corner of a zone or of a tile: the buttons of the tool, then the ⋮ opening the menu, then the ✕. */
 export function CornerButtons(props: {
   kind: 'zone' | 'tile'
   /** The name of the tool or console, in the tooltip of the ⋮. */
@@ -54,9 +57,29 @@ export function CornerButtons(props: {
   items: () => MenuItem[]
   close: () => void
   closeTitle?: string
+  /** The buttons the tool contributes (`toolCorner`): rendered before the ⋮. */
+  buttons?: () => JSX.Element[]
 }) {
+  let el!: HTMLDivElement
+  // The room the group takes over the head of the tool below it, measured: it holds any number of
+  // buttons (the tool's own, the ⋮, the ✕).
+  createEffect(() => {
+    const host = el.closest<HTMLElement>('.zone, .tile-tool, .tile-console, .pane')
+    if (!host) return
+    const measure = () => {
+      const c = el.getBoundingClientRect()
+      if (!c.width) return
+      host.style.setProperty('--corner-w', `${Math.ceil(host.getBoundingClientRect().right - c.left + 6)}px`)
+    }
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    ro.observe(host)
+    measure()
+    onCleanup(() => ro.disconnect())
+  })
   return (
-    <div class={props.kind === 'zone' ? 'zone-corner' : 'tile-corner'}>
+    <div class={props.kind === 'zone' ? 'zone-corner' : 'tile-corner'} ref={el}>
+      <For each={props.buttons?.() ?? []}>{(b) => b}</For>
       <button class="icon-btn corner-btn" title={props.title} onClick={(e) => contextMenu(e, props.items())} data-testid={props.kind === 'zone' ? 'zone-menu' : 'tile-menu'}>
         <Icon name="more" size={13} />
       </button>

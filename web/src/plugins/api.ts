@@ -33,7 +33,8 @@ import { inTunnel } from '../pod/transport'
 import { EmptyState } from '../ui/EmptyState'
 import { Icon } from '../ui/icons'
 import { errorToast, toast } from '../ui/toast'
-import { contextMenu, fuzzy, Modal, pick, prompt } from '../ui/overlay'
+import { contextMenu, fuzzy, Modal, pick, prompt, type MenuItem } from '../ui/overlay'
+import { toolMenuItems } from '../ui/toolMenu'
 import { languageName, lspLanguage, lspLanguageId } from '../editor/languages'
 import { isWordChar, wordStart } from '../editor/completion'
 import { applyToString, toOffsets } from '../editor/textEdits'
@@ -243,7 +244,7 @@ export function makeApi(id: string) {
     keys: { register: registerAction, shortcut: shortcutOf, actionOf, run: runAction, setDynamic: setDynamicActions },
     /** The transport of the page: in the tunnel of the relay, or a WebSocket to the pod. */
     transport: { inTunnel },
-    ui: { Markdown, Switch, openDiagram, HelpLink, fuzzy, EmptyState, Icon, FileIcon, Modal, toast, errorToast, contextMenu, prompt, pick, copyText, parseAnsi, stripAnsi, WorktreeChip, tabDrop: { dropClasses, dropIndex, moveItem, setDropAt } },
+    ui: { Markdown, Switch, openDiagram, HelpLink, fuzzy, EmptyState, Icon, FileIcon, Modal, toast, errorToast, contextMenu, prompt, pick, copyText, parseAnsi, stripAnsi, WorktreeChip, tabDrop: { dropClasses, dropIndex, moveItem, setDropAt }, toolMenu: (tab: TabState, extra?: MenuItem[], close?: MenuItem) => toolMenuItems({ pane: '', tab }, extra, close) },
   }
 }
 

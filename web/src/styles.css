@@ -273,6 +273,8 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .focus-outline :is(.zone, .pane).focused::after { content: ''; position: absolute; inset: 0; border: var(--focus-outline-width, 1px) solid var(--accent); pointer-events: none; z-index: 20; }
 .tabbar { display: flex; align-items: stretch; height: 32px; background: var(--bg-2); border-bottom: 1px solid var(--line); overflow-x: auto; overflow-y: hidden; flex: none; scrollbar-width: thin; }
 .tabbar-fill { flex: 1; }
+/* The buttons of the tool shown in a tabbed tile, at the end of its tab bar (toolCorner, #176). */
+.tabbar-actions { display: flex; align-items: center; gap: 2px; flex: none; align-self: center; }
 .tab { display: flex; align-items: center; gap: 6px; padding: 0 6px 0 10px; border-right: 1px solid var(--line); cursor: pointer; white-space: nowrap; color: var(--fg-muted); max-width: 240px; position: relative; }
 .tab:hover { background: var(--bg-hover); }
 .tab.drop-before { box-shadow: inset 2px 0 0 var(--accent); }
@@ -399,14 +401,15 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .find-error { max-width: 140px; color: var(--danger); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- bottom panel ---------- */
-/* The corner of a zone or of a tile holds two buttons (⋮ and ✕): their room is left free in the
-   header of the tool below them. */
+/* The corner of a zone or of a tile holds the buttons of the tool, then the ⋮ and the ✕: the head
+   of the tool below them leaves their room, `--corner-w` measured by CornerButtons. */
 .tool-tabbar { padding-right: 30px; }
-.zone :is(.panel-head, .tool-tabbar) { padding-right: 58px; }
+.zone :is(.panel-head, .tool-tabbar) { padding-right: var(--corner-w, 58px); }
 .tile-tool :is(.panel-head, .tool-tabbar) { padding-right: 10px; }
 .pane.bare > .tabbar { display: none; }
-.pane.bare .tile-tool :is(.panel-head, .tool-tabbar) { padding-right: 58px; }
-.tile-corner { position: absolute; top: 5px; right: 6px; z-index: 3; display: flex; gap: 2px; }
+.pane.bare .tile-tool :is(.panel-head, .tool-tabbar) { padding-right: var(--corner-w, 58px); }
+.zone-corner, .tile-corner { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; }
+.tile-corner { position: absolute; top: 5px; right: 6px; z-index: 3; }
 .tile-console { position: relative; }
 .detached-console { flex: 1; min-height: 0; }
 .tool-tabbar .tab.active { background: var(--bg-2); }

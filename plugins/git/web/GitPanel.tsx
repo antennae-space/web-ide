@@ -1,12 +1,27 @@
 // Git tool: branch bar (switch, create, pull, push, fetch), then a Commit tab (changed
 // files, commit form) and a History tab (graph of the current branch, commit detail).
 // Pull, push and fetch run in a terminal (credentials prompts stay interactive).
-import { onCleanup, onMount, Show } from 'solid-js'
+import { onCleanup, onMount, Show, type JSX } from 'solid-js'
+import type { MenuItem } from '@ide/api'
 import { gitStatus, refreshGit } from './state'
 import { act, push, pushMenu, remote } from './actions'
 import { ChangesTab } from './ChangesTab'
 import { HistoryTab } from './HistoryTab'
 import { api, desk, errorToast, Icon, pick, prompt, t } from './plugin'
+
+/** The items the Git plugin adds to the ⋮ menu of its tool (`toolMenu` contribution). */
+export function gitMenu(): MenuItem[] {
+  return [{ label: t('Refresh'), action: () => refreshGit(0) }]
+}
+
+/** The buttons of the Git tool in the corner of its zone or tile (`toolCorner` contribution). */
+export function gitCorner(): JSX.Element[] {
+  return [
+    <button class="icon-btn" data-testid="git-refresh" title={t('Refresh')} onClick={() => refreshGit(0)}>
+      <Icon name="refresh" />
+    </button>,
+  ]
+}
 
 export function GitPanel() {
   onMount(() => refreshGit(0))
@@ -42,10 +57,6 @@ export function GitPanel() {
     <div class="panel git-panel">
       <div class="panel-head">
         <span class="panel-title">Git</span>
-        <span class="grow" />
-        <button class="icon-btn" title={t('Refresh')} onClick={() => refreshGit(0)}>
-          <Icon name="refresh" />
-        </button>
       </div>
       <Show
         when={st()?.repo}

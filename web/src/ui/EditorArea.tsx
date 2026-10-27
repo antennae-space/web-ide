@@ -1,7 +1,7 @@
 // Editor area: recursive split tree (split/right, split/down), tab bar per pane, and the
 // content of each tab (file editor, SQL console, table view, read-only text).
 import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, onMount, Show, Switch, untrack } from 'solid-js'
-import { pluginFileView, pluginView, pluginViewLabel, pluginViewTitle } from '../plugins/registry'
+import { pluginFileView, pluginView, pluginViewLabel, pluginViewTitle, toolCornerFor } from '../plugins/registry'
 import { activateTab, basename, closeTab, findLeaf, getDoc, moveTab, relPath, session, setActivePane, setSplitSizes, splitPane, type LayoutNode, type TabState, docsVersion, moveTabToDesk } from '../state/project'
 import { distinctDirs } from './tabNames'
 import { EditorView } from '../editor/view'
@@ -167,6 +167,7 @@ function Pane(props: { id: string }) {
       items={() => tabItems(tab)}
       close={() => closeTab(props.id, tab.id)}
       closeTitle={`${t('Close')} (${shortcutOf('view.closeTab')})`}
+      buttons={() => toolCornerFor({ tab })}
     />
   )
 
@@ -284,6 +285,12 @@ function Pane(props: { id: string }) {
           }}
         </For>
         <div class="tabbar-fill" />
+        {/* A tool sharing a tile has no corner of its own: its buttons sit at the end of the bar. */}
+        <Show when={active() && toolCornerFor({ tab: active()! }).length}>
+          <div class="tabbar-actions">
+            <For each={toolCornerFor({ tab: active()! })}>{(b) => b}</For>
+          </div>
+        </Show>
         <button class="icon-btn small" title={`${t('Split right')} (${shortcutOf('view.splitRight')})`} onClick={() => splitPane(props.id, 'row')}>
           ◫
         </button>

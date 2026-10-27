@@ -3,7 +3,7 @@
 import type { PluginModule } from '@ide/types'
 import { bindApi } from './plugin'
 import { dirChanged, dirState, fileState, gitRevision, gitStatus, refreshGit, watchGit } from './state'
-import { GitPanel } from './GitPanel'
+import { GitPanel, gitCorner, gitMenu } from './GitPanel'
 import { gitDiff } from './diff'
 
 export const git: PluginModule = {
@@ -23,6 +23,8 @@ export const git: PluginModule = {
     })
     return {
       tools: { git: { component: GitPanel } },
+      toolMenu: { git: gitMenu },
+      toolCorner: { git: gitCorner },
       diffSources: [gitDiff],
       fileDecorations: {
         ignored: (paths) => api.rpc<string[]>('git.ignored', { paths }),

@@ -3,5 +3,7 @@
   "Hello": "Hello",
   "Say hello from the menu": "Saluer depuis le menu",
   "Hello from the menu": "Bonjour depuis le menu",
-  "Greet twice": "Saluer deux fois"
+  "Greet twice": "Saluer deux fois",
+  "Say hello": "Saluer",
+  "Hello from the corner": "Bonjour depuis le coin"
 }

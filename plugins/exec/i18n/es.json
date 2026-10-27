@@ -29,5 +29,6 @@
   "Runs the command unless it runs already, waits for its port, then opens the app on a temporary URL": "Ejecuta el comando si no se está ejecutando ya, espera a su puerto y abre la app en una URL temporal",
   "Open “{name}” in a preview": "Abrir «{name}» en una vista previa",
   "Shown in another place: click to bring it here": "Mostrado en otro lugar: haz clic para traerlo aquí",
-  "In {folder}": "En {folder}"
+  "In {folder}": "En {folder}",
+  "Edit the saved commands…": "Editar los comandos guardados…"
 }

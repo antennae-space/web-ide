@@ -8,7 +8,7 @@
 // plugin's `toolMenu` contribution). Speed Search filters the rows by typing (or Ctrl+F) while the
 // tree has the focus, highlighting what the query matches; "Always Select Opened Element" keeps the
 // row of the symbol around the caret selected.
-import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show, untrack } from 'solid-js'
+import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show, untrack, type JSX } from 'solid-js'
 import type { MenuItem } from '@ide/api'
 import { api, desk, EmptyState, Icon, t } from './plugin'
 import {
@@ -177,6 +177,37 @@ export function togglePackageStructure() {
   desk.set((s) => (s.showPackage = !s.showPackage))
 }
 
+/** Set by the shown tool: the tree of the active file must be fetched again. */
+let askRefresh: (() => void) | null = null
+
+/** Drops the cached trees of the active file and shows the tree again (the corner button and the ⋮). */
+export function refreshStructure() {
+  const p = activePath()
+  if (p) {
+    forgetPackage(dirOf(p))
+    shownTrees.delete(p)
+  }
+  askRefresh?.()
+}
+
+/** The buttons of the Structure tool in the corner of its zone or tile (`toolCorner` contribution). */
+export function structureCorner(): JSX.Element[] {
+  return [
+    <button class="icon-btn" data-testid="structure-expand" title={t('Expand all')} onClick={() => void expandAllStructure()}>
+      <Icon name="expandAll" size={14} />
+    </button>,
+    <button class="icon-btn" data-testid="structure-collapse" title={t('Collapse all')} onClick={() => void collapseAllStructure()}>
+      <Icon name="collapseAll" size={14} />
+    </button>,
+    <button class="icon-btn" data-testid="structure-search" title={t('Speed Search')} onClick={openStructureSearch}>
+      <Icon name="search" size={14} />
+    </button>,
+    <button class="icon-btn" data-testid="structure-refresh" title={t('Refresh')} onClick={refreshStructure}>
+      <Icon name="refresh" size={14} />
+    </button>,
+  ]
+}
+
 /**
  * The items the plugin adds to the ⋮ menu of the Structure tool (`toolMenu` contribution): the
  * choices of the tree, read when the menu opens.
@@ -282,12 +313,6 @@ export function StructureTool() {
     const kept = folded.filter((id) => !hidden.has(id))
     if (kept.length !== folded.length) setFolded(p, kept)
   }
-  const refresh = () => {
-    const p = path()
-    forgetPackage(dirOf(p))
-    shownTrees.delete(p)
-    setTick((t) => t + 1)
-  }
   const rowEls = () => [...document.querySelectorAll<HTMLElement>('.structure .tree-row')]
   /** Back to the tree: the selected row when it is still shown, the first one else. */
   const focusTree = () => {
@@ -306,8 +331,10 @@ export function StructureTool() {
     queueMicrotask(focusTree)
   }
   askFilter = openSearch
+  askRefresh = () => setTick((t) => t + 1)
   onCleanup(() => {
     if (askFilter === openSearch) askFilter = null
+    if (askRefresh) askRefresh = null
   })
   if (filterWanted) {
     filterWanted = false
@@ -360,19 +387,6 @@ export function StructureTool() {
     >
       <div class="panel-head">
         <span class="panel-title">{t('Structure')}</span>
-        <span class="grow" />
-        <button class="icon-btn" data-testid="structure-expand" title={t('Expand all')} onClick={() => void expandAllStructure()}>
-          <Icon name="expandAll" size={14} />
-        </button>
-        <button class="icon-btn" data-testid="structure-collapse" title={t('Collapse all')} onClick={() => void collapseAllStructure()}>
-          <Icon name="collapseAll" size={14} />
-        </button>
-        <button class="icon-btn" data-testid="structure-search" title={t('Speed Search')} onClick={() => openSearch()}>
-          <Icon name="search" size={14} />
-        </button>
-        <button class="icon-btn" title={t('Refresh')} onClick={refresh}>
-          <Icon name="refresh" size={14} />
-        </button>
       </div>
       <Show when={searching()}>
         <div class="tree-filter">
