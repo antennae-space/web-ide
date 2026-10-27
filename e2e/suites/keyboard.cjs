@@ -49,14 +49,14 @@ run(async ({ page }) => {
   // Toolbars: one Tab stop, the arrows move between the buttons.
   await page.keyboard.press('Alt+1')
   await page.waitForFunction(() => document.activeElement?.closest('.zone-left [role=tree]'))
-  const head = await page.$$eval('.zone-left .panel-head button', (l) => l.map((b) => b.tabIndex))
-  assert(head.filter((x) => x === 0).length === 1 && head.length > 2, 'one Tab stop in the explorer header ' + head)
-  await page.focus('.zone-left .panel-head button[tabindex="0"]')
+  const head = await page.$$eval('.zone-left .zone-corner button', (l) => l.map((b) => b.tabIndex))
+  assert(head.filter((x) => x === 0).length === 1 && head.length > 2, 'one Tab stop in the corner group of the zone ' + head)
+  await page.focus('.zone-left .zone-corner button[tabindex="0"]')
   const title = () => page.evaluate(() => document.activeElement?.getAttribute('title'))
   const t0 = await title()
   await page.keyboard.press('ArrowRight')
   const t1 = await title()
-  assert(t1 && t1 !== t0 && (await page.$eval('.zone-left .panel-head button[tabindex="0"]', (b) => b === document.activeElement)), 'ArrowRight moves to the next button, which becomes the Tab stop')
+  assert(t1 && t1 !== t0 && (await page.$eval('.zone-left .zone-corner button[tabindex="0"]', (b) => b === document.activeElement)), 'ArrowRight moves to the next button, which becomes the Tab stop')
   await page.keyboard.press('ArrowLeft')
   assert((await title()) === t0, 'ArrowLeft moves back')
   // Rails: vertical toolbars.

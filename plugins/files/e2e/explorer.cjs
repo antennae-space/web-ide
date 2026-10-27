@@ -61,6 +61,15 @@ run(async ({ page }) => {
   assert(!(await page.isVisible('.pick-item:has-text("generated.go")')), 'excluded folder left out of "go to file"')
   await page.keyboard.press('Escape')
 
+  // The head of the Explorer holds its title only: its buttons sit in the corner group, next to
+  // the ⋮ and the ✕ of its zone (#176).
+  assert(!(await page.$$('.explorer .panel-head button').length), 'no button left in the head of the Explorer')
+  const corner = await page.$$eval('[data-tool=explorer] .zone-corner button', (b) => b.map((x) => x.getAttribute('data-testid')))
+  assert(
+    JSON.stringify(corner) === JSON.stringify(['explorer-locate', 'explorer-expand', 'explorer-collapse', 'zone-menu']),
+    'the corner group of the zone: ' + JSON.stringify(corner),
+  )
+
   // Expand all (not the excluded folder), collapse all.
   await page.click('[data-testid=explorer-expand]')
   await page.waitForSelector(row('tests/app_test.go'))
@@ -76,11 +85,29 @@ run(async ({ page }) => {
   await page.waitForSelector(row('src/main.go') + '.selected')
   assert(true, 'locate opens the folders and selects the file')
 
-  // Options.
+  // The options of the Explorer, in the ⋮ of its zone.
+  const labels = () => page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
   const option = async (label) => {
-    await page.click('[data-testid=explorer-options]')
+    await page.click('[data-tool=explorer] [data-testid=zone-menu]')
+    await page.waitForSelector('.ctx-menu')
     await page.click(`.ctx-menu .ctx-item:has-text("${label}")`)
   }
+  await page.click('[data-tool=explorer] [data-testid=zone-menu]')
+  await page.waitForSelector('.ctx-menu')
+  const menu = await labels()
+  assert(
+    JSON.stringify(menu) === JSON.stringify(['Open in a window', 'Close', 'New file…', 'New folder…', 'Show the hidden files', 'Show the excluded folders', 'Open files with a single click', 'Always select the opened file', 'Refresh all']),
+    'the items of the ⋮ of the Explorer: ' + JSON.stringify(menu),
+  )
+  await page.keyboard.press('Escape')
+  await page.waitForSelector('.ctx-menu', { state: 'detached' })
+  // The same list from a right click on the head of the zone (its title).
+  await page.click('[data-tool=explorer] .panel-title', { button: 'right' })
+  await page.waitForSelector('.ctx-menu')
+  assert(JSON.stringify(await labels()) === JSON.stringify(menu), 'a right click on the zone opens the same list')
+  await page.keyboard.press('Escape')
+  await page.waitForSelector('.ctx-menu', { state: 'detached' })
+
   await option('Show the hidden files')
   await page.waitForSelector(row('.gitignore'), { state: 'detached' })
   assert(true, 'hidden files hidden')
@@ -91,4 +118,7 @@ run(async ({ page }) => {
   await page.click(row('go.mod'))
   await page.waitForSelector('.pane.active .tab.active:has-text("go.mod")')
   assert(true, 'single click option opens the file')
+
+  // The same items from the ⋮ of a tile of the Explorer are checked by the desks suite (a Grid
+  // desk is the one that shows a tool as a tile).
 })

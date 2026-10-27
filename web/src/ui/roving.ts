@@ -3,7 +3,7 @@
 // to its ends, Enter or Space activates a tab and Delete closes it. The Tab stop is the item
 // last focused, else the active one. Text fields of a bar keep their own Tab stop and arrows.
 
-const groupSel = '[role=toolbar], [role=tablist], .toolbar, .panel-head, .tabbar'
+const groupSel = '[role=toolbar], [role=tablist], .toolbar, .panel-head, .tabbar, .zone-corner, .tile-corner, .tabbar-actions'
 const itemSel = 'button:not(:disabled), [role=tab]'
 
 function items(g: Element): HTMLElement[] {

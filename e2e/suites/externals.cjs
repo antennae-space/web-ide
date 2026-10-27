@@ -32,7 +32,10 @@ ide.register({
       try { void parent.document.title; out.parent = 'open' } catch { out.parent = 'blocked' }
       try { await ide.rpc('fs.list', { path: '' }); out.rpc = 'answered' } catch (e) { out.rpc = 'refused: ' + e.message }
       el.innerHTML = '<p id="hello">' + ide.t('Hello from the frame') + '</p><pre id="checks">' + JSON.stringify(out) + '</pre><button id="open">open</button><button id="view">view</button>'
-      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><button id="targets">targets</button><button id="settings">settings</button><button id="console">console</button><button id="docker">docker</button><button id="terminal">terminal</button><button id="size">size</button><button id="confirm">confirm</button><button id="prompt">prompt</button><button id="pick">pick</button><button id="later">later</button><button id="modal">modal</button><pre id="answer"></pre><pre id="event"></pre>'
+      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><button id="targets">targets</button><button id="settings">settings</button><button id="console">console</button><button id="docker">docker</button><button id="terminal">terminal</button><button id="size">size</button><button id="confirm">confirm</button><button id="prompt">prompt</button><button id="pick">pick</button><button id="later">later</button><button id="modal">modal</button><pre id="answer"></pre><pre id="event"></pre><pre id="menu-choice"></pre>'
+      // The items this frame adds to the ⋮ menu of its tool (#175), and the choice it gets back.
+      ide.setToolMenu([{ id: 'louder', label: ide.t('Greet from the menu'), hint: 'Ctrl+G' }, { id: 'quiet', label: ide.t('Quietly'), checked: true }])
+      ide.onToolMenu((e) => (el.querySelector('#menu-choice').textContent = e.item))
       const show = (p) => p.then((r) => (el.querySelector('#answer').textContent = typeof r === 'string' ? r : JSON.stringify(r)), (e) => (el.querySelector('#answer').textContent = 'error: ' + e.message))
       ide.on('greet.said', (d) => (el.querySelector('#event').textContent = d))
       el.querySelector('#backend').onclick = () => show(ide.rpc('greet.hello'))
@@ -130,7 +133,7 @@ run(async ({ page, errors }) => {
     fs.mkdirSync(path.join(dir, 'bin'), { recursive: true })
     fs.copyFileSync(backendBin, path.join(dir, 'bin', 'greet'))
     fs.chmodSync(path.join(dir, 'bin', 'greet'), 0o755)
-    fs.writeFileSync(path.join(dir, 'i18n', 'fr.json'), JSON.stringify({ 'Hello from the frame': 'Bonjour depuis le cadre' }))
+    fs.writeFileSync(path.join(dir, 'i18n', 'fr.json'), JSON.stringify({ 'Hello from the frame': 'Bonjour depuis le cadre', 'Greet from the menu': 'Saluer depuis le menu', 'Quietly': 'En silence' }))
     execFileSync('tar', ['czf', path.join(tmp, version + '.tar.gz'), '-C', dir, '.'])
     assets[version] = fs.readFileSync(path.join(tmp, version + '.tar.gz'))
   }
@@ -179,9 +182,9 @@ run(async ({ page, errors }) => {
   const sandbox = await page.getAttribute('iframe.plugin-frame[data-view=greet]', 'sandbox')
   assert(sandbox === 'allow-scripts', 'sandboxed, no allow-same-origin: ' + sandbox)
   await frame(page, 'greet').locator('#checks').waitFor()
-  // The room of the zone's detach button over the frame's corner, for its header (#141).
+  // The room of the ⋮ of the zone over the frame's corner, for its header (#141, #176).
   const inset = await frame(page, 'greet').locator('html').evaluate((h) => h.style.getPropertyValue('--ide-head-inset'))
-  assert(parseInt(inset) >= 20, 'the frame knows the room of the detach button: ' + inset)
+  assert(parseInt(inset) >= 30, 'the frame knows the room of the corner buttons: ' + inset)
   let checks = JSON.parse(await frame(page, 'greet').locator('#checks').textContent())
   assert(checks.localStorage === 'blocked' && checks.indexedDB === 'blocked', 'no storage of the origin: ' + JSON.stringify(checks))
   assert(checks.fetch === 'blocked', 'no network (CSP): ' + JSON.stringify(checks))
@@ -491,6 +494,38 @@ run(async ({ page, errors }) => {
   await page.waitForSelector('.modal-plugin')
   await page.click('.modal-plugin .modal-head button')
   assert((await result()) === 'null', 'closed by the user: null')
+
+  // The options menu of a tool (#175, #176): the core items, then those its plugin contributes.
+  const menuLabels = () => page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
+  await page.click('[data-tool=explorer] [data-testid=zone-menu]')
+  await page.waitForSelector('.ctx-menu')
+  assert(
+    JSON.stringify(await menuLabels()) === JSON.stringify(['Open in a window', 'Close', 'New file…', 'New folder…', 'Show the hidden files', 'Show the excluded folders', 'Open files with a single click', 'Always select the opened file', 'Refresh all']),
+    'the items of the Explorer, after the core ones: ' + JSON.stringify(await menuLabels()),
+  )
+  await page.keyboard.press('Escape')
+  await page.waitForSelector('.ctx-menu', { state: 'detached' })
+
+  // Its frame pushes items, in its own language, and gets the choice the user makes. A frame
+  // keeps the items it pushed: it pushes them again when its language changes (here, a reload).
+  await page.click('.menubar button[title^="Settings"]')
+  await page.click('.settings-nav button:has-text("Language")')
+  await page.selectOption('[data-testid=settings-language]', 'fr')
+  await page.waitForFunction(() => document.querySelector('.menubar .menus')?.textContent.includes('Fichier'))
+  await closeSettings()
+  await page.waitForTimeout(900) // the language is kept by the pod a moment after a change
+  await page.reload()
+  await page.waitForSelector('.menubar')
+  await showGreet()
+  await page.click('[data-tool=greet] [data-testid=zone-menu]')
+  await page.waitForSelector('.ctx-menu')
+  const greetMenu = await menuLabels()
+  assert(greetMenu.slice(0, 2).join() === 'Ouvrir dans une fenêtre,Fermer', 'the core items first: ' + JSON.stringify(greetMenu))
+  assert(greetMenu.slice(2).join() === 'Saluer depuis le menu,En silence', 'the items of the frame, translated: ' + JSON.stringify(greetMenu))
+  await page.click('.ctx-menu >> text=Saluer depuis le menu')
+  await g.locator('#menu-choice:not(:empty)').waitFor()
+  assert((await g.locator('#menu-choice').textContent()) === 'louder', 'the choice reaches the frame')
+  await page.keyboard.press('Escape')
 
   echo.close()
   server.close()

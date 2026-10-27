@@ -4,7 +4,7 @@
 import type { PluginModule } from '@ide/types'
 import type { TicketsService } from '@ide/capabilities'
 import { bindApi, t } from './plugin'
-import { KanbanPanel } from './Panel'
+import { KanbanPanel, kanbanCorner, kanbanMenu } from './Panel'
 import { Board, NewTicketHost } from './Board'
 import { TicketView } from './TicketView'
 import { MilestoneView } from './MilestoneView'
@@ -59,6 +59,8 @@ export const kanban: PluginModule = {
     api.provide('tickets', tickets)
     return {
       tools: { kanban: { component: KanbanPanel } },
+      toolMenu: { kanban: kanbanMenu },
+      toolCorner: { kanban: kanbanCorner },
       views: { board: Board, ticket: TicketView, milestone: MilestoneView, objective: ObjectiveView },
       viewTitle,
       aloneViews: ['board'],

@@ -2,7 +2,7 @@
 // terminal and commands capabilities other parts of the IDE use.
 import type { PluginModule } from '@ide/types'
 import { bindApi } from './plugin'
-import { ConsoleTool, navigateConsoles, newConsole, openNewTab, refreshConsoles, runTask, setConsoleList, TermView, consoles, watchConsoles } from './consoles'
+import { ConsoleTool, consoleMenu, navigateConsoles, newConsole, openNewTab, refreshConsoles, runTask, setConsoleList, TermView, consoles, watchConsoles } from './consoles'
 import { commands, loadCommands, show, watchCommands } from './commands'
 import { CommandsHost, openCommands } from './CommandsModal'
 
@@ -15,6 +15,7 @@ export const exec: PluginModule = {
     a.provide('commands', { list: commands, load: loadCommands, edit: openCommands })
     return {
       tools: { console: { component: ConsoleTool } },
+      toolMenu: { console: consoleMenu },
       explorerItems: (e) => [{ label: a.t('Open a terminal here'), action: () => void newConsole({ cwd: e.folder }) }],
       hosts: [CommandsHost],
       commands: {

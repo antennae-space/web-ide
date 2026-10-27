@@ -9,7 +9,7 @@ import { capability } from '../plugins/capabilities'
 import { pluginHosts, refreshPlugins } from '../plugins/registry'
 import '../ui/uiCalls'
 import { DiagramViewer } from '../ui/DiagramViewer'
-import { openWithAuth, toolPanels, useProjectActions, PodStatus } from './ProjectPage'
+import { openWithAuth, toolPanels, useProjectActions } from './ProjectPage'
 import { on as onPod } from '../pod/rpc'
 import { t } from '../i18n'
 import { useProjectIcon } from '../ui/projectIcon'
@@ -38,14 +38,10 @@ function useProject(id: string, title: (name: string) => string) {
   return { ready, error }
 }
 
-function Frame(props: { title: string; ready: boolean; error: string; statusBar?: boolean; children: any }) {
+/** The frame of a detached window: the panel alone, its name carried by the title of the window. */
+function Frame(props: { ready: boolean; error: string; statusBar?: boolean; children: any }) {
   return (
     <div class="detached">
-      <header class="detached-head">
-        <span>{props.title}</span>
-        <span class="grow" />
-        <PodStatus />
-      </header>
       <div class="detached-body">
         <Show when={props.ready} fallback={<div class="center-msg">{props.error ? <p class="danger">{props.error}</p> : <p class="muted">{t('Connecting…')}</p>}</div>}>
           {props.children}
@@ -65,19 +61,23 @@ export function DetachedEditor(props: { id: string }) {
   const s = useProject(props.id, (n) => t('{name} · editor', { name: n }))
   useProjectActions()
   return (
-    <Frame title={`${project()?.name ?? ''} · ${t('editor')}`} ready={s.ready()} error={s.error()} statusBar>
+    <Frame ready={s.ready()} error={s.error()} statusBar>
       <EditorArea detached />
     </Frame>
   )
 }
 
 export function DetachedTool(props: { id: string; toolId: string }) {
-  const s = useProject(props.id, () => 'Tool')
-  useProjectActions()
   const id = panelAliases[props.toolId] ?? props.toolId
   const tool = () => toolPanels[id]
+  const s = useProject(props.id, () => (tool() ? t(tool()!.label) : props.toolId))
+  useProjectActions()
+  // The tool may come after the project opens (its plugin loads): the title follows it.
+  createEffect(() => {
+    if (tool()) document.title = `${t(tool()!.label)} · ${project()?.name ?? ''}`
+  })
   return (
-    <Frame title={`${tool() ? t(tool()!.label) : props.toolId} · ${project()?.name ?? ''}`} ready={s.ready()} error={s.error()}>
+    <Frame ready={s.ready()} error={s.error()}>
       <Show when={tool()} fallback={<p class="muted pad">{t('Unknown tool.')}</p>}>
         <div class="tool-full">
           <Dynamic component={tool()!.component} />
@@ -88,7 +88,7 @@ export function DetachedTool(props: { id: string; toolId: string }) {
   )
 }
 
-/** One console alone (a console tile opened in a window). */
+/** One console alone (a console tile opened in a window or in a tab of the browser). */
 export function DetachedConsole(props: { id: string; consoleId: string }) {
   const s = useProject(props.id, () => t('Console'))
   const term = () => capability('terminal')
@@ -97,7 +97,7 @@ export function DetachedConsole(props: { id: string; consoleId: string }) {
     if (info()) document.title = `${info()!.title} · ${project()?.name ?? ''}`
   })
   return (
-    <Frame title={`${info()?.title ?? t('Console')} · ${project()?.name ?? ''}`} ready={s.ready()} error={s.error()}>
+    <Frame ready={s.ready()} error={s.error()}>
       <Show when={info()} fallback={<p class="muted pad">{t('This console is closed')}</p>}>
         <div class="tile-console detached-console">
           <Dynamic component={term()!.TermView} id={props.consoleId} focus />

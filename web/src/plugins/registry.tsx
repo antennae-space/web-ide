@@ -8,6 +8,7 @@ import { setPluginActions } from '../keys/bindings'
 import { API_VERSION, makeApi } from './api'
 import { externalModule } from './external'
 import type { ExplorerEntry, PluginContributions, PluginModule, PluginState, StatusItem } from './types'
+import type { MenuItem } from '../ui/overlay'
 import { setCapabilityGate } from './capabilities'
 import { setPluginProviders } from '../popups/searchProviders'
 import { setDiffSources } from '../ui/diffSources'
@@ -280,6 +281,43 @@ export function pluginStatus(target: { tab: TabState } | { tool: string }): Stat
   if (tab.kind === 'tool' && tab.tool) return pluginStatus({ tool: tab.tool })
   const m = /^plugin:([^/]+)\//.exec(tab.kind)
   return m && pluginEnabled(m[1]) ? (active[m[1]]?.viewStatus?.(tab) ?? []) : []
+}
+
+/**
+ * The items a plugin adds after the core items of the options menu (the ⋮) of one of its tools, or
+ * of a tab of one of its views. The same resolution as `pluginStatus`: the enabled plugin owning
+ * the tool, or the one of `plugin:<id>/<view>`; nothing for a tool with no contribution.
+ */
+export function toolMenuFor(target: { tool: string } | { tab: TabState }): MenuItem[] {
+  if ('tool' in target) {
+    for (const s of enabled()) {
+      const f = active[s.manifest.id].toolMenu?.[target.tool]
+      if (f) return f()
+    }
+    return []
+  }
+  const tab = target.tab
+  if (tab.kind === 'tool' && tab.tool) return toolMenuFor({ tool: tab.tool })
+  const m = /^plugin:([^/]+)\/(.+)$/.exec(tab.kind)
+  return m && pluginEnabled(m[1]) ? (active[m[1]]?.toolMenu?.[m[2]]?.(tab) ?? []) : []
+}
+
+/**
+ * The buttons a tool gives to the corner of the zone or of the tile showing it (before the ⋮),
+ * or to the tab bar of a tabbed tile. The same resolution as `toolMenuFor`.
+ */
+export function toolCornerFor(target: { tool: string } | { tab: TabState }): JSX.Element[] {
+  if ('tool' in target) {
+    for (const s of enabled()) {
+      const f = active[s.manifest.id].toolCorner?.[target.tool]
+      if (f) return f()
+    }
+    return []
+  }
+  const tab = target.tab
+  if (tab.kind === 'tool' && tab.tool) return toolCornerFor({ tool: tab.tool })
+  const m = /^plugin:([^/]+)\/(.+)$/.exec(tab.kind)
+  return m && pluginEnabled(m[1]) ? (active[m[1]]?.toolCorner?.[m[2]]?.() ?? []) : []
 }
 
 /** The label of a tab view, as its manifest declares it. */

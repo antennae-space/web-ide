@@ -254,9 +254,9 @@ export function focusPane(id: string) {
   requestAnimationFrame(() => {
     // A popup opened meanwhile (the launcher again) keeps the keyboard.
     if (document.activeElement?.closest('.pick, .modal, .ctx-menu')) return
-    // In this order: the buttons of the corner come before the content in the page.
+    // In this order: the buttons of the corner come before the content in the page, they are left out.
     const pane = paneEl(id)
-    const sels = ['.md-file-view', '.ed-content', '.xterm-helper-textarea', '.pane-body input, .pane-body textarea, .pane-body [tabindex="0"]', '.pane-body button']
+    const sels = ['.md-file-view', '.ed-content', '.xterm-helper-textarea', '.pane-body input, .pane-body textarea, .pane-body [tabindex="0"]', '.pane-body button:not(.corner-btn)']
     for (const sel of sels) {
       const el = pane?.querySelector<HTMLElement>(sel)
       if (el) return el.focus()
@@ -278,13 +278,30 @@ export function swapDirection(dir: Direction) {
   focusPane(id)
 }
 
-/** Opens a tool or a console tab in a window of its own (as the button of a zone). */
-export function detachTab(tab: TabState) {
-  if (tab.kind === 'tool' && tab.tool) {
-    const id = tab.tool
-    window.open(podPath(`/project/${project()!.id}/tool/${id}`), `tool-${id}`, id === 'assistant' ? 'popup,width=1100,height=820' : 'popup,width=420,height=760')
-  } else if (tab.kind === 'console' && tab.console) {
+/** The address of a tool or a console shown alone, null for a tab that cannot be opened alone. */
+export function tabUrl(tab: TabState): string | null {
+  if (tab.kind === 'tool' && tab.tool) return podPath(`/project/${project()!.id}/tool/${tab.tool}`)
+  if (tab.kind === 'console' && tab.console) {
     const owner = capability('terminal')?.consoles().find((c) => c.id === tab.console)?.project ?? project()!.id
-    window.open(podPath(`/project/${owner}/console/${tab.console}`), `console-${tab.console}`, 'popup,width=900,height=560')
+    return podPath(`/project/${owner}/console/${tab.console}`)
+  }
+  return null
+}
+
+/** Opens a tool or a console in a new tab of the browser (the tool alone, full screen). */
+export function openInBrowserTab(tab: TabState) {
+  const url = tabUrl(tab)
+  if (url) window.open(url, '_blank')
+}
+
+/** Opens a tool or a console tab in a window of its own (a popup of its own size). */
+export function detachTab(tab: TabState) {
+  const url = tabUrl(tab)
+  if (!url) return
+  if (tab.kind === 'tool') {
+    const id = tab.tool!
+    window.open(url, `tool-${id}`, id === 'assistant' ? 'popup,width=1100,height=820' : 'popup,width=420,height=760')
+  } else {
+    window.open(url, `console-${tab.console}`, 'popup,width=900,height=560')
   }
 }

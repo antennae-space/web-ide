@@ -6,6 +6,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import type { ConsoleInfo } from '@ide/capabilities'
+import type { MenuItem } from '@ide/api'
 import { api, contextMenu, copyText, desk, errorToast, Icon, prompt, t, WorktreeChip } from './plugin'
 import { adHocCommand, loadCommands } from './commands'
 import { openCommands } from './CommandsModal'
@@ -351,6 +352,15 @@ function moveConsole(id: string, index: number) {
   desk.set((s) => (s.order = api.ui.tabDrop.moveItem(ids, ids.indexOf(id), index)))
 }
 
+/** The items the Exec plugin adds to the ⋮ menu of the Console (`toolMenu` contribution). */
+export function consoleMenu(): MenuItem[] {
+  return [
+    { label: t('New tab'), action: () => openNewTab() },
+    { label: t('Edit the saved commands…'), action: () => openCommands() },
+    { label: t('Refresh'), action: () => void refreshConsoles() },
+  ]
+}
+
 let dragged: string | null = null
 
 export function ConsoleTool() {
@@ -428,13 +438,20 @@ export function ConsoleTool() {
               onClick={() => setActive(c.id)}
               onDblClick={() => renameConsole(c)}
               onContextMenu={(e) =>
-                contextMenu(e, [
-                  ...(api.tiles.active() ? [{ label: t('Open in a new tile'), action: () => api.tiles.open({ kind: 'console', console: c.id }) }] : []),
-                  { label: t('Open in a window'), action: () => api.tiles.detach({ id: '', kind: 'console', console: c.id }) },
-                  { label: t('Rename…'), action: () => void renameConsole(c) },
-                  ...(adHocCommand(c) ? [{ label: t('Save “{command}” as a command…', { command: adHocCommand(c)!.length > 40 ? adHocCommand(c)!.slice(0, 40) + '…' : adHocCommand(c)! }), action: () => openCommands({ draft: { name: c.command![2].split('\n')[0].slice(0, 40), command: c.command![2] } }) }] : []),
-                  { label: t('Close'), action: () => void closeConsole(c.id) },
-                ])
+                contextMenu(
+                  e,
+                  // The same core items as the ⋮ of the tile or of the zone, then the Console's own
+                  // (its Close closes the console, not a tab of a pane).
+                  api.ui.toolMenu(
+                    { id: '', kind: 'console', console: c.id },
+                    [
+                      ...(api.tiles.active() ? [{ label: t('Open in a new tile'), action: () => api.tiles.open({ kind: 'console', console: c.id }) }] : []),
+                      { label: t('Rename…'), action: () => void renameConsole(c) },
+                      ...(adHocCommand(c) ? [{ label: t('Save “{command}” as a command…', { command: adHocCommand(c)!.length > 40 ? adHocCommand(c)!.slice(0, 40) + '…' : adHocCommand(c)! }), action: () => openCommands({ draft: { name: c.command![2].split('\n')[0].slice(0, 40), command: c.command![2] } }) }] : []),
+                    ],
+                    { label: t('Close'), action: () => void closeConsole(c.id) },
+                  ),
+                )
               }
               onMouseDown={(e) => e.button === 1 && (e.preventDefault(), closeConsole(c.id))}
             >

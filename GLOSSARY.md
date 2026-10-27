@@ -130,6 +130,14 @@ _Avoid_: panel, view; for what a model calls, see *Tool call*
 The icon bars on both sides of the window / the four corners where the tools show.
 _Avoid_: sidebar
 
+**Corner**
+The group of buttons at the top right of a tool zone or of a tile: the buttons of the tool (`toolCorner`), then the **⋮** of its options menu. It has no close button of its own: *Close* in that menu, or the rail icon of the tool. The head of a tool leaves their room; a tool has no button of its own in its head.
+_Avoid_: toolbar, header buttons
+
+**Options menu**
+The **⋮** of a tool's zone or of its tile (and the menu of a tab, and a right click on either): the core items (*Open in a tab*, *Open in a window*, *Close*), then the items of the tab, then the items the tool's plugin contributes (`toolMenu`).
+_Avoid_: context menu, kebab menu
+
 **Console**
 A tab of the Console tool: a **terminal** (an interactive shell) or a **task** (one command running).
 
@@ -152,7 +160,7 @@ _Avoid_: extension, add-on, module
 A plugin that ships compiled into the IDE, with the same manifest and API as an external one.
 
 **Contribution**
-What a plugin adds at one contribution point of the IDE: a tool, a tab view, an assistant tool, a tool of the MCP only, a command, a settings section…
+What a plugin adds at one contribution point of the IDE: a tool, a tab view, an assistant tool, a tool of the MCP only, a command, a settings section, items of a tool's *options menu*…
 
 **Catalog**
 The texts of one language, by English text: the core's (`web/src/i18n`, `lib/i18n`), or a plugin's (`plugins/<id>/i18n`, for its page and its pod side), looked in first by the plugin.

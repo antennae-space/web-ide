@@ -211,7 +211,7 @@ run(async ({ page, ctx }) => {
   await page.click('.modal button:has-text("Cancel")')
   await page.click('.rail-left .rail-btn[title="Kanban"]')
   await page.click('.rail-left .rail-btn[title="Kanban"]')
-  await page.click('[data-testid=kanban-panel] button[title="New ticket"]')
+  await page.click('[data-testid=kanban-new-ticket]')
   await page.fill('[data-testid=kanban-title]', 'Second ticket')
   await page.click('[data-testid=kanban-create]')
   await page.waitForSelector('[data-testid=kanban-panel] [data-testid=ticket-card-2]')

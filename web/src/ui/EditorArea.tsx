@@ -1,7 +1,7 @@
 // Editor area: recursive split tree (split/right, split/down), tab bar per pane, and the
 // content of each tab (file editor, SQL console, table view, read-only text).
 import { createEffect, createMemo, createSignal, For, Match, on, onCleanup, onMount, Show, Switch, untrack } from 'solid-js'
-import { pluginFileView, pluginView, pluginViewLabel, pluginViewTitle } from '../plugins/registry'
+import { pluginFileView, pluginView, pluginViewLabel, pluginViewTitle, toolCornerFor } from '../plugins/registry'
 import { activateTab, basename, closeTab, findLeaf, getDoc, moveTab, relPath, session, setActivePane, setSplitSizes, splitPane, type LayoutNode, type TabState, docsVersion, moveTabToDesk } from '../state/project'
 import { distinctDirs } from './tabNames'
 import { EditorView } from '../editor/view'
@@ -22,11 +22,12 @@ import { copyText } from './clipboard'
 import { WorktreeChip } from './WorktreeChip'
 import { addDesk, desk, deskLabel, desks } from '../state/desks'
 import { route } from '../app/router'
-import { detachTab, hiddenTools, tileMode, nextSplit, resizing, scrollMode, tileTools } from '../state/tiles'
+import { hiddenTools, tileMode, nextSplit, resizing, scrollMode, tileTools } from '../state/tiles'
 import { ScrollArea } from './ScrollArea'
 import { capability } from '../plugins/capabilities'
 import { Dynamic } from 'solid-js/web'
 import { DocView } from './DocView'
+import { CornerButtons, toolMenuItems } from './toolMenu'
 
 export function EditorArea(props: { detached?: boolean; statusBar?: boolean }) {
   return (
@@ -138,15 +139,14 @@ function Pane(props: { id: string }) {
     ),
   )
 
-  const tabMenu = (e: MouseEvent, tab: TabState) =>
-    contextMenu(e, [
-      { label: t('Close'), hint: shortcutOf('view.closeTab'), action: () => closeTab(props.id, tab.id) },
+  // The menu of the tab: the same items for the ⋮ of its tile and for a right click on the tab.
+  const tabItems = (tab: TabState) =>
+    toolMenuItems({ pane: props.id, tab }, [
       { label: t('Close the others'), action: () => leaf()?.tabs.filter((x) => x !== tab.id).forEach((x) => closeTab(props.id, x)) },
       { label: t('Close all'), action: () => [...(leaf()?.tabs ?? [])].forEach((x) => closeTab(props.id, x)) },
       { separator: true, label: '' },
       { label: t('Split right'), hint: shortcutOf('view.splitRight'), action: () => (activateTab(props.id, tab.id), splitPane(props.id, 'row')) },
       { label: t('Split down'), hint: shortcutOf('view.splitDown'), action: () => (activateTab(props.id, tab.id), splitPane(props.id, 'col')) },
-      ...(tab.kind === 'tool' || tab.kind === 'console' ? [{ label: t('Open in a window'), action: () => detachTab(tab) }] : []),
       ...(route().name === 'project' ? deskItems(props.id, tab.id) : []),
       ...(tab.kind === 'file'
         ? [
@@ -156,18 +156,12 @@ function Pane(props: { id: string }) {
           ]
         : []),
     ])
+  const tabMenu = (e: MouseEvent, tab: TabState) => contextMenu(e, tabItems(tab))
 
-  // A tool or a console alone in its tile has no tab bar: its buttons go in the corner.
+  // A tool or a console alone in its tile has no tab bar: its ⋮ goes in the corner.
   const bare = () => leaf()?.tabs.length === 1 && (active()?.kind === 'tool' || active()?.kind === 'console')
   const corner = (tab: TabState) => (
-    <div class="tile-corner">
-      <button class="icon-btn" title={t('Open in a window')} onClick={() => detachTab(tab)} data-testid="tile-detach">
-        <Icon name="external" size={13} />
-      </button>
-      <button class="icon-btn" title={`${t('Close')} (${shortcutOf('view.closeTab')})`} onClick={() => closeTab(props.id, tab.id)} onContextMenu={(e) => tabMenu(e, tab)} data-testid="tile-close">
-        <Icon name="close" size={13} />
-      </button>
-    </div>
+    <CornerButtons kind="tile" title={tabTitle(tab)} items={() => tabItems(tab)} buttons={() => toolCornerFor({ tab })} />
   )
 
   // A tile whose console closed (or whose tool is gone) says so and closes.
@@ -284,6 +278,12 @@ function Pane(props: { id: string }) {
           }}
         </For>
         <div class="tabbar-fill" />
+        {/* A tool sharing a tile has no corner of its own: its buttons sit at the end of the bar. */}
+        <Show when={active() && toolCornerFor({ tab: active()! }).length}>
+          <div class="tabbar-actions">
+            <For each={toolCornerFor({ tab: active()! })}>{(b) => b}</For>
+          </div>
+        </Show>
         <button class="icon-btn small" title={`${t('Split right')} (${shortcutOf('view.splitRight')})`} onClick={() => splitPane(props.id, 'row')}>
           ◫
         </button>

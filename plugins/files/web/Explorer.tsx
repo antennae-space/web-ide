@@ -1,6 +1,6 @@
 // File explorer: lazy tree (one fs.list per expanded folder), refreshed by the pod watch events.
 // A click selects, a double click (or Enter) opens the file and gives it the focus.
-import { createEffect, createSignal, For, onMount, Show, untrack } from 'solid-js'
+import { createEffect, createSignal, For, onMount, Show, untrack, type JSX } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import type { MenuItem } from '@ide/api'
 import { api, contextMenu, copyText, desk, errorToast, FileIcon, Icon, prompt, t, toast } from './plugin'
@@ -202,13 +202,17 @@ function menuFor(ev: MouseEvent, e: Entry) {
   contextMenu(ev, items)
 }
 
-function optionsMenu(ev: MouseEvent) {
-  const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
+/**
+ * The items the Files plugin adds to the ⋮ menu of the Explorer (`toolMenu` contribution): the
+ * choices of the tree, read when the menu opens. The same list from the ⋮ of a zone, of a tile, or
+ * from a right click on either.
+ */
+export function explorerMenu(): MenuItem[] {
   const toggle = (k: 'hidden' | 'excluded' | 'singleClick' | 'follow') => () =>
     desk.set((s) => {
       s[k] = !s[k]
     })
-  contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.bottom + 2 }), [
+  return [
     { label: t('New file…'), action: () => createIn(root(), false) },
     { label: t('New folder…'), action: () => createIn(root(), true) },
     { separator: true, label: '' },
@@ -218,7 +222,22 @@ function optionsMenu(ev: MouseEvent) {
     { label: t('Always select the opened file'), checked: desk.get().follow, action: toggle('follow') },
     { separator: true, label: '' },
     { label: t('Refresh all'), action: refreshAll },
-  ])
+  ]
+}
+
+/** The buttons of the Explorer in the corner of its zone or tile (`toolCorner` contribution). */
+export function explorerCorner(): JSX.Element[] {
+  return [
+    <button class="icon-btn" data-testid="explorer-locate" title={t('Locate the active file')} onClick={() => api.activePath() && revealInExplorer(api.activePath()!, true)}>
+      <Icon name="locate" />
+    </button>,
+    <button class="icon-btn" data-testid="explorer-expand" title={t('Expand all')} onClick={expandAll}>
+      <Icon name="expandAll" />
+    </button>,
+    <button class="icon-btn" data-testid="explorer-collapse" title={t('Collapse all')} onClick={collapseAll}>
+      <Icon name="collapseAll" />
+    </button>,
+  ]
 }
 
 /** What a folder passes to its content: ignored by git, excluded. */
@@ -337,19 +356,6 @@ export function Explorer() {
     <div class="panel explorer">
       <div class="panel-head">
         <span class="panel-title">{t('Explorer')}</span>
-        <span class="grow" />
-        <button class="icon-btn" data-testid="explorer-locate" title={t('Locate the active file')} onClick={() => api.activePath() && revealInExplorer(api.activePath()!, true)}>
-          <Icon name="locate" />
-        </button>
-        <button class="icon-btn" data-testid="explorer-expand" title={t('Expand all')} onClick={expandAll}>
-          <Icon name="expandAll" />
-        </button>
-        <button class="icon-btn" data-testid="explorer-collapse" title={t('Collapse all')} onClick={collapseAll}>
-          <Icon name="collapseAll" />
-        </button>
-        <button class="icon-btn" data-testid="explorer-options" title={t('Options')} onClick={optionsMenu}>
-          <Icon name="gear" />
-        </button>
       </div>
       <div class="panel-body tree" role="tree" onContextMenu={(e) => e.target === e.currentTarget && menuFor(e, rootEntry())}>
         <div class="tree-root" onContextMenu={(e) => menuFor(e, rootEntry())}>

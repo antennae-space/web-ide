@@ -24,6 +24,7 @@ The plugin system itself stays in the core: `pod/plugins` (manifest, registry, e
 - Only the files of `plugins/<id>/web` go to its chunk; what the core shares with it stays in the core bundle.
 - An external plugin (installed from its own repository, [plugins.md](../docs/design/plugins.md#phase-3-external-plugins)) has no folder here: its page module is one built file run in sandboxed frames (`web/src/plugins/external.tsx`, `sandbox.ts`), calling `ide.register` and the sandbox API; its backend, when it has one, runs confined (`pod/plugins/confine`) and speaks JSON-RPC over stdio (`pod/plugins/backend`).
 - Its texts (page module, manifest labels, messages of its Go package) are in its own catalogs, `plugins/<id>/i18n/<lang>.json`; a text shared with the core stays in the core's (`web/src/i18n`, `lib/i18n`), where `api.t()` looks second. Its Go package adds them in `init` (`i18n.go`: `i18n.Add`); a sub-package tested alone adds them in its tests (`plugins/ai/llm/i18n_test.go`). Checked by `web/scripts/i18n-check.mjs` and the `lib/i18n` tests ([plugins.md](../docs/design/plugins.md#shape-of-a-plugin)).
+- A tool of a plugin has no button of its own in its `panel-head`: its buttons go to the corner of the zone or of the tile showing it (`toolCorner`), its options to the ⋮ (`toolMenu`) — see [the glossary](../GLOSSARY.md) and [plugins.md](../docs/design/plugins.md).
 - A new e2e suite goes into the list of `e2e/run.sh`, which refuses a suite file missing from it.
 
 ## Tests

@@ -2,7 +2,7 @@
 // Everywhere, and the files service (reveal a file, create a file or a folder).
 import type { PluginModule } from '@ide/types'
 import { api as theApi, bindApi } from './plugin'
-import { createIn, Explorer, revealInExplorer, watchFolders } from './Explorer'
+import { createIn, Explorer, explorerCorner, explorerMenu, revealInExplorer, watchFolders } from './Explorer'
 import { filesProvider } from './search'
 
 /** Where New file creates: the folder of the active file, else the root. */
@@ -18,6 +18,11 @@ export const files: PluginModule = {
     api.provide('files', { reveal: revealInExplorer, createIn })
     api.keys.register('file.newFile', () => void createIn(newEntryDir(), false))
     api.keys.register('file.newFolder', () => void createIn(newEntryDir(), true))
-    return { tools: { explorer: { component: Explorer } }, searchProviders: [filesProvider] }
+    return {
+      tools: { explorer: { component: Explorer } },
+      toolMenu: { explorer: explorerMenu },
+      toolCorner: { explorer: explorerCorner },
+      searchProviders: [filesProvider],
+    }
   },
 }

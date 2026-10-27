@@ -175,6 +175,23 @@ run(async ({ page }) => {
   await page.click('.rail-right .rail-btn[title="Problems"]')
   assert(!(await page.isVisible('[data-tool=problems]')), 'Problems closed from its rail icon')
 
+  // The corner of a zone: a ⋮ opening its menu (its Close hides the tool); no ✕ of its own (#176).
+  assert((await page.isVisible('[data-tool=console] [data-testid=zone-menu]')) && !(await page.$('[data-tool=console] [data-testid=zone-close]')), 'a zone shows its ⋮, no ✕')
+  await page.click('.zone-bottomLeft [data-testid=zone-menu]')
+  await page.waitForSelector('.ctx-menu')
+  const zoneMenu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
+  assert(JSON.stringify(zoneMenu) === JSON.stringify(['Open in a window', 'Close', 'New tab', 'Edit the saved commands…', 'Refresh']), 'the menu of a zone: ' + JSON.stringify(zoneMenu))
+  await page.click('.ctx-menu >> text=Close')
+  await page.waitForFunction(() => !document.querySelector('.zone-bottomLeft[data-tool=console]'))
+  assert(!(await page.$('.zone-bottomLeft [data-testid=zone-close]')), 'the Close item of the ⋮ hides the tool')
+  await page.click('.rail-left .rail-btn[title="Console"]')
+  await page.waitForSelector('.zone-bottomLeft[data-tool=console]')
+  await page.click('[data-tool=console] [data-testid=zone-menu]', { button: 'right' })
+  await page.waitForSelector('.ctx-menu')
+  assert(JSON.stringify(await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))) === JSON.stringify(zoneMenu), 'a right click on the zone opens the same list')
+  await page.keyboard.press('Escape')
+  await page.waitForSelector('.ctx-menu', { state: 'detached' })
+
   // Icons dragged between the zones; the placement is kept by the session
   const group = (zone) => page.$$eval(`[data-zone=${zone}] .rail-btn`, (els) => els.map((e) => e.title))
   await page.click('.rail-right .rail-btn[title="Problems"]')
