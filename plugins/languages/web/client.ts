@@ -1,5 +1,6 @@
 // Code navigation through the language servers run by the pod.
 import type { Doc, PickItem } from '@ide/api'
+import kindsJson from './kinds.json'
 import { api, pick, t, toast } from './plugin'
 
 export interface Position {
@@ -24,13 +25,13 @@ export interface DocumentSymbol {
   children?: DocumentSymbol[]
 }
 
-export const symbolKinds: Record<number, [string, string]> = {
-  1: ['File', '📄'], 2: ['Module', '📦'], 3: ['Namespace', '{}'], 4: ['Package', '📦'], 5: ['Class', 'C'], 6: ['Method', 'm'],
-  7: ['Property', 'p'], 8: ['Field', 'f'], 9: ['Constructor', 'm'], 10: ['Enum', 'E'], 11: ['Interface', 'I'], 12: ['Function', 'ƒ'],
-  13: ['Variable', 'v'], 14: ['Constant', 'c'], 15: ['String', 's'], 16: ['Number', '#'], 17: ['Boolean', 'b'], 18: ['Array', '[]'],
-  19: ['Object', 'o'], 20: ['Key', 'k'], 21: ['Null', '∅'], 22: ['Enum member', 'e'], 23: ['Struct', 'S'], 24: ['Event', '⚡'],
-  25: ['Operator', '±'], 26: ['Type parameter', 'T'],
-}
+/**
+ * Symbol kinds (their LSP number) → [name, glyph, family]: the one table of web/kinds.json,
+ * read by the Structure tool, the Symbols tab, the file structure list and the pod's assistant
+ * (plugins/languages/kinds.go embeds the same file). A family is a color of the theme (--sym-*).
+ */
+export const symbolKinds = kindsJson.kinds as unknown as Record<number, [name: string, glyph: string, family: string]>
+export const symbolFamilies = kindsJson.families as string[]
 
 export class NoServer extends Error {}
 
@@ -152,6 +153,36 @@ export function flatten(symbols: DocumentSymbol[], depth = 0, out: { s: Document
   for (const s of symbols) {
     out.push({ s, depth })
     if (s.children) flatten(s.children, depth + 1, out)
+  }
+  return out
+}
+
+/** Stable id of a symbol in a file (the folded state of the Structure tool is a list of these). */
+export function symbolId(s: DocumentSymbol): string {
+  return `${s.kind}:${s.selectionRange.start.line}:${s.name}`
+}
+
+/** Alphabetical order at every level: a symbol stays under its parent. */
+export function sortSymbols(list: DocumentSymbol[]): DocumentSymbol[] {
+  const out = [...list].sort((a, b) => a.name.localeCompare(b.name))
+  return out.map((s) => (s.children?.length ? { ...s, children: sortSymbols(s.children) } : s))
+}
+
+/** A row of the tree: a symbol, its depth, whether it folds, and whether it is folded. */
+export interface TreeRow {
+  s: DocumentSymbol
+  depth: number
+  hasChildren: boolean
+  folded: boolean
+}
+
+/** The visible rows, in tree order (the children of a folded symbol are left out). */
+export function treeRows(list: DocumentSymbol[], folded: Set<string>, depth = 0, out: TreeRow[] = []): TreeRow[] {
+  for (const s of list) {
+    const has = !!s.children?.length
+    const isFolded = folded.has(symbolId(s))
+    out.push({ s, depth, hasChildren: has, folded: isFolded })
+    if (has && !isFolded) treeRows(s.children!, folded, depth + 1, out)
   }
   return out
 }

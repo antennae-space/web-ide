@@ -189,6 +189,9 @@ The built-in plugin that runs the language servers of the language packs and sho
 An external plugin that gives one language to the language host: its grammar, its language servers (run confined on this machine with the pack's grants: its program, the folders of the host it needs; on the host of an SSH project as its granted program), its test patterns, later its debug adapter and its project templates. A server it gives a recipe is installed by the IDE into the pack's *folder of tools* (`~/.local/share/web-ide/tools/<pack>`), looked up before the PATH.
 _Avoid_: language plugin, language extension
 
+**Glyph family** ([plugins](docs/design/plugins.md#language-packs))
+The group a symbol kind belongs to, which gives its color: *type*, *function*, *variable*, *value*, *other*. `plugins/languages/web/kinds.json` is the one table of the kinds (name, glyph, family) the Structure tool, the Symbols tab, the file structure list and the assistant's `lsp_*` tools read; a theme colors each family (`--sym-type`…) and the detail of a symbol (`--sym-detail`).
+
 **Project template** ([plugins](docs/design/plugins.md#language-packs))
 What a new project starts from, given by a language pack: files and a `.ide` filled in, or the commands of a framework that the core runs in a console the user sees.
 _Avoid_: skeleton, boilerplate, scaffold

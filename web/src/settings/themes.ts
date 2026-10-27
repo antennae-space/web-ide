@@ -31,6 +31,7 @@ export const themes: Theme[] = [
       fg: '#d7dae0', 'fg-muted': '#8b919c', 'fg-faint': '#5e636d', line: '#30333a', accent: '#5b8cff', 'accent-fg': '#ffffff',
       'sel-bg': '#33507f', 'cur-line': '#23262c', danger: '#f0716b', warn: '#e6b450', ok: '#7fc97f', info: '#6cb6ff',
       'match-bg': '#5c4b16', 'match-cur-bg': '#9c7a12', gutter: '#5e636d', 'conflict-bg': '#4a2a2a',
+      'sym-type': '#ffcb6b', 'sym-function': '#82aaff', 'sym-variable': '#f07178', 'sym-value': '#c3e88d', 'sym-other': '#7fdbca', 'sym-detail': '#ff9e64',
     },
     tokens: {
       keyword: '#c792ea', string: '#a5d6a7', comment: '#6a737d', number: '#f78c6c', function: '#82aaff', type: '#ffcb6b',
@@ -48,6 +49,7 @@ export const themes: Theme[] = [
       fg: '#24262b', 'fg-muted': '#62666e', 'fg-faint': '#9a9ea6', line: '#dcdcd8', accent: '#2f6fde', 'accent-fg': '#ffffff',
       'sel-bg': '#bcd3fb', 'cur-line': '#f1f3f7', danger: '#c9362f', warn: '#a86b00', ok: '#2e7d32', info: '#1565c0',
       'match-bg': '#fde68a', 'match-cur-bg': '#f59e0b', gutter: '#a0a4ab', 'conflict-bg': '#fbe1df',
+      'sym-type': '#a16207', 'sym-function': '#1d4ed8', 'sym-variable': '#be123c', 'sym-value': '#15803d', 'sym-other': '#0f766e', 'sym-detail': '#b45309',
     },
     tokens: {
       keyword: '#8b2fc9', string: '#2e7d32', comment: '#8a8f98', number: '#c2410c', function: '#1d4ed8', type: '#a16207',
@@ -65,6 +67,7 @@ export const themes: Theme[] = [
       fg: '#c5ced0', 'fg-muted': '#839496', 'fg-faint': '#586e75', line: '#0e4351', accent: '#268bd2', 'accent-fg': '#ffffff',
       'sel-bg': '#174f63', 'cur-line': '#04313d', danger: '#dc322f', warn: '#b58900', ok: '#859900', info: '#2aa198',
       'match-bg': '#5b4a00', 'match-cur-bg': '#8a7000', gutter: '#586e75', 'conflict-bg': '#3d1f22',
+      'sym-type': '#b58900', 'sym-function': '#268bd2', 'sym-variable': '#2aa198', 'sym-value': '#859900', 'sym-other': '#6c71c4', 'sym-detail': '#cb4b16',
     },
     tokens: {
       keyword: '#859900', string: '#2aa198', comment: '#586e75', number: '#d33682', function: '#268bd2', type: '#b58900',
@@ -82,6 +85,7 @@ export const themes: Theme[] = [
       fg: '#ffffff', 'fg-muted': '#d0d0d0', 'fg-faint': '#a6a6a6', line: '#6b6b6b', accent: '#ffd400', 'accent-fg': '#000000',
       'sel-bg': '#264f78', 'cur-line': '#141414', danger: '#ff6b6b', warn: '#ffd400', ok: '#7CFC00', info: '#5cc8ff',
       'match-bg': '#665500', 'match-cur-bg': '#b38f00', gutter: '#a6a6a6', 'conflict-bg': '#4d0000',
+      'sym-type': '#ffe066', 'sym-function': '#82d4ff', 'sym-variable': '#ff8f8f', 'sym-value': '#9cff9c', 'sym-other': '#d2b3ff', 'sym-detail': '#ffb366',
     },
     tokens: {
       keyword: '#ff9cf7', string: '#9cff9c', comment: '#9e9e9e', number: '#ffcc66', function: '#82d4ff', type: '#ffe066',

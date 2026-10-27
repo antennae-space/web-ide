@@ -2,8 +2,8 @@
 // server of the active file, else of the language the pod detected.
 import type { SearchHit, SearchProvider } from '@ide/api'
 import { api } from './plugin'
-import { jump, symbolKinds, workspaceSymbols } from './client'
-
+import { jump, workspaceSymbols } from './client'
+import { SymGlyph } from './glyph'
 /** A path of a language with a running server: the active file, else the detected language. */
 async function symbolPath() {
   const path = api.activeFile() ?? ''
@@ -35,7 +35,7 @@ export const symbolsProvider: SearchProvider = {
           label: s.name,
           code: true,
           path: true,
-          icon: () => <span class="se-glyph">{symbolKinds[s.kind]?.[1] ?? '·'}</span>,
+          icon: () => <SymGlyph kind={s.kind} />,
           detail: `${s.container ? s.container + ' · ' : ''}${api.project.relPath(s.loc!.path)}`,
           run: () => jump(s.loc!),
         }),
