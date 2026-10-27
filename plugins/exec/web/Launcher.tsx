@@ -63,6 +63,9 @@ export function Launcher() {
   }
 
   function activate(tile: Tile) {
+    // The grid lets go of the keyboard first: the terminal of the console created has to take it.
+    ours = false
+    ;(document.activeElement as HTMLElement | null)?.blur()
     switch (tile.kind) {
       case 'new':
         void newConsole()
