@@ -197,7 +197,7 @@ Whether a symbol is visible outside its file. `plugins/languages/web/visibility.
 _Avoid_: public member (for *exported*), visible symbol
 
 **Speed Search** ([plugins](docs/design/plugins.md#language-packs))
-The inline filter of a tree (Structure today): typing in the focused tree, Ctrl+F or the magnifier opens a box, and only the symbols whose name fuzzy-matches the query stay, along with the parents that lead to them. Escape clears it and brings the folds back.
+The inline filter of a tree (Structure today): typing in the focused tree, Ctrl+F or the magnifier opens a box, and only the symbols whose name fuzzy-matches the query stay, along with the parents that lead to them, the characters the query hits highlighted. Escape clears it and brings the folds back.
 _Avoid_: filter box, quick open (for the file list)
 
 **Opened element** ([plugins](docs/design/plugins.md#language-packs))

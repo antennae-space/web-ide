@@ -147,6 +147,8 @@ run(async ({ page }) => {
   await page.keyboard.type('Nam')
   await page.waitForSelector('[data-testid=structure-filter]', { timeout: 3000 }).catch(() => {})
   assert((await names()).join() === ['Greeter', 'Name'].join(), 'typing in the tree filters it and keeps the parent of the match: ' + JSON.stringify(await names()))
+  const marks = await page.$$eval('.side-right .tree-row', (e) => e.map((r) => [...r.querySelectorAll('mark')].map((m) => m.textContent).join('')))
+  assert(marks.join('|') === '|Nam', 'the matched characters are highlighted in the row of the match: ' + JSON.stringify(marks))
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
   assert(!(await filterOpen()), 'Escape closes the filter box')

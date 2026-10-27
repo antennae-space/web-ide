@@ -3,13 +3,32 @@
 // desk), one click selects a row, a double click jumps to it (one click with "Navigate with
 // Single Click"), a lock next to the glyph tells an exported symbol from a private one (the rules
 // of web/visibility.json), the ⋮ menu holds the choices of the tree. Speed Search filters the
-// rows by typing (or Ctrl+F) while the tree has the focus; "Always Select Opened Element" keeps
-// the row of the symbol around the caret selected.
+// rows by typing (or Ctrl+F) while the tree has the focus, highlighting what the query matches;
+// "Always Select Opened Element" keeps the row of the symbol around the caret selected.
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show, untrack } from 'solid-js'
 import type { MenuItem } from '@ide/api'
 import { api, contextMenu, desk, EmptyState, Icon, t } from './plugin'
-import { documentSymbols, enclosingSymbols, filterPrivate, filterSymbols, sortByExportability, sortSymbols, symbolId, treeRows, type DocumentSymbol, type TreeRow } from './client'
+import { documentSymbols, enclosingSymbols, filterPrivate, filterSymbols, fuzzyMarks, sortByExportability, sortSymbols, symbolId, treeRows, type DocumentSymbol, type TreeRow } from './client'
 import { SymGlyph } from './glyph'
+
+/** A name or a detail, with the characters the Speed Search query hit set apart. */
+function Marked(props: { text: string; query: string }) {
+  const parts = () => {
+    const at = fuzzyMarks(props.query, props.text)
+    if (!at.length) return [{ s: props.text, hit: false }]
+    const out: { s: string; hit: boolean }[] = []
+    let i = 0
+    while (i < props.text.length) {
+      const hit = at.includes(i)
+      let j = i
+      while (j < props.text.length && at.includes(j) === hit) j++
+      out.push({ s: props.text.slice(i, j), hit })
+      i = j
+    }
+    return out
+  }
+  return <For each={parts()}>{(p) => (p.hit ? <mark>{p.s}</mark> : <>{p.s}</>)}</For>
+}
 
 const activePath = () => (api.activeFile() ?? '')
 
@@ -337,9 +356,9 @@ export function StructureTool() {
                       <Icon name={r.visibility === 'exported' ? 'lockOpen' : 'lock'} size={12} />
                     </span>
                   </Show>
-                  <span class="tree-name">{r.s.name}</span>
+                  <span class="tree-name"><Marked text={r.s.name} query={query()} /></span>
                   <Show when={r.s.detail}>
-                    <span class="tree-detail">{r.s.detail}</span>
+                    <span class="tree-detail"><Marked text={r.s.detail!} query={query()} /></span>
                   </Show>
                 </div>
               )

@@ -203,6 +203,21 @@ export function filterPrivate(list: DocumentSymbol[], lang: string): DocumentSym
     .map((s) => (s.children?.length ? { ...s, children: filterPrivate(s.children, lang) } : s))
 }
 
+/** Where a query matches a text: the positions it hits, as the core's fuzzy scorer walks them ([]: no match). */
+export function fuzzyMarks(q: string, text: string): number[] {
+  if (!q) return []
+  const lower = text.toLowerCase()
+  const at: number[] = []
+  let from = 0
+  for (const ch of q.toLowerCase()) {
+    const i = lower.indexOf(ch, from)
+    if (i < 0) return []
+    at.push(i)
+    from = i + 1
+  }
+  return at
+}
+
 /**
  * Speed Search: the symbols kept by a query. A match keeps its whole subtree; a parent of a
  * match stays with its kept children only. An empty query changes nothing.
