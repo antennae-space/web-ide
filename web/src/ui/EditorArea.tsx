@@ -158,17 +158,10 @@ function Pane(props: { id: string }) {
     ])
   const tabMenu = (e: MouseEvent, tab: TabState) => contextMenu(e, tabItems(tab))
 
-  // A tool or a console alone in its tile has no tab bar: its ⋮ and ✕ go in the corner.
+  // A tool or a console alone in its tile has no tab bar: its ⋮ goes in the corner.
   const bare = () => leaf()?.tabs.length === 1 && (active()?.kind === 'tool' || active()?.kind === 'console')
   const corner = (tab: TabState) => (
-    <CornerButtons
-      kind="tile"
-      title={tabTitle(tab)}
-      items={() => tabItems(tab)}
-      close={() => closeTab(props.id, tab.id)}
-      closeTitle={`${t('Close')} (${shortcutOf('view.closeTab')})`}
-      buttons={() => toolCornerFor({ tab })}
-    />
+    <CornerButtons kind="tile" title={tabTitle(tab)} items={() => tabItems(tab)} buttons={() => toolCornerFor({ tab })} />
   )
 
   // A tile whose console closed (or whose tool is gone) says so and closes.

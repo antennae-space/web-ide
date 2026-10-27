@@ -71,7 +71,7 @@ run(async ({ page }) => {
   assert(!(await page.$$('.structure .panel-head button').length), 'no button left in the head of the Structure tool')
   const structureCorner = await page.$$eval('[data-tool=structure] .zone-corner button', (b) => b.map((x) => x.getAttribute('data-testid')))
   assert(
-    JSON.stringify(structureCorner) === JSON.stringify(['structure-expand', 'structure-collapse', 'structure-search', 'structure-refresh', 'zone-menu', 'zone-close']),
+    JSON.stringify(structureCorner) === JSON.stringify(['structure-expand', 'structure-collapse', 'structure-search', 'structure-refresh', 'zone-menu']),
     'the corner group of the Structure zone: ' + JSON.stringify(structureCorner),
   )
   await page.click('[data-testid=structure-expand]')

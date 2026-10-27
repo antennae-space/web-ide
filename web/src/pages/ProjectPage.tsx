@@ -557,13 +557,7 @@ function ZonePanel(props: { zone: Zone; width?: number; style?: JSX.CSSPropertie
       tabIndex={phone() ? -1 : undefined}
       style={props.width ? { width: `${props.width}px` } : props.style}
       onContextMenu={(e) => contextMenu(e, items())}>
-      <CornerButtons
-        kind="zone"
-        title={toolPanels[id()] ? t(toolPanels[id()].label) : id()}
-        items={items}
-        close={() => mutate((s) => toggleTool(s, id()))}
-        buttons={() => toolCornerFor({ tool: id() })}
-      />
+      <CornerButtons kind="zone" title={toolPanels[id()] ? t(toolPanels[id()].label) : id()} items={items} buttons={() => toolCornerFor({ tool: id() })} />
       <Show when={toolPanels[id()]} keyed>
         {(p) => <Dynamic component={p.component} />}
       </Show>

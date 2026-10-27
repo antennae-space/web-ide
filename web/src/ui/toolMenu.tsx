@@ -1,6 +1,6 @@
 // The one menu of a tool, a console or a tab (docs/design/spec.md §9): opened by the ⋮ of its
 // zone or of its tile, by a right click on the zone or on its tab — the same list everywhere.
-// The corner of a zone and of a tile is made by CornerButtons: the ⋮ and the ✕ next to it.
+// The corner of a zone and of a tile is made by CornerButtons: the buttons of the tool, then the ⋮.
 import { Icon } from './icons'
 import { contextMenu, type MenuItem } from './overlay'
 import { shortcutOf } from '../keys/bindings'
@@ -49,20 +49,19 @@ export function toolMenuItems(subject: ToolSubject, extra: MenuItem[] = [], clos
   return items
 }
 
-/** The corner of a zone or of a tile: the buttons of the tool, then the ⋮ opening the menu, then the ✕. */
+/** The corner of a zone or of a tile: the buttons of the tool, then the ⋮ opening the menu. Closing
+ * goes through that menu (*Close*) or the rail icon of the tool: no ✕ of its own (#176). */
 export function CornerButtons(props: {
   kind: 'zone' | 'tile'
   /** The name of the tool or console, in the tooltip of the ⋮. */
   title: string
   items: () => MenuItem[]
-  close: () => void
-  closeTitle?: string
   /** The buttons the tool contributes (`toolCorner`): rendered before the ⋮. */
   buttons?: () => JSX.Element[]
 }) {
   let el!: HTMLDivElement
   // The room the group takes over the head of the tool below it, measured: it holds any number of
-  // buttons (the tool's own, the ⋮, the ✕).
+  // buttons (the tool's own and the ⋮).
   createEffect(() => {
     const host = el.closest<HTMLElement>('.zone, .tile-tool, .tile-console, .pane')
     if (!host) return
@@ -82,9 +81,6 @@ export function CornerButtons(props: {
       <For each={props.buttons?.() ?? []}>{(b) => b}</For>
       <button class="icon-btn corner-btn" title={props.title} onClick={(e) => contextMenu(e, props.items())} data-testid={props.kind === 'zone' ? 'zone-menu' : 'tile-menu'}>
         <Icon name="more" size={13} />
-      </button>
-      <button class="icon-btn corner-btn" title={props.closeTitle ?? t('Close')} onClick={props.close} data-testid={props.kind === 'zone' ? 'zone-close' : 'tile-close'}>
-        <Icon name="close" size={13} />
       </button>
     </div>
   )

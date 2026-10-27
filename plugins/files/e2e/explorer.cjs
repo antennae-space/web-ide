@@ -66,7 +66,7 @@ run(async ({ page }) => {
   assert(!(await page.$$('.explorer .panel-head button').length), 'no button left in the head of the Explorer')
   const corner = await page.$$eval('[data-tool=explorer] .zone-corner button', (b) => b.map((x) => x.getAttribute('data-testid')))
   assert(
-    JSON.stringify(corner) === JSON.stringify(['explorer-locate', 'explorer-expand', 'explorer-collapse', 'zone-menu', 'zone-close']),
+    JSON.stringify(corner) === JSON.stringify(['explorer-locate', 'explorer-expand', 'explorer-collapse', 'zone-menu']),
     'the corner group of the zone: ' + JSON.stringify(corner),
   )
 

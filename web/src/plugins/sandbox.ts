@@ -177,7 +177,7 @@ export function themeVars(): SandboxTheme {
 
 /**
  * The room the IDE's own buttons take over the top right corner of a frame (the corner group of a
- * zone or of a tile: the buttons of the tool, the ⋮ and the ✕), as `--ide-head-inset`: a built-in
+ * zone or of a tile: the buttons of the tool and its ⋮), as `--ide-head-inset`: a built-in
  * tool leaves it in its header, the kit of the plugin SDK does it for a frame.
  */
 export function headInset(frame: HTMLElement): string {

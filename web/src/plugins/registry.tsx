@@ -303,8 +303,8 @@ export function toolMenuFor(target: { tool: string } | { tab: TabState }): MenuI
 }
 
 /**
- * The buttons a tool gives to the corner of the zone or of the tile showing it (before the ⋮ and
- * the ✕), or to the tab bar of a tabbed tile. The same resolution as `toolMenuFor`.
+ * The buttons a tool gives to the corner of the zone or of the tile showing it (before the ⋮),
+ * or to the tab bar of a tabbed tile. The same resolution as `toolMenuFor`.
  */
 export function toolCornerFor(target: { tool: string } | { tab: TabState }): JSX.Element[] {
   if ('tool' in target) {

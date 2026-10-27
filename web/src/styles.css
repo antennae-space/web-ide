@@ -401,7 +401,7 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .find-error { max-width: 140px; color: var(--danger); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- bottom panel ---------- */
-/* The corner of a zone or of a tile holds the buttons of the tool, then the ⋮ and the ✕: the head
+/* The corner of a zone or of a tile holds the buttons of the tool, then the ⋮: the head
    of the tool below them leaves their room, `--corner-w` measured by CornerButtons. */
 .tool-tabbar { padding-right: 30px; }
 .zone :is(.panel-head, .tool-tabbar) { padding-right: var(--corner-w, 58px); }
