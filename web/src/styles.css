@@ -169,7 +169,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .work-top { flex: 1; min-height: 0; display: flex; position: relative; }
 .zone { position: relative; display: flex; flex-direction: column; background: var(--bg-2); min-width: 0; min-height: 0; }
 .side { flex: none; }
-.zone .detach { position: absolute; top: 5px; right: 6px; z-index: 2; }
+.zone .zone-corner { position: absolute; top: 5px; right: 6px; z-index: 2; display: flex; gap: 2px; }
 .center { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .resizer { flex: none; background: transparent; z-index: 3; }
 .resizer-x { width: 5px; margin: 0 -2px; cursor: col-resize; }
@@ -399,16 +399,15 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .find-error { max-width: 140px; color: var(--danger); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- bottom panel ---------- */
+/* The corner of a zone or of a tile holds two buttons (⋮ and ✕): their room is left free in the
+   header of the tool below them. */
 .tool-tabbar { padding-right: 30px; }
-.zone :is(.panel-head, .tool-tabbar) { padding-right: 30px; }
+.zone :is(.panel-head, .tool-tabbar) { padding-right: 58px; }
 .tile-tool :is(.panel-head, .tool-tabbar) { padding-right: 10px; }
 .pane.bare > .tabbar { display: none; }
-.pane.bare .tile-tool :is(.panel-head, .tool-tabbar) { padding-right: 54px; }
+.pane.bare .tile-tool :is(.panel-head, .tool-tabbar) { padding-right: 58px; }
 .tile-corner { position: absolute; top: 5px; right: 6px; z-index: 3; display: flex; gap: 2px; }
-/* Over a terminal the corner stays discreet until the tile is hovered. */
 .tile-console { position: relative; }
-.tile-console .tile-corner { opacity: 0.35; transition: opacity 0.12s; background: var(--bg-2); border-radius: 6px; }
-.tile-console:hover .tile-corner, .tile-console .tile-corner:focus-within { opacity: 1; }
 .detached-console { flex: 1; min-height: 0; }
 .tool-tabbar .tab.active { background: var(--bg-2); }
 .tool-tabbar .tab.active::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--fg); }
@@ -698,12 +697,10 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .ie-check { display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 560px) { .ie { flex-direction: column; align-items: stretch; } }
 
-/* detached windows */
+/* detached windows: the panel alone, its name in the title of the window */
 .detached { display: flex; flex-direction: column; height: 100%; }
-.detached-head { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; background: var(--bg-2); border-bottom: 1px solid var(--line); font-weight: 600; flex: none; }
 .detached-body { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
 .tool-full { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.tool-full .detach { display: none; }
 
 /* phone: one bar of three rows (project and status, menus, views), one view full screen */
 .app.phone { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
@@ -719,7 +716,6 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .phone-body > .center { flex: 1; min-width: 0; }
 .phone-body > .center.hidden { display: none; }
 .phone-body > .zone { flex: 1; min-width: 0; position: relative; box-shadow: none; }
-.phone .zone .detach { display: none; }
 .phone .zone:focus { outline: none; }
 
 /* iOS zooms the page when it focuses a field showing text under 16 px: on a phone every

@@ -17,7 +17,7 @@ import { HelpLink } from '../help/HelpLink'
 import { FileIcon } from '../ui/fileIcons'
 import { activeTab, attached, basename, closeTab, docError, leaves, showWorktree, docsVersion, fileUri, loadDoc, reveal, saveCursor, saveDoc, findLeaf, getDoc, home, onBufferClose, onBufferOpen, onBufferSave, openBuffers, pathFromUri, isLocal, mutate, openFile, openTab, openTextTab, project, relPath, root, session, setActivePane, type TabState } from '../state/project'
 import { showTool } from '../state/zones'
-import { detachTab, openTile, tileMode } from '../state/tiles'
+import { detachTab, openInBrowserTab, openTile, tileMode } from '../state/tiles'
 import { phone } from '../state/mobile'
 import { fontFor, settings } from '../state/settings'
 import { accentOf, themeById } from '../settings/themes'
@@ -110,8 +110,8 @@ export function makeApi(id: string) {
     use: capability,
     /** Shows one of the plugin's tools in its zone. */
     showTool: (tool: string) => mutate((s) => showTool(s, tool)),
-    /** Tiles of the Grid and Scroll modes, detached windows. */
-    tiles: { active: tileMode, phone, open: openTile, detach: detachTab },
+    /** Tiles of the Grid and Scroll modes, tools and consoles opened on their own. */
+    tiles: { active: tileMode, phone, open: openTile, detach: detachTab, openInTab: openInBrowserTab },
     /** The look of the IDE for what draws itself (a terminal): its font and colors. */
     theme: {
       font: () => ({ family: settings.font.family, size: fontFor().size }),

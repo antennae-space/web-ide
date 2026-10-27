@@ -173,14 +173,14 @@ export function themeVars(): SandboxTheme {
 }
 
 /**
- * The room the IDE's own buttons take over the top right corner of a frame (the "Open in a
- * window" of a zone, the corner of a tile), as `--ide-head-inset`: a built-in tool leaves it in
- * its header, the kit of the plugin SDK does it for a frame.
+ * The room the IDE's own buttons take over the top right corner of a frame (the ⋮ and the ✕ of a
+ * zone or of a tile), as `--ide-head-inset`: a built-in tool leaves it in its header, the kit of
+ * the plugin SDK does it for a frame.
  */
 export function headInset(frame: HTMLElement): string {
   const f = frame.getBoundingClientRect()
   let inset = 0
-  for (const el of frame.closest('.zone, .pane')?.querySelectorAll<HTMLElement>(':scope > .detach, .tile-corner') ?? []) {
+  for (const el of frame.closest('.zone, .pane')?.querySelectorAll<HTMLElement>(':scope > .zone-corner, .tile-corner') ?? []) {
     const b = el.getBoundingClientRect()
     if (!b.width || b.bottom <= f.top || b.top >= f.top + 40 || b.left >= f.right || b.right <= f.left) continue
     inset = Math.max(inset, Math.ceil(f.right - b.left + 4))
