@@ -160,6 +160,19 @@ run(async ({ ctx, page }) => {
   assert(!(await gitTab.$('.detached-head')), 'the tool of a browser tab has no head')
   assert((await gitTab.title()).includes('Git'), 'the tab is titled with the tool: ' + await gitTab.title())
   await gitTab.close()
+  // A plugin tool contributes the same items to the ⋮ of its tile as to that of its zone (#175).
+  await launch('Hello')
+  await page.waitForSelector('.pane .tile-tool[data-tool=hello] [data-testid=tile-menu]')
+  await page.click('[data-tool=hello] [data-testid=tile-menu]')
+  await page.waitForSelector('.ctx-menu')
+  const helloTile = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
+  assert(
+    JSON.stringify(helloTile) === JSON.stringify(['Open in a tab', 'Open in a window', 'Close', 'Say hello from the menu', 'Greet twice']),
+    'the menu of a tile of the plugin tool: ' + JSON.stringify(helloTile),
+  )
+  await page.keyboard.press('Escape')
+  await page.click('[data-tool=hello] [data-testid=tile-close]')
+  await page.waitForSelector('[data-tool=hello]', { state: 'detached' })
   await page.click('.pane .tile-console .xterm')
   const xOf = (sel) => page.$eval(sel, (e) => e.getBoundingClientRect().left)
   assert((await xOf('.pane .tile-console')) > (await xOf('.pane [data-tool=git]')), 'by default a new tile opens on the right')

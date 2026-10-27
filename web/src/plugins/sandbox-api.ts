@@ -76,6 +76,21 @@ export type SandboxStatusItem = {
   menu?: { id: string; label: string; checked?: boolean; disabled?: boolean; title?: string }[]
 }
 
+/**
+ * An item a frame adds to the options menu (the ⋮) of its tool or of the tab of one of its views
+ * (#175), after the core items. A choice the user makes comes back through `onToolMenu`.
+ */
+export type SandboxToolMenuItem = {
+  id: string
+  label: string
+  hint?: string
+  title?: string
+  checked?: boolean
+  disabled?: boolean
+  /** A line between the items before and after it. */
+  separator?: boolean
+}
+
 /** The global `ide` of a frame. */
 export interface SandboxAPI {
   register(c: SandboxContributions): void
@@ -141,6 +156,13 @@ export interface SandboxAPI {
   setStatus(items: SandboxStatusItem[]): void
   /** A choice of the menu of one of its status items. */
   onStatus(f: (e: { item: string; choice: string }) => void): void
+  /**
+   * The items this frame adds after the core items of the options menu (the ⋮) of its tool, or of
+   * the tab it shows (#175). Pushed, like `setStatus`: push them again when they change.
+   */
+  setToolMenu(items: SandboxToolMenuItem[]): void
+  /** The user chose one of the items of this frame's tool menu. */
+  onToolMenu(f: (e: { item: string }) => void): void
   /** The HTML of a Markdown text, rendered and sanitized by the IDE as its own. */
   markdown(text: string): Promise<string>
   /** Opens an http(s) address in a new tab of the browser, while the user is in the frame. */
@@ -177,6 +199,7 @@ export type FrameCall =
   | { call: 'publish'; capability: string; key: string; value?: unknown }
   | { call: 'serviceEmit'; capability: string; event: string; data?: unknown }
   | { call: 'setStatus'; items: SandboxStatusItem[] }
+  | { call: 'setToolMenu'; items: SandboxToolMenuItem[] }
   | { call: 'markdown'; id: number; text: string }
   | { call: 'openLink'; url: string }
   | { call: 'help'; topic: string }
@@ -199,3 +222,4 @@ export type PageMessage =
   | { serviceValue: { capability: string; key: string; value: unknown } }
   | { serviceEvent: { capability: string; event: string; data: unknown } }
   | { status: { item: string; choice: string } }
+  | { toolMenu: { item: string } }

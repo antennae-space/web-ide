@@ -43,6 +43,20 @@ run(async ({ page }) => {
   await page.click('.pane.active').catch(() => {})
   await page.waitForSelector('[data-testid=status-hello]', { state: 'detached' })
 
+  // The items the plugin adds to the ⋮ menu of its tool, after the core ones (#175).
+  await page.click(icon)
+  await page.waitForSelector('[data-tool=hello] [data-testid=zone-menu]')
+  await page.click('[data-tool=hello] [data-testid=zone-menu]')
+  await page.waitForSelector('.ctx-menu')
+  const helloMenu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
+  assert(
+    JSON.stringify(helloMenu) === JSON.stringify(['Open in a window', 'Close', 'Say hello from the menu', 'Greet twice']),
+    'the menu of the plugin tool: ' + JSON.stringify(helloMenu),
+  )
+  await page.click('.ctx-menu >> text=Greet twice')
+  await page.waitForFunction(() => document.querySelector('[data-testid=hello-text]')?.textContent === 'Hello plugin from demo Hello plugin from demo')
+  assert(true, 'the contributed item changed the tool')
+
   // Its assistant tool in the MCP, run on the project of the cwd.
   assert((await tools()).includes('hello_greet'), 'hello_greet listed by the MCP')
   let r = await mcp('hello_greet', { name: 'Claude' })

@@ -78,8 +78,12 @@ run(async ({ page }) => {
   await page.click('[data-testid=structure-collapse]')
   await page.waitForTimeout(300)
   assert(!(await names()).includes('Name'), 'Collapse all folds every symbol with children')
-  await page.click('[data-testid=structure-options]')
+  await page.click('[data-tool=structure] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')
+  // The tool has no ⋮ of its own any more: its choices come after the core items of the zone menu (#175).
+  const head = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
+  assert(head[0] === 'Open in a window' && head[1] === 'Close' && head[2] === 'Expand all', 'the menu of the Structure zone: ' + JSON.stringify(head))
+  assert(!(await page.$('.side-right [data-testid=structure-options]')), 'the tool keeps no Options button of its own')
   const pkgItem = await page.$('.ctx-item:has-text("Show Package Structure")')
   assert(!!pkgItem && !(await pkgItem.evaluate((e) => e.disabled)), 'Show Package Structure is a live entry of the menu')
   assert(!(await pkgItem.evaluate((e) => e.getAttribute('aria-checked') === 'true')), 'and it is off by default')
@@ -95,7 +99,7 @@ run(async ({ page }) => {
   await page.waitForFunction(() => document.querySelector('[data-testid=status-cursor]')?.textContent.startsWith('8:'), null, { timeout: 5000 }).catch(() => {})
   assert((await line()).startsWith('8:'), 'a double click jumps to the symbol: ' + (await line()))
   const singleClickItem = async () => {
-    await page.click('[data-testid=structure-options]')
+    await page.click('[data-tool=structure] [data-testid=zone-menu]')
     await page.waitForSelector('.ctx-menu')
     await page.click('.ctx-item:has-text("Navigate with Single Click")')
     await page.waitForTimeout(300)
@@ -105,7 +109,7 @@ run(async ({ page }) => {
   await page.waitForFunction(() => document.querySelector('[data-testid=status-cursor]')?.textContent.startsWith('12:'), null, { timeout: 5000 }).catch(() => {})
   assert((await line()).startsWith('12:'), 'Navigate with Single Click: one click jumps: ' + (await line()))
   await singleClickItem() // back to select on click
-  await page.click('[data-testid=structure-options]')
+  await page.click('[data-tool=structure] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')
   await page.click('.ctx-item:has-text("Sort in the file")')
   await page.waitForTimeout(300)
@@ -117,7 +121,7 @@ run(async ({ page }) => {
     return await el.evaluate((e) => ({ cls: e.className, color: getComputedStyle(e).color }))
   }
   const menu = async (label) => {
-    await page.click('[data-testid=structure-options]')
+    await page.click('[data-tool=structure] [data-testid=zone-menu]')
     await page.waitForSelector('.ctx-menu')
     await page.click(`.ctx-item:has-text("${label}")`)
     await page.waitForTimeout(300)
@@ -174,7 +178,7 @@ run(async ({ page }) => {
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
   // Always Select Opened Element: the row of the symbol around the caret.
-  await page.click('[data-testid=structure-options]')
+  await page.click('[data-tool=structure] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')
   const followItem = await page.$('.ctx-item:has-text("Always Select Opened Element")')
   assert(!!followItem && !(await followItem.evaluate((e) => e.disabled)), 'the menu entry is no longer disabled')
@@ -276,7 +280,7 @@ run(async ({ page }) => {
   const afterReload = await names()
   assert(afterReload.includes('main.go') && afterReload.includes('priv.go'), 'the package view is remembered across a reload: ' + JSON.stringify(afterReload))
   await open(page, 'app.php')
-  await page.click('[data-testid=structure-options]')
+  await page.click('[data-tool=structure] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')
   const phpItem = await page.$('.ctx-item:has-text("Show Package Structure")')
   assert(!!(await phpItem.evaluate((e) => e.disabled)) && (await phpItem.evaluate((e) => e.title)) === 'No language server for this file type', 'with no server for the file, the entry is disabled with its tooltip')

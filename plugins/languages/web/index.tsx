@@ -8,7 +8,7 @@ import { formatDocument, renameSymbol } from './refactor'
 import { complete, resolveItem, triggerCharacters } from './completion'
 import { resync, watchBuffers } from './sync'
 import { diagnostics, problemCount, ProblemsTool, watchServers } from './problems'
-import { StructureTool, collapseAllStructure, expandAllStructure, openStructureSearch, toggleAlwaysSelectStructure } from './structure'
+import { StructureTool, collapseAllStructure, expandAllStructure, openStructureSearch, structureItems, toggleAlwaysSelectStructure } from './structure'
 import { symbolsProvider } from './symbols'
 import { installServer, missingServer, notNow, putOff, servers, watchPackServers } from './servers'
 
@@ -44,6 +44,7 @@ export const languages: PluginModule = {
     const at = (v: { getSelection(): { head: number } }) => v.getSelection().head
     return {
       tools: { problems: { component: ProblemsTool, badge: problemCount }, structure: { component: StructureTool } },
+      toolMenu: { structure: structureItems },
       searchProviders: [symbolsProvider],
       opened: resync,
       commands: {

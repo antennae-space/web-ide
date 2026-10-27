@@ -8,6 +8,7 @@ import { t } from '../i18n'
 import { closeTab, mutate, session, type TabState } from '../state/project'
 import { shownIn, toggleTool, type Zone } from '../state/zones'
 import { detachTab, openInBrowserTab, tileMode } from '../state/tiles'
+import { toolMenuFor } from '../plugins/registry'
 
 /** What a menu is opened for: a tool shown in a zone, or a tab of a pane. */
 export type ToolSubject = { zone: Zone } | { pane: string; tab: TabState }
@@ -24,8 +25,9 @@ function subjectTab(s: ToolSubject): TabState | null {
 /**
  * The items of the menu, in order: *Open in a tab* and *Open in a window* for a tool or a console
  * (a desk of tiles only for the browser tab: Full keeps its zones), *Close* — it hides the tool
- * from its zone, closes the tab of a tile — then the items of the tool itself (`extra`, empty
- * until the `toolMenu` contribution point of the SDK, #175).
+ * from its zone, closes the tab of a tile — then the items of the tab (`extra`), then the items the
+ * tool's plugin contributes (`toolMenu` contribution point, #175). The same list from the ⋮ of a
+ * zone, of a tile, and from a right click on either.
  */
 export function toolMenuItems(subject: ToolSubject, extra: MenuItem[] = []): MenuItem[] {
   const tab = subjectTab(subject)
@@ -39,6 +41,8 @@ export function toolMenuItems(subject: ToolSubject, extra: MenuItem[] = []): Men
       : { label: t('Close'), hint: shortcutOf('view.closeTab'), action: () => closeTab(subject.pane, subject.tab.id) },
   )
   if (extra.length) items.push({ separator: true, label: '' }, ...extra)
+  const contributed = tab ? toolMenuFor({ tab }) : []
+  if (contributed.length) items.push({ separator: true, label: '' }, ...contributed)
   return items
 }
 

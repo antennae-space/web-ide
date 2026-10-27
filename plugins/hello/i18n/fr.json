@@ -1,4 +1,7 @@
 {
   "greeted": "salué",
-  "Hello": "Hello"
+  "Hello": "Hello",
+  "Say hello from the menu": "Saluer depuis le menu",
+  "Hello from the menu": "Bonjour depuis le menu",
+  "Greet twice": "Saluer deux fois"
 }

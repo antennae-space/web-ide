@@ -4,12 +4,13 @@
 // twisty folds the children of a symbol or of a file node (the folded state is kept per file in
 // the desk), one click selects a row, a double click jumps to it (one click with "Navigate with
 // Single Click"), a lock next to the glyph tells an exported symbol from a private one (the rules
-// of web/visibility.json), the ⋮ menu holds the choices of the tree. Speed Search filters the
-// rows by typing (or Ctrl+F) while the tree has the focus, highlighting what the query matches;
-// "Always Select Opened Element" keeps the row of the symbol around the caret selected.
+// of web/visibility.json), the ⋮ of its zone or of its tile holding the choices of the tree (the
+// plugin's `toolMenu` contribution). Speed Search filters the rows by typing (or Ctrl+F) while the
+// tree has the focus, highlighting what the query matches; "Always Select Opened Element" keeps the
+// row of the symbol around the caret selected.
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show, untrack } from 'solid-js'
 import type { MenuItem } from '@ide/api'
-import { api, contextMenu, desk, EmptyState, Icon, t } from './plugin'
+import { api, desk, EmptyState, Icon, t } from './plugin'
 import {
   dirOf,
   documentSymbols,
@@ -176,10 +177,13 @@ export function togglePackageStructure() {
   desk.set((s) => (s.showPackage = !s.showPackage))
 }
 
-function optionsMenu(ev: MouseEvent) {
-  const r = (ev.currentTarget as HTMLElement).getBoundingClientRect()
+/**
+ * The items the plugin adds to the ⋮ menu of the Structure tool (`toolMenu` contribution): the
+ * choices of the tree, read when the menu opens.
+ */
+export function structureItems(): MenuItem[] {
   const lang = api.editor.serverLanguage(activePath())
-  const items: MenuItem[] = [
+  return [
     { label: t('Expand all'), action: () => void expandAllStructure() },
     { label: t('Collapse all'), action: () => void collapseAllStructure() },
     { separator: true, label: '' },
@@ -194,7 +198,6 @@ function optionsMenu(ev: MouseEvent) {
     { label: t('Show Package Structure'), checked: desk.get().showPackage, disabled: !lang, title: lang ? undefined : t('No language server for this file type'), action: togglePackageStructure },
     { label: t('Show Private Members'), checked: desk.get().showPrivate, action: () => desk.set((s) => (s.showPrivate = !s.showPrivate)) },
   ]
-  contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.bottom + 2 }), items)
 }
 
 export function StructureTool() {
@@ -369,9 +372,6 @@ export function StructureTool() {
         </button>
         <button class="icon-btn" title={t('Refresh')} onClick={refresh}>
           <Icon name="refresh" size={14} />
-        </button>
-        <button class="icon-btn" data-testid="structure-options" title={t('Options')} onClick={optionsMenu}>
-          <Icon name="more" size={14} />
         </button>
       </div>
       <Show when={searching()}>

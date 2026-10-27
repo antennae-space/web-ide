@@ -79,6 +79,12 @@ export interface PluginContributions {
   viewStatus?: (tab: TabState) => StatusItem[]
   /** Items of the status bar while a tool of the plugin has the focus, by tool id. */
   toolStatus?: Record<string, () => StatusItem[]>
+  /**
+   * Items added after the core items of the options menu (the ⋮) of a tool of the plugin, or of a
+   * tab of one of its views, by tool or view id. Read when the menu opens: a function of the
+   * current state, given the tab when there is one (a tool in a zone has none).
+   */
+  toolMenu?: Record<string, (tab?: TabState) => MenuItem[]>
   /** Tools of the interface the pod asks the window to run (ui.call), by name: the AI draws a page of its board. */
   uiTools?: Record<string, UiTool>
   commands?: Record<string, () => void>

@@ -14,9 +14,10 @@ import { useEditorView } from '../ui/EditorArea'
 import { useCompletion } from '../ui/Completion'
 import { frameDoc, serveFrame, type FrameEditor } from './sandbox'
 import { pluginSettingValues } from './settings'
-import type { PageMessage, SandboxModalSize, SandboxStatusItem } from './sandbox-api'
+import type { PageMessage, SandboxModalSize, SandboxStatusItem, SandboxToolMenuItem } from './sandbox-api'
 import { serve, setModalOpener } from './services'
 import type { PluginContributions, PluginManifest, PluginModule, PluginState, StatusItem } from './types'
+import type { MenuItem } from '../ui/overlay'
 
 type Bundle = { version: string; js: string; catalogs: Record<string, Record<string, string>> }
 
@@ -24,6 +25,14 @@ type Served = ReturnType<typeof serveFrame>
 
 /** The status items a tab frame gave for its tab (setStatus), and how to answer its choices. */
 const [tabStatus, setTabStatus] = createSignal<Record<string, { items: SandboxStatusItem[]; send: (m: PageMessage) => void }>>({})
+
+/** The items a frame gave for the ⋮ menu of its tool (setToolMenu), by tool id, and of a tab, by tab id. */
+const [frameToolMenu, setFrameToolMenu] = createSignal<Record<string, { items: SandboxToolMenuItem[]; send: (m: PageMessage) => void }>>({})
+const [frameTabMenu, setFrameTabMenu] = createSignal<Record<string, { items: SandboxToolMenuItem[]; send: (m: PageMessage) => void }>>({})
+
+/** The items of a frame as the core's menu items: a choice goes back to the frame as a message. */
+const frameMenuItems = (st: { items: SandboxToolMenuItem[]; send: (m: PageMessage) => void }): MenuItem[] =>
+  st.items.map((it) => ({ label: it.label, hint: it.hint, title: it.title, checked: !!it.checked, disabled: !!it.disabled, separator: !!it.separator, action: () => st.send({ toolMenu: { item: it.id } }) }))
 
 /** The items of the status bar of a tab of an external plugin's view. */
 function viewStatus(tab: TabState): StatusItem[] {
@@ -108,6 +117,11 @@ function SandboxFrame(props: {
       // A modal view gets the focus: its fields, its dialogs.
       onReady: props.modal ? () => frame.focus() : undefined,
       setStatus: props.tab ? (items) => setTabStatus((all) => ({ ...all, [props.tab!.id]: { items, send: served!.send } })) : undefined,
+      // A tool frame keys its items by tool id, a frame of a tab view by tab id (they follow the tab).
+      setToolMenu: (items) =>
+        props.tab
+          ? setFrameTabMenu((all) => ({ ...all, [props.tab!.id]: { items, send: served!.send } }))
+          : setFrameToolMenu((all) => ({ ...all, [props.view]: { items, send: served!.send } })),
     })
     props.served?.(served)
   })
@@ -117,6 +131,7 @@ function SandboxFrame(props: {
     served?.stop()
     const id = props.tab?.id
     if (id) setTabStatus(({ [id]: _, ...rest }) => rest)
+    else setFrameToolMenu(({ [props.view]: _, ...rest }) => rest)
   })
   return (
     <div class="panel plugin-external-view">
@@ -279,6 +294,10 @@ export async function externalModule(state: PluginState, current: () => PluginSt
       ),
       commands: Object.fromEntries((c.commands ?? []).map((x) => [x.id, () => bg.command(x.id)])),
       viewStatus,
+      toolMenu: {
+        ...Object.fromEntries((c.tools ?? []).map((x) => [x.id, () => (frameToolMenu()[x.id] ? frameMenuItems(frameToolMenu()[x.id]!) : [])])),
+        ...Object.fromEntries((c.tabViews ?? []).map((v) => [v.id, (tab?: TabState) => (tab && frameTabMenu()[tab.id] ? frameMenuItems(frameTabMenu()[tab.id]!) : [])])),
+      },
       }
     },
   }

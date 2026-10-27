@@ -13,7 +13,7 @@ import { renderMarkdown } from '../ui/markdown'
 import { docTarget, openDoc, type HelpTopic } from '../state/docs'
 import topics from '../help/topics.json'
 import { lang, t } from '../i18n'
-import type { FrameCall, PageMessage, SandboxEditorState, SandboxModalSize, SandboxStatusItem, SandboxTheme } from './sandbox-api'
+import type { FrameCall, PageMessage, SandboxEditorState, SandboxModalSize, SandboxStatusItem, SandboxTheme, SandboxToolMenuItem } from './sandbox-api'
 
 /** The CSP of a frame: inline scripts and styles, images as data, no network at all. */
 export const frameCSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'"
@@ -32,7 +32,7 @@ export const bootstrap = `(() => {
   // The editor of the tab: its state pushed by the page, and the listeners of the view.
   let ed = null
   const edFns = { change: [], selection: [], keys: {} }
-  const settingsFns = [], statusFns = []
+  const settingsFns = [], statusFns = [], toolMenuFns = []
   let next = 1
   // What the module sends before the page gives the channel (a call at load) waits for it.
   const queue = []
@@ -82,6 +82,8 @@ export const bootstrap = `(() => {
     emit: (capability, event, data) => send({ call: 'serviceEmit', capability, event, data: plain(data) }),
     setStatus: (items) => send({ call: 'setStatus', items: plain(items || []) }),
     onStatus: (f) => statusFns.push(f),
+    setToolMenu: (items) => send({ call: 'setToolMenu', items: plain(items || []) }),
+    onToolMenu: (f) => toolMenuFns.push(f),
     markdown: (text) => call({ call: 'markdown', text: String(text) }),
     openLink: (url) => send({ call: 'openLink', url: String(url) }),
     help: (topic) => send({ call: 'help', topic: String(topic) }),
@@ -135,6 +137,7 @@ export const bootstrap = `(() => {
     if (m.editorKey) (edFns.keys[m.editorKey] || []).forEach((f) => f())
     if (m.settings) { info.settings = m.settings; settingsFns.forEach((f) => f(m.settings)) }
     if (m.status) statusFns.forEach((f) => f(m.status))
+    if (m.toolMenu) toolMenuFns.forEach((f) => f(m.toolMenu))
     // A method of a capability it provides, asked by the page for another plugin.
     if (m.serviceRequest) {
       const id = m.serviceRequest, f = services[m.capability] && services[m.capability][m.method]
@@ -225,6 +228,8 @@ export type FrameHost = {
   closeModal?: (result: unknown) => void
   /** A tab view: the items of the status bar it gives for its tab. */
   setStatus?: (items: SandboxStatusItem[]) => void
+  /** Its tool or its tab: the items it adds to the options menu (the ⋮) of the zone or tile. */
+  setToolMenu?: (items: SandboxToolMenuItem[]) => void
 }
 
 /**
@@ -422,6 +427,21 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
               text: clip(it?.text, 100),
               title: clip(it?.title, 300) || undefined,
               menu: Array.isArray(it?.menu) ? it.menu.slice(0, 50).map((c) => ({ id: clip(c?.id, 100), label: clip(c?.label, 200), checked: !!c?.checked, disabled: !!c?.disabled, title: clip(c?.title, 300) || undefined })) : undefined,
+            })),
+          )
+        return
+      case 'setToolMenu':
+        // The items a frame adds to the ⋮ menu of its tool or of its tab (#175), clamped as the statuses.
+        if (Array.isArray(m.items))
+          host.setToolMenu?.(
+            m.items.slice(0, 12).map((it) => ({
+              id: clip(it?.id, 100),
+              label: clip(it?.label, 200),
+              hint: clip(it?.hint, 60) || undefined,
+              title: clip(it?.title, 300) || undefined,
+              checked: !!it?.checked,
+              disabled: !!it?.disabled,
+              separator: !!it?.separator,
             })),
           )
         return
