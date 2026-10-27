@@ -1,6 +1,7 @@
 // Code navigation through the language servers run by the pod.
 import type { Doc, PickItem } from '@ide/api'
 import kindsJson from './kinds.json'
+import { visibilityOf, type Visibility } from './visibility'
 import { api, pick, t, toast } from './plugin'
 
 export interface Position {
@@ -168,23 +169,38 @@ export function sortSymbols(list: DocumentSymbol[]): DocumentSymbol[] {
   return out.map((s) => (s.children?.length ? { ...s, children: sortSymbols(s.children) } : s))
 }
 
-/** A row of the tree: a symbol, its depth, whether it folds, and whether it is folded. */
+/** A row of the tree: a symbol, its depth, whether it folds, whether it is folded, its lock. */
 export interface TreeRow {
   s: DocumentSymbol
   depth: number
   hasChildren: boolean
   folded: boolean
+  visibility: Visibility
 }
 
 /** The visible rows, in tree order (the children of a folded symbol are left out). */
-export function treeRows(list: DocumentSymbol[], folded: Set<string>, depth = 0, out: TreeRow[] = []): TreeRow[] {
+export function treeRows(list: DocumentSymbol[], folded: Set<string>, lang: string, depth = 0, out: TreeRow[] = []): TreeRow[] {
   for (const s of list) {
     const has = !!s.children?.length
     const isFolded = folded.has(symbolId(s))
-    out.push({ s, depth, hasChildren: has, folded: isFolded })
-    if (has && !isFolded) treeRows(s.children!, folded, depth + 1, out)
+    out.push({ s, depth, hasChildren: has, folded: isFolded, visibility: visibilityOf(lang, s) })
+    if (has && !isFolded) treeRows(s.children!, folded, lang, depth + 1, out)
   }
   return out
+}
+
+/** Exported symbols first, private after, at every level: file order kept, children kept under their parent. */
+export function sortByExportability(list: DocumentSymbol[], lang: string): DocumentSymbol[] {
+  const isPrivate = (s: DocumentSymbol) => visibilityOf(lang, s) === 'private'
+  const out = [...list.filter((s) => !isPrivate(s)), ...list.filter(isPrivate)]
+  return out.map((s) => (s.children?.length ? { ...s, children: sortByExportability(s.children, lang) } : s))
+}
+
+/** The tree without the private symbols: a private symbol takes its children with it. */
+export function filterPrivate(list: DocumentSymbol[], lang: string): DocumentSymbol[] {
+  return list
+    .filter((s) => visibilityOf(lang, s) !== 'private')
+    .map((s) => (s.children?.length ? { ...s, children: filterPrivate(s.children, lang) } : s))
 }
 
 /** Chain of symbols containing a position, outermost first. */

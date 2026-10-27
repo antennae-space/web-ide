@@ -70,6 +70,7 @@ const paths: Record<string, string> = {
   docker: 'M2 12h18c1 0 2-1 2.2-2.2M2 12c0 4.4 3.6 8 9 8 5 0 8.4-3 9.4-8M5 12V9h3v3M8 12V9h3v3M11 12V9h3v3M8 9V6h3v3',
   branch: 'M6 3v12M6 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9c0 5-6 4-12 6',
   lock: 'M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4',
+  lockOpen: 'M6 11h12v10H6zM9 11V7a4 4 0 0 1 8 0v1.5',
   up: 'M6 15l6-6 6 6',
   down: 'M6 9l6 6 6-6',
   clock: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM12 7v5l3 3',

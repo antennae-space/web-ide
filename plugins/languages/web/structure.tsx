@@ -1,11 +1,12 @@
 // Structure tool: the symbols of the active file (classes, functions, methods), from its server,
 // as a tree. A twisty folds the children of a symbol (the folded state is kept per file in the
 // desk), one click selects a row, a double click jumps to it (one click with "Navigate with
-// Single Click"), the ⋮ menu holds the choices of the tree.
+// Single Click"), a lock next to the glyph tells an exported symbol from a private one (the rules
+// of web/visibility.json), the ⋮ menu holds the choices of the tree.
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show } from 'solid-js'
 import type { MenuItem } from '@ide/api'
 import { api, contextMenu, desk, EmptyState, Icon, t } from './plugin'
-import { documentSymbols, sortSymbols, symbolId, treeRows, type DocumentSymbol, type TreeRow } from './client'
+import { documentSymbols, filterPrivate, sortByExportability, sortSymbols, symbolId, treeRows, type DocumentSymbol, type TreeRow } from './client'
 import { SymGlyph } from './glyph'
 
 const activePath = () => (api.activeFile() ?? '')
@@ -66,9 +67,10 @@ function optionsMenu(ev: MouseEvent) {
     { separator: true, label: '' },
     { label: t('Sort in the file'), checked: desk.get().structureSort === 'file', action: () => desk.set((s) => (s.structureSort = 'file')) },
     { label: t('Sort alphabetically'), checked: desk.get().structureSort === 'alpha', action: () => desk.set((s) => (s.structureSort = 'alpha')) },
+    { label: t('Sort by Exportability'), checked: desk.get().structureSort === 'export', action: () => desk.set((s) => (s.structureSort = 'export')) },
     { separator: true, label: '' },
     { label: t('Show Package Structure'), disabled: true, title: soon },
-    { label: t('Show Private Members'), disabled: true, title: soon },
+    { label: t('Show Private Members'), checked: desk.get().showPrivate, action: () => desk.set((s) => (s.showPrivate = !s.showPrivate)) },
   ]
   contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.bottom + 2 }), items)
 }
@@ -103,8 +105,11 @@ export function StructureTool() {
   )
   const rows = createMemo(() => {
     const list = symbols()?.list ?? []
-    const sorted = desk.get().structureSort === 'alpha' ? sortSymbols(list) : list
-    return treeRows(sorted, foldedIds(path()))
+    const lang = path() ? api.editor.serverLanguage(path()) : ''
+    const sort = desk.get().structureSort
+    const sorted = sort === 'alpha' ? sortSymbols(list) : sort === 'export' ? sortByExportability(list, lang) : list
+    const shown = desk.get().showPrivate ? sorted : filterPrivate(sorted, lang)
+    return treeRows(shown, foldedIds(path()), lang)
   })
   const jump = (s: DocumentSymbol) => api.openFile({ path: path(), line: s.selectionRange.start.line, col: s.selectionRange.start.character })
   const toggle = (r: TreeRow) => {
@@ -197,6 +202,11 @@ export function StructureTool() {
                     </Show>
                   </span>
                   <SymGlyph kind={r.s.kind} />
+                  <Show when={r.visibility !== 'none'}>
+                    <span class={`sym-lock ${r.visibility}`} title={r.visibility === 'exported' ? t('Exported') : t('Private')}>
+                      <Icon name={r.visibility === 'exported' ? 'lockOpen' : 'lock'} size={12} />
+                    </span>
+                  </Show>
                   <span class="tree-name">{r.s.name}</span>
                   <Show when={r.s.detail}>
                     <span class="tree-detail">{r.s.detail}</span>

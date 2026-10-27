@@ -1,7 +1,9 @@
 // Code navigation with gopls through the language pack lang-go (#146), its server confined
 // (skipped when gopls is not installed).
 const { execSync } = require('child_process')
-const { run, openProject, open, assert, text, installOfficial, OUT } = require('../../../e2e/common.cjs')
+const fs = require('fs')
+const path = require('path')
+const { run, openProject, open, assert, text, installOfficial, OUT, WS } = require('../../../e2e/common.cjs')
 try {
   execSync('command -v gopls', { env: { ...process.env, PATH: process.env.HOME + '/go/bin:' + process.env.PATH }, stdio: 'ignore' })
 } catch {
@@ -11,6 +13,8 @@ try {
 run(async ({ page }) => {
   const lock = await installOfficial('lang-go')
   assert(lock?.grants.join() === 'program:gopls,path:GOROOT,path:GOMODCACHE', 'lang-go installed with its grants: ' + JSON.stringify(lock))
+  // A file with one private and one exported function (the lock of Structure, #170).
+  fs.writeFileSync(path.join(WS, 'demo/src/priv.go'), 'package main\n\nfunc maxFrame() int { return 1024 }\n\nfunc Transport() string { return "tcp" }\n')
   await openProject(page)
   await open(page, 'main.go')
   const caretOn = async (needle, delta = 1) => {
@@ -102,6 +106,40 @@ run(async ({ page }) => {
   await page.click('.ctx-item:has-text("Sort in the file")')
   await page.waitForTimeout(300)
   assert((await names()).join() === ['Greeter', 'Name', '(Greeter).Hello', 'main'].join(), 'Sort in the file puts the tree back in the order of the file: ' + JSON.stringify(await names()))
+  // The exported / private lock (#170).
+  const lockOf = async (name) => {
+    const el = await page.$(row(name) + ' .sym-lock')
+    if (!el) return null
+    return await el.evaluate((e) => ({ cls: e.className, color: getComputedStyle(e).color }))
+  }
+  const menu = async (label) => {
+    await page.click('[data-testid=structure-options]')
+    await page.waitForSelector('.ctx-menu')
+    await page.click(`.ctx-item:has-text("${label}")`)
+    await page.waitForTimeout(300)
+  }
+  const locks = await Promise.all(['Greeter', 'Name', '(Greeter).Hello', 'main'].map(lockOf))
+  assert(locks[0]?.cls.includes('exported') && locks[1]?.cls.includes('exported') && locks[2]?.cls.includes('exported'), 'an open lock on Greeter, its field and its method: ' + JSON.stringify(locks))
+  assert(locks[3]?.cls.includes('private'), 'a closed lock on main: ' + JSON.stringify(locks[3]))
+  assert(locks[0].color !== locks[3].color, 'the exported lock is green, the private one red: ' + locks[0].color + ' / ' + locks[3].color)
+  await open(page, 'priv.go')
+  await page.waitForFunction(() => [...document.querySelectorAll('.side-right .tree-row .tree-name')].some((x) => x.textContent === 'Transport'), null, { timeout: 8000 })
+  assert(!!(await lockOf('Transport'))?.cls.includes('exported') && !!(await lockOf('maxFrame'))?.cls.includes('private'), 'Transport exported, maxFrame private in priv.go')
+  await menu('Sort by Exportability')
+  const byExport = await names()
+  assert(byExport.join() === ['Transport', 'maxFrame'].join(), 'Sort by Exportability puts Transport before maxFrame: ' + JSON.stringify(byExport))
+  await menu('Show Private Members')
+  assert((await names()).join() === 'Transport', 'Show Private Members unchecked hides maxFrame: ' + JSON.stringify(await names()))
+  await open(page, 'main.go')
+  await open(page, 'priv.go')
+  await page.waitForFunction(() => [...document.querySelectorAll('.side-right .tree-row .tree-name')].some((x) => x.textContent === 'Transport'), null, { timeout: 8000 })
+  assert(!(await names()).includes('maxFrame'), 'the private symbols stay hidden after switching file: ' + JSON.stringify(await names()))
+  await menu('Show Private Members')
+  assert((await names()).join() === ['Transport', 'maxFrame'].join(), 'checked again, they come back: ' + JSON.stringify(await names()))
+  await menu('Sort in the file')
+  await open(page, 'main.go')
+  await page.waitForFunction(() => [...document.querySelectorAll('.side-right .tree-row .tree-name')].some((x) => x.textContent === 'Greeter'), null, { timeout: 8000 })
+  assert((await names()).join() === ['Greeter', 'Name', '(Greeter).Hello', 'main'].join(), 'the tree of main.go is back as it was: ' + JSON.stringify(await names()))
   // Diagnostics
   await page.click('.pane.active .ed-content')
   await page.keyboard.press('Control+End')

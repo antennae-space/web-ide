@@ -192,6 +192,10 @@ _Avoid_: language plugin, language extension
 **Glyph family** ([plugins](docs/design/plugins.md#language-packs))
 The group a symbol kind belongs to, which gives its color: *type*, *function*, *variable*, *value*, *other*. `plugins/languages/web/kinds.json` is the one table of the kinds (name, glyph, family) the Structure tool, the Symbols tab, the file structure list and the assistant's `lsp_*` tools read; a theme colors each family (`--sym-type`…) and the detail of a symbol (`--sym-detail`).
 
+**Exportable** / **Private member** ([plugins](docs/design/plugins.md#language-packs))
+Whether a symbol is visible outside its file. `plugins/languages/web/visibility.json` is the one table of rules the Structure tool and the pod read: Go, an uppercase first letter (*Greeter* exported, *maxFrame* private); JavaScript and TypeScript, `export`, and `private`, `protected` or `#field` for the reverse; Python, a leading underscore for private; PHP, its modifiers. A language with no entry has no badge.
+_Avoid_: public member (for *exported*), visible symbol
+
 **Project template** ([plugins](docs/design/plugins.md#language-packs))
 What a new project starts from, given by a language pack: files and a `.ide` filled in, or the commands of a framework that the core runs in a console the user sees.
 _Avoid_: skeleton, boilerplate, scaffold

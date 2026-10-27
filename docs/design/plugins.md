@@ -221,7 +221,7 @@ The plugins, grouped by domain (one plugin, several tools and views), in their o
 | Search | Search tool (text, regex), the text provider of Search Everywhere (#117, done) | provides `search` (the search_text tool of the AI, #137) |
 | Git | Git tool, git content of the diff view (#118, done) | provides `worktrees`, `git` |
 | Previews | Port forwards and previews tool (#119, done) | requires `terminal`, provides `previews` |
-| Languages | language servers, Problems, Structure (its tree, its ⋮ menu, its sort), the Symbols provider (#120, done; its look, #169) | provides `language` |
+| Languages | language servers, Problems, Structure (its tree, its ⋮ menu, its sort, its exported / private lock), the Symbols provider (#120, done; its look, #169; its locks, #170) | provides `language` |
 | Files | Explorer, file provider (locked, #121, done) | provides `files` |
 | Code | file editor, the default view of a text buffer (locked, #121, done) | |
 | Kanban | Kanban tool, board, ticket, milestone and objective views (#122, done; its store and its MCP ticket tools, #135; its assistant tools are the AI's) | provides `tickets`, requires `terminal`, `worktrees` |

@@ -9,8 +9,10 @@ export let api: PluginApi
 export interface LanguagesDesk extends Record<string, unknown> {
   /** The tab of the Problems tool. */
   tab: 'problems' | 'output'
-  /** Order of the Structure tree: the order of the file, or alphabetical at every level. */
-  structureSort: 'file' | 'alpha'
+  /** Order of the Structure tree: the order of the file, alphabetical at every level, or exported first. */
+  structureSort: 'file' | 'alpha' | 'export'
+  /** Structure: the private symbols are shown (unchecked: they and their children are hidden). */
+  showPrivate: boolean
   /** Structure: one click jumps to the symbol instead of only selecting it. */
   singleClick: boolean
   /** Structure: the ids (symbolId) of the folded symbols of each file. */
@@ -19,7 +21,7 @@ export interface LanguagesDesk extends Record<string, unknown> {
 
 export let desk: ReturnType<typeof deskOf>
 const deskOf = (a: PluginApi) =>
-  a.desk<LanguagesDesk>({ tab: 'problems', structureSort: 'file', singleClick: false, folded: {} })
+  a.desk<LanguagesDesk>({ tab: 'problems', structureSort: 'file', showPrivate: true, singleClick: false, folded: {} })
 
 export function bindApi(a: PluginApi) {
   api = a
