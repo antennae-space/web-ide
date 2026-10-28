@@ -190,7 +190,7 @@ async function say(page, text) {
     await page.waitForTimeout(1500)
 
     // Board: worktree setup, a few tickets around the one of the scenario.
-    await page.click('.rail-left .rail-btn[title="Kanban"]')
+    await page.click('.rail-left .rail-btn[title^="Kanban"]')
     await page.click('[data-testid=kanban-open-board]')
     await page.click('[data-testid=kanban-settings]')
     await page.fill('[data-testid=kanban-setup]', `mkdir -p pod/webdist/dist && touch pod/webdist/dist/index.html && ln -s ${ROOT}/web/node_modules web/ && ln -s ${ROOT}/e2e/node_modules e2e/`)
@@ -216,7 +216,7 @@ async function say(page, text) {
         await page.waitForSelector('[data-testid=ticket-status]:has-text("To do")')
       }
     }
-    await page.click('.rail-right .rail-btn[title="Assistant"]')
+    await page.click('.rail-right .rail-btn[title^="Assistant"]')
     await widenRight(page)
     await page.waitForSelector(`[data-testid=model-pill]:has-text("${llm.rec.model}")`)
 
@@ -303,8 +303,8 @@ async function say(page, text) {
 
     // 5. The editor: completion by the language server, a terminal below; explorer instead of
     // the kanban, no assistant.
-    await page.click('.rail-right .rail-btn[title="Assistant"]')
-    await page.click('.rail-left .rail-btn[title="Explorer"]')
+    await page.click('.rail-right .rail-btn[title^="Assistant"]')
+    await page.click('.rail-left .rail-btn[title^="Explorer"]')
     await openAt(page, 'pod/main.go', 'flag.Parse()')
     await page.keyboard.press('Control+Shift+N')
     await page.waitForSelector('[data-testid=cmd-launcher]')
@@ -326,17 +326,17 @@ async function say(page, text) {
     await shot(page, 'editor')
     await page.keyboard.press('Escape')
     for (let i = 0; i < 4; i++) await page.keyboard.press('Control+z')
-    await page.click('.rail-left .rail-btn[title="Kanban"]')
+    await page.click('.rail-left .rail-btn[title^="Kanban"]')
 
     // 6. The board with the done ticket, without the side panels; the Git history with the
     // merged branch and the diff of the merge.
-    await page.click('.rail-btn[title="Console"]')
-    await page.click('.rail-left .rail-btn[title="Kanban"]')
+    await page.click('.rail-btn[title^="Console"]')
+    await page.click('.rail-left .rail-btn[title^="Kanban"]')
     await page.locator('.pane .tab:has-text("Kanban")').first().click()
     await page.click('button:has-text("Done and abandoned")')
     await page.waitForTimeout(800)
     await shot(page, 'kanban')
-    await page.click('.rail-left .rail-btn[title="Git"]')
+    await page.click('.rail-left .rail-btn[title^="Git"]')
     await page.click('[data-testid=git-tab-history]')
     await page.click('.git-log-row:has-text("Merge #")')
     await page.waitForSelector('[data-testid=git-detail] .git-message')
@@ -344,7 +344,7 @@ async function say(page, text) {
     await page.waitForSelector('.diff-view .diff-line.add', { timeout: 10_000 })
     await page.waitForTimeout(800)
     await shot(page, 'git')
-    await page.click('.menubar button[title="Projects"]')
+    await page.click('.menubar button[title^="Projects"]')
     await page.waitForSelector('.project-card')
     await page.waitForTimeout(800)
     await shot(page, 'home', { x: 0, y: 0, width: VIEW.width, height: 440 })

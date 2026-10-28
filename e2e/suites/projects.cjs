@@ -33,7 +33,7 @@ run(async ({ page, ctx }) => {
   assert(fs.existsSync(WS + '/demo/.ide/icon.svg') && JSON.parse(fs.readFileSync(WS + '/demo/.ide/icon.json', 'utf8')).text === 'DE', 'icon saved in .ide')
 
   // Home page: the card shows it; the editor changes it.
-  await page.click('.menubar button[title="Projects"]')
+  await page.click('.menubar button[title^="Projects"]')
   await page.waitForSelector('.project-card [data-testid=project-icon]')
   assert((await favicon(page)).includes('<path'), 'home page: favicon of the application')
   await page.click('.project-card:has-text("demo") [data-testid=project-icon-edit]')
@@ -111,7 +111,7 @@ run(async ({ page, ctx }) => {
 
   // The explorer shows the worktree; its files open with a chip, and stay open in the main folder.
   fs.writeFileSync(wt + '/feature.txt', 'feature\n')
-  if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title="Explorer"]')
+  if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
   await page.waitForSelector(`.explorer .tree-row[data-path="${wt}/feature.txt"]`, { timeout: 5000 })
   await page.dblclick(`.explorer .tree-row[data-path="${wt}/feature.txt"]`)
   await page.waitForSelector('.tab:has-text("feature.txt") [data-testid=worktree-chip]:has-text("feature")')

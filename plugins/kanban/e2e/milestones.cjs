@@ -7,7 +7,7 @@ const { run, openProject, assert, mcp, OUT } = require('../../../e2e/common.cjs'
 run(async ({ page }) => {
   page.on('dialog', (d) => d.accept())
   await openProject(page)
-  await page.click('.rail-left .rail-btn[title="Kanban"]')
+  await page.click('.rail-left .rail-btn[title^="Kanban"]')
   await page.waitForSelector('[data-testid=kanban-panel]')
   await page.click('[data-testid=kanban-open-board]')
   await page.waitForSelector('[data-testid=kanban-board]')
@@ -37,7 +37,7 @@ run(async ({ page }) => {
   await page.waitForSelector('[data-testid=ticket-milestone-reminder]:has-text("As a user, I export my orders as CSV")')
   assert((await page.textContent('[data-testid=ticket-milestone-reminder]')).includes('Exports'), 'How to test recalls the milestone and its user stories')
   // The progress bar of the milestone counts its tickets To test, in their color, after the finished ones.
-  if (!(await page.isVisible('[data-testid=kanban-panel]'))) await page.click('.rail-left .rail-btn[title="Kanban"]')
+  if (!(await page.isVisible('[data-testid=kanban-panel]'))) await page.click('.rail-left .rail-btn[title^="Kanban"]')
   await page.click('[data-testid=kanban-open-milestones]')
   await page.waitForSelector('[data-testid=milestone-card-1] [data-testid=progress-bar] .ms-bar-totest')
   const bar = await page.$eval('[data-testid=milestone-card-1] [data-testid=progress-bar]', (e) => ({ title: e.title, width: e.querySelector('.ms-bar-totest').style.width }))
@@ -108,7 +108,7 @@ run(async ({ page }) => {
   await page.click('[data-testid=kanban-view-roadmap]')
   await page.waitForSelector('[data-testid=roadmap-band]:has-text("Imports")')
   assert((await page.$$eval('[data-testid=roadmap-band]', (l) => l.map((e) => e.textContent.trim()))).join() === 'Imports,No milestone', 'the roadmap groups the lineages of a milestone in a band')
-  if (!(await page.isVisible('[data-testid=kanban-panel]'))) await page.click('.rail-left .rail-btn[title="Kanban"]')
+  if (!(await page.isVisible('[data-testid=kanban-panel]'))) await page.click('.rail-left .rail-btn[title^="Kanban"]')
   await page.click('[data-testid=kanban-open-milestones]')
   await page.waitForSelector('[data-testid=kanban-view-milestones][aria-pressed=true]')
   await page.waitForSelector('[data-testid=milestone-card-2]')

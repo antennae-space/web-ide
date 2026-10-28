@@ -9,7 +9,7 @@ run(
     assert((await page.textContent('.home-bar h2')) === 'Projets', 'French browser: French home page')
     await openProject(page)
     assert((await page.textContent('.menubar .menus')).includes('Fichier'), 'French menus')
-    assert(await page.isVisible('.rail-left .rail-btn[title="Explorateur"]'), 'French panel names')
+    assert(await page.isVisible('.rail-left .rail-btn[title^="Explorateur"]'), 'French panel names')
     // The texts of a plugin come from its own catalog (plugins/files/i18n).
     await page.waitForSelector('[data-testid=explorer-collapse]')
     assert((await page.getAttribute('[data-testid=explorer-collapse]', 'title')) === 'Tout replier', 'French texts of a plugin, from its catalog')
@@ -20,7 +20,7 @@ run(
     await page.selectOption('[data-testid=settings-language]', 'en')
     await page.waitForFunction(() => document.querySelector('.menubar .menus')?.textContent.includes('File'))
     assert(await page.isVisible('.settings-nav button:has-text("Language")'), 'settings switched to English at once')
-    assert(await page.isVisible('.rail-left .rail-btn[title="Explorer"]'), 'panels switched to English')
+    assert(await page.isVisible('.rail-left .rail-btn[title^="Explorer"]'), 'panels switched to English')
     assert((await page.getAttribute('html', 'lang')) === 'en', 'lang attribute of the page')
     await page.screenshot({ path: OUT + '/i18n-english.png' })
 
@@ -37,7 +37,7 @@ run(
     await page.selectOption('[data-testid=settings-language]', 'es')
     await page.waitForFunction(() => document.querySelector('.menubar .menus')?.textContent.includes('Archivo'))
     assert(await page.isVisible('.settings-nav button:has-text("Idioma")'), 'settings switched to Spanish at once')
-    assert(await page.isVisible('.rail-left .rail-btn[title="Explorador"]'), 'panels switched to Spanish')
+    assert(await page.isVisible('.rail-left .rail-btn[title^="Explorador"]'), 'panels switched to Spanish')
     assert((await page.getAttribute('html', 'lang')) === 'es', 'lang attribute is es')
     assert((await page.textContent('[data-testid=settings-language]')).includes('Español'), 'Español in the list')
   },

@@ -4,6 +4,10 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ## [Unreleased]
 
+### Added
+
+- A **middle click on a rail icon** opens its tool in a window of its own (the same as *Open in a window* in the ⋮ menu of its zone), whether the tool was shown in a zone or not, and leaves the layout of the window untouched. A middle click on the **⌂** button opens the projects page in a new tab of the browser. The tooltips of the icons carry the gesture.
+
 ### Changed
 
 - e2e: the CI runs the suites in 6 shards side by side, from one build, with Chromium, gopls and the speech model cached; `run.sh --shard I/N` runs one share, and stops a suite after 300 s (`E2E_SUITE_TIMEOUT`), so a stuck suite fails instead of holding the job for hours. The multipod suite no longer waits forever on a request cut after its headers.

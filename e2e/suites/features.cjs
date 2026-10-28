@@ -1,6 +1,6 @@
 // Navigation, splits, global search, terminal, palette, settings (the Database explorer: the suite database).
 const { run, openProject, open, assert, OUT } = require('../common.cjs')
-run(async ({ page }) => {
+run(async ({ ctx, page }) => {
   await openProject(page)
   await page.waitForTimeout(400)
 
@@ -153,13 +153,13 @@ run(async ({ page }) => {
 
   // Bottom tools: Console at the bottom of the left rail, Problems at the bottom of the right one
   const box = (sel) => page.$eval(sel, (e) => e.getBoundingClientRect().toJSON())
-  assert(await page.isVisible('.rail-left [data-zone=bottomLeft] .rail-btn.active[title="Console"]'), 'Console in the bottom group of the left rail')
-  assert(await page.isVisible('.rail-right [data-zone=bottomRight] .rail-btn[title="Problems"]'), 'Problems in the bottom group of the right rail')
+  assert(await page.isVisible('.rail-left [data-zone=bottomLeft] .rail-btn.active[title^="Console"]'), 'Console in the bottom group of the left rail')
+  assert(await page.isVisible('.rail-right [data-zone=bottomRight] .rail-btn[title^="Problems"]'), 'Problems in the bottom group of the right rail')
   const [railL, strip, sideL, bar] = [await box('.rail-left'), await box('.bottom'), await box('.zone-left'), await box('[data-testid=status-bar]')]
   assert(Math.abs(bar.bottom - (await page.evaluate(() => innerHeight))) < 2 && Math.abs(railL.bottom - bar.top) < 2, 'the rails stop above the status bar, last row of the window')
   assert(strip.left >= railL.right - 1 && sideL.bottom <= strip.top + 1, 'the strip spans under the side panels')
   assert((await box('[data-tool=console]')).width > strip.width - 2, 'Console alone takes the whole strip')
-  await page.click('.rail-right .rail-btn[title="Problems"]')
+  await page.click('.rail-right .rail-btn[title^="Problems"]')
   await page.waitForSelector('[data-tool=problems] .tab:has-text("Output")')
   const before = await box('[data-tool=console]')
   assert(Math.abs(before.width - strip.width / 2) < 10, 'Console and Problems share the strip: ' + before.width)
@@ -172,7 +172,7 @@ run(async ({ page }) => {
   assert(Math.abs(after.width - before.width - 120) < 6, 'the border between the two tools moves: ' + (after.width - before.width))
   assert((await box('[data-tool=problems]')).top === after.top, 'one height for the strip')
   await page.screenshot({ path: OUT + '/s5-bottom.png' })
-  await page.click('.rail-right .rail-btn[title="Problems"]')
+  await page.click('.rail-right .rail-btn[title^="Problems"]')
   assert(!(await page.isVisible('[data-tool=problems]')), 'Problems closed from its rail icon')
 
   // The corner of a zone: a ⋮ opening its menu (its Close hides the tool); no ✕ of its own (#176).
@@ -184,7 +184,7 @@ run(async ({ page }) => {
   await page.click('.ctx-menu >> text=Close')
   await page.waitForFunction(() => !document.querySelector('.zone-bottomLeft[data-tool=console]'))
   assert(!(await page.$('.zone-bottomLeft [data-testid=zone-close]')), 'the Close item of the ⋮ hides the tool')
-  await page.click('.rail-left .rail-btn[title="Console"]')
+  await page.click('.rail-left .rail-btn[title^="Console"]')
   await page.waitForSelector('.zone-bottomLeft[data-tool=console]')
   await page.click('[data-tool=console] [data-testid=zone-menu]', { button: 'right' })
   await page.waitForSelector('.ctx-menu')
@@ -193,16 +193,16 @@ run(async ({ page }) => {
   await page.waitForSelector('.ctx-menu', { state: 'detached' })
 
   // Icons dragged between the zones; the placement is kept by the session
-  const group = (zone) => page.$$eval(`[data-zone=${zone}] .rail-btn`, (els) => els.map((e) => e.title))
-  await page.click('.rail-right .rail-btn[title="Problems"]')
-  await page.dragAndDrop('.rail-right .rail-btn[title="Problems"]', '[data-zone=left] .rail-btn[title="Search"]', { targetPosition: { x: 16, y: 3 } })
+  const group = (zone) => page.$$eval(`[data-zone=${zone}] .rail-btn`, (els) => els.map((e) => e.title.split(' · ')[0]))
+  await page.click('.rail-right .rail-btn[title^="Problems"]')
+  await page.dragAndDrop('.rail-right .rail-btn[title^="Problems"]', '[data-zone=left] .rail-btn[title^="Search"]', { targetPosition: { x: 16, y: 3 } })
   assert(JSON.stringify(await group('left')) === JSON.stringify(['Explorer', 'Problems', 'Search', 'Git', 'Kanban']), 'Problems dropped before Search: ' + JSON.stringify(await group('left')))
   assert(await page.isVisible('.zone-left[data-tool=problems]'), 'a shown tool stays shown in its new zone')
   // Port forwards and previews leaves the bottom right zone too, which is then empty.
-  await page.dragAndDrop('.rail-right .rail-btn[title="Port forwards and previews"]', '[data-zone=right] .rail-btn[title="Infos"]', { targetPosition: { x: 16, y: 20 } })
+  await page.dragAndDrop('.rail-right .rail-btn[title^="Port forwards and previews"]', '[data-zone=right] .rail-btn[title^="Infos"]', { targetPosition: { x: 16, y: 20 } })
   assert((await group('bottomRight')).length === 0, 'bottom right zone emptied')
   // An empty group only gets a height once the drag has started.
-  await page.hover('[data-zone=bottomLeft] .rail-btn[title="Console"]')
+  await page.hover('[data-zone=bottomLeft] .rail-btn[title^="Console"]')
   await page.mouse.down()
   await page.mouse.move(20, 300, { steps: 3 })
   await page.hover('[data-zone=bottomRight]')
@@ -225,11 +225,11 @@ run(async ({ page }) => {
   // Focus: the focused part shows its active tab and rail icon in the accent color, the others in white
   const color = (sel, pseudo) => page.$eval(sel, (e, p) => getComputedStyle(e, p)[p ? 'backgroundColor' : 'color'], pseudo)
   const cssVar = (name) => page.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name)
-  await page.click('.rail-left .rail-btn[title="Console"]')
-  await page.click('.rail-right .rail-btn[title="Problems"]')
+  await page.click('.rail-left .rail-btn[title^="Console"]')
+  await page.click('.rail-right .rail-btn[title^="Problems"]')
   await page.click('.zone-bottomLeft .xterm')
   assert(await page.isVisible('.zone-bottomLeft.focused') && !(await page.isVisible('.pane.focused')), 'the clicked console has the focus')
-  assert(await page.isVisible('.rail-btn.focused[title="Console"]') && !(await page.isVisible('.rail-btn.focused[title="Problems"]')), 'only the focused tool icon is marked')
+  assert(await page.isVisible('.rail-btn.focused[title^="Console"]') && !(await page.isVisible('.rail-btn.focused[title^="Problems"]')), 'only the focused tool icon is marked')
   const [accentRgb, fgRgb] = await page.evaluate(() => ['--accent', '--fg'].map((v) => {
     const d = document.createElement('div')
     d.style.color = `var(${v})`
@@ -238,7 +238,7 @@ run(async ({ page }) => {
     d.remove()
     return c
   }))
-  assert((await color('.rail-btn[title="Console"]')) === accentRgb && (await color('.rail-btn[title="Problems"]')) === fgRgb, 'focused icon in accent, open one in white')
+  assert((await color('.rail-btn[title^="Console"]')) === accentRgb && (await color('.rail-btn[title^="Problems"]')) === fgRgb, 'focused icon in accent, open one in white')
   assert((await color('.zone-bottomRight .tab.active', '::after')) === fgRgb, 'active tab of an unfocused tool in white')
   await page.click('.pane .ed-content')
   assert(await page.isVisible('.pane.focused') && !(await page.isVisible('.zone.focused')), 'the clicked editor has the focus')
@@ -266,23 +266,23 @@ run(async ({ page }) => {
   const accent = await cssVar('--accent')
   assert((await varIn('.zone-bottomLeft', '--accent')) !== accent && (await varIn('.menubar', '--danger')) === (await cssVar('--danger')), 'colors toned down out of focus, not in the menu bar')
   assert((await page.$eval('.zone-bottomLeft', (e) => getComputedStyle(e).backgroundColor)) === 'rgb(7, 54, 66)', 'the background of the theme is kept')
-  assert((await varIn('.pane.focused', '--accent')) === accent && (await varIn('.rail-btn[title="Console"]', '--accent')) !== accent, 'focused part in color')
+  assert((await varIn('.pane.focused', '--accent')) === accent && (await varIn('.rail-btn[title^="Console"]', '--accent')) !== accent, 'focused part in color')
   await page.screenshot({ path: OUT + '/s5-visual-focus.png' })
   // File icons of the explorer: grayed out of focus, in color once focused.
-  await page.click('.rail-left .rail-btn[title="Explorer"]')
+  await page.click('.rail-left .rail-btn[title^="Explorer"]')
   await page.waitForSelector('.explorer .file-icon')
   await page.click('.pane .ed-content')
   const iconFilter = () => page.$eval('.explorer .file-icon', (e) => getComputedStyle(e).filter)
   assert((await iconFilter()) === 'grayscale(1)', 'file icons of the explorer grayed out of focus')
   await page.click('.explorer .tree-row')
   assert((await iconFilter()) === 'none', 'file icons in color once the explorer has the focus')
-  await page.click('.rail-left .rail-btn[title="Explorer"]')
+  await page.click('.rail-left .rail-btn[title^="Explorer"]')
   await page.click('.pane .ed-content')
   await page.click('.zone-bottomLeft .xterm')
-  assert((await varIn('.rail-btn[title="Console"]', '--accent')) === accent && (await varIn('.zone-bottomLeft', '--accent')) === accent, 'the console and its icon in color once focused')
+  assert((await varIn('.rail-btn[title^="Console"]', '--accent')) === accent && (await varIn('.zone-bottomLeft', '--accent')) === accent, 'the console and its icon in color once focused')
   await page.screenshot({ path: OUT + '/s5-visual-focus-console.png' })
-  await page.click('.rail-left .rail-btn[title="Console"]')
-  await page.click('.rail-right .rail-btn[title="Problems"]')
+  await page.click('.rail-left .rail-btn[title^="Console"]')
+  await page.click('.rail-right .rail-btn[title^="Problems"]')
   await page.click('.menubar .menu-btn:has-text("View")')
   await page.click('.ctx-item:has-text("Visual focus mode")')
   await page.waitForFunction(() => !document.querySelector('.app.visual-focus'), null, { timeout: 2000 }).catch(() => {})
@@ -293,7 +293,7 @@ run(async ({ page }) => {
   // Outline around the focused part, switched from the View menu
   const outline = (sel) => page.$eval(sel, (e) => { const st = getComputedStyle(e, '::after'); return st.content !== 'none' && st.borderTopWidth === '1px' ? st.borderTopColor : null })
   assert((await outline('.pane.focused')) === null, 'no outline by default')
-  await page.click('.rail-left .rail-btn[title="Console"]')
+  await page.click('.rail-left .rail-btn[title^="Console"]')
   await page.click('.menubar .menu-btn:has-text("View")')
   await page.click('.ctx-item:has-text("Focus outline")')
   await page.waitForSelector('.app.focus-outline')
@@ -325,7 +325,7 @@ run(async ({ page }) => {
   await page.click('.ctx-item:has-text("Focus outline")')
   await page.waitForFunction(() => !document.querySelector('.app.focus-outline'), null, { timeout: 2000 }).catch(() => {})
   assert(!(await page.isVisible('.app.focus-outline')), 'outline switched off')
-  await page.click('.rail-left .rail-btn[title="Console"]')
+  await page.click('.rail-left .rail-btn[title^="Console"]')
   await page.click('.menubar .icon-btn[title^="Settings"]')
   await page.click('.accent-card[data-accent=""]')
   await page.click('.theme-card:has-text("Night")')
@@ -356,9 +356,9 @@ run(async ({ page }) => {
   await page.keyboard.press('Escape')
 
   // Infos: properties, connections and extensions stacked in one tool
-  assert(!(await page.isVisible('.rail-left .rail-btn[title="Connections"]')), 'no Connections panel on the left')
-  assert(!(await page.isVisible('.rail-right .rail-btn[title="Extensions"]')), 'no Extensions tool')
-  await page.click('.rail-right .rail-btn[title="Infos"]')
+  assert(!(await page.isVisible('.rail-left .rail-btn[title^="Connections"]')), 'no Connections panel on the left')
+  assert(!(await page.isVisible('.rail-right .rail-btn[title^="Extensions"]')), 'no Extensions tool')
+  await page.click('.rail-right .rail-btn[title^="Infos"]')
   await page.waitForSelector('[data-testid=info-extensions]')
   const sections = await page.$$eval('.info-section > h2', (els) => els.map((e) => e.textContent))
   assert(JSON.stringify(sections) === JSON.stringify(['Properties', 'Connections', 'Extensions · language servers']), 'Infos sections in order ' + JSON.stringify(sections))
@@ -366,6 +366,50 @@ run(async ({ page }) => {
   assert(props.includes('Name') && props.includes('Root') && props.includes('Pod') && !props.includes('Target'), 'a single Project card: ' + props)
   assert(await page.isVisible('[data-testid=info-connections] h3:has-text("Local SSH keys")'), 'Infos lists the local SSH keys')
   await page.screenshot({ path: OUT + '/s8-infos.png' })
+
+  // Middle click on a rail icon: the tool opens in a window of its own, the window keeps its layout
+  const railState = () =>
+    page.evaluate(() =>
+      JSON.stringify({
+        zones: [...document.querySelectorAll('.zone')].map((z) => z.dataset.tool),
+        active: [...document.querySelectorAll('.rail-btn.active')].map((b) => b.dataset.id),
+        focused: [...document.querySelectorAll('.rail-btn.focused')].map((b) => b.dataset.id),
+      }),
+    )
+  const stateBefore = await railState()
+  const [explorerWin] = await Promise.all([ctx.waitForEvent('page'), page.click('.rail-left .rail-btn[data-id=explorer]', { button: 'middle' })])
+  await explorerWin.waitForSelector('.detached .tool-full .panel')
+  assert(new URL(explorerWin.url()).pathname.endsWith('/tool/explorer'), 'middle click on a rail icon opens the tool in its own window: ' + explorerWin.url())
+  assert((await explorerWin.$$('.detached .tool-full .panel')).length === 1, 'the detached window shows the tool alone')
+  assert((await page.getAttribute('.rail-btn[data-id=explorer]', 'title')) === 'Explorer · Middle click opens it in a window', 'the tooltip of a rail icon carries the gesture')
+  assert((await page.getAttribute('.menubar button[title^="Projects"]', 'title')) === 'Projects · Middle click opens the projects in a new tab', 'the tooltip of ⌂ carries the gesture')
+  assert((await railState()) === stateBefore, 'the window keeps its layout: ' + stateBefore)
+  // A tool not shown in its zone opens too
+  assert(!(await page.isVisible('.zone-left[data-tool=git]')), 'Git is shown in no zone')
+  const [gitWin] = await Promise.all([ctx.waitForEvent('page'), page.click('.rail-left .rail-btn[data-id=git]', { button: 'middle' })])
+  await gitWin.waitForSelector('.detached .tool-full .panel')
+  assert(new URL(gitWin.url()).pathname.endsWith('/tool/git'), 'a tool closed in its zone opens detached too: ' + gitWin.url())
+  await gitWin.close()
+  // The same window is reused: a second middle click refocuses it
+  const windows = ctx.pages().length
+  await page.click('.rail-left .rail-btn[data-id=explorer]', { button: 'middle' })
+  await page.waitForTimeout(400)
+  assert(ctx.pages().length === windows, 'a second middle click on the same icon adds no window')
+  await explorerWin.close()
+  // ⌂: the projects page in a new tab of the browser
+  const [homeWin] = await Promise.all([ctx.waitForEvent('page'), page.click('.menubar button[title^="Projects"]', { button: 'middle' })])
+  await homeWin.waitForSelector('.home .home-bar')
+  assert(new URL(homeWin.url()).pathname === '/', 'middle click on ⌂ opens the projects page in a new tab: ' + homeWin.url())
+  assert(new URL(page.url()).pathname.includes('/project/'), 'the project window stays on the project')
+  await homeWin.close()
+  // Middle click on a tab still closes it (the convention out of scope of the rails)
+  await open(page, 'notes.txt')
+  const tabSel = '.pane.active .tab:has-text("notes.txt")'
+  await page.click(tabSel, { button: 'middle' })
+  await page.waitForFunction((name) => ![...document.querySelectorAll('.pane.active .tab')].some((t) => t.textContent.includes(name)), 'notes.txt')
+  assert(!(await page.isVisible(tabSel)), 'middle click on a tab closes it')
+  await page.screenshot({ path: OUT + '/s9-middle-click.png' })
+
   // The scrollback of the terminal is saved a moment later: restore+ reads it after a reload.
   await page.waitForTimeout(3000)
 

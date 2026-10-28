@@ -42,7 +42,7 @@ const until = async (fn, ms = 10000) => {
 run(async ({ page }) => {
   page.on('dialog', (d) => (d.type() === 'prompt' ? d.accept('') : d.accept()))
   await openProject(page)
-  await page.click('.rail-left .rail-btn[title="Git"]')
+  await page.click('.rail-left .rail-btn[title^="Git"]')
   await page.waitForSelector('.git-panel .git-branch')
   assert((await page.textContent('.git-branch')).includes('main'), 'current branch shown')
   assert(await page.isVisible('[data-testid=git-tab-commit]') && (await page.isVisible('[data-testid=git-tab-history]')), 'Commit and History tabs')
@@ -227,7 +227,7 @@ run(async ({ page }) => {
   // A new project is a git repository, with the optional remote as origin.
   const fresh = WS + '/fresh'
   fs.mkdirSync(fresh)
-  await page.click('.menubar button[title="Projects"]')
+  await page.click('.menubar button[title^="Projects"]')
   await page.click('.home-bar button:has-text("New project")')
   await page.fill('.modal .field:has-text("Folder") input', fresh)
   await page.fill('[data-testid=project-remote]', 'git@example.com:me/fresh.git')

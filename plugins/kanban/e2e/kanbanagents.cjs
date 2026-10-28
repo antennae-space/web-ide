@@ -20,7 +20,7 @@ run(async ({ page }) => {
   await openProject(page)
 
   // Kanban settings: Claude Code develops the tickets.
-  await page.click('.rail-left .rail-btn[title="Kanban"]')
+  await page.click('.rail-left .rail-btn[title^="Kanban"]')
   await page.click('[data-testid=kanban-open-board]')
   await page.click('[data-testid=kanban-settings]')
   await page.waitForSelector('[data-testid=kanban-dev-agent] option[value=claude]', { state: 'attached' })

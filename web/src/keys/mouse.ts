@@ -1,6 +1,7 @@
 // Side buttons of the mouse (back, forward): they move in the history of the focused part of
 // the project window instead of the history of the browser, which would leave the project.
-// Elsewhere (home page, detached panels) they do nothing.
+// Elsewhere (home page, detached panels) they do nothing. Button 1 (middle click) is left to the
+// handlers of the page: the rail icons open their tool in a window, a tab closes.
 
 let handler: ((dir: -1 | 1) => void) | null = null
 

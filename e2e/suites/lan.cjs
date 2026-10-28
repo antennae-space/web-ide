@@ -200,7 +200,7 @@ run(async ({ page }) => {
 
     // 7. One home page: the home button of a project of bravo goes back to alpha's, and the home
     // page of bravo, through the gateway, is alpha's too.
-    await page.click('.menubar button[title="Projects"]')
+    await page.click('.menubar button[title^="Projects"]')
     await page.waitForSelector('.project-card[data-pod=bravo]', { timeout: 15000 })
     assert(new URL(page.url()).pathname === '/', 'the home button of a project of bravo leads to the home page of alpha: ' + page.url())
     await page.goto(`${url.origin}${prefix}/`)
@@ -243,7 +243,7 @@ run(async ({ page }) => {
     await page.waitForSelector('.menubar', { timeout: 20000 })
     assert(new URL(page.url()).pathname.startsWith(prefix + '/project/'), 'the new project opens on bravo: ' + page.url())
     assert(fs.existsSync(path.join(bravo.ws, 'made-from-alpha', '.git')), 'bravo created the repository of the new project')
-    await page.click('.menubar button[title="Projects"]')
+    await page.click('.menubar button[title^="Projects"]')
     const made = '.project-card[data-pod=bravo]:has-text("made-from-alpha")'
     await page.waitForSelector(made, { timeout: 15000 })
     page.once('dialog', (d) => d.accept())

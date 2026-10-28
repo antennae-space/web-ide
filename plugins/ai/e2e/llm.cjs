@@ -176,7 +176,7 @@ run(async ({ page, ctx }) => {
   try {
     await openProject(page)
     await open(page, 'main.go')
-    await page.click('.rail-right .rail-btn[title="Assistant"]')
+    await page.click('.rail-right .rail-btn[title^="Assistant"]')
     await page.waitForSelector('.ai-panel .ai-empty')
 
     // Server setup.

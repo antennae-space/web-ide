@@ -36,7 +36,7 @@ run(async ({ page }) => {
     assert(colored, `${f.name}: highlighted by its pack (${f.keyword})`)
   }
 
-  if (!(await page.isVisible('[data-tool=problems]'))) await page.click('.rail-right .rail-btn[title="Problems"]')
+  if (!(await page.isVisible('[data-tool=problems]'))) await page.click('.rail-right .rail-btn[title^="Problems"]')
   await page.click('[data-tool=problems] .tab:has-text("Problems")')
   for (const f of files) {
     const server = f.servers.find(has)

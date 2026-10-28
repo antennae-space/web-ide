@@ -45,7 +45,7 @@ run(async ({ page }) => {
   const usages = await page.waitForFunction(() => document.querySelector('[data-testid=status-cursor]')?.textContent.startsWith('13:') || document.querySelector('.pick'), null, { timeout: 8000 }).then(() => true, () => false)
   assert(usages, 'Ctrl+B on the declaration shows the usages')
   await page.keyboard.press('Escape')
-  await page.click('.rail-right .rail-btn[title="Structure"]')
+  await page.click('.rail-right .rail-btn[title^="Structure"]')
   const syms = await page
     .waitForFunction(() => {
       const names = [...document.querySelectorAll('.side-right .tree-row .tree-name')].map((x) => x.textContent)
@@ -283,7 +283,7 @@ run(async ({ page }) => {
   await page.reload()
   await page.waitForSelector('.menubar')
   await page.waitForTimeout(600)
-  if (!(await page.$('.side-right .tree-row'))) await page.click('.rail-right .rail-btn[title="Structure"]')
+  if (!(await page.$('.side-right .tree-row'))) await page.click('.rail-right .rail-btn[title^="Structure"]')
   await page.waitForFunction(() => [...document.querySelectorAll('.side-right .tree-row .tree-name')].some((x) => x.textContent === 'priv.go'), null, { timeout: 10000 })
   const afterReload = await names()
   assert(afterReload.includes('main.go') && afterReload.includes('priv.go'), 'the package view is remembered across a reload: ' + JSON.stringify(afterReload))
@@ -304,7 +304,7 @@ run(async ({ page }) => {
     .waitForFunction(() => CSS.highlights.get('diag-error')?.size, null, { timeout: 10000 })
     .then((h) => h.jsonValue(), () => 0)
   assert(diag > 0, `diagnostic underlined in the editor (${diag})`)
-  if (!(await page.isVisible('[data-tool=problems]'))) await page.click('.rail-right .rail-btn[title="Problems"]')
+  if (!(await page.isVisible('[data-tool=problems]'))) await page.click('.rail-right .rail-btn[title^="Problems"]')
   await page.click('[data-tool=problems] .tab:has-text("Problems")')
   await page.waitForTimeout(300)
   assert((await page.$$('.problem')).length > 0, 'the Problems panel lists the diagnostic')
