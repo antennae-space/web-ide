@@ -572,6 +572,13 @@ run(async ({ page }) => {
   await page.keyboard.press('Control+z')
   assert((await text(page)).split('\n')[0] === 'alpha one X', 'one Ctrl+Z brings the change back')
 
+  // Copy the old text of the hunk.
+  await page.click('.pane.active .ed-mark.mark-mod >> nth=0')
+  await page.waitForSelector(popup)
+  await page.click(popup + ' .hunk-actions button:has-text("Copy the old text")')
+  assert((await page.evaluate(() => navigator.clipboard.readText())) === 'alpha one', 'the old text of the hunk is in the clipboard')
+  await page.keyboard.press('Escape')
+
   // A pure deletion: the mark sits on the line after the gap, the popup shows the removed lines.
   await caretAt2(3)
   await page.keyboard.press('Home')
@@ -600,4 +607,4 @@ run(async ({ page }) => {
   assert(await page.isVisible(popup + ' .hunk-actions button:has-text("Open the full diff")'), 'and offers the full diff')
   await page.screenshot({ path: OUT + '/editor-hunk-truncated.png' })
   await page.keyboard.press('Escape')
-})
+}, { permissions: ['clipboard-read', 'clipboard-write'] })
