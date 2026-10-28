@@ -20,5 +20,12 @@
   "Open files with a single click": "Ouvrir les fichiers au simple clic",
   "Always select the opened file": "Toujours sélectionner le fichier ouvert",
   "Expand all": "Tout déplier",
-  "Collapse all": "Tout replier"
+  "Collapse all": "Tout replier",
+  "Library root": "Racine de bibliothèque",
+  "Row tints": "Teintes de ligne",
+  "Tests": "Tests",
+  "Library roots": "Racines de bibliothèque",
+  "Manifests": "Manifestes",
+  "Marked folders": "Dossiers marqués",
+  "Ignored files": "Fichiers ignorés"
 }

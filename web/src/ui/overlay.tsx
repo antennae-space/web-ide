@@ -336,6 +336,8 @@ export interface MenuItem {
   separator?: boolean
   /** A setting switched by the item: a check box shows its state. */
   checked?: boolean
+  /** The items of a submenu, opened on hover or with ArrowRight (#182). */
+  items?: MenuItem[]
 }
 
 interface MenuState {
@@ -348,7 +350,16 @@ interface MenuState {
   prev: HTMLElement | null
 }
 
+/** A submenu opened from an item of the menu. */
+interface SubState {
+  items: MenuItem[]
+  x: number
+  y: number
+  parent: HTMLButtonElement
+}
+
 const [menu, setMenu] = createSignal<MenuState | null>(null)
+const [sub, setSub] = createSignal<SubState | null>(null)
 
 /** Focused element outside the menus (a menu opened from another one keeps the first one). */
 export function focusBeforeMenus(): HTMLElement | null {
@@ -364,13 +375,37 @@ export function contextMenu(e: MouseEvent, items: MenuItem[], opts: { onSide?: (
 
 function MenuHost() {
   let el!: HTMLDivElement
+  let subEl: HTMLDivElement | undefined
   const close = () => {
     const prev = menu()?.prev
+    setSub(null)
     setMenu(null)
     if (prev && prev !== document.body && prev.isConnected) prev.focus()
   }
   // The keyboard moves between the items: arrows, Home / End, Tab closes.
-  const entries = () => [...el.querySelectorAll<HTMLButtonElement>('.ctx-item:not(:disabled)')]
+  const entries = (inEl?: HTMLElement) => [...(inEl ?? el).querySelectorAll<HTMLButtonElement>('.ctx-item:not(:disabled)')]
+  /** The item a focused button shows (its index in the list, separators included). */
+  const itemOf = (node: Element | null) => {
+    const i = node instanceof HTMLElement ? node.dataset.idx : undefined
+    return i === undefined ? undefined : menu()?.items[Number(i)]
+  }
+  /** A submenu opens at the right edge of its item, clamped to the window. */
+  const openSub = (btn: HTMLButtonElement, items: MenuItem[]) => {
+    const r = btn.getBoundingClientRect()
+    setSub({
+      items,
+      x: Math.max(8, Math.min(r.right - 4, innerWidth - 240)),
+      y: Math.min(r.top - 5, innerHeight - items.length * 28 - 12),
+      parent: btn,
+    })
+    queueMicrotask(() => entries(subEl)[0]?.focus())
+  }
+  /** ArrowLeft / Escape in a submenu: the submenu closes, the menu stays, its item is focused again. */
+  const closeSub = () => {
+    const p = sub()?.parent
+    setSub(null)
+    p?.focus()
+  }
   const onKey = (e: KeyboardEvent) => {
     const list = entries()
     const i = list.indexOf(document.activeElement as HTMLButtonElement)
@@ -379,8 +414,28 @@ function MenuHost() {
     else if (e.key === 'ArrowUp') to = i < 0 ? list.length - 1 : (i - 1 + list.length) % list.length
     else if (e.key === 'Home') to = 0
     else if (e.key === 'End') to = list.length - 1
+    else if (e.key === 'ArrowRight' && itemOf(document.activeElement)?.items) openSub(document.activeElement as HTMLButtonElement, itemOf(document.activeElement)!.items!)
     else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && menu()?.onSide) menu()!.onSide!(e.key === 'ArrowLeft' ? -1 : 1)
     else if (e.key === 'Tab') close()
+    else return
+    e.preventDefault()
+    e.stopPropagation()
+    if (to >= 0) list[to]?.focus()
+  }
+  const onSubKey = (e: KeyboardEvent) => {
+    const list = entries(subEl)
+    const i = list.indexOf(document.activeElement as HTMLButtonElement)
+    let to = -1
+    if (e.key === 'ArrowDown') to = (i + 1) % list.length
+    else if (e.key === 'ArrowUp') to = i < 0 ? list.length - 1 : (i - 1 + list.length) % list.length
+    else if (e.key === 'Home') to = 0
+    else if (e.key === 'End') to = list.length - 1
+    else if (e.key === 'ArrowLeft' || e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      closeSub()
+      return
+    } else if (e.key === 'Tab') close()
     else return
     e.preventDefault()
     e.stopPropagation()
@@ -390,13 +445,15 @@ function MenuHost() {
   createEffect(() => menu() && queueMicrotask(() => entries()[0]?.focus()))
   onMount(() => {
     const down = (e: MouseEvent) => {
-      if (menu() && !el?.contains(e.target as Node)) close()
+      const at = e.target as Node
+      if (menu() && !el?.contains(at) && !subEl?.contains(at)) close()
     }
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && menu()) {
         e.preventDefault()
         e.stopPropagation()
-        close()
+        if (sub()) closeSub()
+        else close()
       }
     }
     window.addEventListener('mousedown', down, true)
@@ -408,6 +465,45 @@ function MenuHost() {
       window.removeEventListener('blur', close)
     })
   })
+  const item = (it: MenuItem, idx: number, inSub: boolean) =>
+    it.separator ? (
+      <div class="ctx-sep" />
+    ) : (
+      <button
+        class="ctx-item"
+        data-idx={idx}
+        role={it.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+        aria-checked={it.checked}
+        aria-haspopup={it.items ? 'true' : undefined}
+        classList={{ danger: it.danger }}
+        disabled={it.disabled}
+        title={it.title}
+        onMouseEnter={(ev) => {
+          if (inSub) return
+          if (it.items) openSub(ev.currentTarget as HTMLButtonElement, it.items)
+          else if (sub()) setSub(null)
+        }}
+        onClick={(ev) => {
+          if (it.items && !inSub) {
+            openSub(ev.currentTarget as HTMLButtonElement, it.items)
+            return
+          }
+          close()
+          it.action?.()
+        }}
+      >
+        <span class="ctx-label">
+          <span class="ctx-check" classList={{ on: it.checked, box: it.checked !== undefined }} />
+          {it.label}
+        </span>
+        <Show when={it.items}>
+          <span class="ctx-sub">›</span>
+        </Show>
+        <Show when={it.hint}>
+          <kbd>{it.hint}</kbd>
+        </Show>
+      </button>
+    )
   return (
     <Show when={menu()}>
       {(m) => (
@@ -419,35 +515,21 @@ function MenuHost() {
             classList={{ 'has-checks': m().items.some((it) => it.checked !== undefined) }}
             role="menu"
             style={{ left: `${Math.min(m().x, innerWidth - 240)}px`, top: `${Math.min(m().y, innerHeight - m().items.length * 28 - 12)}px` }}>
-            <For each={m().items}>
-              {(it) =>
-                it.separator ? (
-                  <div class="ctx-sep" />
-                ) : (
-                  <button
-                    class="ctx-item"
-                    role={it.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
-                    aria-checked={it.checked}
-                    classList={{ danger: it.danger }}
-                    disabled={it.disabled}
-                    title={it.title}
-                    onClick={() => {
-                      close()
-                      it.action?.()
-                    }}
-                  >
-                    <span class="ctx-label">
-                      <span class="ctx-check" classList={{ on: it.checked, box: it.checked !== undefined }} />
-                      {it.label}
-                    </span>
-                    <Show when={it.hint}>
-                      <kbd>{it.hint}</kbd>
-                    </Show>
-                  </button>
-                )
-              }
-            </For>
+            <For each={m().items}>{(it, i) => item(it, i(), false)}</For>
           </div>
+          <Show when={sub()}>
+            {(s) => (
+              <div
+                ref={(e) => (subEl = e)}
+                onKeyDown={onSubKey}
+                class="ctx-menu sub"
+                classList={{ 'has-checks': s().items.some((it) => it.checked !== undefined) }}
+                role="menu"
+                style={{ left: `${s().x}px`, top: `${s().y}px` }}>
+                <For each={s().items}>{(it, i) => item(it, i(), true)}</For>
+              </div>
+            )}
+          </Show>
         </Portal>
       )}
     </Show>

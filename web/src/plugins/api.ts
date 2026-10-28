@@ -26,7 +26,7 @@ import { dropClasses, dropIndex, moveItem, setDropAt } from '../ui/tabDrop'
 import { EditorView } from '../editor/view'
 import { capability, provide, type Capabilities } from './capabilities'
 import { decorateEntry, explorerItems, fileDecorations, pluginAssistantOptions } from './registry'
-import { folderMark, inExcluded, loadFolderMarks, markFolder } from '../state/folders'
+import { folderMark, inExcluded, loadFolderMarks, markFolder, markOf } from '../state/folders'
 import { desks } from '../state/desks'
 import { setDynamicActions } from '../keys/bindings'
 import { inTunnel } from '../pod/transport'
@@ -148,7 +148,7 @@ export function makeApi(id: string) {
     /** The files opened lately on the desks of the project, the last first. */
     recentFiles: () => desks.recent,
     /** The marks of the folders of the project (source, tests, excluded), kept by the pod. */
-    folders: { mark: folderMark, inExcluded, setMark: markFolder, load: loadFolderMarks },
+    folders: { mark: folderMark, markOf, inExcluded, setMark: markFolder, load: loadFolderMarks },
     /** What the other plugins give the Explorer: menu items, decorations (#179: `decorate` merges them). */
     explorer: { items: explorerItems, decorations: fileDecorations, decorate: decorateEntry },
     /** The files of the project, as the pod reads them (from the disk, not the buffers). */

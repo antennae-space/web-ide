@@ -231,6 +231,8 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .tree-name { overflow: hidden; text-overflow: ellipsis; }
 /* Text after the name ("library root"), and the status letter at the end of the row (#179). */
 .tree-label { color: var(--fg-faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+/* The label of a library root reads as a note about the folder, not as part of its name (#182). */
+.tree-row[data-kind='library'] .tree-label { font-style: italic; }
 .tree-badge { color: var(--fg-muted); font-family: var(--font-code); font-size: 11px; margin-left: auto; flex: none; }
 .tree-badge + .tree-link { margin-left: 4px; }
 /* Disc on a folder whose content holds a file in error (#181): at the right end of the row, next
@@ -595,6 +597,9 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .ctx-check.on { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
 .ctx-check.on::after { content: '✓'; }
 .ctx-sep { height: 1px; background: var(--line); margin: 4px 2px; }
+/* A submenu of a menu item (#182): opened at its right edge, same look as the menu itself. */
+.ctx-menu.sub { min-width: 180px; }
+.ctx-sub { color: var(--fg-faint); flex: none; }
 .toasts { position: fixed; right: 56px; top: 44px; z-index: 130; display: flex; flex-direction: column; gap: 8px; max-width: min(420px, calc(100vw - 32px)); }
 .toast { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg-3); border: 1px solid var(--line); border-left: 3px solid var(--info); border-radius: 6px; box-shadow: 0 6px 20px rgb(0 0 0 / 0.35); font-size: 12.5px; }
 .toast-ok { border-left-color: var(--ok); }

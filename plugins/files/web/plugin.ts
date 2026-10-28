@@ -14,10 +14,17 @@ export interface FilesDesk extends Record<string, unknown> {
   excluded: boolean
   singleClick: boolean
   follow: boolean
+  /** Row tints (#182), one switch per family of the built-in rules of `tints.ts`. */
+  tintTests: boolean
+  tintLibrary: boolean
+  tintManifests: boolean
+  tintMarks: boolean
+  tintIgnored: boolean
 }
 
 export let desk: ReturnType<typeof deskOf>
-const deskOf = (a: PluginApi) => a.desk<FilesDesk>({ expanded: [], hidden: true, excluded: true, singleClick: false, follow: false })
+const deskOf = (a: PluginApi) =>
+  a.desk<FilesDesk>({ expanded: [], hidden: true, excluded: true, singleClick: false, follow: false, tintTests: true, tintLibrary: true, tintManifests: true, tintMarks: true, tintIgnored: true })
 
 export function bindApi(a: PluginApi) {
   api = a

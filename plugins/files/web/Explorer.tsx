@@ -5,8 +5,8 @@ import { createStore } from 'solid-js/store'
 import type { MenuItem } from '@ide/api'
 import type { FileKind, FileTint } from '@ide/types'
 import { api, capability, contextMenu, copyText, desk, errorToast, FileIcon, Icon, prompt, t, toast } from './plugin'
+import { isLibraryName, markLabels, type FolderMark } from './tints'
 
-type FolderMark = 'source' | 'tests' | 'excluded'
 const folderMark = (p: string) => api.folders.mark(p)
 const inExcluded = (p: string) => api.folders.inExcluded(p)
 const root = () => api.project.root()
@@ -25,13 +25,6 @@ const [errors, setErrors] = createStore<Record<string, string | undefined>>({})
 // Paths left out by .gitignore (their content is too).
 const [ignored, setIgnored] = createStore<Record<string, boolean | undefined>>({})
 const [selected, setSelected] = createSignal<string | null>(null)
-
-/** Folders never opened by "Expand all". */
-const heavyDirs = new Set(['.git', 'node_modules'])
-
-const markLabels: Record<FolderMark, string> = { source: 'Source folder', tests: 'Test folder', excluded: 'Excluded folder' }
-/** The category a folder mark gives it and its content (#182 grows this into the built-in lists). */
-const markKinds: Record<FolderMark, FileKind> = { source: 'marked', tests: 'test', excluded: 'ignored' }
 
 /** The files the language servers report in error (undefined while the Languages module loads). */
 const errorPaths = () => capability('language')?.errorPaths() ?? []
@@ -131,7 +124,7 @@ async function openAndFocus(path: string) {
   requestAnimationFrame(focus)
 }
 
-/** Opens every folder, level by level, except the ignored, excluded and heavy ones. */
+/** Opens every folder, level by level, except the ignored, excluded and library ones. */
 async function expandAll() {
   const opened: string[] = []
   let level = [root()]
@@ -140,7 +133,7 @@ async function expandAll() {
     const next: string[] = []
     for (const d of level)
       for (const e of children[d] ?? []) {
-        if (!e.dir || e.link || heavyDirs.has(e.name) || ignored[e.path] || inExcluded(e.path)) continue
+        if (!e.dir || e.link || isLibraryName(e.name) || ignored[e.path] || inExcluded(e.path)) continue
         if (!desk.get().hidden && e.name.startsWith('.')) continue
         next.push(e.path)
       }
@@ -231,10 +224,12 @@ function menuFor(ev: MouseEvent, e: Entry) {
  * from a right click on either.
  */
 export function explorerMenu(): MenuItem[] {
-  const toggle = (k: 'hidden' | 'excluded' | 'singleClick' | 'follow') => () =>
+  const toggle = (k: 'hidden' | 'excluded' | 'singleClick' | 'follow' | 'tintTests' | 'tintLibrary' | 'tintManifests' | 'tintMarks' | 'tintIgnored') => () =>
     desk.set((s) => {
       s[k] = !s[k]
     })
+  /** One switch per family of the built-in rules (#182), in a submenu of the ⋮. */
+  const tints = (k: 'tintTests' | 'tintLibrary' | 'tintManifests' | 'tintMarks' | 'tintIgnored', label: string) => ({ label: t(label), checked: desk.get()[k], action: toggle(k) })
   return [
     { label: t('New file…'), action: () => createIn(root(), false) },
     { label: t('New folder…'), action: () => createIn(root(), true) },
@@ -243,6 +238,10 @@ export function explorerMenu(): MenuItem[] {
     { label: t('Show the excluded folders'), checked: desk.get().excluded, action: toggle('excluded') },
     { label: t('Open files with a single click'), checked: desk.get().singleClick, action: toggle('singleClick') },
     { label: t('Always select the opened file'), checked: desk.get().follow, action: toggle('follow') },
+    {
+      label: t('Row tints'),
+      items: [tints('tintTests', 'Tests'), tints('tintLibrary', 'Library roots'), tints('tintManifests', 'Manifests'), tints('tintMarks', 'Marked folders'), tints('tintIgnored', 'Ignored files')],
+    },
     { separator: true, label: '' },
     { label: t('Refresh all'), action: refreshAll },
   ]
@@ -296,19 +295,20 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
   /** A file in error, or a folder holding one below it (#181). */
   const inError = () => errorMarked().has(e.path)
   /**
-   * Each channel of the row (#179): what the plugins say about the entry (Git: state and badge),
-   * what the entry is itself (a mark, ignored), else what its folder passes down. The state falls
-   * back to ignored or clean, as before the badges.
+   * Each channel of the row (#179, #182): what the plugins say about the entry (Git: state and
+   * badge; Files: its kind, from its name or the marks of its folders), else what its folder passes
+   * down. The state falls back to ignored or clean, as before the badges; the git-ignored tint is
+   * the Explorer's own, since it is the one that reads the ignored set.
    */
   const eff = () => {
     const d = api.explorer.decorate(e.path, e.dir)
-    const kind = d.kind ?? (mark() ? markKinds[mark()!] : undefined)
+    const kind = d.kind ?? props.inherited.kind
     return {
       state: d.state ?? (isIgnored() ? 'ignored' : 'clean'),
       badge: d.badge,
-      kind: kind ?? props.inherited.kind,
-      tint: d.tint ?? kind ?? (isIgnored() ? 'ignored' : undefined) ?? props.inherited.tint,
-      label: d.label ?? (mark() ? t(markLabels[mark()!]) : undefined) ?? props.inherited.label,
+      kind,
+      tint: d.tint ?? props.inherited.tint ?? (isIgnored() && desk.get().tintIgnored ? 'ignored' : undefined),
+      label: d.label ?? props.inherited.label,
     }
   }
   const toggle = () => setExpanded(e.path, !open())

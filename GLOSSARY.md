@@ -247,6 +247,14 @@ _Avoid_: category, type (for a path)
 The family of the background wash on the row of a tree, one per kind (`--tint-test`…). A tint never covers the background of a selected, active or hovered row.
 _Avoid_: background color, highlight
 
+**Row tint** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
+The tint of a whole row of the Explorer, as PhpStorm tints a test file or a library root. Switched per family in the ⋮ of the Explorer (*Row tints*: tests, library roots, manifests, marked folders, ignored files), per desk.
+_Avoid_: row color, stripe
+
+**Library root** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
+A folder taken as a root of dependencies or of build output, by name and at any depth (`node_modules`, `vendor`, `.git`, `dist`, `build`, `target`, `__pycache__`…). Its row is tinted `library` and carries the label *library root*; its content inherits both.
+_Avoid_: dependency folder, excluded folder (a mark, another thing)
+
 **Badge** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
 The letter at the end of the row of a tree: a status letter, with the arrows of the Git columns (Git: `M↓` worktree, `M↑` index, `M↓↑` both, `A`, `D`, `U`, `C`). The glyph of a symbol kind and the language badge of a file icon are not badges.
 _Avoid_: status letter (in code: `badge`)
