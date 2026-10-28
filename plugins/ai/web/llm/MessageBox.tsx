@@ -182,6 +182,7 @@ export function MessageBox(props: {
     registerAction('edit.nextOccurrence', own((v) => v.addNextOccurrence())),
     registerAction('edit.unselectOccurrence', own((v) => v.removeLastOccurrence())),
     registerAction('edit.allOccurrences', own((v) => v.selectAllOccurrences())),
+    registerAction('edit.selectAll', own((v) => v.selectAll())),
     registerAction('nav.subwordLeft', own((v) => v.moveSubword(-1, false))),
     registerAction('nav.subwordRight', own((v) => v.moveSubword(1, false))),
     registerAction('nav.subwordLeftSelect', own((v) => v.moveSubword(-1, true))),

@@ -227,6 +227,7 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
     registerAction('edit.nextOccurrence', when((v) => v.addNextOccurrence(), true)),
     registerAction('edit.unselectOccurrence', when((v) => v.removeLastOccurrence(), true)),
     registerAction('edit.allOccurrences', when((v) => v.selectAllOccurrences(), true)),
+    registerAction('edit.selectAll', when((v) => v.selectAll(), true)),
     registerAction('edit.fold', when((v) => v.fold(), true)),
     registerAction('edit.unfold', when((v) => v.unfold(), true)),
     registerAction('edit.foldAll', when((v) => v.foldAll(), true)),

@@ -93,4 +93,22 @@ run(async ({ page }) => {
   assert(JSON.stringify(back) === '[25,24,21,19,15,7,3,0]', 'sub-words to the left ' + JSON.stringify(back))
   await page.keyboard.press('Alt+Shift+ArrowRight')
   assert((await page.evaluate(() => getSelection().toString())) === 'XML', 'Shift+Alt extends the selection')
+
+  // Ctrl+A selects all the text, whatever the keyboard preset (no action steals it).
+  await page.click('.pane.active .ed-content')
+  await page.keyboard.press('Control+a')
+  await page.waitForTimeout(150)
+  assert((await page.evaluate(() => getSelection().toString())) === (await text(page)), 'Ctrl+A selects the whole file')
+  assert(!(await page.locator('.toast:has-text("documentation")').count()), 'Ctrl+A shows no documentation toast')
+  await page.keyboard.press('Escape')
+
+  // The message box of the assistant, too.
+  await page.keyboard.press('Alt+5')
+  await page.waitForSelector('.ai-composer .ed-content')
+  await page.click('.ai-composer .ed-content')
+  await page.keyboard.type('select me entirely')
+  await page.keyboard.press('Control+a')
+  assert((await page.evaluate(() => getSelection().toString())) === 'select me entirely', 'Ctrl+A selects the draft of the assistant')
+  await page.keyboard.press('Backspace')
+  assert((await page.textContent('.ai-composer .ed-content')).trim() === '', 'the selection is replaced by one keystroke')
 })

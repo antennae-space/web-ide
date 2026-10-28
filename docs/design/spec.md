@@ -165,6 +165,7 @@ On a screen 720 px wide or less (phones; tablets keep the layout above):
 - Layout detection with `navigator.keyboard.getLayoutMap()` when available (Chromium), otherwise a manual setting.
 - User changes are stored as overrides (`action → binding`) on top of the preset, and can be reset per action.
 - Assigning a combination checks for collisions and asks before overwriting.
+- **`Ctrl+A` / `Cmd+A` are not bound to an action**: they select all the text of the field that has the focus, whatever the preset or an override. The editors of the IDE do it through their view (the folded lines, hidden in the DOM, are selected too); the other fields (inputs, prompts) keep the selection of the browser; a terminal keeps its own `Ctrl+A`.
 - Menus and the command palette show remapped shortcuts without a restart.
 - **One shortcut per tool** (*Tools* category): it shows the tool and gives it the keyboard (its terminal, its prompt, the selected row of its tree, else its first field or button); pressed again while the tool has the focus, it hides it and the editor gets the focus back. Defaults, in the order of the rails: `Alt+1` Explorer, `Alt+2` Search, `Alt+3` Git, `Alt+4` Kanban, `Alt+5` assistant, `Alt+6` Database explorer, `Alt+7` Structure, `Alt+8` Problems, `Alt+9` Docker, `Alt+0` Infos, `Alt+F12` Console; Conflicts has none. *Show / hide the left panel, the tools, the consoles* keep their menu entries without a default shortcut.
 - **Project commands** (*Project commands* category, listed while a project is open): one action *Run: <name>* per saved command, without default shortcut, also from a terminal. It is bound by the id of the command (`command.run.<id>`), so renaming the command keeps its shortcut.
@@ -272,6 +273,7 @@ Goal: PhpStorm-like navigation (declaration and usages, implementations, type de
 - **LSP** (Language Server Protocol over JSON-RPC): the pod runs the servers, the editor talks LSP through the WebSocket.
 - Servers: `gopls` (Go), `intelephense` or `phpactor` (PHP), `pyright` (Python), `typescript-language-server` (JavaScript/TypeScript).
 - Requests: `definition`, `references`, `implementation`, `typeDefinition`, `documentSymbol`, `workspace/symbol`, `completion`, `rename`, `formatting`, plus `didChange` for edits. The pod guarantees that a request is sent after the `didChange` notifications received before it.
+- **Quick documentation** at the caret: `Ctrl+H` (*Code › Quick documentation*), shown as a tooltip; a toast says so when the server has nothing there.
 - Built outside LSP: super method, related symbols, tests (naming convention or per-project configuration).
 - **One server per project and language**, with the project root as `rootUri`. The pod detects languages (`composer.json`, `package.json`, `go.mod`…), routes by file extension and stops servers a while after the last window leaves.
 

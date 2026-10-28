@@ -1255,6 +1255,11 @@ export class EditorView {
     this.setSelections(list.length ? list : [sel], Math.max(0, all.indexOf(selFrom(sel))), false)
   }
 
+  /** Ctrl+A: selects the whole text, folded lines included (the extra carets go away). */
+  selectAll() {
+    this.setSelection(0, this.doc.text.length)
+  }
+
   /** Other carets and selections of lines a..b. */
   private renderCarets(a: number, b: number) {
     // With several carets, the editor draws them all: the browser shows none at the end of a selection.

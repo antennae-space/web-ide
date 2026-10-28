@@ -308,9 +308,22 @@ export function installKeyHandler() {
       }
       const combo = comboFromEvent(e)
       if (!combo) return
+      const target = e.target as HTMLElement | null
+      // Ctrl+A / Cmd+A select all the text of the field they are in: no preset nor override steals them.
+      if (combo === 'Ctrl+KeyA' || combo === 'Meta+KeyA') {
+        const field = target?.closest?.('.ed-content, input, textarea, [contenteditable]')
+        if (field) {
+          // An editor of the IDE selects through its view: a native select all would skip the folded
+          // lines (display: none). Without a handler, the browser does it.
+          if (field.classList.contains('ed-content') && runAction('edit.selectAll', e)) {
+            e.preventDefault()
+            e.stopPropagation()
+          }
+          return
+        }
+      }
       const list = comboIndex().get(combo)
       if (!list) return
-      const target = e.target as HTMLElement | null
       const inTerminal = !!target?.closest?.('.xterm')
       for (const id of list) {
         if (inTerminal && !actionOf(id)?.inTerminal) continue
