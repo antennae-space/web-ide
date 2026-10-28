@@ -26,5 +26,15 @@
   "No language server for {language}: no diagnostics, completion nor navigation.": "Sin servidor de lenguaje para {language}: ni diagnósticos, ni completado, ni navegación.",
   "Install {program} on the machine of the project.": "Instala {program} en la máquina del proyecto.",
   "Install {program}": "Instalar {program}",
-  "Not now": "Ahora no"
+  "Not now": "Ahora no",
+  "Changes of the line": "Cambios de la línea",
+  "Lines {from}-{to}": "Líneas {from}-{to}",
+  "Line {n}": "Línea {n}",
+  "HEAD": "HEAD",
+  "Current": "Versión actual",
+  "Revert the hunk": "Deshacer el bloque modificado",
+  "Copy the old text": "Copiar el texto anterior",
+  "Open the full diff": "Abrir el diff completo",
+  "{n} lines hidden": "{n} líneas ocultas",
+  "Nothing here": "Nada aquí"
 }

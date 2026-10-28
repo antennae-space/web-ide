@@ -1,7 +1,12 @@
 // Editor: text against the gutter, indentation guides, whitespace, multiple carets, folding,
-// soft wrap. Go is highlighted and folded by the language pack lang-go (#146), installed first.
+// soft wrap, change markers and their popup. Go is highlighted and folded by the language pack
+// lang-go (#146), installed first.
 const fs = require('fs')
+const { execSync } = require('child_process')
 const { run, openProject, open, assert, text, installOfficial, WS, OUT } = require('../../../e2e/common.cjs')
+
+const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 'e2e', GIT_AUTHOR_EMAIL: 'e2e@x', GIT_COMMITTER_NAME: 'e2e', GIT_COMMITTER_EMAIL: 'e2e@x' }
+const git = (cmd) => execSync(`git ${cmd}`, { cwd: WS + '/demo', env: gitEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 
 run(async ({ page }) => {
   await installOfficial('lang-go')
@@ -17,6 +22,7 @@ run(async ({ page }) => {
     fs.writeFileSync(WS + '/demo/' + d + '/util.go', 'package x\n')
   }
   fs.writeFileSync(WS + '/demo/src/notes.txt', 'other notes\n')
+  fs.writeFileSync(WS + '/demo/hunks.txt', 'alpha one\nbravo two\ncharlie three\ndelta four\necho five\nfoxtrot six\n')
   fs.writeFileSync(WS + '/demo/img/dot.png', Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64'))
   fs.writeFileSync(WS + '/demo/guide.md', '# Guide\n\nSee [the notes](notes.txt#L1) and [the web](https://example.com).\n\n![dot](img/dot.png)\n\n- [x] done\n- [ ] todo\n\n## Second part\n\n```go\nfunc main() {}\n```\n\n[Back up](#second-part)\n' +
     Array.from({ length: 80 }, (_, i) => `\n## Section ${i}\n\nText ${i}.\n`).join(''))
@@ -502,4 +508,96 @@ run(async ({ page }) => {
   assert(['notes.txt', 'src/notes.txt', 'a/x/util.go', 'b/x/util.go'].every((x) => titles.includes(x)) && titles.includes('main.go'), 'same names: the folders that tell them apart ' + titles.join(', '))
   assert(dirs.length === 3 && dirs.includes('src/'), 'the folders in their own style, a unique name alone ' + dirs.join(', '))
   await page.screenshot({ path: OUT + '/editor-same-names.png' })
+
+  // Change markers: a click opens the popup of the hunk. The demo project has a repository with
+  // no commit yet: commit the file so that its HEAD content is its saved content.
+  git('add -A')
+  git('commit -q -m "e2e editor"')
+  // The Git tool refreshes the state of the repository: the markers follow the commit.
+  await page.click('.rail-left .rail-btn[title^="Git"]')
+  await page.waitForSelector('.git-panel')
+  await page.waitForTimeout(1500)
+  await page.click('.rail-left .rail-btn[title^="Git"]')
+  await page.waitForFunction(() => !document.querySelector('.git-panel'))
+  await open(page, 'hunks.txt')
+  const caretAt2 = async (line) => {
+    await page.click('.pane.active .ed-content')
+    await page.keyboard.press('Control+Home')
+    for (let i = 0; i < line - 1; i++) await page.keyboard.press('ArrowDown')
+  }
+  await caretAt2(1)
+  await page.keyboard.press('End')
+  await page.keyboard.type(' X')
+  await caretAt2(5)
+  await page.keyboard.press('End')
+  await page.keyboard.type(' Y')
+  await page.waitForTimeout(600)
+  await page.waitForSelector('.pane.active .ed-mark.mark-mod', { timeout: 5000 })
+  assert((await page.$$('.pane.active .ed-mark.mark-mod')).length === 2, 'a marker for each changed line')
+
+  const popup = '[data-testid="hunk-popup"]'
+  const sides = () => page.$$eval(popup + ' .hunk-col', (cols) => cols.map((c) => [...c.querySelectorAll('.hunk-line')].map((l) => l.querySelector('.hunk-text').textContent)))
+  await page.click('.pane.active .ed-mark.mark-mod >> nth=0')
+  await page.waitForSelector(popup)
+  let s = await sides()
+  assert(s.length === 2 && s[0].includes('alpha one') && s[1].includes('alpha one X'), 'the popup shows both sides of the hunk ' + JSON.stringify(s))
+  assert(s[0].includes('bravo two') && s[1].includes('bravo two'), 'with the context lines around it')
+  assert((await page.$$(popup + ' .hunk-word')).length >= 1, 'the changed words are highlighted, not the whole line')
+  assert((await page.textContent(popup + ' .hunk-index')).trim() === '1/2', 'the popup says which hunk it shows ' + (await page.textContent(popup + ' .hunk-index')))
+  await page.screenshot({ path: OUT + '/editor-hunk-popup.png' })
+
+  const caretLine = async () => parseInt((await item('cursor')).split(':')[0], 10)
+  await page.keyboard.press('ArrowDown')
+  assert((await caretLine()) === 5, 'ArrowDown walks to the next hunk, the caret follows')
+  await page.keyboard.press('ArrowDown')
+  assert((await caretLine()) === 1, 'and wraps around')
+  await page.keyboard.press('ArrowUp')
+  assert((await caretLine()) === 5, 'ArrowUp goes back')
+  await page.keyboard.press('Escape')
+  await page.waitForFunction(() => !document.querySelector('[data-testid="hunk-popup"]'))
+  assert(true, 'Escape closes the popup')
+  await page.click('.pane.active .ed-mark.mark-mod >> nth=0')
+  await page.waitForSelector(popup)
+  await page.click('.pane.active .tab.active')
+  await page.waitForFunction(() => !document.querySelector('[data-testid="hunk-popup"]'))
+  assert(true, 'a click outside the popup closes it')
+
+  // Revert: the old lines come back as one undo step.
+  await caretAt2(1)
+  await page.click('.pane.active .ed-mark.mark-mod >> nth=0')
+  await page.waitForSelector(popup)
+  await page.click(popup + ' .hunk-actions button:has-text("Revert the hunk")')
+  await page.waitForFunction(() => !document.querySelector('[data-testid="hunk-popup"]'))
+  assert((await text(page)).split('\n')[0] === 'alpha one', 'the reverted hunk is the old text ' + JSON.stringify((await text(page)).split('\n')[0]))
+  await page.keyboard.press('Control+z')
+  assert((await text(page)).split('\n')[0] === 'alpha one X', 'one Ctrl+Z brings the change back')
+
+  // A pure deletion: the mark sits on the line after the gap, the popup shows the removed lines.
+  await caretAt2(3)
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Shift+ArrowDown')
+  await page.keyboard.press('Delete')
+  await page.waitForSelector('.pane.active .ed-mark.mark-del', { timeout: 5000 })
+  await page.click('.pane.active .ed-mark.mark-del >> nth=0')
+  await page.waitForSelector(popup)
+  s = await sides()
+  assert(s[0].includes('charlie three'), 'the removed line is on the before side ' + JSON.stringify(s[0]))
+  assert(!s[1].includes('charlie three'), 'and not in the current text')
+  await page.screenshot({ path: OUT + '/editor-hunk-deleted.png' })
+  await page.click(popup + ' .hunk-actions button:has-text("Revert the hunk")')
+  await page.waitForFunction(() => !document.querySelector('[data-testid="hunk-popup"]'))
+  assert((await text(page)).split('\n')[2] === 'charlie three', 'reverting a deletion puts the line back where it was')
+
+  // A hunk longer than the popup: truncated, with the way to the full diff.
+  await caretAt2(1)
+  await page.keyboard.insertText(Array.from({ length: 30 }, (_, i) => 'inserted ' + i).join('\n') + '\n')
+  await page.waitForSelector('.pane.active .ed-mark', { timeout: 5000 })
+  await page.waitForTimeout(400)
+  await page.click('.pane.active .ed-mark >> nth=0')
+  await page.waitForSelector(popup)
+  assert(await page.isVisible(popup + ' .hunk-hidden'), 'a long hunk truncates the popup')
+  assert(/\d+ lines hidden/.test(await page.textContent(popup + ' .hunk-hidden')), 'with the number of hidden lines: ' + (await page.textContent(popup + ' .hunk-hidden')))
+  assert(await page.isVisible(popup + ' .hunk-actions button:has-text("Open the full diff")'), 'and offers the full diff')
+  await page.screenshot({ path: OUT + '/editor-hunk-truncated.png' })
+  await page.keyboard.press('Escape')
 })

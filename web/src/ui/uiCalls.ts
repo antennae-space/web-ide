@@ -92,11 +92,18 @@ async function focus(a: Record<string, any>, base?: string): Promise<UiResult> {
 
 // ---------- tools of the MCP (CLI agents) ----------
 
+/** Opens the diff tab of a file against HEAD (the git plugin must be on). False when it cannot. */
+export function openDiffTab(path: string): boolean {
+  if (!capability('git')) return false
+  openTab({ kind: 'diff', source: 'git', path, head: true, title: `${basename(path)} (${t('changes')})` })
+  return true
+}
+
 async function showDiff(p: string, base?: string): Promise<UiResult> {
   if (!p) throw new Error('path is missing')
   const abs = absPath(p, base)
   if (!capability('git')) throw new Error('the Git plugin is off on this project: no diff to show')
-  openTab({ kind: 'diff', source: 'git', path: abs, head: true, title: `${basename(abs)} (${t('changes')})` })
+  openDiffTab(abs)
   return ok(`Changes of ${relPath(abs)} shown in the diff view.`, relPath(abs))
 }
 

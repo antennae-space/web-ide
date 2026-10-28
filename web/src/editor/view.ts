@@ -47,6 +47,8 @@ export interface ViewOptions {
   onType?: (text: string) => void
   /** The folded ranges changed. */
   onFolds?: () => void
+  /** A change marker of the gutter was clicked (line of the mark, kind of change). */
+  onMarkClick?: (line: number, mark: LineMark) => void
 }
 
 const registry = () => (CSS as any).highlights as Map<string, any> | undefined
@@ -247,6 +249,13 @@ export class EditorView {
     }
     listen(this.gutterFolds, 'mousedown', foldClick)
     listen(this.placeholders, 'mousedown', foldClick)
+    // Change markers: the popup of the hunk opens without moving the caret.
+    listen(this.gutterMarks, 'mousedown', (e) => {
+      const el = (e.target as HTMLElement).closest<HTMLElement>('[data-mark]')
+      if (!el || e.button !== 0) return
+      e.preventDefault()
+      opts.onMarkClick?.(Number(el.dataset.mark), this.marks.get(Number(el.dataset.mark)) ?? 'mod')
+    })
     listen(this.content, 'mouseleave', () => (this.tooltip.style.display = 'none'))
     listen(document as any, 'selectionchange', () => this.onSelectionChange())
     listen(this.scroller, 'scroll', () => {
@@ -1534,7 +1543,7 @@ export class EditorView {
     for (const l of vis) {
       const m = this.marks.get(l)
       const top = this.lineTop(l)
-      if (m) marks += `<div class="ed-mark mark-${m}" style="top:${top}px;height:${lh * this.rowsOf(l)}px"></div>`
+      if (m) marks += `<div class="ed-mark mark-${m}" data-mark="${l}" style="top:${top}px;height:${lh * this.rowsOf(l)}px"></div>`
       const f = this.folds.find((x) => x.line === l)
       if (f) {
         folds += `<div class="ed-fold folded" data-fold="${l}" style="top:${top}px;height:${lh}px"></div>`

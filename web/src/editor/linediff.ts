@@ -25,16 +25,58 @@ export function lineHunks(a: string[], b: string[]): Hunk[] | null {
 
 export type LineMark = 'add' | 'mod' | 'del'
 
-/** Gutter markers of the new text: added, modified lines, and deletions (on the line after). */
-export function lineMarks(oldText: string, newText: string): Map<number, LineMark> {
+/** Gutter markers of hunks between a (old) and b (new): added, modified lines, and deletions (on the line after). */
+export function marksOfHunks(hunks: Hunk[], b: string[]): Map<number, LineMark> {
   const marks = new Map<number, LineMark>()
-  const b = newText.split('\n')
-  const hunks = lineHunks(oldText.split('\n'), b)
-  if (!hunks) return marks
   for (const h of hunks) {
     const [bs, bl] = h.b
     if (bl === 0) marks.set(Math.min(bs, b.length - 1), 'del')
     else for (let i = bs; i < bs + bl; i++) marks.set(i, h.a[1] === 0 ? 'add' : 'mod')
   }
   return marks
+}
+
+/** Gutter markers of the new text: added, modified lines, and deletions (on the line after). */
+export function lineMarks(oldText: string, newText: string): Map<number, LineMark> {
+  const b = newText.split('\n')
+  const hunks = lineHunks(oldText.split('\n'), b)
+  return hunks ? marksOfHunks(hunks, b) : new Map()
+}
+
+export interface WordSpan {
+  text: string
+  changed: boolean
+}
+
+/** A line cut into runs of words and runs of spaces (the spaces keep their place in the diff). */
+function tokens(line: string): string[] {
+  return line.match(/\s+|[^\s]+/g) ?? []
+}
+
+/** Beyond this number of tokens, the whole line is shown as changed. */
+const TOKEN_LIMIT = 2000
+
+function spans(list: string[], changed: boolean[]): WordSpan[] {
+  const out: WordSpan[] = []
+  for (let i = 0; i < list.length; i++) {
+    const last = out[out.length - 1]
+    if (last && last.changed === changed[i]) last.text += list[i]
+    else out.push({ text: list[i], changed: changed[i] })
+  }
+  return out
+}
+
+/** Word diff of a pair of lines: which spans of each side differ (a whole line when it is too long). */
+export function wordHunks(a: string, b: string): { left: WordSpan[]; right: WordSpan[] } {
+  const ta = tokens(a)
+  const tb = tokens(b)
+  if (!ta.length || !tb.length) return { left: spans(ta, ta.map(() => true)), right: spans(tb, tb.map(() => true)) }
+  if (ta.length + tb.length > TOKEN_LIMIT) return { left: spans(ta, ta.map(() => true)), right: spans(tb, tb.map(() => true)) }
+  const fa = new Array<boolean>(ta.length).fill(false)
+  const fb = new Array<boolean>(tb.length).fill(false)
+  for (const h of diffIndices(ta, tb)) {
+    for (let i = h.buffer1[0]; i < h.buffer1[0] + h.buffer1[1]; i++) fa[i] = true
+    for (let i = h.buffer2[0]; i < h.buffer2[0] + h.buffer2[1]; i++) fb[i] = true
+  }
+  return { left: spans(ta, fa), right: spans(tb, fb) }
 }
