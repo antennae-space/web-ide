@@ -45,7 +45,9 @@ run(async ({ page }) => {
   // Git colors: untracked red, added green, ignored; and the status letter at the end of the row.
   assert(await page.isVisible(row('notes.txt') + ' .tree-name.git-untracked'), 'untracked file')
   assert((await page.textContent(row('notes.txt') + ' .tree-badge')) === 'U', 'badge of an untracked file')
-  assert(await page.isVisible(row('build.log') + ' .tree-name.git-ignored'), 'file ignored by .gitignore')
+  // The ignored set arrives after the first paint of the rows: wait for it rather than reading it
+  // at once (the tint of the same file is checked below).
+  assert(!!(await page.waitForSelector(row('build.log') + ' .tree-name.git-ignored', { timeout: 10000 }).catch(() => null)), 'file ignored by .gitignore')
   execFileSync('git', ['add', 'go.mod'], { cwd: demo })
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
   await page.waitForSelector(row('go.mod') + ' .tree-name.git-added', { timeout: 10000 })

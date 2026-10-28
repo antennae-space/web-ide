@@ -128,7 +128,10 @@ export function FileRow(props: FileRowProps): JSX.Element {
         </span>
       </Show>
       {props.after}
-      <Show when={props.end !== undefined}>
+      {/* The free space of the row, kept by the filler only when nothing else carries the auto
+          margin: a `flex:1` span placed before `margin-left:auto` swallows it, which used to pin
+          the status letter next to the name in the trees with an `end` slot (the Commit tree). */}
+      <Show when={props.end !== undefined && !badge() && !props.error}>
         <span class="grow" />
       </Show>
       {props.end}

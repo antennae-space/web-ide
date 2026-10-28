@@ -7,3 +7,5 @@ The Git tool and the git content of the diff view. It provides the `worktrees` a
 - **E2e** (`e2e/`, run by `e2e/run.sh`): git.
 
 The page module imports the plugin API only (`@ide/api`, `@ide/types`, `@ide/capabilities`); the Go package imports the core of `pod/`.
+
+**Pitfall: git resolves the symlinks of a path, the pod does not.** `git rev-parse --show-toplevel` on a project reached through a symlink answers the resolved folder, which the Explorer never lists. `Repo.base` picks the spelling the pod uses (its project root when it *is* the top), and every path git answers with — `status`, `ignored`, the files of a commit — is built on it, so the Explorer colors its rows. `Repo.rel` accepts both spellings.

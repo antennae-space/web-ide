@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -36,6 +37,21 @@ func (g *Repo) Top(ctx context.Context) string {
 	return strings.TrimSpace(out)
 }
 
+// base returns the folder the pod names the top level with: the project root when it *is* the
+// top (git resolves the symlinks of a path, the pod does not), else the top git reports, when
+// the project sits in a subfolder of the repository. The paths git answers with (status,
+// ignored, the files of a commit) are built on it, so that the Explorer, the editor markers and
+// the Git tool all name a file the same way.
+func (g *Repo) base(top string) string {
+	if top == g.root {
+		return g.root
+	}
+	if r, err := filepath.EvalSymlinks(g.root); err == nil && r == top {
+		return g.root
+	}
+	return top
+}
+
 type File struct {
 	Path      string `json:"path"`
 	OrigPath  string `json:"origPath,omitempty"`
@@ -63,12 +79,12 @@ func (g *Repo) Status(ctx context.Context) (*Status, error) {
 	if top == "" {
 		return st, nil
 	}
-	st.Repo, st.Top = true, top
+	st.Repo, st.Top = true, g.base(top)
 	out, err := g.git(ctx, "status", "--porcelain=v2", "--branch", "-z", "--untracked-files=all")
 	if err != nil {
 		return nil, err
 	}
-	abs := func(p string) string { return path.Join(top, p) }
+	abs := func(p string) string { return path.Join(st.Top, p) }
 	entries := strings.Split(out, "\x00")
 	for i := 0; i < len(entries); i++ {
 		e := entries[i]
@@ -123,17 +139,27 @@ func (g *Repo) Status(ctx context.Context) (*Status, error) {
 	return st, nil
 }
 
+// rel turns project paths into paths relative to the top of the repository. It accepts both
+// spellings of the top: the one the pod uses (its project root, symlinks kept) and the one git
+// reports, a front end holding paths taken before a change of root.
 func (g *Repo) rel(ctx context.Context, paths []string) ([]string, string, error) {
 	top := g.Top(ctx)
 	if top == "" {
 		return nil, "", i18n.New("not a git repository")
 	}
+	base := g.base(top)
 	out := make([]string, 0, len(paths))
 	for _, p := range paths {
-		if !strings.HasPrefix(p, top+"/") {
+		var rel string
+		switch {
+		case strings.HasPrefix(p, base+"/"):
+			rel = strings.TrimPrefix(p, base+"/")
+		case strings.HasPrefix(p, top+"/"):
+			rel = strings.TrimPrefix(p, top+"/")
+		default:
 			return nil, "", i18n.Errorf("outside the repository: %s", p)
 		}
-		out = append(out, strings.TrimPrefix(p, top+"/"))
+		out = append(out, rel)
 	}
 	return out, top, nil
 }
@@ -146,6 +172,7 @@ func (g *Repo) Ignored(ctx context.Context, paths []string) ([]string, error) {
 	if err != nil {
 		return out, nil
 	}
+	base := g.base(top)
 	for len(rel) > 0 {
 		n := min(len(rel), 300)
 		// Exit status 1 (without message) when no path is ignored.
@@ -155,7 +182,7 @@ func (g *Repo) Ignored(ctx context.Context, paths []string) ([]string, error) {
 		}
 		for _, p := range strings.Split(res, "\n") {
 			if p != "" {
-				out = append(out, top+"/"+p)
+				out = append(out, base+"/"+p)
 			}
 		}
 		rel = rel[n:]

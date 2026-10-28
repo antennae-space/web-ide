@@ -1,6 +1,6 @@
 // File explorer: lazy tree (one fs.list per expanded folder), refreshed by the pod watch events.
 // A click selects, a double click (or Enter) opens the file and gives it the focus.
-import { createEffect, createSignal, For, onMount, Show, untrack, type JSX } from 'solid-js'
+import { createEffect, createSignal, For, on, onMount, Show, untrack, type JSX } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import type { MenuItem } from '@ide/api'
 import type { FileKind, FileTint } from '@ide/types'
@@ -36,7 +36,11 @@ async function load(dir: string) {
     setErrors(dir, (e as Error).message)
     return
   }
-  // The files the decorations (Git) leave out: dimmed, and so is their content.
+  await askIgnored(list)
+}
+
+/** The files the decorations (Git) leave out: dimmed, and so is their content. */
+async function askIgnored(list: Entry[]) {
   for (const d of api.explorer.decorations()) {
     try {
       const ign = new Set((await d.ignored?.(list.map((e) => e.path))) ?? [])
@@ -368,6 +372,19 @@ export function Explorer() {
     const p = api.activePath()
     if (desk.get().follow && p) untrack(() => revealInExplorer(p))
   })
+  // A folder asks the paths its decorations leave out when it is listed. A decoration that
+  // arrives later — the page module of Git loaded after the first listing — asks them again for
+  // the folders already listed, so an ignored file is not left uncolored until the next refresh.
+  createEffect(
+    on(
+      () => api.explorer.decorations().filter((d) => d.ignored).length,
+      (n, prev) => {
+        if (!n || n === prev) return
+        for (const k of Object.keys(children)) if (children[k]) void askIgnored(children[k]!)
+      },
+      { defer: true },
+    ),
+  )
   const rootEntry = (): Entry => ({ name: api.project.name() ?? api.project.basename(root()), path: root(), dir: true, size: 0 })
   return (
     <div class="panel explorer">

@@ -94,6 +94,60 @@ func TestRepo(t *testing.T) {
 	}
 }
 
+// A project reached through a symlink: git resolves the path, the pod does not. Every path it
+// answers with (status, ignored, a commit) must stay under the name the Explorer lists.
+func TestRepoLink(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git absent")
+	}
+	ctx := context.Background()
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "proj")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skip("symlink refused:", err)
+	}
+	run(t, real, "init", "-q", "-b", "main")
+	t.Setenv("GIT_AUTHOR_NAME", "t")
+	t.Setenv("GIT_AUTHOR_EMAIL", "t@x")
+	t.Setenv("GIT_COMMITTER_NAME", "t")
+	t.Setenv("GIT_COMMITTER_EMAIL", "t@x")
+	os.WriteFile(filepath.Join(link, "a.txt"), []byte("one\n"), 0o644)
+	os.WriteFile(filepath.Join(link, ".gitignore"), []byte("*.log\n"), 0o644)
+	os.WriteFile(filepath.Join(link, "app.log"), []byte("log\n"), 0o644)
+	g := New(execx.Local{}, link)
+
+	st, err := g.Status(ctx)
+	if err != nil || !st.Repo {
+		t.Fatalf("status = %+v %v", st, err)
+	}
+	if st.Top != link {
+		t.Fatalf("top = %s, want the project as the pod names it (%s)", st.Top, link)
+	}
+	for _, f := range st.Files {
+		if !strings.HasPrefix(f.Path, link+"/") {
+			t.Fatalf("file path %s outside %s", f.Path, link)
+		}
+	}
+	ign, err := g.Ignored(ctx, []string{filepath.Join(link, "app.log"), filepath.Join(link, "a.txt")})
+	if err != nil || len(ign) != 1 || ign[0] != filepath.Join(link, "app.log") {
+		t.Fatalf("ignored = %v %v", ign, err)
+	}
+	if err := g.Stage(ctx, []string{filepath.Join(link, "a.txt")}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := g.Commit(ctx, "first", false); err != nil {
+		t.Fatal(err)
+	}
+	// The other spelling, the one git reports (symlinks resolved), is accepted too.
+	if err := g.Unstage(ctx, []string{filepath.Join(real, "a.txt")}); err != nil {
+		t.Fatal(err)
+	}
+	info, err := g.CommitInfo(ctx, "HEAD")
+	if err != nil || len(info.Files) != 1 || !strings.HasPrefix(info.Files[0].Path, link+"/") {
+		t.Fatalf("commit info = %+v %v", info, err)
+	}
+}
+
 func TestSetup(t *testing.T) {
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git absent")
