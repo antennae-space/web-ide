@@ -33,13 +33,14 @@ run(async ({ page }) => {
   await page.waitForFunction(() => document.activeElement?.classList.contains('ed-content'))
   assert(true, 'double click opens the file and focuses the editor')
 
-  // Git colors: untracked red, added green, ignored.
+  // Git colors: untracked red, added green, ignored; and the status letter at the end of the row.
   assert(await page.isVisible(row('notes.txt') + ' .tree-name.git-untracked'), 'untracked file')
+  assert((await page.textContent(row('notes.txt') + ' .tree-badge')) === 'U', 'badge of an untracked file')
   assert(await page.isVisible(row('build.log') + ' .tree-name.git-ignored'), 'file ignored by .gitignore')
   execFileSync('git', ['add', 'go.mod'], { cwd: demo })
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
   await page.waitForSelector(row('go.mod') + ' .tree-name.git-added', { timeout: 10000 })
-  assert(true, 'added file')
+  assert((await page.textContent(row('go.mod') + ' .tree-badge')) === 'A', 'added file, badge A')
   assert(await page.isVisible(row('src') + ' .tree-name.git-untracked'), 'folder of untracked files')
 
   // Folder marks.
@@ -54,6 +55,14 @@ run(async ({ page }) => {
   const marks = JSON.parse(fs.readFileSync(demo + '/.ide/folders.json', 'utf8')).folders
   assert(marks.gen === 'excluded' && marks.tests === 'tests' && marks.src === 'source', 'marks saved in .ide/folders.json')
   assert(await page.isVisible(row('gen') + '.excluded .file-icon.mark-excluded'), 'excluded folder dimmed, orange icon')
+
+  // Explorer decorations v2 (#179): the kind tints the row, the label sits after the name.
+  const tint = async (name) => (await page.getAttribute(row(name), 'data-tint')) || ''
+  const label = async (name) => (await page.textContent(row(name) + ' .tree-label')) || ''
+  assert((await tint('gen')) === 'ignored' && (await tint('tests')) === 'test' && (await tint('src')) === 'marked', 'the row of a marked folder is tinted with its kind')
+  assert((await label('tests')) === 'Test folder' && (await label('gen')) === 'Excluded folder', 'a label after the name of a marked folder')
+  assert((await tint('build.log')) === 'ignored', 'a file ignored by .gitignore is tinted')
+  assert(!(await page.$(row('notes.txt') + ' .tree-label')), 'a plain file has no label')
   await page.keyboard.press('Control+p')
   await page.waitForSelector('.pick-input')
   await page.keyboard.type('generated')
@@ -74,6 +83,22 @@ run(async ({ page }) => {
   await page.click('[data-testid=explorer-expand]')
   await page.waitForSelector(row('tests/app_test.go'))
   assert(!(await page.isVisible(row('gen/generated.go'))), 'expand all skips the excluded folder')
+  // The tint and the label of a folder pass to its content (#179).
+  assert((await page.getAttribute(row('tests/app_test.go'), 'data-tint')) === 'test', 'a file under a test folder keeps its tint')
+  assert((await page.textContent(row('tests/app_test.go') + ' .tree-label')) === 'Test folder', 'and its label')
+  // A selected tinted row keeps the background of the selection.
+  await page.click(row('tests/app_test.go'))
+  const bg = await page.evaluate((p) => {
+    const row = document.querySelector(`.explorer .tree-row[data-path="${p}"]`)
+    const probe = document.createElement('div')
+    probe.style.background = getComputedStyle(document.documentElement).getPropertyValue('--bg-active').trim()
+    document.body.append(probe)
+    const active = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return { row: getComputedStyle(row).backgroundColor, active, selected: row.classList.contains('selected') }
+  }, demo + '/tests/app_test.go')
+  const rgb = (c) => c.replace(/\s+/g, '')
+  assert(bg.selected && rgb(bg.row) === rgb(bg.active), `a selected tinted row keeps --bg-active: ${JSON.stringify(bg)}`)
   await page.screenshot({ path: OUT + '/explorer.png' })
   await page.click('[data-testid=explorer-collapse]')
   await page.waitForFunction(() => !document.querySelector('.explorer .tree-row[aria-expanded=true]'))

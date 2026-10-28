@@ -3,6 +3,7 @@
 import { createEffect, createSignal, For, onMount, Show, untrack, type JSX } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import type { MenuItem } from '@ide/api'
+import type { FileKind, FileTint } from '@ide/types'
 import { api, contextMenu, copyText, desk, errorToast, FileIcon, Icon, prompt, t, toast } from './plugin'
 
 type FolderMark = 'source' | 'tests' | 'excluded'
@@ -29,6 +30,8 @@ const [selected, setSelected] = createSignal<string | null>(null)
 const heavyDirs = new Set(['.git', 'node_modules'])
 
 const markLabels: Record<FolderMark, string> = { source: 'Source folder', tests: 'Test folder', excluded: 'Excluded folder' }
+/** The category a folder mark gives it and its content (#182 grows this into the built-in lists). */
+const markKinds: Record<FolderMark, FileKind> = { source: 'marked', tests: 'test', excluded: 'ignored' }
 
 async function load(dir: string) {
   let list: Entry[]
@@ -240,10 +243,13 @@ export function explorerCorner(): JSX.Element[] {
   ]
 }
 
-/** What a folder passes to its content: ignored by git, excluded. */
+/** What a folder passes to its content: ignored by git, excluded, and the decoration channels of the folder (#179). */
 interface Inherited {
   ignored: boolean
   excluded: boolean
+  kind?: FileKind
+  tint?: FileTint
+  label?: string
 }
 
 function Rows(props: { dir: string; depth: number; inherited: Inherited }) {
@@ -267,8 +273,22 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
   const mark = () => (e.dir ? folderMark(e.path) : null)
   const isIgnored = () => props.inherited.ignored || !!ignored[e.path]
   const isExcluded = () => props.inherited.excluded || mark() === 'excluded'
-  // The state the decorations give (Git: modified, added…), else ignored or clean.
-  const git = () => api.explorer.decorations().map((d) => d.state(e.path, e.dir)).find((x) => x) ?? (isIgnored() ? 'ignored' : 'clean')
+  /**
+   * Each channel of the row (#179): what the plugins say about the entry (Git: state and badge),
+   * what the entry is itself (a mark, ignored), else what its folder passes down. The state falls
+   * back to ignored or clean, as before the badges.
+   */
+  const eff = () => {
+    const d = api.explorer.decorate(e.path, e.dir)
+    const kind = d.kind ?? (mark() ? markKinds[mark()!] : undefined)
+    return {
+      state: d.state ?? (isIgnored() ? 'ignored' : 'clean'),
+      badge: d.badge,
+      kind: kind ?? props.inherited.kind,
+      tint: d.tint ?? kind ?? (isIgnored() ? 'ignored' : undefined) ?? props.inherited.tint,
+      label: d.label ?? (mark() ? t(markLabels[mark()!]) : undefined) ?? props.inherited.label,
+    }
+  }
   const toggle = () => setExpanded(e.path, !open())
   const activate = () => (e.dir ? toggle() : openAndFocus(e.path))
   return (
@@ -281,6 +301,8 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
         tabIndex={-1}
         data-path={e.path}
         data-mark={mark() ?? undefined}
+        data-kind={eff().kind}
+        data-tint={eff().tint}
         title={mark() ? t(markLabels[mark()!]) : undefined}
         classList={{ selected: selected() === e.path, current: api.activePath() === e.path, excluded: isExcluded() }}
         style={{ 'padding-left': `${props.depth * 14 + 6}px` }}
@@ -323,13 +345,21 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
           </Show>
         </span>
         <FileIcon name={e.name} dir={e.dir} open={open()} mark={mark()} />
-        <span class={`tree-name git-${git()}`}>{e.name}</span>
+        <span class={`tree-name git-${eff().state}`}>{e.name}</span>
+        <Show when={eff().label}>
+          <span class="tree-label">{eff().label}</span>
+        </Show>
+        <Show when={eff().badge}>
+          <span class="tree-badge" title={t(eff().state)}>
+            {eff().badge}
+          </span>
+        </Show>
         <Show when={e.link}>
           <span class="tree-link" title={t('Symbolic link')}>↪</span>
         </Show>
       </div>
       <Show when={e.dir && open()}>
-        <Rows dir={e.path} depth={props.depth + 1} inherited={{ ignored: isIgnored(), excluded: isExcluded() }} />
+        <Rows dir={e.path} depth={props.depth + 1} inherited={{ ignored: isIgnored(), excluded: isExcluded(), kind: eff().kind, tint: eff().tint, label: eff().label }} />
       </Show>
     </>
   )

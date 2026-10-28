@@ -10,6 +10,8 @@
   --radius: 5px;
   /* Folder marks of the explorer. */
   --mark-source: #4a90e2; --mark-tests: #4caf50; --mark-excluded: #e0823d;
+  /* Tints of the rows of a tree: one family per kind of path (Explorer decorations, #179). */
+  --tint-test: var(--mark-tests); --tint-library: var(--info); --tint-manifest: var(--warn); --tint-ignored: var(--mark-excluded); --tint-marked: var(--mark-source);
   /* Symbol kinds (Structure, Symbols): a color per family, the detail of a symbol, and its lock. */
   --sym-type: #ffcb6b; --sym-function: #82aaff; --sym-variable: #f07178; --sym-value: #c3e88d; --sym-other: #7fdbca; --sym-detail: #ff9e64;
   --sym-export: #c3e88d; --sym-private: #f07178;
@@ -206,6 +208,13 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .tree-root { display: flex; align-items: baseline; gap: 6px; padding: 2px 10px 4px; font-weight: 600; white-space: nowrap; }
 .tree-root .muted { font-weight: 400; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
 .tree-row { display: flex; align-items: center; gap: 5px; height: 24px; padding-right: 8px; cursor: pointer; white-space: nowrap; }
+/* The tint of the kind of a path (Explorer decorations, #179): a wash on the row, written before
+   the states below so a selected, active or hovered row keeps its own background. */
+.tree-row[data-tint='test'] { background: color-mix(in srgb, var(--tint-test) 12%, transparent); }
+.tree-row[data-tint='library'] { background: color-mix(in srgb, var(--tint-library) 12%, transparent); }
+.tree-row[data-tint='manifest'] { background: color-mix(in srgb, var(--tint-manifest) 12%, transparent); }
+.tree-row[data-tint='ignored'] { background: color-mix(in srgb, var(--tint-ignored) 12%, transparent); }
+.tree-row[data-tint='marked'] { background: color-mix(in srgb, var(--tint-marked) 12%, transparent); }
 .tree-row:hover { background: var(--bg-hover); }
 .tree-row.active, .tree-row.selected { background: var(--bg-active); }
 .tree-row.current:not(.selected) .tree-name { text-decoration: underline; text-decoration-color: var(--fg-faint); text-underline-offset: 3px; }
@@ -220,6 +229,12 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .tree-twist.open { transform: rotate(90deg); }
 .tree-twist.none { visibility: hidden; }
 .tree-name { overflow: hidden; text-overflow: ellipsis; }
+/* Text after the name ("library root"), and the status letter at the end of the row (#179). */
+.tree-label { color: var(--fg-faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+.tree-badge { color: var(--fg-muted); font-family: var(--font-code); font-size: 11px; margin-left: auto; flex: none; }
+.tree-badge + .tree-link { margin-left: 4px; }
+/* Disc on the twist of a folder whose content holds an error (#181 feeds it). */
+.tree-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--danger); flex: none; }
 .tree-detail { color: var(--sym-detail); font-size: 12px; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; }
 .tree-link { color: var(--fg-faint); }
 .tree-error { color: var(--danger); font-size: 12px; padding: 2px 8px; }

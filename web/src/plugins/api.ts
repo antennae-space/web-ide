@@ -25,7 +25,7 @@ import { WorktreeChip } from '../ui/WorktreeChip'
 import { dropClasses, dropIndex, moveItem, setDropAt } from '../ui/tabDrop'
 import { EditorView } from '../editor/view'
 import { capability, provide, type Capabilities } from './capabilities'
-import { explorerItems, fileDecorations, pluginAssistantOptions } from './registry'
+import { decorateEntry, explorerItems, fileDecorations, pluginAssistantOptions } from './registry'
 import { folderMark, inExcluded, loadFolderMarks, markFolder } from '../state/folders'
 import { desks } from '../state/desks'
 import { setDynamicActions } from '../keys/bindings'
@@ -149,8 +149,8 @@ export function makeApi(id: string) {
     recentFiles: () => desks.recent,
     /** The marks of the folders of the project (source, tests, excluded), kept by the pod. */
     folders: { mark: folderMark, inExcluded, setMark: markFolder, load: loadFolderMarks },
-    /** What the other plugins give the Explorer: menu items, decorations. */
-    explorer: { items: explorerItems, decorations: fileDecorations },
+    /** What the other plugins give the Explorer: menu items, decorations (#179: `decorate` merges them). */
+    explorer: { items: explorerItems, decorations: fileDecorations, decorate: decorateEntry },
     /** The files of the project, as the pod reads them (from the disk, not the buffers). */
     files: {
       read: (path: string) => request<{ content: string; binary?: boolean; readOnly?: boolean }>('fs.read', { path }),

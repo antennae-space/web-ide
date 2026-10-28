@@ -235,6 +235,22 @@ What gives the diff view the two sides of a diff tab (Git: the working tree, the
 **Search provider**
 What gives Search Everywhere one kind of results (files, symbols, actions, text…) and its tab: the core or a plugin.
 
+**Decoration** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
+What the plugins say about a path shown in a tree, merged channel by channel by the core: `state` (color of the name), `badge` (letter at the end of the row), `kind`, `tint` (family of the background of the row), `label` (text after the name). A folder passes `kind`, `tint` and `label` to its content.
+_Avoid_: decorator, highlight (a search match is a highlight)
+
+**Kind** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
+The category of a path in a tree: `test`, `library`, `manifest`, `ignored`, `marked`. A symbol kind is another thing (see *Glyph family*).
+_Avoid_: category, type (for a path)
+
+**Tint** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
+The family of the background wash on the row of a tree, one per kind (`--tint-test`…). A tint never covers the background of a selected, active or hovered row.
+_Avoid_: background color, highlight
+
+**Badge** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
+The letter at the end of the row of a tree: a status letter (Git: `M`, `A`, `U`, `D`, `C`). The glyph of a symbol kind and the language badge of a file icon are not badges.
+_Avoid_: status letter (in code: `badge`)
+
 **Capability**
 A named feature a plugin or the core provides and others require (`terminal`, `worktrees`), with the service that does it: the consoles of `terminal`. An external plugin's is served to the other external plugins only, by its background frame and its backend (`ide.use`, `service.call`).
 _Avoid_: service (an HTTP service shared between pods), dependency (a ticket waiting for another)

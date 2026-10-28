@@ -7,7 +7,7 @@ import { on, request } from '../pod/rpc'
 import { setPluginActions } from '../keys/bindings'
 import { API_VERSION, makeApi } from './api'
 import { externalModule } from './external'
-import type { ExplorerEntry, PluginContributions, PluginModule, PluginState, StatusItem } from './types'
+import type { ExplorerEntry, FileDecoration, PluginContributions, PluginModule, PluginState, StatusItem } from './types'
 import type { MenuItem } from '../ui/overlay'
 import { setCapabilityGate } from './capabilities'
 import { setPluginProviders } from '../popups/searchProviders'
@@ -209,6 +209,25 @@ export const explorerItems = (entry: ExplorerEntry) => enabled().flatMap((s) => 
 
 /** The decorations of the Explorer of the enabled plugins. */
 export const fileDecorations = () => enabled().flatMap((s) => (active[s.manifest.id].fileDecorations ? [active[s.manifest.id].fileDecorations!] : []))
+
+/**
+ * The decoration of a path, merged channel by channel from what the enabled plugins know of it
+ * (#179): a plugin answers with `decorate()`, or with the deprecated `state()`, folded into the
+ * `state` channel. An empty object when no plugin knows the path.
+ */
+export function decorateEntry(path: string, dir: boolean): FileDecoration {
+  const merged: FileDecoration = {}
+  for (const d of fileDecorations()) {
+    const part = d.decorate ? d.decorate(path, dir) : d.state ? { state: d.state(path, dir) ?? undefined } : null
+    if (!part) continue
+    if (merged.state === undefined) merged.state = part.state
+    if (merged.badge === undefined) merged.badge = part.badge
+    if (merged.kind === undefined) merged.kind = part.kind
+    if (merged.tint === undefined) merged.tint = part.tint
+    if (merged.label === undefined) merged.label = part.label
+  }
+  return merged
+}
 
 /** The hosts of the enabled plugins (modals), mounted by the project window. */
 export const pluginHosts = createRoot(() => createMemo(() => enabled().flatMap((s) => active[s.manifest.id].hosts ?? [])))
