@@ -43,6 +43,11 @@ run(async ({ ctx, page }) => {
   await page.waitForFunction(() => document.querySelector('.pane.active .tab.active')?.textContent.includes('main.go'), null, { timeout: 5000 }).catch(() => {})
   assert((await page.textContent('.pane.active .tab.active')).includes('main.go'), 'search hit opens the file')
 
+  // A file of the results is a row like any other (#183): Git color and status letter.
+  const fileRow = '.search-file[data-path$="/src/main.go"]'
+  assert(await page.isVisible(fileRow + ' .tree-name.git-untracked'), 'the file of a result keeps its Git color')
+  assert((await page.textContent(fileRow + ' .tree-badge')) === 'U', 'and its status letter')
+
   // File tabs reordered by drag and drop: on the right half of the next tab, one step right
   const tabs = (sel) => page.$$eval(sel, (els) => els.map((e) => e.querySelector('.tab-title').textContent))
   assert(JSON.stringify(await tabs('.pane.active .tab')) === JSON.stringify(['main.go', 'app.php']), 'a new tab opens first: ' + JSON.stringify(await tabs('.pane.active .tab')))

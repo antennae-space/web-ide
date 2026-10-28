@@ -236,8 +236,12 @@ What gives the diff view the two sides of a diff tab (Git: the working tree, the
 What gives Search Everywhere one kind of results (files, symbols, actions, text…) and its tab: the core or a plugin.
 
 **Decoration** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
-What the plugins say about a path shown in a tree, merged channel by channel by the core: `state` (color of the name), `badge` (letter at the end of the row), `kind`, `tint` (family of the background of the row), `label` (text after the name). A folder passes `kind`, `tint` and `label` to its content.
+What the plugins say about a path shown in **any** tree of the window (Explorer, Recent Files, Commit tab, Search), merged channel by channel by the core: `state` (color of the name), `badge` (letter at the end of the row), `kind`, `tint` (family of the background of the row), `label` (text after the name). A folder passes `kind`, `tint` and `label` to its content.
 _Avoid_: decorator, highlight (a search match is a highlight)
+
+**File row** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
+The shared row component (`web/src/ui/FileRow.tsx`, `api.ui.FileRow`) every tree draws its files with (#183): twist, icon, name colored by its state, label, error sign, status letter, then the slots of the tree. A tree keeps its own handlers and slots, none draws a name by hand.
+_Avoid_: tree item, file item
 
 **Kind** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
 The category of a path in a tree: `test`, `library`, `manifest`, `ignored`, `marked`. A symbol kind is another thing (see *Glyph family*).

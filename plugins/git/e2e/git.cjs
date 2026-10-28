@@ -97,6 +97,11 @@ run(async ({ page }) => {
   await page.waitForSelector(row('c.txt'), { timeout: 10000 })
   assert(await page.isVisible('.git-tree .tree-row:has(.tree-name:text-is("a/b"))'), 'compacted folders: a/b')
   assert(await page.isVisible(`${row('c.txt')} .tree-name.git-untracked`), 'untracked color')
+  // The Commit tree draws the same row as the Explorer (#183): state color and status letter, on
+  // the folders too, while the check boxes still stage.
+  assert((await page.textContent(`${row('c.txt')} .tree-badge`)) === 'U', 'status letter of a file in the Commit tree')
+  assert((await page.textContent(row('a/b') + ' .tree-badge')) === 'U', 'letter of a folder of untracked files')
+  assert(await page.isVisible(row('a/b') + ' .tree-name.git-untracked'), 'folder colored like its state')
   await page.screenshot({ path: OUT + '/git-changes.png' })
 
   // The root box stages everything, then unstages everything.

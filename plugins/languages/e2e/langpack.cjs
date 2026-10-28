@@ -159,6 +159,15 @@ run(async ({ page }) => {
   }, row('sub/broken.toy') + '.current .tree-name')
   assert(opened[0] === 'wavy' && opened[1] === marks.danger, 'the wavy replaces the underline of the opened file: ' + opened.join(' '))
 
+  // The same mark outside the Explorer (#183): Recent Files shows the red sign, without the wavy.
+  await page.keyboard.press('Control+e')
+  await page.waitForSelector('.pick.rf')
+  const rf = '.rf-files .pick-item[data-path$="/sub/broken.toy"]'
+  assert(await page.isVisible(rf + ' .tree-error-sign'), 'Recent Files holds the red ! too')
+  assert(!(await page.$(rf + ' .tree-name.has-error')), 'and no wavy underline there')
+  await page.keyboard.press('Escape')
+  await page.waitForFunction(() => !document.querySelector('.pick.rf'))
+
   // Fixing the file takes the wavy and the signs away, without a reload (didChange → publish).
   await page.click('.pane.active .ed-content')
   await page.keyboard.press('Control+Home')

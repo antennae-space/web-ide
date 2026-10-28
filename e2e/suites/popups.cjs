@@ -61,16 +61,43 @@ run(async ({ page }) => {
   // Recent Files: the files last shown, the previous one selected.
   await open(page, 'app.php')
   await open(page, 'notes.txt')
-  const files = () => page.$$eval('.rf-files .pick-label', (l) => l.map((e) => e.textContent))
+  const files = () => page.$$eval('.rf-files .tree-name', (l) => l.map((e) => e.textContent))
   await page.keyboard.press('Control+e')
   await page.waitForSelector('.pick.rf')
   assert(JSON.stringify((await files()).slice(0, 3)) === JSON.stringify(['notes.txt', 'app.php', 'main.go']), 'recent files, most recent first ' + (await files()))
   assert((await page.textContent('.rf-files .pick-item.selected')).includes('app.php') && (await page.textContent('.rf-foot')) === 'src/app.php', 'the previous file is selected, its path below')
   assert(await page.isVisible('.rf-tools .pick-item:has-text("Explorer") kbd:has-text("Alt+1")'), 'the tools with their shortcut on the left')
+  // The decoration of the Explorer reaches the pick list (#183): Git color and status letter.
+  assert(await page.isVisible('.rf-files .pick-item[data-path$="/notes.txt"] .tree-name.git-untracked'), 'a recent file keeps its Git color')
+  assert((await page.textContent('.rf-files .pick-item[data-path$="/notes.txt"] .tree-badge')) === 'U', 'and its status letter')
   await page.screenshot({ path: OUT + '/popups-recent.png' })
   await page.keyboard.press('Enter')
   await page.waitForFunction(() => document.querySelector('.pane.active .tab.active')?.textContent.includes('app.php'))
   assert(!(await page.$('.pick.rf')), 'Enter opens the file')
+
+  // The tint of a kind shows in the pick list too, and a selected row keeps its background (#183).
+  await open(page, 'go.mod')
+  await page.keyboard.press('Control+e')
+  await page.waitForSelector('.pick.rf')
+  const rfRow = '.rf-files .pick-item[data-path$="/go.mod"]'
+  await page.hover(rfRow)
+  assert((await page.getAttribute(rfRow, 'data-tint')) === 'manifest', 'a manifest is tinted in Recent Files')
+  const bg = await page.evaluate((sel) => {
+    const row = document.querySelector(sel)
+    const probe = document.createElement('div')
+    probe.style.background = getComputedStyle(document.documentElement).getPropertyValue('--bg-active').trim()
+    document.body.append(probe)
+    const active = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return { row: getComputedStyle(row).backgroundColor, active, selected: row.classList.contains('selected') }
+  }, rfRow)
+  const rgb = (c) => c.replace(/\s+/g, '')
+  assert(bg.selected && rgb(bg.row) === rgb(bg.active), 'a selected tinted row keeps --bg-active: ' + JSON.stringify(bg))
+  // The file is forgotten: the suite keeps its list of recent files and its active editor.
+  await page.keyboard.press('Delete')
+  await page.keyboard.press('Escape')
+  await page.waitForFunction(() => !document.querySelector('.pick.rf'))
+  await open(page, 'app.php')
 
   // Left: the tools; a filter matching only a tool selects it.
   await page.keyboard.press('Control+e')
