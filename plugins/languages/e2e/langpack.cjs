@@ -51,6 +51,9 @@ run(async ({ page }) => {
   // A toy file: highlighted by the pack's grammar.
   fs.writeFileSync(WS + '/demo/toy.mod', '')
   fs.writeFileSync(WS + '/demo/hello.toy', 'toy play # a toy\nthis is bad\n\n')
+  // A second toy file, in a subfolder, for the Explorer colors (#181).
+  fs.mkdirSync(WS + '/demo/sub', { recursive: true })
+  fs.writeFileSync(WS + '/demo/sub/broken.toy', 'toy play\nthis is bad\n')
   await openProject(page)
   await open(page, 'hello.toy')
   await page.waitForFunction(() => CSS.highlights.get('tok-keyword')?.size >= 2, null, { timeout: 10000 })
@@ -65,6 +68,36 @@ run(async ({ page }) => {
   const problems = await page.textContent('[data-tool=problems]')
   assert(problems.includes('toy: confined') && !problems.includes('LEAK'), 'the server runs confined: ' + problems)
   assert(!fs.existsSync(WS + '/demo/toy-probe.txt'), 'it cannot write the project')
+
+  // The Explorer colors what the server reports in error (#181): a red name on the file in error
+  // and a disc on the folder above it.
+  await open(page, 'broken.toy')
+  if (!(await page.isVisible('.explorer .tree-row'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
+  await page.click('[data-testid=explorer-locate]')
+  const row = (n) => `.explorer .tree-row[data-path="${WS}/demo/${n}"]`
+  await page.waitForSelector(row('sub/broken.toy') + ' .tree-name.has-error', { timeout: 15000 })
+  const redName = await page.evaluate((sel) => {
+    const probe = document.createElement('span')
+    probe.style.color = 'var(--danger)'
+    document.body.appendChild(probe)
+    const want = getComputedStyle(probe).color
+    probe.remove()
+    return getComputedStyle(document.querySelector(sel)).color === want
+  }, row('sub/broken.toy') + ' .tree-name')
+  assert(redName, 'the file in error shows a red name')
+  assert(await page.isVisible(row('sub') + ' .tree-dot'), 'the folder above the error holds a disc')
+  assert(/git-\w+/.test((await page.getAttribute(row('sub') + ' .tree-name', 'class')) ?? '') && (await page.isVisible(row('sub') + ' .tree-badge')), 'the dotted folder keeps its Git color and its status letter')
+
+  // Fixing the file takes the red name and the disc away, without a reload (didChange → publish).
+  await page.click('.pane.active .ed-content')
+  await page.keyboard.press('Control+Home')
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('End')
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Backspace')
+  await page.keyboard.press('Control+s')
+  await page.waitForFunction(([bad, dot]) => !document.querySelector(bad) && !document.querySelector(dot), [row('sub/broken.toy') + ' .tree-name.has-error', row('sub') + ' .tree-dot'], { timeout: 15000 })
+  assert(true, 'the red name and the disc go away with the error')
+  await open(page, 'hello.toy')
 
   // Completion: its words, one read in the folder it is granted.
   await page.click('.pane.active .ed-content')

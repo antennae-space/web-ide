@@ -3,6 +3,7 @@
 // by name. Nothing here imports the core itself.
 import type { JSX } from 'solid-js'
 import type { PluginApi } from '@ide/api'
+import type { Capabilities } from '@ide/capabilities'
 
 export let api: PluginApi
 
@@ -31,3 +32,5 @@ export const prompt: PluginApi['ui']['prompt'] = (...a) => api.ui.prompt(...a)
 export const toast: PluginApi['ui']['toast'] = (...a) => api.ui.toast(...a)
 export const errorToast: PluginApi['ui']['errorToast'] = (...a) => api.ui.errorToast(...a)
 export const copyText: PluginApi['ui']['copyText'] = (...a) => api.ui.copyText(...a)
+/** A capability of another plugin (undefined while it is off or still loading). */
+export const capability = <K extends keyof Capabilities>(name: K) => api.use(name)

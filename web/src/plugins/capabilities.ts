@@ -146,6 +146,8 @@ export interface LspDiagnostic {
 export interface LanguageService {
   /** The diagnostics of a file (reactive). */
   diagnostics(path: string): LspDiagnostic[]
+  /** The files a server reported with an error-severity diagnostic (reactive); the Explorer colors them and their folders. */
+  errorPaths(): string[]
   /** The completion of a server at a caret; null when the file has none (the editor offers its words). */
   complete(doc: Doc, offset: number, trigger: string | null, signal: AbortSignal): Promise<CompletionList | null>
   resolve(doc: Doc, item: CompletionItem): Promise<CompletionItem>

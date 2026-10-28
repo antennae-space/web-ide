@@ -251,6 +251,10 @@ _Avoid_: background color, highlight
 The letter at the end of the row of a tree: a status letter, with the arrows of the Git columns (Git: `M↓` worktree, `M↑` index, `M↓↑` both, `A`, `D`, `U`, `C`). The glyph of a symbol kind and the language badge of a file icon are not badges.
 _Avoid_: status letter (in code: `badge`)
 
+**Error dot** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
+The red disc on the row of a folder whose content holds a file the language servers report in error (#181). It is not a decoration channel: the folder keeps its Git color and its status letter next to it.
+_Avoid_: badge (the status letter), marker
+
 **Index column** / **Worktree column**
 The two halves of a `git status` entry: what changed in the index (staged: `M↑`), what changed in the worktree (`M↓`). The Explorer colors and letters a file from both.
 _Avoid_: status column (the kanban has one, with that name), staging area

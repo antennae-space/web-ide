@@ -4,7 +4,7 @@ import { createEffect, createSignal, For, onMount, Show, untrack, type JSX } fro
 import { createStore } from 'solid-js/store'
 import type { MenuItem } from '@ide/api'
 import type { FileKind, FileTint } from '@ide/types'
-import { api, contextMenu, copyText, desk, errorToast, FileIcon, Icon, prompt, t, toast } from './plugin'
+import { api, capability, contextMenu, copyText, desk, errorToast, FileIcon, Icon, prompt, t, toast } from './plugin'
 
 type FolderMark = 'source' | 'tests' | 'excluded'
 const folderMark = (p: string) => api.folders.mark(p)
@@ -32,6 +32,26 @@ const heavyDirs = new Set(['.git', 'node_modules'])
 const markLabels: Record<FolderMark, string> = { source: 'Source folder', tests: 'Test folder', excluded: 'Excluded folder' }
 /** The category a folder mark gives it and its content (#182 grows this into the built-in lists). */
 const markKinds: Record<FolderMark, FileKind> = { source: 'marked', tests: 'test', excluded: 'ignored' }
+
+/** The files the language servers report in error (undefined while the Languages module loads). */
+const errorPaths = () => capability('language')?.errorPaths() ?? []
+/**
+ * The paths the errors mark: each file in error and every folder above it (#181). Set by the
+ * Explorer on each publish of the diagnostics; a row only asks whether it is in it.
+ */
+const [errorMarked, setErrorMarked] = createSignal<Set<string>>(new Set())
+function markErrors() {
+  const marked = new Set<string>()
+  const r = root()
+  for (const p of errorPaths()) {
+    let cur = p
+    while (cur.length > r.length && cur.startsWith(r + '/')) {
+      marked.add(cur)
+      cur = cur.slice(0, cur.lastIndexOf('/'))
+    }
+  }
+  setErrorMarked(marked)
+}
 
 async function load(dir: string) {
   let list: Entry[]
@@ -273,6 +293,8 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
   const mark = () => (e.dir ? folderMark(e.path) : null)
   const isIgnored = () => props.inherited.ignored || !!ignored[e.path]
   const isExcluded = () => props.inherited.excluded || mark() === 'excluded'
+  /** A file in error, or a folder holding one below it (#181). */
+  const inError = () => errorMarked().has(e.path)
   /**
    * Each channel of the row (#179): what the plugins say about the entry (Git: state and badge),
    * what the entry is itself (a mark, ignored), else what its folder passes down. The state falls
@@ -345,7 +367,10 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
           </Show>
         </span>
         <FileIcon name={e.name} dir={e.dir} open={open()} mark={mark()} />
-        <span class={`tree-name git-${eff().state}`}>{e.name}</span>
+        <Show when={inError() && e.dir}>
+          <span class="tree-dot" title={t('Error in a file below')} />
+        </Show>
+        <span class={`tree-name git-${eff().state}`} classList={{ 'has-error': inError() && !e.dir }}>{e.name}</span>
         <Show when={eff().label}>
           <span class="tree-label">{eff().label}</span>
         </Show>
@@ -376,6 +401,8 @@ export function Explorer() {
     if (r && !children[r]) load(r)
     if (r) void api.folders.load()
   })
+  // The files in error and the folders above them, followed as the servers publish.
+  createEffect(markErrors)
   // "Always select the opened file".
   createEffect(() => {
     const p = api.activePath()

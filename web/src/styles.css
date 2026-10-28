@@ -233,8 +233,10 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .tree-label { color: var(--fg-faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
 .tree-badge { color: var(--fg-muted); font-family: var(--font-code); font-size: 11px; margin-left: auto; flex: none; }
 .tree-badge + .tree-link { margin-left: 4px; }
-/* Disc on the twist of a folder whose content holds an error (#181 feeds it). */
-.tree-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--danger); flex: none; }
+/* Disc on a folder whose content holds a file in error (#181): at the right end of the row, next
+   to the status letter, which keeps its Git color. */
+.tree-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--danger); flex: none; margin-left: auto; }
+.tree-dot + .tree-badge { margin-left: 6px; }
 .tree-detail { color: var(--sym-detail); font-size: 12px; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; }
 .tree-link { color: var(--fg-faint); }
 .tree-error { color: var(--danger); font-size: 12px; padding: 2px 8px; }
@@ -819,6 +821,9 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 :is(.tree-name, .rf-name).git-conflict { color: color-mix(in srgb, var(--danger) 70%, #000); font-weight: 600; }
 :is(.tree-name, .rf-name).git-deleted { color: var(--fg-faint); text-decoration: line-through; }
 :is(.tree-name, .rf-name).git-ignored { color: color-mix(in srgb, var(--warn) 45%, var(--fg-faint)); }
+/* A file a language server reports in error: written after the Git states, so the red wins on a
+   modified or untracked file (#181). A folder keeps its Git color and takes the disc instead. */
+:is(.tree-name, .rf-name).has-error { color: var(--danger); }
 /* The status letter of the row takes the color of its state (M↓ worktree, M↑ index, M↓↑ both). */
 .tree-badge.git-modified { color: var(--info); }
 .tree-badge.git-staged { color: color-mix(in srgb, var(--ok) 40%, var(--info)); }
