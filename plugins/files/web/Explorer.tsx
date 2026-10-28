@@ -367,12 +367,15 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
           </Show>
         </span>
         <FileIcon name={e.name} dir={e.dir} open={open()} mark={mark()} />
-        <Show when={inError() && e.dir}>
-          <span class="tree-dot" title={t('Error in a file below')} />
-        </Show>
-        <span class={`tree-name git-${eff().state}`} classList={{ 'has-error': inError() && !e.dir }}>{e.name}</span>
+        {/* One class string: a classList entry would be wiped when the Git state rewrites `class`. */}
+        <span class={`tree-name git-${eff().state}${inError() ? ' has-error' : ''}`}>{e.name}</span>
         <Show when={eff().label}>
           <span class="tree-label">{eff().label}</span>
+        </Show>
+        <Show when={inError()}>
+          <span class="tree-error-sign" title={t(e.dir ? 'Error in a file below' : 'Error in this file')}>
+            <Icon name="alert" size={13} />
+          </span>
         </Show>
         <Show when={eff().badge}>
           <span class={`tree-badge git-${eff().state}`} title={t(eff().state)}>

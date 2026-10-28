@@ -217,7 +217,9 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .tree-row[data-tint='marked'] { background: color-mix(in srgb, var(--tint-marked) 12%, transparent); }
 .tree-row:hover { background: var(--bg-hover); }
 .tree-row.active, .tree-row.selected { background: var(--bg-active); }
-.tree-row.current:not(.selected) .tree-name { text-decoration: underline; text-decoration-color: var(--fg-faint); text-underline-offset: 3px; }
+/* The opened file: a faint underline under its name. A name in error is left out: it takes the red
+   wavy below, which a rule of this weight would otherwise beat. */
+.tree-row.current:not(.selected) .tree-name:not(.has-error) { text-decoration: underline; text-decoration-color: var(--fg-faint); text-underline-offset: 3px; }
 .tree-row.excluded .tree-name { opacity: 0.6; }
 .file-icon { flex: none; }
 .file-icon.folder { color: var(--fg-muted); }
@@ -235,10 +237,12 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .tree-row[data-kind='library'] .tree-label { font-style: italic; }
 .tree-badge { color: var(--fg-muted); font-family: var(--font-code); font-size: 11px; margin-left: auto; flex: none; }
 .tree-badge + .tree-link { margin-left: 4px; }
-/* Disc on a folder whose content holds a file in error (#181): at the right end of the row, next
-   to the status letter, which keeps its Git color. */
-.tree-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--danger); flex: none; margin-left: auto; }
-.tree-dot + .tree-badge { margin-left: 6px; }
+/* Sign on a row marked by an error (#184): the file a language server reports in error, and each
+   folder above it. In the right column, after the name and its label, next to the status letter
+   which keeps its Git color. Only the sign carries the auto margin, so the free space stays
+   before it and the name never moves. */
+.tree-error-sign { color: var(--danger); flex: none; margin-left: auto; display: inline-flex; align-items: center; }
+.tree-error-sign + .tree-badge { margin-left: 6px; }
 .tree-detail { color: var(--sym-detail); font-size: 12px; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; }
 .tree-link { color: var(--fg-faint); }
 .tree-error { color: var(--danger); font-size: 12px; padding: 2px 8px; }
@@ -826,9 +830,11 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 :is(.tree-name, .rf-name).git-conflict { color: color-mix(in srgb, var(--danger) 70%, #000); font-weight: 600; }
 :is(.tree-name, .rf-name).git-deleted { color: var(--fg-faint); text-decoration: line-through; }
 :is(.tree-name, .rf-name).git-ignored { color: color-mix(in srgb, var(--warn) 45%, var(--fg-faint)); }
-/* A file a language server reports in error: written after the Git states, so the red wins on a
-   modified or untracked file (#181). A folder keeps its Git color and takes the disc instead. */
-:is(.tree-name, .rf-name).has-error { color: var(--danger); }
+/* A file a language server reports in error, and each folder above it (#184): a red wavy underline
+   under the name, which keeps its Git color. Written after the Git states, so the wavy replaces the
+   line-through of a deleted file; the .tree-row prefix weighs as much as the underline of the opened
+   file above, and the name rule excludes it. */
+.tree-row :is(.tree-name, .rf-name).has-error { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: var(--danger); text-underline-offset: 3px; }
 /* The status letter of the row takes the color of its state (M↓ worktree, M↑ index, M↓↑ both). */
 .tree-badge.git-modified { color: var(--info); }
 .tree-badge.git-staged { color: color-mix(in srgb, var(--ok) 40%, var(--info)); }

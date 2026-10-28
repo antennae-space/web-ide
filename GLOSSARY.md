@@ -259,9 +259,9 @@ _Avoid_: dependency folder, excluded folder (a mark, another thing)
 The letter at the end of the row of a tree: a status letter, with the arrows of the Git columns (Git: `M↓` worktree, `M↑` index, `M↓↑` both, `A`, `D`, `U`, `C`). The glyph of a symbol kind and the language badge of a file icon are not badges.
 _Avoid_: status letter (in code: `badge`)
 
-**Error dot** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
-The red disc on the row of a folder whose content holds a file the language servers report in error (#181). It is not a decoration channel: the folder keeps its Git color and its status letter next to it.
-_Avoid_: badge (the status letter), marker
+**Error sign** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
+The red `!` on the row of a file the language servers report in error, and on each folder above it (#181, #184), in the right column next to the status letter. It is not a decoration channel: the row keeps its Git color and takes a red wavy underline under its name.
+_Avoid_: badge (the status letter), marker, dot
 
 **Index column** / **Worktree column**
 The two halves of a `git status` entry: what changed in the index (staged: `M↑`), what changed in the worktree (`M↓`). The Explorer colors and letters a file from both.
