@@ -1,6 +1,6 @@
 // Search tool: the text of the project (run by the pod: local walk, or grep on the SSH host).
 import { createEffect, createSignal, For, on, onCleanup, Show } from 'solid-js'
-import { api, t } from './plugin'
+import { api, FileRow, t } from './plugin'
 
 interface Match {
   path: string
@@ -112,20 +112,30 @@ export function GlobalSearch() {
         <For each={groups()}>
           {([path, list]) => (
             <div class="search-group">
-              <div
-                class="search-file"
-                onClick={() => {
-                  const s = new Set(collapsed())
-                  s.has(path) ? s.delete(path) : s.add(path)
-                  setCollapsed(s)
-                }}
-              >
-                <span class="tree-twist" classList={{ open: !collapsed().has(path) }}>
-                  ›
-                </span>
-                <span class="search-path">{api.project.relPath(path)}</span>
-                <span class="badge">{list.length}</span>
-              </div>
+              {(() => {
+                // The file of a result is a row like any other (#183): Git color, status letter,
+                // tint of its kind and the red sign of a language error.
+                const deco = () => api.explorer.decorate(path, false)
+                return (
+                  <FileRow
+                    rowClass="search-file"
+                    role="button"
+                    name={api.project.relPath(path)}
+                    path={path}
+                    dir
+                    open={!collapsed().has(path)}
+                    expanded={!collapsed().has(path)}
+                    deco={deco()}
+                    error={deco().error}
+                    after={<span class="badge">{list.length}</span>}
+                    onClick={() => {
+                      const s = new Set(collapsed())
+                      s.has(path) ? s.delete(path) : s.add(path)
+                      setCollapsed(s)
+                    }}
+                  />
+                )
+              })()}
               <Show when={!collapsed().has(path)}>
                 <For each={list}>
                   {(m) => (

@@ -11,7 +11,10 @@
 .pick-item .pick-icon { display: inline-flex; align-self: center; justify-content: center; }
 .pick-label mark { background: var(--match-bg); color: inherit; border-radius: 2px; }
 
-/* Recent Files and the switcher: tools on the left, files on the right, the path below. */
+/* Recent Files and the switcher: tools on the left, files on the right, the path below. The file
+   rows are the shared file row (#183): the name and its status letter sit on the baseline of the
+   pick list, the icon and the error sign stay centred. */
+.pick.rf .pick-item .tree-error-sign { align-self: center; }
 .pick.rf { width: min(720px, calc(100vw - 32px)); }
 .rf-head { display: flex; align-items: center; gap: 10px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--line); }
 .rf-title { font-weight: 600; white-space: nowrap; }

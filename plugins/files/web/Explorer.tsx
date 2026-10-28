@@ -4,7 +4,7 @@ import { createEffect, createSignal, For, onMount, Show, untrack, type JSX } fro
 import { createStore } from 'solid-js/store'
 import type { MenuItem } from '@ide/api'
 import type { FileKind, FileTint } from '@ide/types'
-import { api, capability, contextMenu, copyText, desk, errorToast, FileIcon, Icon, prompt, t, toast } from './plugin'
+import { api, contextMenu, copyText, desk, errorToast, FileRow, Icon, prompt, t, toast } from './plugin'
 import { isLibraryName, markLabels, type FolderMark } from './tints'
 
 const folderMark = (p: string) => api.folders.mark(p)
@@ -25,26 +25,6 @@ const [errors, setErrors] = createStore<Record<string, string | undefined>>({})
 // Paths left out by .gitignore (their content is too).
 const [ignored, setIgnored] = createStore<Record<string, boolean | undefined>>({})
 const [selected, setSelected] = createSignal<string | null>(null)
-
-/** The files the language servers report in error (undefined while the Languages module loads). */
-const errorPaths = () => capability('language')?.errorPaths() ?? []
-/**
- * The paths the errors mark: each file in error and every folder above it (#181). Set by the
- * Explorer on each publish of the diagnostics; a row only asks whether it is in it.
- */
-const [errorMarked, setErrorMarked] = createSignal<Set<string>>(new Set())
-function markErrors() {
-  const marked = new Set<string>()
-  const r = root()
-  for (const p of errorPaths()) {
-    let cur = p
-    while (cur.length > r.length && cur.startsWith(r + '/')) {
-      marked.add(cur)
-      cur = cur.slice(0, cur.lastIndexOf('/'))
-    }
-  }
-  setErrorMarked(marked)
-}
 
 async function load(dir: string) {
   let list: Entry[]
@@ -292,13 +272,12 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
   const mark = () => (e.dir ? folderMark(e.path) : null)
   const isIgnored = () => props.inherited.ignored || !!ignored[e.path]
   const isExcluded = () => props.inherited.excluded || mark() === 'excluded'
-  /** A file in error, or a folder holding one below it (#181). */
-  const inError = () => errorMarked().has(e.path)
   /**
    * Each channel of the row (#179, #182): what the plugins say about the entry (Git: state and
-   * badge; Files: its kind, from its name or the marks of its folders), else what its folder passes
-   * down. The state falls back to ignored or clean, as before the badges; the git-ignored tint is
-   * the Explorer's own, since it is the one that reads the ignored set.
+   * badge; Files: its kind, from its name or the marks of its folders) and the error the core
+   * knows, else what its folder passes down. The state falls back to ignored or clean, as before
+   * the badges; the git-ignored tint is the Explorer's own, since it is the one that reads the
+   * ignored set.
    */
   const eff = () => {
     const d = api.explorer.decorate(e.path, e.dir)
@@ -309,25 +288,30 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
       kind,
       tint: d.tint ?? props.inherited.tint ?? (isIgnored() && desk.get().tintIgnored ? 'ignored' : undefined),
       label: d.label ?? props.inherited.label,
+      error: d.error,
     }
   }
   const toggle = () => setExpanded(e.path, !open())
   const activate = () => (e.dir ? toggle() : openAndFocus(e.path))
   return (
     <>
-      <div
-        class="tree-row"
-        role="treeitem"
-        aria-expanded={e.dir ? open() : undefined}
-        aria-selected={selected() === e.path}
-        tabIndex={-1}
-        data-path={e.path}
-        data-mark={mark() ?? undefined}
-        data-kind={eff().kind}
-        data-tint={eff().tint}
+      <FileRow
+        name={e.name}
+        path={e.path}
+        dir={e.dir}
+        open={open()}
+        depth={props.depth}
+        deco={eff()}
+        error={eff().error}
+        errorWavy
+        selected={selected() === e.path}
+        current={api.activePath() === e.path}
+        excluded={isExcluded()}
+        mark={mark()}
         title={mark() ? t(markLabels[mark()!]) : undefined}
-        classList={{ selected: selected() === e.path, current: api.activePath() === e.path, excluded: isExcluded() }}
-        style={{ 'padding-left': `${props.depth * 14 + 6}px` }}
+        expanded={e.dir ? open() : undefined}
+        chosen={selected() === e.path}
+        after={e.link && <span class="tree-link" title={t('Symbolic link')}>↪</span>}
         onFocus={() => setSelected(e.path)}
         onClick={(ev) => {
           setSelected(e.path)
@@ -360,32 +344,7 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
           setSelected(e.path)
           menuFor(ev, e)
         }}
-      >
-        <span class="tree-twist" classList={{ open: open(), none: !e.dir }}>
-          <Show when={e.dir}>
-            <Icon name="chevron" size={12} />
-          </Show>
-        </span>
-        <FileIcon name={e.name} dir={e.dir} open={open()} mark={mark()} />
-        {/* One class string: a classList entry would be wiped when the Git state rewrites `class`. */}
-        <span class={`tree-name git-${eff().state}${inError() ? ' has-error' : ''}`}>{e.name}</span>
-        <Show when={eff().label}>
-          <span class="tree-label">{eff().label}</span>
-        </Show>
-        <Show when={inError()}>
-          <span class="tree-error-sign" title={t(e.dir ? 'Error in a file below' : 'Error in this file')}>
-            <Icon name="alert" size={13} />
-          </span>
-        </Show>
-        <Show when={eff().badge}>
-          <span class={`tree-badge git-${eff().state}`} title={t(eff().state)}>
-            {eff().badge}
-          </span>
-        </Show>
-        <Show when={e.link}>
-          <span class="tree-link" title={t('Symbolic link')}>↪</span>
-        </Show>
-      </div>
+      />
       <Show when={e.dir && open()}>
         <Rows dir={e.path} depth={props.depth + 1} inherited={{ ignored: isIgnored(), excluded: isExcluded(), kind: eff().kind, tint: eff().tint, label: eff().label }} />
       </Show>
@@ -404,8 +363,6 @@ export function Explorer() {
     if (r && !children[r]) load(r)
     if (r) void api.folders.load()
   })
-  // The files in error and the folders above them, followed as the servers publish.
-  createEffect(markErrors)
   // "Always select the opened file".
   createEffect(() => {
     const p = api.activePath()

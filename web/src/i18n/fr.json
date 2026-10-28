@@ -162,6 +162,8 @@
   "Enum member": "Membre d’enum",
   "error": "erreur",
   "Error": "Erreur",
+  "Error in a file below": "Erreur dans un fichier en dessous",
+  "Error in this file": "Erreur dans ce fichier",
   "Esc": "Échap",
   "Escape": "Échappement",
   "Event": "Événement",
