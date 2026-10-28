@@ -8,7 +8,42 @@ const os = require('os')
 const path = require('path')
 const crypto = require('crypto')
 const { execFileSync } = require('child_process')
+const zlib = require('zlib')
 const { run, openProject, open, assert, WS } = require('../../../e2e/common.cjs')
+
+/**
+ * Pixels of that color actually painted in a screenshot of an element. A computed style is not
+ * enough for a decoration: the name of a row clips its overflow (ellipsis), which can clip the
+ * wavy away while its computed style stays "wavy".
+ */
+async function painted(page, sel, [r, g, b]) {
+  const buf = await (await page.$(sel)).screenshot()
+  let p = 8, w = 0, h = 0, bpp = 4, idat = Buffer.alloc(0)
+  while (p < buf.length) {
+    const len = buf.readUInt32BE(p), type = buf.toString('ascii', p + 4, p + 8)
+    if (type === 'IHDR') { w = buf.readUInt32BE(p + 8); h = buf.readUInt32BE(p + 12); bpp = buf[p + 25] === 6 ? 4 : 3 }
+    else if (type === 'IDAT') idat = Buffer.concat([idat, buf.subarray(p + 8, p + 8 + len)])
+    else if (type === 'IEND') break
+    p += 12 + len
+  }
+  const raw = zlib.inflateSync(idat), stride = w * bpp, px = Buffer.alloc(h * stride)
+  for (let y = 0, o = 0; y < h; y++, o += stride + 1) {
+    const f = raw[o], line = raw.subarray(o + 1, o + 1 + stride)
+    for (let x = 0; x < stride; x++) {
+      const a = x >= bpp ? px[y * stride + x - bpp] : 0, up = y ? px[(y - 1) * stride + x] : 0
+      const corner = x >= bpp && y ? px[(y - 1) * stride + x - bpp] : 0
+      let v = line[x]
+      if (f === 1) v += a
+      else if (f === 2) v += up
+      else if (f === 3) v += (a + up) >> 1
+      else if (f === 4) { const q = a + up - corner, pa = Math.abs(q - a), pb = Math.abs(q - up), pc = Math.abs(q - corner); v += pa <= pb && pa <= pc ? a : pb <= pc ? up : corner }
+      px[y * stride + x] = v & 255
+    }
+  }
+  let n = 0
+  for (let i = 0; i < px.length; i += bpp) if (Math.abs(px[i] - r) < 40 && Math.abs(px[i + 1] - g) < 40 && Math.abs(px[i + 2] - b) < 40) n++
+  return n
+}
 
 const DATA = process.env.E2E_DATA
 const TMP = process.env.E2E_TMP
@@ -104,6 +139,11 @@ run(async ({ page }) => {
     return [s.textDecorationLine, s.textDecorationStyle, s.textDecorationColor]
   }, row('sub') + ' .tree-name')
   assert(folder[0] === 'underline' && folder[1] === 'wavy' && folder[2] === marks.danger, 'the folder above the error holds the wavy too: ' + folder.join(' '))
+  // And it is really drawn: the name clips its overflow, which used to clip the wave away. The ink
+  // of these names is the Git color (--info), so the red pixels under them are the wavy.
+  const danger = marks.danger.match(/\d+/g).map(Number)
+  const waves = { file: await painted(page, row('sub/broken.toy') + ' .tree-name', danger), dir: await painted(page, row('sub') + ' .tree-name', danger) }
+  assert(waves.file > 20 && waves.dir > 20, 'the wavy is painted under the file and under the folder: ' + JSON.stringify(waves))
   // The sign sits in the right column, after the name and next to the status letter; the name of a
   // marked folder stays where the name of an unmarked one of the same depth is.
   const places = await page.evaluate(([r, plain]) => {
@@ -127,7 +167,8 @@ run(async ({ page }) => {
   for (let i = 0; i < 3; i++) await page.keyboard.press('Backspace')
   await page.keyboard.press('Control+s')
   await page.waitForFunction(([bad, dot, fdot]) => !document.querySelector(bad) && !document.querySelector(dot) && !document.querySelector(fdot), [row('sub/broken.toy') + ' .tree-name.has-error', row('sub') + ' .tree-error-sign', row('sub/broken.toy') + ' .tree-error-sign'], { timeout: 15000 })
-  assert(true, 'the wavy and the ! go away with the error')
+  const gone = { file: await painted(page, row('sub/broken.toy') + ' .tree-name', danger), dir: await painted(page, row('sub') + ' .tree-name', danger) }
+  assert(gone.file === 0 && gone.dir === 0, 'the wavy and the ! go away with the error: ' + JSON.stringify(gone))
   await open(page, 'hello.toy')
 
   // Completion: its words, one read in the folder it is granted.

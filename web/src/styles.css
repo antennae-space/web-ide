@@ -833,8 +833,10 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 /* A file a language server reports in error, and each folder above it (#184): a red wavy underline
    under the name, which keeps its Git color. Written after the Git states, so the wavy replaces the
    line-through of a deleted file; the .tree-row prefix weighs as much as the underline of the opened
-   file above, and the name rule excludes it. */
-.tree-row :is(.tree-name, .rf-name).has-error { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: var(--danger); text-underline-offset: 3px; }
+   file above, and the name rule excludes it. The name clips its overflow (ellipsis), which would
+   clip the wave too: the padding gives it room below the baseline and the negative margin keeps the
+   row exactly as tall, and the name exactly where it was. */
+.tree-row :is(.tree-name, .rf-name).has-error { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: var(--danger); text-decoration-thickness: 1.5px; text-underline-offset: 2px; padding-bottom: 5px; margin-bottom: -5px; }
 /* The status letter of the row takes the color of its state (M↓ worktree, M↑ index, M↓↑ both). */
 .tree-badge.git-modified { color: var(--info); }
 .tree-badge.git-staged { color: color-mix(in srgb, var(--ok) 40%, var(--info)); }
