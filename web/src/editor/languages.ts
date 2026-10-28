@@ -11,12 +11,27 @@ export const grammarGeneration = generation
 
 const cache = new Map<string, Grammar>()
 
+// What consumers derived from the grammars (the language of the open buffers) re-detects before
+// the views re-highlight: a view reads doc.lang when its grammar is refreshed.
+const grammarHooks = new Set<() => void>()
+
+/** Runs when a grammar changes, before the generation bump. */
+export function onGrammarsChanged(f: () => void) {
+  grammarHooks.add(f)
+  return () => grammarHooks.delete(f)
+}
+
+function grammarsChanged() {
+  cache.clear()
+  for (const f of grammarHooks) f()
+  setGeneration((g) => g + 1)
+}
+
 export function setGrammarOverrides(o: Record<string, GrammarDef> | undefined) {
   const next = o ?? {}
   if (JSON.stringify(next) === JSON.stringify(overrides())) return
   setOverridesSignal(next)
-  cache.clear()
-  setGeneration((g) => g + 1)
+  grammarsChanged()
 }
 
 // The grammars of the language packs installed (#145): over the built-ins, under the user's.
@@ -25,8 +40,7 @@ const [packGrammars, setPackGrammarsSignal] = createSignal<GrammarDef[]>([])
 export function setPackGrammars(list: GrammarDef[]) {
   if (JSON.stringify(list) === JSON.stringify(packGrammars())) return
   setPackGrammarsSignal(list)
-  cache.clear()
-  setGeneration((g) => g + 1)
+  grammarsChanged()
 }
 
 export function grammarDefs(): GrammarDef[] {

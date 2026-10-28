@@ -74,6 +74,8 @@ export class Doc {
   private setIndent: Setter<Indent | null>
   /** The indentation was chosen by the user, not detected. */
   indentChosen = false
+  /** The language was chosen, not detected: a change of the grammars does not re-detect it. */
+  langChosen = false
 
   constructor(public path: string, text: string, opts: { base?: string; rev?: number; readOnly?: boolean; lang: string; format?: FileFormat }) {
     this.text = text

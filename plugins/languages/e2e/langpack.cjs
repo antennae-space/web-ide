@@ -73,5 +73,28 @@ run(async ({ page }) => {
   await page.keyboard.press('Control+Space')
   await page.waitForSelector('.completion-item:has-text("libword")', { timeout: 10000 })
   assert(true, 'a completion of the server, from its granted folder')
+  // A reload: the restored tab keeps the grammar of its pack, without closing and reopening it
+  // (the grammars are known before the session's documents detect their language).
+  await page.reload()
+  await page.waitForSelector('.pane.active .tab:has-text("hello.toy")')
+  await page.waitForFunction(() => CSS.highlights.get('tok-keyword')?.size >= 2, null, { timeout: 10000 })
+  assert(true, 'the highlighting of a pack survives a reload')
+
+  // A grammar that arrives while its file is already open (an import in the settings): the open
+  // buffer is detected again, the tab never closed.
+  fs.writeFileSync(WS + '/demo/hello.zz', 'zz alpha\n')
+  await page.waitForTimeout(1500)
+  if (!(await page.isVisible('.tree-row:has-text("hello.zz")'))) await page.click('.rail-left .rail-btn[title="Explorer"]')
+  await page.waitForSelector('.tree-row:has-text("hello.zz")', { timeout: 10000 })
+  await page.dblclick('.tree-row:has-text("hello.zz")')
+  await page.waitForSelector('.pane.active .tab:has-text("hello.zz")')
+  await page.waitForTimeout(500)
+  const gram = path.join(TMP, 'zz.json')
+  fs.writeFileSync(gram, JSON.stringify({ id: 'zz', name: 'ZZ', extensions: ['.zz'], states: { root: [{ token: 'keyword', regex: '\\bzz\\b' }] } }))
+  await page.keyboard.press('Control+Alt+s')
+  await page.click('.settings-nav button:has-text("Syntax highlighting")')
+  await page.setInputFiles('.settings-body input[type=file]', gram)
+  await page.waitForFunction(() => CSS.highlights.get('tok-keyword')?.size >= 1, null, { timeout: 10000 })
+  assert(true, 'a grammar that arrives colors the buffer already open')
   await page.keyboard.press('Escape')
 })

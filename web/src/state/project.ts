@@ -6,7 +6,8 @@ import { batch, createEffect, createRoot, createSignal, on as track } from 'soli
 import { createStore, produce, reconcile, unwrap } from 'solid-js/store'
 import { notify, on, request, setScope } from '../pod/rpc'
 import { Doc } from '../editor/doc'
-import { detectLanguage } from '../editor/languages'
+import { detectLanguage, onGrammarsChanged } from '../editor/languages'
+import { refreshPackGrammars } from '../editor/packGrammars'
 import { merge3 } from '../editor/merge'
 import { toast } from '../ui/toast'
 import { t, tn } from '../i18n'
@@ -808,6 +809,23 @@ export function openBuffers(): Doc[] {
   return [...docs.values()].flatMap((e) => (e.doc ? [e.doc] : []))
 }
 
+// A buffer loaded before its language pack was known was detected as plain text. When the
+// grammars change (the packs arrive, a pack is installed, rules imported), the open buffers are
+// detected again — before the views re-highlight, which read doc.lang. A language chosen by the
+// user is kept.
+onGrammarsChanged(() => {
+  let changed = false
+  for (const d of openBuffers()) {
+    if (d.langChosen) continue
+    const lang = detectLanguage(d.path, d.text)
+    if (lang !== d.lang) {
+      d.lang = lang
+      changed = true
+    }
+  }
+  if (changed) setDocsVersion((v) => v + 1)
+})
+
 /** Wires a document to the pod: the buffer shared between windows. */
 function attachDoc(doc: Doc): () => void {
   let syncTimer: number | undefined
@@ -1084,6 +1102,13 @@ export function placePluginTools(plugins: { manifest: { contributes: { tools?: {
   if (JSON.stringify(next) !== JSON.stringify(session.placement)) mutate((s) => (s.placement = next))
 }
 
+/** The grammars of the language packs, before the language of a document is detected (a pod
+ *  slow to answer must not hold the editor: 2 seconds at most, the buffers are detected again
+ *  when they arrive). */
+async function waitPackGrammars() {
+  await Promise.race([refreshPackGrammars(), new Promise((r) => setTimeout(r, 2000))])
+}
+
 export async function openProject(id: string, creds?: { password?: string; passphrase?: string }, desk = 1) {
   const r = await request('project.open', { id, creds, desk })
   loadDesks(id, r.desks as DeskList, r.desk ?? 1)
@@ -1099,6 +1124,7 @@ export async function openProject(id: string, creds?: { password?: string; passp
     applyingRemote = false
   })
   await reattach()
+  await waitPackGrammars()
   syncDocsWithTabs()
   return r
 }
@@ -1170,6 +1196,7 @@ export async function reopenProject() {
   } catch {
     return
   }
+  await waitPackGrammars()
   for (const [path, e] of docs) {
     if (!e.doc) continue
     try {

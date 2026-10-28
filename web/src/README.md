@@ -86,6 +86,7 @@ Diagram edges are imports of the folders, checked with a script over the `import
 - **DOMPurify** drops attributes containing `-->` (Mermaid sources are stored URI-encoded) and HTML inside `foreignObject` (Mermaid uses `htmlLabels: false`).
 - **Copy through `copyText`** (`ui/clipboard.ts`), not `navigator.clipboard.writeText`: the text then goes to the clipboard history. A popup gives the focus back with `keepFocus` (`state/focus.ts`): focusing the editor again puts its caret at the start otherwise.
 - **Side buttons of the mouse** (`keys/mouse.ts`): cancelled on `mouseup` (Chromium goes back in the browser history otherwise) and sent to the focused part (`focusPart`, which they do not change): `navigate` of `state/project.ts` (positions and tabs, recorded by `openFile`, `openTab` and `activateTab`), `navigateConsoles`, `navigateChats`.
+- **The language of a buffer is detected from the grammars it knows**: `openProject` waits for the grammars of the language packs (`editor/packGrammars.ts`) before loading the documents of a restored session, and `onGrammarsChanged` (`editor/languages.ts`) re-detects the open buffers before the views re-highlight (`doc.langChosen` spares a chosen language).
 
 ## Tests
 

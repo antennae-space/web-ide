@@ -17,7 +17,7 @@ import { setAloneView } from '../state/tiles'
 import { t } from '../i18n'
 import { errorToast, toast } from '../ui/toast'
 import { setPackGrammars, setPackLanguages } from '../editor/languages'
-import type { GrammarDef } from '../editor/tokenizer'
+import { refreshPackGrammars } from '../editor/packGrammars'
 import { placePluginTools, type TabState } from '../state/project'
 
 // The page module of each built-in, a chunk of its own (vite.config.ts: plugin-<id>).
@@ -141,15 +141,6 @@ async function runAction(plugin: string, method: string, label: string) {
   } catch (e) {
     errorToast(e)
   }
-}
-
-/** The grammars of the language packs, asked again when the plugins change. */
-let grammarsAsked: Promise<void> | undefined
-function refreshPackGrammars() {
-  grammarsAsked ??= request<{ pack: string; grammar: GrammarDef }[]>('plugins.grammars')
-    .then((list) => setPackGrammars(list.map((g) => g.grammar)))
-    .catch(() => {})
-    .finally(() => (grammarsAsked = undefined))
 }
 
 on('plugins.changed', (e: { plugins: PluginState[] }) => {

@@ -374,6 +374,8 @@ const [wrapGeneration, setWrapGeneration] = createSignal(0)
 
 export function wrapOf(d: Doc) {
   wrapGeneration()
+  // A buffer whose language was re-detected (the grammars arrived late) wraps differently.
+  docsVersion()
   const own = wrapToggled.get(d)
   if (own !== undefined) return own
   const w = settings.editor.wordWrap
