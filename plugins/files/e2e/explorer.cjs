@@ -40,8 +40,40 @@ run(async ({ page }) => {
   execFileSync('git', ['add', 'go.mod'], { cwd: demo })
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
   await page.waitForSelector(row('go.mod') + ' .tree-name.git-added', { timeout: 10000 })
-  assert((await page.textContent(row('go.mod') + ' .tree-badge')) === 'A', 'added file, badge A')
+  assert((await page.textContent(row('go.mod') + ' .tree-badge')) === 'A↑', 'added file, badge A↑')
   assert(await page.isVisible(row('src') + ' .tree-name.git-untracked'), 'folder of untracked files')
+
+  // The two columns of git status: a change in the worktree (↓) or in the index (↑), #180.
+  const git = (args) => execFileSync('git', args, { cwd: demo })
+  const focus = () => page.evaluate(() => window.dispatchEvent(new Event('focus')))
+  // The pod refreshes the status after every change: a row can show one column before the
+  // other lands, so the letter must hold for a moment before it counts.
+  const badgeIs = async (name, want) => {
+    const sel = row(name) + ' .tree-badge'
+    for (let end = Date.now() + 12000; Date.now() < end; ) {
+      await page.waitForFunction(([sel, want]) => document.querySelector(sel)?.textContent === want, [sel, want], { timeout: 12000 })
+      await page.waitForTimeout(700)
+      if ((await page.textContent(sel)) === want) return true
+    }
+    return false
+  }
+  git(['add', '-A'])
+  git(['commit', '-q', '-m', 'e2e'])
+  fs.appendFileSync(demo + '/src/main.go', '// touched\n')
+  await focus()
+  await page.waitForSelector(row('src/main.go') + ' .tree-name.git-modified', { timeout: 10000 })
+  assert(await badgeIs('src/main.go', 'M↓'), 'worktree change, blue name and badge M↓')
+  git(['add', 'src/main.go'])
+  fs.appendFileSync(demo + '/src/main.go', '// again\n')
+  await focus()
+  assert(await badgeIs('src/main.go', 'M↓↑'), 'staged and modified, badge M↓↑')
+  fs.appendFileSync(demo + '/go.mod', '\n')
+  git(['add', 'go.mod'])
+  await focus()
+  await page.waitForSelector(row('go.mod') + ' .tree-name.git-staged', { timeout: 10000 })
+  assert(await badgeIs('go.mod', 'M↑'), 'staged only, its own shade and badge M↑')
+  assert(await page.isVisible(row('src') + ' .tree-badge.git-modified'), 'folder badge colored like its state')
+  assert(await badgeIs('src', 'M↓↑'), 'folder carries the letter of the strongest state below it')
 
   // Folder marks.
   const mark = async (name, label) => {

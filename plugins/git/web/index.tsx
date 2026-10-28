@@ -1,14 +1,10 @@
 // The Git plugin (pod/plugins/git): the Git tool, the git source of the diff view, and
 // the git service (the state of the repository) the explorer, the project bar and the editor use.
 import type { PluginModule } from '@ide/types'
-import type { FileGitState } from '@ide/capabilities'
 import { bindApi } from './plugin'
-import { dirChanged, dirState, fileState, gitRevision, gitStatus, refreshGit, watchGit } from './state'
+import { dirBadge, dirChanged, dirState, fileBadge, fileState, gitRevision, gitStatus, refreshGit, watchGit } from './state'
 import { GitPanel, gitCorner, gitMenu } from './GitPanel'
 import { gitDiff } from './diff'
-
-/** Status letter of a Git state, shown at the end of a row (the index/worktree pair is #180). */
-const badgeOf: Record<FileGitState, string> = { modified: 'M', added: 'A', untracked: 'U', deleted: 'D', conflict: 'C' }
 
 export const git: PluginModule = {
   activate(api) {
@@ -19,7 +15,9 @@ export const git: PluginModule = {
       revision: gitRevision,
       refresh: refreshGit,
       fileState,
+      fileBadge,
       dirState,
+      dirBadge,
       dirChanged,
       ignored: (paths) => api.rpc<string[]>('git.ignored', { paths }),
       branches: () => api.rpc('git.branches'),
@@ -32,10 +30,12 @@ export const git: PluginModule = {
       diffSources: [gitDiff],
       fileDecorations: {
         ignored: (paths) => api.rpc<string[]>('git.ignored', { paths }),
-        // The state colors the name, its letter sits at the end of the row (#180 pairs it with the index).
+        // The state colors the name, its letter sits at the end of the row: both come from the
+        // two columns of git status, the worktree and the index (#180).
         decorate: (path, dir) => {
-          const s = dir ? dirState(path) : fileState(path)
-          return s ? { state: s, badge: badgeOf[s] } : null
+          const state = dir ? dirState(path) : fileState(path)
+          if (!state) return null
+          return { state, badge: (dir ? dirBadge(path) : fileBadge(path)) ?? undefined }
         },
       },
       opened: () => refreshGit(0),

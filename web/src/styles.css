@@ -813,11 +813,19 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .git-message { margin: 6px 10px; white-space: pre-wrap; word-break: break-word; font-family: var(--font-ui); font-size: 12.5px; }
 /* Git colors of the explorer, as JetBrains IDEs. */
 :is(.tree-name, .rf-name).git-modified { color: var(--info); }
+:is(.tree-name, .rf-name).git-staged { color: color-mix(in srgb, var(--ok) 40%, var(--info)); }
 :is(.tree-name, .rf-name).git-added { color: var(--ok); }
 :is(.tree-name, .rf-name).git-untracked { color: var(--danger); }
 :is(.tree-name, .rf-name).git-conflict { color: color-mix(in srgb, var(--danger) 70%, #000); font-weight: 600; }
 :is(.tree-name, .rf-name).git-deleted { color: var(--fg-faint); text-decoration: line-through; }
 :is(.tree-name, .rf-name).git-ignored { color: color-mix(in srgb, var(--warn) 45%, var(--fg-faint)); }
+/* The status letter of the row takes the color of its state (M↓ worktree, M↑ index, M↓↑ both). */
+.tree-badge.git-modified { color: var(--info); }
+.tree-badge.git-staged { color: color-mix(in srgb, var(--ok) 40%, var(--info)); }
+.tree-badge.git-added { color: var(--ok); }
+.tree-badge.git-untracked { color: var(--danger); }
+.tree-badge.git-conflict { color: color-mix(in srgb, var(--danger) 70%, #000); }
+.tree-badge.git-deleted { color: var(--fg-faint); }
 .kind-diff { background: var(--accent); }
 
 /* gutter change markers */

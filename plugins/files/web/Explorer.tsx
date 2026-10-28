@@ -350,7 +350,7 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
           <span class="tree-label">{eff().label}</span>
         </Show>
         <Show when={eff().badge}>
-          <span class="tree-badge" title={t(eff().state)}>
+          <span class={`tree-badge git-${eff().state}`} title={t(eff().state)}>
             {eff().badge}
           </span>
         </Show>

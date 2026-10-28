@@ -248,8 +248,12 @@ The family of the background wash on the row of a tree, one per kind (`--tint-te
 _Avoid_: background color, highlight
 
 **Badge** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
-The letter at the end of the row of a tree: a status letter (Git: `M`, `A`, `U`, `D`, `C`). The glyph of a symbol kind and the language badge of a file icon are not badges.
+The letter at the end of the row of a tree: a status letter, with the arrows of the Git columns (Git: `M↓` worktree, `M↑` index, `M↓↑` both, `A`, `D`, `U`, `C`). The glyph of a symbol kind and the language badge of a file icon are not badges.
 _Avoid_: status letter (in code: `badge`)
+
+**Index column** / **Worktree column**
+The two halves of a `git status` entry: what changed in the index (staged: `M↑`), what changed in the worktree (`M↓`). The Explorer colors and letters a file from both.
+_Avoid_: status column (the kanban has one, with that name), staging area
 
 **Capability**
 A named feature a plugin or the core provides and others require (`terminal`, `worktrees`), with the service that does it: the consoles of `terminal`. An external plugin's is served to the other external plugins only, by its background frame and its backend (`ide.use`, `service.call`).
