@@ -111,7 +111,7 @@ run(
     await app.click('.modal-settings .modal-head button')
 
     // An assistant turn while the window is shown: no notification.
-    await app.click('.rail-right .rail-btn[title="Assistant"]')
+    await app.click('.rail-right .rail-btn[title^="Assistant"]')
     await app.waitForSelector('.ai-empty')
     await app.click('.ai-empty button:has-text("Add a model server")')
     await app.fill('.ai-servers input[name=url]', `127.0.0.1:${llm.address().port}`)

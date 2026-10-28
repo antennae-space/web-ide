@@ -59,7 +59,7 @@ run(async ({ page }) => {
   // Its server: a diagnostic on "bad", its confinement held, listed in Problems.
   await page.waitForFunction(() => CSS.highlights.get('diag-error')?.size, null, { timeout: 15000 })
   assert(true, 'the server of the pack gives diagnostics')
-  if (!(await page.isVisible('[data-tool=problems]'))) await page.click('.rail-right .rail-btn[title="Problems"]')
+  if (!(await page.isVisible('[data-tool=problems]'))) await page.click('.rail-right .rail-btn[title^="Problems"]')
   await page.click('[data-tool=problems] .tab:has-text("Problems")')
   await page.waitForSelector('.problem:has-text("bad toy")')
   const problems = await page.textContent('[data-tool=problems]')
@@ -84,7 +84,7 @@ run(async ({ page }) => {
   // buffer is detected again, the tab never closed.
   fs.writeFileSync(WS + '/demo/hello.zz', 'zz alpha\n')
   await page.waitForTimeout(1500)
-  if (!(await page.isVisible('.tree-row:has-text("hello.zz")'))) await page.click('.rail-left .rail-btn[title="Explorer"]')
+  if (!(await page.isVisible('.tree-row:has-text("hello.zz")'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
   await page.waitForSelector('.tree-row:has-text("hello.zz")', { timeout: 10000 })
   await page.dblclick('.tree-row:has-text("hello.zz")')
   await page.waitForSelector('.pane.active .tab:has-text("hello.zz")')

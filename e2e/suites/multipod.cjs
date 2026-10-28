@@ -565,7 +565,7 @@ run(
       await openProject(page, app, 'alpha', WS, 'alpha', true)
       assert(new URL(app.url()).pathname === `/pod/${keyA}/project/alpha-app`, 'the project of alpha runs under its own path: ' + app.url())
       // The home page of the window is the one of its entry, whatever pod a page comes from.
-      await app.click('.menubar button[title="Projects"]')
+      await app.click('.menubar button[title^="Projects"]')
       await app.waitForSelector('.home .home-bar', { timeout: 40000 })
       assert(new URL(app.url()).pathname === `/pod/${keyA}/`, 'the home button of alpha stays on alpha: ' + app.url())
       await app.goto(`${ORIGIN}/pod/${keyC}/`, { waitUntil: 'domcontentloaded' })
@@ -593,7 +593,7 @@ run(
       // 11. An agent turn on charlie, on a window that shows no pod: the browser is notified by
       // charlie, which got the subscription from the fan-out of section 5, not from a panel it
       // ever opened on that pod.
-      await app.click('.rail-right .rail-btn[title="Assistant"]')
+      await app.click('.rail-right .rail-btn[title^="Assistant"]')
       await app.waitForSelector('.ai-empty')
       await app.click('.ai-empty button:has-text("Add a model server")')
       await app.fill('.ai-servers input[name=url]', `127.0.0.1:${llmPort}`)

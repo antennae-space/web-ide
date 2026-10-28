@@ -413,7 +413,7 @@ run(async ({ ctx, page }) => {
   await page.click('.ctx-menu >> text=Full layout')
   await page.waitForSelector('.rail-left')
   assert((await shownPanes()) === 1 && (await page.$$eval('.pane.active > .tabbar .tab', (l) => l.length)) === 2, 'in Full only the group of files shows')
-  await page.click('.rail .rail-btn[title="Kanban"]')
+  await page.click('.rail .rail-btn[title^="Kanban"]')
   await page.click('[data-testid=kanban-open-board]')
   await page.waitForFunction(() => document.querySelectorAll('.pane.active > .tabbar .tab').length === 3)
   await page.click(`[data-testid=desk-${scrollDesk}]`, { button: 'right' })

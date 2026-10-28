@@ -8,7 +8,7 @@ import {
   openFile, closeEmptyPane, saveAll, session, setConflictOpener, setSize, sizesFor, splitPane, closeProject, moveTabToDesk, switchDesk,
 } from '../state/project'
 import { desk, desks, onDeskGone } from '../state/desks'
-import { cycleWidth, focusDirection, moveColumnBy, scrollMode, stackTile, tileMode, unstackTile, registerTileTools, resizeTile, showToolTile, startResize, swapDirection, tileTools, toggleSplit } from '../state/tiles'
+import { cycleWidth, focusDirection, moveColumnBy, scrollMode, stackTile, tileMode, unstackTile, registerTileTools, resizeTile, showToolTile, startResize, swapDirection, tileTools, toggleSplit, detachTool } from '../state/tiles'
 import { pluginHosts, pluginsOpened, pluginTools, refreshPlugins, toolCornerFor } from '../plugins/registry'
 import { openLinks } from '../plugins/links'
 import { tileLauncher } from '../ui/tileLauncher'
@@ -17,7 +17,7 @@ import { defaultPlacement, moveTool, normalizePlacement, showTool, shownIn, togg
 import { focusEditor, focusPart, setFocusPart, trackFocus } from '../state/focus'
 import { focusEditorQuietly, isTyping, lockEditor, mobileView, phone, revealCaret, setMobileView } from '../state/mobile'
 import { settings, updateSettings } from '../state/settings'
-import { goHome } from '../app/home'
+import { goHome, homeBase } from '../app/home'
 import { EditorArea } from '../ui/EditorArea'
 import { CornerButtons, toolMenuItems } from '../ui/toolMenu'
 import { StatusBar } from '../ui/StatusBar'
@@ -287,10 +287,20 @@ export function PodStatus() {
 
 function MenuBar() {
   const conflicts = () => (docsVersion(), conflictedDocs().length)
+  // A middle click on ⌂ opens the projects page of the entry pod in a new tab of the browser.
+  const openHomeTab = async () => window.open((await homeBase()) + '/', '_blank')
   // Phone: three rows, the project and the status, the menus, the icons of the views.
   const head = () => (
     <>
-      <button class="icon-btn" title={t('Projects')} onClick={() => void goHome()}>
+      <button
+        class="icon-btn"
+        title={[t('Projects'), t('Middle click opens the projects in a new tab')].join(' · ')}
+        onClick={() => void goHome()}
+        onMouseDown={(e) => {
+          if (e.button !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+          e.preventDefault()
+          void openHomeTab()
+        }}>
         <Icon name="home" />
       </button>
       <ProjectBar />
@@ -495,8 +505,14 @@ function RailGroup(props: { zone: Zone }) {
             classList={{ active: current() === id, focused: current() === id && focusPart() === props.zone, 'drop-before': marker(id), dragging: dragged() === id }}
             data-id={id}
             draggable="true"
-            title={t(toolPanels[id].label)}
+            title={[t(toolPanels[id].label), t('Middle click opens it in a window')].join(' · ')}
             aria-pressed={current() === id}
+            // A middle click opens the tool in a window of its own, leaving this layout as it was.
+            onMouseDown={(e) => {
+              if (e.button !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || dragged()) return
+              e.preventDefault() // no autoscroll
+              detachTool(id)
+            }}
             onClick={() => {
               mutate((s) => toggleTool(s, id))
               if (current() === id) setFocusPart(props.zone)

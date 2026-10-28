@@ -98,7 +98,7 @@ run(async ({ page }) => {
   assert((await get(local)) === 'hello from the ssh host', 'port forward started again')
 
   // Home page: the open port forwards of every project, closed one by one or all at once.
-  await page.click('.menubar button[title="Projects"]')
+  await page.click('.menubar button[title^="Projects"]')
   await page.waitForSelector(`[data-testid=home-forward-${local}]`)
   assert((await page.textContent(`[data-testid=home-forward-${local}]`)).includes('remote'), 'home page lists the open port forward with its project')
   await page.screenshot({ path: OUT + '/forwards-home.png' })
@@ -111,7 +111,7 @@ run(async ({ page }) => {
   await showForwards(page)
   await page.waitForSelector(`[data-testid=forward-${local}] .dk-dot.up`, { timeout: 10000 })
   assert((await get(local)) === 'hello from the ssh host', 'enabled port forward reopened with the project')
-  await page.click('.menubar button[title="Projects"]')
+  await page.click('.menubar button[title^="Projects"]')
   await page.click('[data-testid=forwards-close-all]')
   await page.waitForSelector('[data-testid=home-forwards]', { state: 'detached' })
   assert((await get(local)) === '', 'close all')

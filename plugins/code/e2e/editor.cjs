@@ -312,7 +312,7 @@ run(async ({ page }) => {
     assert(desks.left >= bar.left && desks.left - bar.left < 10 && desks.bottom <= bar.bottom + 1, 'the desks sit at the left of the bar')
     for (const rail of ['.rail-left', '.rail-right'])
       assert((await box(rail)).bottom <= bar.top + 1, `the ${rail} stops above the bar`)
-    await page.click('.rail-left .rail-btn[title="Console"]')
+    await page.click('.rail-left .rail-btn[title^="Console"]')
     await page.waitForSelector('.bottom [data-tool=console]')
     assert((await box('.bottom')).bottom <= (await box('[data-testid=status-bar]')).top + 1, 'the bottom strip sits above the bar')
 
@@ -325,7 +325,7 @@ run(async ({ page }) => {
     await page.waitForSelector('[data-testid=status-cursor]')
     assert(!!(await page.$('[data-testid=status-eol]')), 'the items of the file come back with the focus')
 
-    await page.click('.rail-left .rail-btn[title="Console"]')
+    await page.click('.rail-left .rail-btn[title^="Console"]')
     await page.waitForFunction(() => !document.querySelector('.bottom'))
   }
   await open(page, 'main.go')

@@ -235,7 +235,7 @@ run(async ({ page }) => {
   page.on('dialog', (d) => d.accept())
   try {
     await openProject(page)
-    await page.click('.rail-right .rail-btn[title="Assistant"]')
+    await page.click('.rail-right .rail-btn[title^="Assistant"]')
     await page.click('.ai-empty button:has-text("Add a model server")')
     await page.fill('.ai-servers input[name=url]', `127.0.0.1:${fake.address().port}`)
     await page.click('.ai-servers button:has-text("Add")')
@@ -282,7 +282,7 @@ run(async ({ page }) => {
     assert(by('k3').includes('not linked to a ticket'), 'kanban_set_plan refused without a linked ticket')
     assert(by('k4').includes('description too long (1999 characters, 1500 max)'), 'a description too long is refused: ' + by('k4').slice(0, 60))
 
-    await page.click('.rail-left .rail-btn[title="Kanban"]')
+    await page.click('.rail-left .rail-btn[title^="Kanban"]')
     await page.waitForSelector('[data-testid=kanban-panel] [data-testid=ticket-card-1]:has-text("Export JSON")')
     await page.click('[data-testid=ticket-card-1]')
     await page.waitForSelector('[data-testid=ticket-view]')
@@ -440,7 +440,7 @@ run(async ({ page }) => {
     assert(bt('b4').includes('Briefing mode'), 'no file change in Briefing mode')
     assert(await page.isVisible('[data-testid=ai-ticket-bar]:has-text("#2")'), 'ticket bar of the created ticket')
     assert(await page.isVisible('.ai-briefing-badge'), 'answers marked Briefing')
-    if (!(await page.isVisible('[data-testid=kanban-panel]'))) await page.click('.rail-left .rail-btn[title="Kanban"]')
+    if (!(await page.isVisible('[data-testid=kanban-panel]'))) await page.click('.rail-left .rail-btn[title^="Kanban"]')
     await page.click('[data-testid=ticket-card-3]')
     await page.waitForSelector('[data-testid=ticket-view] [data-testid=ticket-title]:has-text("Export settings")')
     await page.waitForSelector('.tk-row:has(.kb-role.r-briefing) [data-testid=ticket-chat]:has-text("Brief:")', { timeout: 5000 })

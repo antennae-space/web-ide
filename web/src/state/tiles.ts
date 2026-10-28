@@ -278,6 +278,9 @@ export function swapDirection(dir: Direction) {
   focusPane(id)
 }
 
+/** The tab of a tool shown in a zone: it has no tab of its own, only its id. */
+export const toolTab = (id: string): TabState => ({ id: '', kind: 'tool', tool: id })
+
 /** The address of a tool or a console shown alone, null for a tab that cannot be opened alone. */
 export function tabUrl(tab: TabState): string | null {
   if (tab.kind === 'tool' && tab.tool) return podPath(`/project/${project()!.id}/tool/${tab.tool}`)
@@ -304,4 +307,9 @@ export function detachTab(tab: TabState) {
   } else {
     window.open(url, `console-${tab.console}`, 'popup,width=900,height=560')
   }
+}
+
+/** Opens a tool in a window of its own, whether it is shown in a zone or not (rail icon middle click). */
+export function detachTool(id: string) {
+  detachTab(toolTab(id))
 }

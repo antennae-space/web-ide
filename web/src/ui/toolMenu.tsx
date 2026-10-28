@@ -8,7 +8,7 @@ import { t } from '../i18n'
 import { createEffect, For, onCleanup, type JSX } from 'solid-js'
 import { closeTab, mutate, session, type TabState } from '../state/project'
 import { shownIn, toggleTool, type Zone } from '../state/zones'
-import { detachTab, openInBrowserTab, tileMode } from '../state/tiles'
+import { detachTab, openInBrowserTab, tileMode, toolTab } from '../state/tiles'
 import { toolMenuFor } from '../plugins/registry'
 
 /** What a menu is opened for: a tool shown in a zone, or a tab of a pane. */
@@ -18,7 +18,7 @@ export type ToolSubject = { zone: Zone } | { pane: string; tab: TabState }
 function subjectTab(s: ToolSubject): TabState | null {
   if ('zone' in s) {
     const id = shownIn(session, s.zone)
-    return id ? { id: '', kind: 'tool', tool: id } : null
+    return id ? toolTab(id) : null
   }
   return s.tab
 }

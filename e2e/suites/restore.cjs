@@ -9,7 +9,7 @@ run(async ({ ctx, page }) => {
   assert(tabsBefore.length >= 3 && panesBefore === 2, 'session restored after reload (tabs and split)')
   // The features suite ends with the console panel closed: the session keeps it closed.
   assert(!(await page.isVisible('.zone-bottomLeft')), 'closed console panel still closed after reload')
-  await page.click('.rail-left .rail-btn[title="Console"]')
+  await page.click('.rail-left .rail-btn[title^="Console"]')
   await page.waitForSelector('.xterm', { timeout: 5000 }).catch(() => {})
   assert(await page.isVisible('.xterm'), 'terminal still there after reload')
   await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('pod-42'), null, { timeout: 5000 }).catch(() => {})
@@ -27,7 +27,7 @@ run(async ({ ctx, page }) => {
     'the detached editor window has the status bar at the bottom of its frame',
   )
   // main window: open notes.txt and type
-  await page.click('.rail-left .rail-btn[title="Explorer"]')
+  await page.click('.rail-left .rail-btn[title^="Explorer"]')
   await page.dblclick('.tree-row:has-text("notes.txt")')
   await page.waitForTimeout(300)
   await page.click('.pane.active .ed-content')
