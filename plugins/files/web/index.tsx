@@ -4,6 +4,7 @@ import type { PluginModule } from '@ide/types'
 import { api as theApi, bindApi } from './plugin'
 import { createIn, Explorer, explorerCorner, explorerMenu, revealInExplorer, watchFolders } from './Explorer'
 import { filesProvider } from './search'
+import { decorate } from './tints'
 
 /** Where New file creates: the folder of the active file, else the root. */
 function newEntryDir() {
@@ -23,6 +24,8 @@ export const files: PluginModule = {
       toolMenu: { explorer: explorerMenu },
       toolCorner: { explorer: explorerCorner },
       searchProviders: [filesProvider],
+      // The built-in rules of the Explorer rows (#182): tests, library roots, manifests, marks.
+      fileDecorations: { decorate },
     }
   },
 }

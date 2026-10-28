@@ -1,7 +1,7 @@
 // Commit tab: the changed files as a tree with a check box per row (checked: staged),
 // and the commit form at the bottom.
 import { createEffect, createMemo, createSignal, on, Show } from 'solid-js'
-import { fileState, gitStatus, refreshGit, type GitFile } from './state'
+import { dirBadge, dirState, fileBadge, fileState, gitStatus, refreshGit, type GitFile } from './state'
 import { discard, openChange, push, pushMenu, stage, unstage, type PushMode } from './actions'
 import { FileTree } from './FileTree'
 import { Resizer } from './Resizer'
@@ -135,7 +135,8 @@ export function ChangesTab() {
             }
             closed={closed}
             setClosed={setClosed}
-            stateOf={(f) => fileState(f.path) ?? 'modified'}
+            decoOf={(f) => ({ state: fileState(f.path) ?? 'modified', badge: fileBadge(f.path) ?? undefined })}
+            folderDeco={(n) => ({ state: dirState(n.path) ?? 'modified', badge: dirBadge(n.path) ?? undefined })}
             fromOf={(f) => (f.origPath ? api.project.relPath(f.origPath) : undefined)}
             end={(n) => <Check node={n} />}
             toggle={toggle}

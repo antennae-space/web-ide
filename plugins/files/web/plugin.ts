@@ -3,6 +3,7 @@
 // by name. Nothing here imports the core itself.
 import type { JSX } from 'solid-js'
 import type { PluginApi } from '@ide/api'
+import type { Capabilities } from '@ide/capabilities'
 
 export let api: PluginApi
 
@@ -13,10 +14,17 @@ export interface FilesDesk extends Record<string, unknown> {
   excluded: boolean
   singleClick: boolean
   follow: boolean
+  /** Row tints (#182), one switch per family of the built-in rules of `tints.ts`. */
+  tintTests: boolean
+  tintLibrary: boolean
+  tintManifests: boolean
+  tintMarks: boolean
+  tintIgnored: boolean
 }
 
 export let desk: ReturnType<typeof deskOf>
-const deskOf = (a: PluginApi) => a.desk<FilesDesk>({ expanded: [], hidden: true, excluded: true, singleClick: false, follow: false })
+const deskOf = (a: PluginApi) =>
+  a.desk<FilesDesk>({ expanded: [], hidden: true, excluded: true, singleClick: false, follow: false, tintTests: true, tintLibrary: true, tintManifests: true, tintMarks: true, tintIgnored: true })
 
 export function bindApi(a: PluginApi) {
   api = a
@@ -26,8 +34,11 @@ export function bindApi(a: PluginApi) {
 export const t: PluginApi['t'] = (...a) => api.t(...a)
 export const Icon = (p: Parameters<PluginApi['ui']['Icon']>[0]): JSX.Element => api.ui.Icon(p)
 export const FileIcon = (p: Parameters<PluginApi['ui']['FileIcon']>[0]): JSX.Element => api.ui.FileIcon(p)
+export const FileRow = (p: Parameters<PluginApi['ui']['FileRow']>[0]): JSX.Element => api.ui.FileRow(p)
 export const contextMenu: PluginApi['ui']['contextMenu'] = (...a) => api.ui.contextMenu(...a)
 export const prompt: PluginApi['ui']['prompt'] = (...a) => api.ui.prompt(...a)
 export const toast: PluginApi['ui']['toast'] = (...a) => api.ui.toast(...a)
 export const errorToast: PluginApi['ui']['errorToast'] = (...a) => api.ui.errorToast(...a)
 export const copyText: PluginApi['ui']['copyText'] = (...a) => api.ui.copyText(...a)
+/** A capability of another plugin (undefined while it is off or still loading). */
+export const capability = <K extends keyof Capabilities>(name: K) => api.use(name)

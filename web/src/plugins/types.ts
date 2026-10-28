@@ -140,11 +140,36 @@ export interface ExplorerEntry {
   folder: string
 }
 
+/** Category of a path, shown as the tint of its row (docs/design/plugins.md, Explorer decorations). */
+export type FileKind = 'test' | 'library' | 'manifest' | 'ignored' | 'marked'
+
+/** Family of the background of a row: one tint variable of `styles.css` each (#179). */
+export type FileTint = FileKind
+
+/**
+ * What a plugin knows of a path, channel by channel: each one shows in its own place of the row,
+ * a channel the plugin does not fill stays undefined and the core takes the one of the folder.
+ */
+export interface FileDecoration {
+  /** Color of the name (`git-modified`…). */
+  state?: string
+  /** Letter at the end of the row (a status letter: `M`, `A`…). */
+  badge?: string
+  /** Category of the path. */
+  kind?: FileKind
+  /** Family of the background of the row. */
+  tint?: FileTint
+  /** Text shown after the name (“library root”). */
+  label?: string
+}
+
 export interface FileDecorations {
   /** The paths among these that are left out (dimmed, as their content). */
   ignored?(paths: string[]): Promise<string[]>
-  /** A state of a file or a folder (a class of its name), null for none. */
-  state(path: string, dir: boolean): string | null
+  /** The channels this plugin knows for this path, null when it knows none. */
+  decorate?(path: string, dir: boolean): FileDecoration | null
+  /** @deprecated v1 alias of the `state` channel, folded into it by the core; kept for the plugins built before #179. */
+  state?(path: string, dir: boolean): string | null
 }
 
 /** A setting of a plugin. */

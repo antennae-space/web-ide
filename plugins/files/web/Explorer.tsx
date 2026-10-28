@@ -1,11 +1,12 @@
 // File explorer: lazy tree (one fs.list per expanded folder), refreshed by the pod watch events.
 // A click selects, a double click (or Enter) opens the file and gives it the focus.
-import { createEffect, createSignal, For, onMount, Show, untrack, type JSX } from 'solid-js'
+import { createEffect, createSignal, For, on, onMount, Show, untrack, type JSX } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import type { MenuItem } from '@ide/api'
-import { api, contextMenu, copyText, desk, errorToast, FileIcon, Icon, prompt, t, toast } from './plugin'
+import type { FileKind, FileTint } from '@ide/types'
+import { api, contextMenu, copyText, desk, errorToast, FileRow, Icon, prompt, t, toast } from './plugin'
+import { isLibraryName, markLabels, type FolderMark } from './tints'
 
-type FolderMark = 'source' | 'tests' | 'excluded'
 const folderMark = (p: string) => api.folders.mark(p)
 const inExcluded = (p: string) => api.folders.inExcluded(p)
 const root = () => api.project.root()
@@ -25,11 +26,6 @@ const [errors, setErrors] = createStore<Record<string, string | undefined>>({})
 const [ignored, setIgnored] = createStore<Record<string, boolean | undefined>>({})
 const [selected, setSelected] = createSignal<string | null>(null)
 
-/** Folders never opened by "Expand all". */
-const heavyDirs = new Set(['.git', 'node_modules'])
-
-const markLabels: Record<FolderMark, string> = { source: 'Source folder', tests: 'Test folder', excluded: 'Excluded folder' }
-
 async function load(dir: string) {
   let list: Entry[]
   try {
@@ -40,7 +36,11 @@ async function load(dir: string) {
     setErrors(dir, (e as Error).message)
     return
   }
-  // The files the decorations (Git) leave out: dimmed, and so is their content.
+  await askIgnored(list)
+}
+
+/** The files the decorations (Git) leave out: dimmed, and so is their content. */
+async function askIgnored(list: Entry[]) {
   for (const d of api.explorer.decorations()) {
     try {
       const ign = new Set((await d.ignored?.(list.map((e) => e.path))) ?? [])
@@ -108,7 +108,7 @@ async function openAndFocus(path: string) {
   requestAnimationFrame(focus)
 }
 
-/** Opens every folder, level by level, except the ignored, excluded and heavy ones. */
+/** Opens every folder, level by level, except the ignored, excluded and library ones. */
 async function expandAll() {
   const opened: string[] = []
   let level = [root()]
@@ -117,7 +117,7 @@ async function expandAll() {
     const next: string[] = []
     for (const d of level)
       for (const e of children[d] ?? []) {
-        if (!e.dir || e.link || heavyDirs.has(e.name) || ignored[e.path] || inExcluded(e.path)) continue
+        if (!e.dir || e.link || isLibraryName(e.name) || ignored[e.path] || inExcluded(e.path)) continue
         if (!desk.get().hidden && e.name.startsWith('.')) continue
         next.push(e.path)
       }
@@ -208,10 +208,12 @@ function menuFor(ev: MouseEvent, e: Entry) {
  * from a right click on either.
  */
 export function explorerMenu(): MenuItem[] {
-  const toggle = (k: 'hidden' | 'excluded' | 'singleClick' | 'follow') => () =>
+  const toggle = (k: 'hidden' | 'excluded' | 'singleClick' | 'follow' | 'tintTests' | 'tintLibrary' | 'tintManifests' | 'tintMarks' | 'tintIgnored') => () =>
     desk.set((s) => {
       s[k] = !s[k]
     })
+  /** One switch per family of the built-in rules (#182), in a submenu of the ⋮. */
+  const tints = (k: 'tintTests' | 'tintLibrary' | 'tintManifests' | 'tintMarks' | 'tintIgnored', label: string) => ({ label: t(label), checked: desk.get()[k], action: toggle(k) })
   return [
     { label: t('New file…'), action: () => createIn(root(), false) },
     { label: t('New folder…'), action: () => createIn(root(), true) },
@@ -220,6 +222,10 @@ export function explorerMenu(): MenuItem[] {
     { label: t('Show the excluded folders'), checked: desk.get().excluded, action: toggle('excluded') },
     { label: t('Open files with a single click'), checked: desk.get().singleClick, action: toggle('singleClick') },
     { label: t('Always select the opened file'), checked: desk.get().follow, action: toggle('follow') },
+    {
+      label: t('Row tints'),
+      items: [tints('tintTests', 'Tests'), tints('tintLibrary', 'Library roots'), tints('tintManifests', 'Manifests'), tints('tintMarks', 'Marked folders'), tints('tintIgnored', 'Ignored files')],
+    },
     { separator: true, label: '' },
     { label: t('Refresh all'), action: refreshAll },
   ]
@@ -240,10 +246,13 @@ export function explorerCorner(): JSX.Element[] {
   ]
 }
 
-/** What a folder passes to its content: ignored by git, excluded. */
+/** What a folder passes to its content: ignored by git, excluded, and the decoration channels of the folder (#179). */
 interface Inherited {
   ignored: boolean
   excluded: boolean
+  kind?: FileKind
+  tint?: FileTint
+  label?: string
 }
 
 function Rows(props: { dir: string; depth: number; inherited: Inherited }) {
@@ -267,23 +276,46 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
   const mark = () => (e.dir ? folderMark(e.path) : null)
   const isIgnored = () => props.inherited.ignored || !!ignored[e.path]
   const isExcluded = () => props.inherited.excluded || mark() === 'excluded'
-  // The state the decorations give (Git: modified, added…), else ignored or clean.
-  const git = () => api.explorer.decorations().map((d) => d.state(e.path, e.dir)).find((x) => x) ?? (isIgnored() ? 'ignored' : 'clean')
+  /**
+   * Each channel of the row (#179, #182): what the plugins say about the entry (Git: state and
+   * badge; Files: its kind, from its name or the marks of its folders) and the error the core
+   * knows, else what its folder passes down. The state falls back to ignored or clean, as before
+   * the badges; the git-ignored tint is the Explorer's own, since it is the one that reads the
+   * ignored set.
+   */
+  const eff = () => {
+    const d = api.explorer.decorate(e.path, e.dir)
+    const kind = d.kind ?? props.inherited.kind
+    return {
+      state: d.state ?? (isIgnored() ? 'ignored' : 'clean'),
+      badge: d.badge,
+      kind,
+      tint: d.tint ?? props.inherited.tint ?? (isIgnored() && desk.get().tintIgnored ? 'ignored' : undefined),
+      label: d.label ?? props.inherited.label,
+      error: d.error,
+    }
+  }
   const toggle = () => setExpanded(e.path, !open())
   const activate = () => (e.dir ? toggle() : openAndFocus(e.path))
   return (
     <>
-      <div
-        class="tree-row"
-        role="treeitem"
-        aria-expanded={e.dir ? open() : undefined}
-        aria-selected={selected() === e.path}
-        tabIndex={-1}
-        data-path={e.path}
-        data-mark={mark() ?? undefined}
+      <FileRow
+        name={e.name}
+        path={e.path}
+        dir={e.dir}
+        open={open()}
+        depth={props.depth}
+        deco={eff()}
+        error={eff().error}
+        errorWavy
+        selected={selected() === e.path}
+        current={api.activePath() === e.path}
+        excluded={isExcluded()}
+        mark={mark()}
         title={mark() ? t(markLabels[mark()!]) : undefined}
-        classList={{ selected: selected() === e.path, current: api.activePath() === e.path, excluded: isExcluded() }}
-        style={{ 'padding-left': `${props.depth * 14 + 6}px` }}
+        expanded={e.dir ? open() : undefined}
+        chosen={selected() === e.path}
+        after={e.link && <span class="tree-link" title={t('Symbolic link')}>↪</span>}
         onFocus={() => setSelected(e.path)}
         onClick={(ev) => {
           setSelected(e.path)
@@ -316,20 +348,9 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited }) {
           setSelected(e.path)
           menuFor(ev, e)
         }}
-      >
-        <span class="tree-twist" classList={{ open: open(), none: !e.dir }}>
-          <Show when={e.dir}>
-            <Icon name="chevron" size={12} />
-          </Show>
-        </span>
-        <FileIcon name={e.name} dir={e.dir} open={open()} mark={mark()} />
-        <span class={`tree-name git-${git()}`}>{e.name}</span>
-        <Show when={e.link}>
-          <span class="tree-link" title={t('Symbolic link')}>↪</span>
-        </Show>
-      </div>
+      />
       <Show when={e.dir && open()}>
-        <Rows dir={e.path} depth={props.depth + 1} inherited={{ ignored: isIgnored(), excluded: isExcluded() }} />
+        <Rows dir={e.path} depth={props.depth + 1} inherited={{ ignored: isIgnored(), excluded: isExcluded(), kind: eff().kind, tint: eff().tint, label: eff().label }} />
       </Show>
     </>
   )
@@ -351,6 +372,19 @@ export function Explorer() {
     const p = api.activePath()
     if (desk.get().follow && p) untrack(() => revealInExplorer(p))
   })
+  // A folder asks the paths its decorations leave out when it is listed. A decoration that
+  // arrives later — the page module of Git loaded after the first listing — asks them again for
+  // the folders already listed, so an ignored file is not left uncolored until the next refresh.
+  createEffect(
+    on(
+      () => api.explorer.decorations().filter((d) => d.ignored).length,
+      (n, prev) => {
+        if (!n || n === prev) return
+        for (const k of Object.keys(children)) if (children[k]) void askIgnored(children[k]!)
+      },
+      { defer: true },
+    ),
+  )
   const rootEntry = (): Entry => ({ name: api.project.name() ?? api.project.basename(root()), path: root(), dir: true, size: 0 })
   return (
     <div class="panel explorer">

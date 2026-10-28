@@ -97,6 +97,25 @@ run(async ({ page }) => {
   await page.waitForSelector(row('c.txt'), { timeout: 10000 })
   assert(await page.isVisible('.git-tree .tree-row:has(.tree-name:text-is("a/b"))'), 'compacted folders: a/b')
   assert(await page.isVisible(`${row('c.txt')} .tree-name.git-untracked`), 'untracked color')
+  // The Commit tree draws the same row as the Explorer (#183): state color and status letter, on
+  // the folders too, while the check boxes still stage.
+  assert((await page.textContent(`${row('c.txt')} .tree-badge`)) === 'U', 'status letter of a file in the Commit tree')
+  assert((await page.textContent(row('a/b') + ' .tree-badge')) === 'U', 'letter of a folder of untracked files')
+  assert(await page.isVisible(row('a/b') + ' .tree-name.git-untracked'), 'folder colored like its state')
+  // The letter and the count of a folder sit at the right end of the row, just before the check
+  // box (the free space is not taken by the filler of the row, #183).
+  const ends = async (name) =>
+    page.$eval(row(name), (r) => {
+      const at = (s) => r.querySelector(s).getBoundingClientRect()
+      const name2 = at('.tree-name')
+      const badge = at('.tree-badge')
+      const check = at('.git-check')
+      return { nameRight: Math.round(name2.right), badgeLeft: Math.round(badge.left), badgeRight: Math.round(badge.right), checkLeft: Math.round(check.left) }
+    })
+  for (const name of ['c.txt', 'a/b']) {
+    const p = await ends(name)
+    assert(p.badgeLeft > p.nameRight && p.checkLeft > p.badgeRight && p.checkLeft - p.badgeRight < 40, `the letter is at the right end of the row, next to the check box (${name}): ${JSON.stringify(p)}`)
+  }
   await page.screenshot({ path: OUT + '/git-changes.png' })
 
   // The root box stages everything, then unstages everything.

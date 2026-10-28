@@ -15,6 +15,12 @@ interface Info extends LogCommit {
 
 const colorOf: Record<string, string> = { A: 'added', D: 'deleted', '?': 'untracked' }
 
+/** Color of a folder of a commit: the state its files share, modified when they differ. */
+function folderColor(files: CommitFile[]): string {
+  const states = new Set(files.map((f) => colorOf[f.status] ?? 'modified'))
+  return states.size === 1 ? [...states][0] : 'modified'
+}
+
 export function CommitDetail(props: { hash: string; select: (hash: string) => void; close: () => void }) {
   const [info] = createResource(
     () => ({ hash: props.hash, rev: gitRevision() }),
@@ -92,7 +98,8 @@ export function CommitDetail(props: { hash: string; select: (hash: string) => vo
                   label={<span class="tree-name">{tn(c().files.length, '{n} file changed', '{n} files changed')}</span>}
                   closed={closed}
                   setClosed={setClosed}
-                  stateOf={(f) => colorOf[f.status] ?? 'modified'}
+                  decoOf={(f) => ({ state: colorOf[f.status] ?? 'modified', badge: f.status })}
+                  folderDeco={(n) => ({ state: folderColor(n.items) })}
                   fromOf={(f) => (f.origPath ? api.project.relPath(f.origPath) : undefined)}
                   open={(f) => openCommitFile(c().hash, f)}
                   openFile={(f) => f.status !== 'D' && api.openFile(f.path)}

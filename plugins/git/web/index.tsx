@@ -2,7 +2,7 @@
 // the git service (the state of the repository) the explorer, the project bar and the editor use.
 import type { PluginModule } from '@ide/types'
 import { bindApi } from './plugin'
-import { dirChanged, dirState, fileState, gitRevision, gitStatus, refreshGit, watchGit } from './state'
+import { dirBadge, dirChanged, dirState, fileBadge, fileState, gitRevision, gitStatus, refreshGit, watchGit } from './state'
 import { GitPanel, gitCorner, gitMenu } from './GitPanel'
 import { gitDiff } from './diff'
 
@@ -15,7 +15,9 @@ export const git: PluginModule = {
       revision: gitRevision,
       refresh: refreshGit,
       fileState,
+      fileBadge,
       dirState,
+      dirBadge,
       dirChanged,
       ignored: (paths) => api.rpc<string[]>('git.ignored', { paths }),
       branches: () => api.rpc('git.branches'),
@@ -28,7 +30,13 @@ export const git: PluginModule = {
       diffSources: [gitDiff],
       fileDecorations: {
         ignored: (paths) => api.rpc<string[]>('git.ignored', { paths }),
-        state: (path, dir) => (dir ? dirState(path) : fileState(path)),
+        // The state colors the name, its letter sits at the end of the row: both come from the
+        // two columns of git status, the worktree and the index (#180).
+        decorate: (path, dir) => {
+          const state = dir ? dirState(path) : fileState(path)
+          if (!state) return null
+          return { state, badge: (dir ? dirBadge(path) : fileBadge(path)) ?? undefined }
+        },
       },
       opened: () => refreshGit(0),
     }

@@ -198,7 +198,7 @@ run(async ({ ctx, page }) => {
   await page.waitForSelector('.ctx-menu')
   const explorerMenu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
   assert(
-    explorerMenu.slice(0, 3).join() === 'Open in a tab,Open in a window,Close' && explorerMenu.slice(-2).join() === 'Always select the opened file,Refresh all',
+    explorerMenu.slice(0, 3).join() === 'Open in a tab,Open in a window,Close' && explorerMenu.slice(-3).join() === 'Always select the opened file,Row tints,Refresh all',
     'the ⋮ of the Explorer tile, its options last: ' + JSON.stringify(explorerMenu),
   )
   await page.keyboard.press('Escape')

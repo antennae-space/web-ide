@@ -1,8 +1,9 @@
-// Tree of changed files, drawn as the explorer: a click opens the file's diff, a double
-// click the file; arrows move, Space toggles the check box of the row.
+// Tree of changed files, drawn with the shared file row of the window (ui/FileRow): a click opens
+// the file's diff, a double click the file; arrows move, Space toggles the check box of the row.
 import { createEffect, createMemo, createSignal, For, type JSX, on, Show } from 'solid-js'
+import type { FileDecoration } from '@ide/types'
 import type { TreeNode } from './tree'
-import { FileIcon, Icon } from './plugin'
+import { FileRow } from './plugin'
 
 export function FileTree<T>(props: {
   root: TreeNode<T>
@@ -10,8 +11,10 @@ export function FileTree<T>(props: {
   /** Folders closed by the user (absolute paths). */
   closed: () => Set<string>
   setClosed: (s: Set<string>) => void
-  /** Explorer color of a file: modified, added, untracked, conflict, deleted. */
-  stateOf: (item: T) => string
+  /** Decoration of a file: the color of its state and its status letter, in the same classes as the Explorer. */
+  decoOf: (item: T) => FileDecoration
+  /** Decoration of a folder, from what the tree knows of its content. */
+  folderDeco?: (node: TreeNode<T>) => FileDecoration
   /** Former path of a renamed file. */
   fromOf?: (item: T) => string | undefined
   /** End of a row (the check box). */
@@ -53,18 +56,33 @@ export function FileTree<T>(props: {
   function Row(p: { node: TreeNode<T>; depth: number; root?: boolean }) {
     const n = p.node
     const dir = !n.item
-    const color = () => (n.item ? props.stateOf(n.item) : '')
+    const deco = () => (n.item ? props.decoOf(n.item) : (p.root ? undefined : props.folderDeco?.(n)))
     const from = () => (n.item && props.fromOf?.(n.item)) || ''
     return (
       <>
-        <div
-          class="tree-row"
-          role="treeitem"
-          tabIndex={-1}
-          data-path={n.path}
-          aria-expanded={dir ? isOpen(n) : undefined}
-          classList={{ selected: selected() === n.path, 'tree-top': !!p.root }}
-          style={{ 'padding-left': `${p.depth * 14 + 6}px` }}
+        <FileRow
+          name={p.root ? undefined : n.name}
+          path={n.path}
+          // The head row of the tree shows its label in place of the icon and the name, and no twist.
+          dir={p.root ? false : dir}
+          open={isOpen(n)}
+          depth={p.depth}
+          deco={deco()}
+          selected={selected() === n.path}
+          expanded={dir ? isOpen(n) : undefined}
+          extraClass={p.root ? 'tree-top' : undefined}
+          icon={p.root ? props.label : undefined}
+          after={
+            <>
+              <Show when={!p.root && dir}>
+                <span class="git-count">{n.items.length}</span>
+              </Show>
+              <Show when={from()}>
+                <span class="git-from">← {from()}</span>
+              </Show>
+            </>
+          }
+          end={props.end?.(n)}
           onFocus={() => setSelected(n.path)}
           onClick={(e) => {
             setSelected(n.path)
@@ -89,27 +107,7 @@ export function FileTree<T>(props: {
             else return
             e.preventDefault()
           }}
-        >
-          <span class="tree-twist" classList={{ open: isOpen(n), none: !dir || p.root }}>
-            <Show when={dir && !p.root}>
-              <Icon name="chevron" size={12} />
-            </Show>
-          </span>
-          <Show when={p.root} fallback={<FileIcon name={n.name} dir={dir} open={isOpen(n)} />}>
-            {props.label}
-          </Show>
-          <Show when={!p.root}>
-            <span class={`tree-name git-${color()}`}>{n.name}</span>
-            <Show when={dir}>
-              <span class="git-count">{n.items.length}</span>
-            </Show>
-            <Show when={from()}>
-              <span class="git-from">← {from()}</span>
-            </Show>
-          </Show>
-          <span class="grow" />
-          {props.end?.(n)}
-        </div>
+        />
         <Show when={dir && (p.root || isOpen(n))}>
           <For each={n.children}>{(c) => <Row node={c} depth={p.depth + 1} />}</For>
         </Show>

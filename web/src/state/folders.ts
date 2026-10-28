@@ -31,11 +31,20 @@ export function folderMark(path: string): FolderMark | null {
   return marks()[rel(path)] ?? null
 }
 
+/** Mark of the nearest marked folder above the path (the root itself is never a mark). */
+export function markOf(path: string): FolderMark | null {
+  const r = rel(path)
+  let best: string | null = null
+  for (const k of Object.keys(marks())) {
+    if (!k || r === k || !r.startsWith(k + '/')) continue
+    if (!best || k.length > best.length) best = k
+  }
+  return best ? marks()[best] : null
+}
+
 /** True when the path is an excluded folder or inside one. */
 export function inExcluded(path: string): boolean {
-  const r = rel(path)
-  for (const [k, v] of Object.entries(marks())) if (v === 'excluded' && (r === k || r.startsWith(k + '/'))) return true
-  return false
+  return folderMark(path) === 'excluded' || markOf(path) === 'excluded'
 }
 
 export async function markFolder(path: string, mark: FolderMark | '') {

@@ -210,6 +210,9 @@ export const explorerItems = (entry: ExplorerEntry) => enabled().flatMap((s) => 
 /** The decorations of the Explorer of the enabled plugins. */
 export const fileDecorations = () => enabled().flatMap((s) => (active[s.manifest.id].fileDecorations ? [active[s.manifest.id].fileDecorations!] : []))
 
+// The merge of the channels lives in `decorations.ts`, which every tree of the window asks too.
+export { decorateEntry } from './decorations'
+
 /** The hosts of the enabled plugins (modals), mounted by the project window. */
 export const pluginHosts = createRoot(() => createMemo(() => enabled().flatMap((s) => active[s.manifest.id].hosts ?? [])))
 

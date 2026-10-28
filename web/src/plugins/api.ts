@@ -15,6 +15,7 @@ import { formAnswerText, QuestionForm } from '../questions/Form'
 import { showsQuestions } from '../questions/state'
 import { HelpLink } from '../help/HelpLink'
 import { FileIcon } from '../ui/fileIcons'
+import { FileRow } from '../ui/FileRow'
 import { activeTab, attached, basename, closeTab, docError, leaves, showWorktree, docsVersion, fileUri, loadDoc, reveal, saveCursor, saveDoc, findLeaf, getDoc, home, onBufferClose, onBufferOpen, onBufferSave, openBuffers, pathFromUri, isLocal, mutate, openFile, openTab, openTextTab, project, relPath, root, session, setActivePane, type TabState } from '../state/project'
 import { showTool } from '../state/zones'
 import { detachTab, openInBrowserTab, openTile, tileMode } from '../state/tiles'
@@ -25,8 +26,9 @@ import { WorktreeChip } from '../ui/WorktreeChip'
 import { dropClasses, dropIndex, moveItem, setDropAt } from '../ui/tabDrop'
 import { EditorView } from '../editor/view'
 import { capability, provide, type Capabilities } from './capabilities'
+import { decoratePath } from './decorations'
 import { explorerItems, fileDecorations, pluginAssistantOptions } from './registry'
-import { folderMark, inExcluded, loadFolderMarks, markFolder } from '../state/folders'
+import { folderMark, inExcluded, loadFolderMarks, markFolder, markOf } from '../state/folders'
 import { desks } from '../state/desks'
 import { setDynamicActions } from '../keys/bindings'
 import { inTunnel } from '../pod/transport'
@@ -148,9 +150,10 @@ export function makeApi(id: string) {
     /** The files opened lately on the desks of the project, the last first. */
     recentFiles: () => desks.recent,
     /** The marks of the folders of the project (source, tests, excluded), kept by the pod. */
-    folders: { mark: folderMark, inExcluded, setMark: markFolder, load: loadFolderMarks },
-    /** What the other plugins give the Explorer: menu items, decorations. */
-    explorer: { items: explorerItems, decorations: fileDecorations },
+    folders: { mark: folderMark, markOf, inExcluded, setMark: markFolder, load: loadFolderMarks },
+    /** What the other plugins give the Explorer, and what every tree asks: menu items, decorations
+     * (#179: `decorate` merges them, #183: the same answer for Recent Files, the Commit tree and Search). */
+    explorer: { items: explorerItems, decorations: fileDecorations, decorate: decoratePath },
     /** The files of the project, as the pod reads them (from the disk, not the buffers). */
     files: {
       read: (path: string) => request<{ content: string; binary?: boolean; readOnly?: boolean }>('fs.read', { path }),
@@ -244,12 +247,13 @@ export function makeApi(id: string) {
     keys: { register: registerAction, shortcut: shortcutOf, actionOf, run: runAction, setDynamic: setDynamicActions },
     /** The transport of the page: in the tunnel of the relay, or a WebSocket to the pod. */
     transport: { inTunnel },
-    ui: { Markdown, Switch, openDiagram, HelpLink, fuzzy, EmptyState, Icon, FileIcon, Modal, toast, errorToast, contextMenu, prompt, pick, copyText, parseAnsi, stripAnsi, WorktreeChip, tabDrop: { dropClasses, dropIndex, moveItem, setDropAt }, toolMenu: (tab: TabState, extra?: MenuItem[], close?: MenuItem) => toolMenuItems({ pane: '', tab }, extra, close) },
+    ui: { Markdown, Switch, openDiagram, HelpLink, fuzzy, EmptyState, Icon, FileIcon, FileRow, Modal, toast, errorToast, contextMenu, prompt, pick, copyText, parseAnsi, stripAnsi, WorktreeChip, tabDrop: { dropClasses, dropIndex, moveItem, setDropAt }, toolMenu: (tab: TabState, extra?: MenuItem[], close?: MenuItem) => toolMenuItems({ pane: '', tab }, extra, close) },
   }
 }
 
 export type PluginApi = ReturnType<typeof makeApi>
 export type { MenuItem, PickItem } from '../ui/overlay'
+export type { FileRowProps } from '../ui/FileRow'
 export type { TabState }
 export type { NavTarget } from '../state/project'
 export type { Doc } from '../editor/doc'

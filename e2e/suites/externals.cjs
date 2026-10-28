@@ -500,7 +500,7 @@ run(async ({ page, errors }) => {
   await page.click('[data-tool=explorer] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')
   assert(
-    JSON.stringify(await menuLabels()) === JSON.stringify(['Open in a window', 'Close', 'New file…', 'New folder…', 'Show the hidden files', 'Show the excluded folders', 'Open files with a single click', 'Always select the opened file', 'Refresh all']),
+    JSON.stringify(await menuLabels()) === JSON.stringify(['Open in a window', 'Close', 'New file…', 'New folder…', 'Show the hidden files', 'Show the excluded folders', 'Open files with a single click', 'Always select the opened file', 'Row tints', 'Refresh all']),
     'the items of the Explorer, after the core ones: ' + JSON.stringify(await menuLabels()),
   )
   await page.keyboard.press('Escape')

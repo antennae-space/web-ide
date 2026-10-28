@@ -19,5 +19,12 @@
   "Open files with a single click": "Abrir los archivos con un solo clic",
   "Always select the opened file": "Seleccionar siempre el archivo abierto",
   "Expand all": "Expandir todo",
-  "Collapse all": "Contraer todo"
+  "Collapse all": "Contraer todo",
+  "Library root": "Raíz de biblioteca",
+  "Row tints": "Tonos de fila",
+  "Tests": "Pruebas",
+  "Library roots": "Raíces de biblioteca",
+  "Manifests": "Manifiestos",
+  "Marked folders": "Carpetas marcadas",
+  "Ignored files": "Archivos ignorados"
 }

@@ -74,7 +74,7 @@ export interface GitStatus {
   files: GitFile[]
 }
 
-export type FileGitState = 'modified' | 'added' | 'untracked' | 'conflict' | 'deleted'
+export type FileGitState = 'modified' | 'staged' | 'added' | 'untracked' | 'conflict' | 'deleted'
 
 export interface GitBranch {
   name: string
@@ -91,7 +91,10 @@ export interface GitService {
   refresh(delay?: number): void
   /** Git state of a file, of a folder from its content, whether a folder holds changes. */
   fileState(path: string): FileGitState | null
+  /** Status letter of a file or of a folder, with the arrows of its columns (`M↓`, `M↑`, `M↓↑`). */
+  fileBadge(path: string): string | null
   dirState(dir: string): FileGitState | null
+  dirBadge(dir: string): string | null
   dirChanged(dir: string): boolean
   ignored(paths: string[]): Promise<string[]>
   branches(): Promise<GitBranch[]>
@@ -143,6 +146,8 @@ export interface LspDiagnostic {
 export interface LanguageService {
   /** The diagnostics of a file (reactive). */
   diagnostics(path: string): LspDiagnostic[]
+  /** The files a server reported with an error-severity diagnostic (reactive); the Explorer colors them and their folders. */
+  errorPaths(): string[]
   /** The completion of a server at a caret; null when the file has none (the editor offers its words). */
   complete(doc: Doc, offset: number, trigger: string | null, signal: AbortSignal): Promise<CompletionList | null>
   resolve(doc: Doc, item: CompletionItem): Promise<CompletionItem>

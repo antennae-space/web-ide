@@ -7,7 +7,7 @@ import * as lspc from './client'
 import { formatDocument, renameSymbol } from './refactor'
 import { complete, resolveItem, triggerCharacters } from './completion'
 import { resync, watchBuffers } from './sync'
-import { diagnostics, problemCount, ProblemsTool, watchServers } from './problems'
+import { diagnostics, errorPaths, problemCount, ProblemsTool, watchServers } from './problems'
 import { StructureTool, collapseAllStructure, expandAllStructure, openStructureSearch, structureCorner, structureItems, toggleAlwaysSelectStructure } from './structure'
 import { symbolsProvider } from './symbols'
 import { installServer, missingServer, notNow, putOff, servers, watchPackServers } from './servers'
@@ -27,6 +27,7 @@ export const languages: PluginModule = {
     watchPackServers()
     api.provide('language', {
       diagnostics: (path) => diagnostics[path] ?? [],
+      errorPaths,
       complete,
       resolve: resolveItem,
       triggerCharacters,

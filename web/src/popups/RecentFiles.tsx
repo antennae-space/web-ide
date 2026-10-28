@@ -7,11 +7,13 @@ import { Portal } from 'solid-js/web'
 import { activeTab, basename, getDoc, openFile, relPath } from '../state/project'
 import { desks, forgetRecent } from '../state/desks'
 import { capability } from '../plugins/capabilities'
+import { decoratePath } from '../plugins/decorations'
 
 const fileState = (p: string) => capability('git')?.fileState(p) ?? null
 import { fuzzy } from '../ui/overlay'
 import { Icon } from '../ui/icons'
 import { FileIcon } from '../ui/fileIcons'
+import { FileRow } from '../ui/FileRow'
 import { keepFocus } from '../state/focus'
 import { WorktreeChip } from '../ui/WorktreeChip'
 import { t } from '../i18n'
@@ -204,31 +206,46 @@ export function RecentFilesHost(props: { tools: () => SwitcherTool[]; onTool: (i
               </div>
               <div class="rf-files" role="listbox" aria-label={t('Files')}>
                 <For each={files()} fallback={<div class="pick-empty">{changedOnly() ? t('No changed file') : t('No recent file')}</div>}>
-                  {(p, i) => (
-                    <div
-                      class="pick-item"
-                      role="option"
-                      data-index={i()}
-                      data-path={p}
-                      aria-selected={selected('files', i())}
-                      classList={{ selected: selected('files', i()) }}
-                      onMouseEnter={() => pick('files', i())}
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        pick('files', i())
-                        accept()
-                      }}
-                    >
-                      <span class="pick-icon">
-                        <FileIcon name={basename(p)} />
-                      </span>
-                      <span class={`pick-label rf-name git-${fileState(p) ?? 'clean'}`}>{basename(p)}</span>
-                      <WorktreeChip path={p} />
-                      <Show when={getDoc(p)?.dirty()}>
-                        <span class="rf-dirty" title={t('Unsaved changes')}>●</span>
-                      </Show>
-                    </div>
-                  )}
+                  {(p, i) => {
+                    const name = () => basename(p)
+                    // The same decoration as in the Explorer (#183): color of the Git state, status
+                    // letter, tint of the kind, red sign when a language server reports the file.
+                    const deco = () => decoratePath(p, false)
+                    return (
+                      <FileRow
+                        rowClass="pick-item"
+                        twist={false}
+                        noIndent
+                        name={name()}
+                        path={p}
+                        deco={deco()}
+                        error={deco().error}
+                        selected={selected('files', i())}
+                        chosen={selected('files', i())}
+                        index={i()}
+                        icon={
+                          <span class="pick-icon">
+                            <FileIcon name={name()} />
+                          </span>
+                        }
+                        end={
+                          <>
+                            <WorktreeChip path={p} />
+                            <Show when={getDoc(p)?.dirty()}>
+                              <span class="rf-dirty" title={t('Unsaved changes')}>●</span>
+                            </Show>
+                          </>
+                        }
+                        role="option"
+                        onMouseEnter={() => pick('files', i())}
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          pick('files', i())
+                          accept()
+                        }}
+                      />
+                    )
+                  }}
                 </For>
               </div>
             </div>

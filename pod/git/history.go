@@ -97,6 +97,7 @@ func (g *Repo) CommitInfo(ctx context.Context, rev string) (*CommitInfo, error) 
 	if top == "" {
 		return nil, i18n.New("not a git repository")
 	}
+	base := g.base(top) // the paths of the commit, named as the Explorer names the files
 	if strings.HasPrefix(rev, "-") {
 		return nil, i18n.Errorf("unknown revision: %s", rev)
 	}
@@ -129,11 +130,11 @@ func (g *Repo) CommitInfo(ctx context.Context, rev string) (*CommitInfo, error) 
 		if st == "" {
 			continue
 		}
-		file := ChangedFile{Status: st[:1], Path: path.Join(top, e[i+1])}
+		file := ChangedFile{Status: st[:1], Path: path.Join(base, e[i+1])}
 		i++
 		if (file.Status == "R" || file.Status == "C") && i+1 < len(e) {
 			file.OrigPath = file.Path
-			file.Path = path.Join(top, e[i+1])
+			file.Path = path.Join(base, e[i+1])
 			i++
 		}
 		info.Files = append(info.Files, file)

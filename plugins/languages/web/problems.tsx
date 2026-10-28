@@ -59,8 +59,16 @@ function Output() {
   )
 }
 
+/** Number of error-severity diagnostics of a path. */
+const errorCount = (p: string) => (diagnostics[p] ?? []).filter((d) => d.severity === 1).length
+/** Whether a file holds an error (warnings and infos do not mark it). */
+const hasError = (p: string) => errorCount(p) > 0
+
 /** Number of errors reported by the language servers. */
-export const problemCount = () => Object.values(diagnostics).reduce((n, l) => n + (l?.filter((d) => d.severity === 1).length ?? 0), 0)
+export const problemCount = () => Object.keys(diagnostics).reduce((n, p) => n + errorCount(p), 0)
+
+/** The files a server reported with an error (reactive): the Explorer colors them and their folders. */
+export const errorPaths = () => Object.keys(diagnostics).filter(hasError)
 
 export function ProblemsTool() {
   const tab = () => desk.get().tab

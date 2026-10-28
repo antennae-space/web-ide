@@ -10,6 +10,12 @@
   --radius: 5px;
   /* Folder marks of the explorer. */
   --mark-source: #4a90e2; --mark-tests: #4caf50; --mark-excluded: #e0823d;
+  /* Tints of the rows of a tree: one family per kind of path (Explorer decorations, #179). */
+  --tint-test: var(--mark-tests); --tint-library: var(--info); --tint-manifest: var(--warn); --tint-ignored: var(--mark-excluded); --tint-marked: var(--mark-source);
+  /* Color of each Git state, as JetBrains IDEs: the name of a row, its path and its status letter
+     share them, in every tree of the window (#183). */
+  --git-modified: var(--info); --git-staged: color-mix(in srgb, var(--ok) 40%, var(--info)); --git-added: var(--ok); --git-untracked: var(--danger);
+  --git-conflict: color-mix(in srgb, var(--danger) 70%, #000); --git-deleted: var(--fg-faint); --git-ignored: color-mix(in srgb, var(--warn) 45%, var(--fg-faint));
   /* Symbol kinds (Structure, Symbols): a color per family, the detail of a symbol, and its lock. */
   --sym-type: #ffcb6b; --sym-function: #82aaff; --sym-variable: #f07178; --sym-value: #c3e88d; --sym-other: #7fdbca; --sym-detail: #ff9e64;
   --sym-export: #c3e88d; --sym-private: #f07178;
@@ -206,9 +212,20 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .tree-root { display: flex; align-items: baseline; gap: 6px; padding: 2px 10px 4px; font-weight: 600; white-space: nowrap; }
 .tree-root .muted { font-weight: 400; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
 .tree-row { display: flex; align-items: center; gap: 5px; height: 24px; padding-right: 8px; cursor: pointer; white-space: nowrap; }
+/* The decoration of a path, the same in every tree of the window (#183): the Explorer, Recent
+   Files, the Commit tab and Search results draw these classes through the shared file row.
+   The tint of the kind of a path (#179): a wash on the row, given no specificity by `:where`, so
+   hover, selection and the opened file keep their own background whatever the order of the rules. */
+:where([data-tint='test']) { background: color-mix(in srgb, var(--tint-test) 12%, transparent); }
+:where([data-tint='library']) { background: color-mix(in srgb, var(--tint-library) 12%, transparent); }
+:where([data-tint='manifest']) { background: color-mix(in srgb, var(--tint-manifest) 12%, transparent); }
+:where([data-tint='ignored']) { background: color-mix(in srgb, var(--tint-ignored) 12%, transparent); }
+:where([data-tint='marked']) { background: color-mix(in srgb, var(--tint-marked) 12%, transparent); }
 .tree-row:hover { background: var(--bg-hover); }
 .tree-row.active, .tree-row.selected { background: var(--bg-active); }
-.tree-row.current:not(.selected) .tree-name { text-decoration: underline; text-decoration-color: var(--fg-faint); text-underline-offset: 3px; }
+/* The opened file: a faint underline under its name. A name in error is left out: it takes the red
+   wavy below, which a rule of this weight would otherwise beat. */
+.tree-row.current:not(.selected) .tree-name:not(.has-error) { text-decoration: underline; text-decoration-color: var(--fg-faint); text-underline-offset: 3px; }
 .tree-row.excluded .tree-name { opacity: 0.6; }
 .file-icon { flex: none; }
 .file-icon.folder { color: var(--fg-muted); }
@@ -220,6 +237,18 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .tree-twist.open { transform: rotate(90deg); }
 .tree-twist.none { visibility: hidden; }
 .tree-name { overflow: hidden; text-overflow: ellipsis; }
+/* Text after the name ("library root"), and the status letter at the end of the row (#179). */
+.tree-label { color: var(--fg-faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+/* The label of a library root reads as a note about the folder, not as part of its name (#182). */
+.tree-row[data-kind='library'] .tree-label { font-style: italic; }
+.tree-badge { color: var(--fg-muted); font-family: var(--font-code); font-size: 11px; margin-left: auto; flex: none; }
+.tree-badge + .tree-link { margin-left: 4px; }
+/* Sign on a row marked by an error (#184): the file a language server reports in error, and each
+   folder above it. In the right column, after the name and its label, next to the status letter
+   which keeps its Git color. Only the sign carries the auto margin, so the free space stays
+   before it and the name never moves. */
+.tree-error-sign { color: var(--danger); flex: none; margin-left: auto; display: inline-flex; align-items: center; }
+.tree-error-sign + .tree-badge { margin-left: 6px; }
 .tree-detail { color: var(--sym-detail); font-size: 12px; margin-left: 6px; overflow: hidden; text-overflow: ellipsis; }
 .tree-link { color: var(--fg-faint); }
 .tree-error { color: var(--danger); font-size: 12px; padding: 2px 8px; }
@@ -247,7 +276,8 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .search-row .input { flex: 1; }
 .search-file { display: flex; align-items: center; gap: 6px; padding: 3px 8px; cursor: pointer; font-weight: 600; font-size: 12px; }
 .search-file:hover { background: var(--bg-hover); }
-.search-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+/* The path of a result is the name of a file row: it takes the room left in the row. */
+.search-file .tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .search-hit { display: flex; gap: 8px; padding: 2px 8px 2px 26px; cursor: pointer; font-family: var(--font-code); font-size: 12px; white-space: nowrap; }
 .search-hit:hover { background: var(--bg-hover); }
 .search-line { color: var(--fg-faint); min-width: 32px; text-align: right; }
@@ -578,6 +608,9 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .ctx-check.on { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
 .ctx-check.on::after { content: '✓'; }
 .ctx-sep { height: 1px; background: var(--line); margin: 4px 2px; }
+/* A submenu of a menu item (#182): opened at its right edge, same look as the menu itself. */
+.ctx-menu.sub { min-width: 180px; }
+.ctx-sub { color: var(--fg-faint); flex: none; }
 .toasts { position: fixed; right: 56px; top: 44px; z-index: 130; display: flex; flex-direction: column; gap: 8px; max-width: min(420px, calc(100vw - 32px)); }
 .toast { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg-3); border: 1px solid var(--line); border-left: 3px solid var(--info); border-radius: 6px; box-shadow: 0 6px 20px rgb(0 0 0 / 0.35); font-size: 12.5px; }
 .toast-ok { border-left-color: var(--ok); }
@@ -796,13 +829,26 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .git-detail-meta { padding: 6px 10px 0; line-height: 1.6; }
 .git-meta-author { color: var(--ok); }
 .git-message { margin: 6px 10px; white-space: pre-wrap; word-break: break-word; font-family: var(--font-ui); font-size: 12.5px; }
-/* Git colors of the explorer, as JetBrains IDEs. */
-:is(.tree-name, .rf-name).git-modified { color: var(--info); }
-:is(.tree-name, .rf-name).git-added { color: var(--ok); }
-:is(.tree-name, .rf-name).git-untracked { color: var(--danger); }
-:is(.tree-name, .rf-name).git-conflict { color: color-mix(in srgb, var(--danger) 70%, #000); font-weight: 600; }
-:is(.tree-name, .rf-name).git-deleted { color: var(--fg-faint); text-decoration: line-through; }
-:is(.tree-name, .rf-name).git-ignored { color: color-mix(in srgb, var(--warn) 45%, var(--fg-faint)); }
+/* The Git states of a path, colored once (#183): the name of a row, its path and its status letter
+   take the same variable, in the Explorer, Recent Files, the Commit tab and Search results. */
+:is(.tree-name, .tree-badge).git-modified { color: var(--git-modified); }
+:is(.tree-name, .tree-badge).git-staged { color: var(--git-staged); }
+:is(.tree-name, .tree-badge).git-added { color: var(--git-added); }
+:is(.tree-name, .tree-badge).git-untracked { color: var(--git-untracked); }
+:is(.tree-name, .tree-badge).git-conflict { color: var(--git-conflict); }
+:is(.tree-name, .tree-badge).git-deleted { color: var(--git-deleted); }
+:is(.tree-name, .tree-badge).git-ignored { color: var(--git-ignored); }
+/* A deleted file is struck out, a conflict stands out: the name only, not its letter. */
+.tree-name.git-deleted { text-decoration: line-through; }
+.tree-name.git-conflict { font-weight: 600; }
+/* A file a language server reports in error, and each folder above it (#184): a red wavy underline
+   under the name, which keeps its Git color. Written after the Git states, so the wavy replaces the
+   line-through of a deleted file; the .tree-row prefix weighs as much as the underline of the opened
+   file above, and the name rule excludes it. The name clips its overflow (ellipsis), which would
+   clip the wave too: the padding gives it room below the baseline and the negative margin keeps the
+   row exactly as tall, and the name exactly where it was. Only the Explorer asks for the wavy: the
+   other trees show the red sign alone. */
+.tree-row .tree-name.has-error { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: var(--danger); text-decoration-thickness: 1.5px; text-underline-offset: 2px; padding-bottom: 5px; margin-bottom: -5px; }
 .kind-diff { background: var(--accent); }
 
 /* gutter change markers */
