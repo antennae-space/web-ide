@@ -9,6 +9,7 @@ run(async ({ page }) => {
   fs.writeFileSync(WS + '/demo/win.txt', 'one\r\ntwo\r\n')
   fs.writeFileSync(WS + '/demo/latin.txt', Buffer.from('caf\xe9\n', 'latin1'))
   fs.writeFileSync(WS + '/demo/long.md', '# Title\n\n' + Array.from({ length: 90 }, (_, i) => 'word' + i).join(' ') + '\nafter\n')
+  fs.writeFileSync(WS + '/demo/deep.txt', Array.from({ length: 1200 }, (_, i) => 'line ' + (i + 1) + ' of the deep file').join('\n') + '\n')
   fs.writeFileSync(WS + '/demo/conf.yaml', 'server:\n  host: x\n  ports:\n    - 80\n    - 443\nname: demo\n')
   fs.mkdirSync(WS + '/demo/img', { recursive: true })
   for (const d of ['a/x', 'b/x']) {
@@ -31,6 +32,45 @@ run(async ({ page }) => {
     return r.getBoundingClientRect().left - document.querySelector('.pane.active .ed-gutter').getBoundingClientRect().right
   })
   assert(Math.abs(gap) < 1, 'no space between the gutter and the text (' + gap + ')')
+
+  // The numbers stay on their lines all the way down: a fractional line height would round the
+  // height of every block of 64 lines and the text would climb against the gutter.
+  await open(page, 'deep.txt')
+  await page.evaluate(() => { document.querySelector('.pane.active .ed-scroll').scrollTop = 1e9 })
+  await page.waitForTimeout(300)
+  const drift = await page.evaluate(() => {
+    const pane = document.querySelector('.pane.active')
+    const glyph = (node, off) => {
+      const r = document.createRange()
+      r.setStart(node, off)
+      r.setEnd(node, off + 1)
+      return r.getBoundingClientRect().top
+    }
+    const nums = pane.querySelector('.ed-gutter-nums').firstChild
+    const parts = nums.data.split('\n')
+    const first = Number(parts[0])
+    const blocks = [...pane.querySelectorAll('.ed-block')].map((el) => el.firstChild)
+    const lineTop = (n) => {
+      for (const t of blocks) {
+        const lines = t.data.split('\n')
+        if (n >= lines.length - 1) { n -= lines.length - 1; continue }
+        let off = 0
+        for (let i = 0; i < n; i++) off += lines[i].length + 1
+        return glyph(t, off)
+      }
+      return NaN
+    }
+    let worst = 0
+    let off = 0
+    for (let i = 0; i + 1 < parts.length && i < 8; i++) {
+      worst = Math.max(worst, Math.abs(glyph(nums, off) - lineTop(first - 1 + i)))
+      off += parts[i].length + 1
+    }
+    return { worst, first }
+  })
+  assert(drift.worst < 1, `the numbers sit on their lines 1200 lines down (line ${drift.first}, ${drift.worst.toFixed(2)}px)`)
+  await page.screenshot({ path: OUT + '/editor-gutter-deep.png' })
+  await open(page, 'main.go')
 
   // Indentation guides: one per indented block, the one of the caret block stands out.
   const caretAt = async (line, col = 0) => {

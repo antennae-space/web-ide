@@ -77,6 +77,7 @@ Diagram edges are imports of the folders, checked with a script over the `import
 - **Solid empties a container** whose only child is dynamic: a node mounted by hand (the editor view) needs its own element (`.editor-mount`).
 - **View callbacks run under `untrack`** (`useEditorView`), otherwise an effect calling `setSelection` subscribes to what the callback reads.
 - **Editor blocks use `width: max-content`**, otherwise lengthening the longest line re-lays out the whole file.
+- **`--line-height-code` is a length in whole pixels, not a factor** (`state/settings.ts`): the browser rounds the height of each block of 64 lines, so a fractional line height (13 px × 1.55 = 20.15) makes the text climb about a pixel per block against the gutter, carets and guides, which `view.ts` places at `padTop + row * lineHeight`.
 - **Editor rows are not lines** once something is folded: positions go through `lineTop` / `lineAtY` (`rowOf`, `lineOfRow`), never `line * lineHeight`. Folding splits a block (`splitText` then a move to a new element), which loses the DOM selection: it is set again afterwards.
 - **The editor overlays share the global CSS**: a class such as `.tab` (editor tabs) also styles an element of the whitespace overlay; overlay elements use short editor-specific names.
 - **The browser draws no caret at the end of a non-empty selection**: with several carets the editor hides the native caret and draws them all.

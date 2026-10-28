@@ -215,7 +215,9 @@ createRoot(() => {
     const f = fontFor()
     root.style.setProperty('--font-code', settings.font.family)
     root.style.setProperty('--font-size-code', `${f.size}px`)
-    root.style.setProperty('--line-height-code', String(f.lineHeight))
+    // A whole number of pixels: a fractional line height rounds the height of each block of the
+    // editor, and the text drifts against the gutter (see the pitfalls of web/src/README.md).
+    root.style.setProperty('--line-height-code', `${Math.round(f.size * f.lineHeight)}px`)
     root.style.setProperty('--font-size-ui', `${f.uiSize}px`)
     root.style.setProperty('--ligatures', settings.font.ligatures ? 'normal' : 'none')
     root.style.setProperty('--focus-outline-width', `${settings.focusOutlineWidth}px`)

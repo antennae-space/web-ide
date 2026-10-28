@@ -6,7 +6,7 @@
   --match-bg: #5c4b16; --match-cur-bg: #9c7a12; --gutter: #5e636d; --conflict-bg: #4a2a2a;
   --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-code: 'JetBrains Mono', ui-monospace, monospace;
-  --font-size-ui: 13px; --font-size-code: 13px; --line-height-code: 1.55; --ligatures: normal;
+  --font-size-ui: 13px; --font-size-code: 13px; --line-height-code: 20px; --ligatures: normal;
   --radius: 5px;
   /* Folder marks of the explorer. */
   --mark-source: #4a90e2; --mark-tests: #4caf50; --mark-excluded: #e0823d;
@@ -335,7 +335,9 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .banner-warn { background: color-mix(in srgb, var(--warn) 18%, var(--bg)); }
 .banner-info { background: var(--bg-2); color: var(--fg-muted); }
 
-/* the editor itself */
+/* the editor itself: --line-height-code is a length in whole pixels, never a factor — the text
+   is laid out in blocks whose height the browser rounds, while the gutter and the overlays are
+   placed by JavaScript at line * lineHeight. A fraction drifts by about a pixel per block. */
 .ed { position: relative; flex: 1; display: flex; min-height: 0; min-width: 0; }
 .ed-scroll { flex: 1; overflow: auto; position: relative; }
 .ed-inner { display: flex; min-width: max-content; min-height: 100%; }
