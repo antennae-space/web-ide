@@ -158,6 +158,7 @@ run(async ({ page }) => {
   }
   await keepsActive('tests/app_test.go')
   await keepsActive('package.json')
+  await keepsActive('node_modules')
   await page.screenshot({ path: OUT + '/explorer.png' })
   await page.click('[data-testid=explorer-collapse]')
   await page.waitForFunction(() => !document.querySelector('.explorer .tree-row[aria-expanded=true]'))
