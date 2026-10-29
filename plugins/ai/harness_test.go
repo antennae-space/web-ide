@@ -24,12 +24,21 @@ func init() { assistant.Scratch = "/scratch-of-the-tests" }
 
 type fakePod struct {
 	svc *plugins.Services
+	// rts: runtimes the tests give to the pod (a console manager for the shells).
+	rts map[string]*runtime.Runtime
+}
+
+func (p *fakePod) setRuntime(project string, rt *runtime.Runtime) {
+	if p.rts == nil {
+		p.rts = map[string]*runtime.Runtime{}
+	}
+	p.rts[project] = rt
 }
 
 func (p *fakePod) Runtime(string) (*runtime.Runtime, error) {
 	return nil, errors.New("no runtime in the tests")
 }
-func (p *fakePod) OpenRuntime(string) *runtime.Runtime                   { return nil }
+func (p *fakePod) OpenRuntime(project string) *runtime.Runtime           { return p.rts[project] }
 func (p *fakePod) Project(string) (string, string, bool)                 { return "", "", false }
 func (p *fakePod) Broadcast(string, any)                                 {}
 func (p *fakePod) Emit(string, string, any)                              {}

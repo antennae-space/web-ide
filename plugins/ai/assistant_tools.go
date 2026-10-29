@@ -654,6 +654,7 @@ func (s *A) runCommand(r *assistantRun, rt *runtime.Runtime, command, cwd string
 	if rt.Keeper != nil {
 		s.toolRunning(r, func(run *engine.Running) { run.Console, run.Until = info.ID, until.UnixMilli() })
 	}
+	s.trackShell(r, rt, info.ID)
 	return s.waitCommand(r, rt, command, info.ID, until, progress)
 }
 

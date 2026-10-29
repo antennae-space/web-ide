@@ -57,6 +57,15 @@ function service(name: string): ExternalService {
   }
 }
 
+/**
+ * The plugin about to serve a capability: what its background frame publishes while it starts,
+ * before serve, is kept (the Kanban's labels, published once).
+ */
+export function claim(name: string, provider: string) {
+  channel(name).provider = provider
+  values[name] ??= {}
+}
+
 /** The background frame of an external plugin serves a capability of its manifest. */
 export function serve(name: string, provider: string, call: (method: string, args: unknown[]) => Promise<unknown>) {
   const c = channel(name)

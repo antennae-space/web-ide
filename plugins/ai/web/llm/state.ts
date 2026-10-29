@@ -265,6 +265,10 @@ export interface Chat {
   /** Page only: the Orchestrator whose card started this conversation (sent with its first message). */
   adoptedBy?: string
   children?: string[]
+  /** Consoles this conversation started (run_command, run_saved_command): the pod keeps their ids. */
+  consoles?: string[]
+  /** Time spent generating its own answers (ms); the bar adds the one of its children. */
+  genMs?: number
   /** Abandoned by the user after an error. */
   dismissed?: boolean
   /** First message prepared by the Orchestrator, for the message box. */
@@ -299,6 +303,8 @@ export interface ChatInfo {
   waiting?: boolean
   /** Its last answer ended in an error. */
   failed?: boolean
+  /** Time this conversation spent generating its answers (ms). */
+  genMs?: number
 }
 
 export const [config, setConfig] = createStore<{ servers: ServerView[]; server: string; model: string; childServer?: string; childModel?: string }>({ servers: [], server: '', model: '' })
@@ -309,6 +315,16 @@ export const [serverKind, setServerKind] = createSignal('')
 
 export const [chat, setChat] = createStore<Chat>(emptyChat())
 export const [chatList, setChatList] = createSignal<ChatInfo[]>([])
+
+/** A console the conversation shown started, still running (assistant.shells). */
+export interface Shell {
+  id: string
+  title?: string
+  command?: string
+  since?: number
+}
+
+export const [shells, setShells] = createSignal<Shell[]>([])
 
 /**
  * Answer being streamed, with its counters: request start, first token, reasoning span,
@@ -541,6 +557,7 @@ export function leaveChat(next?: string) {
 export function resetChat() {
   leaveChat()
   setChat(reconcile(emptyChat()))
+  setShells([])
   setApproval(null)
   request('assistant.watch', { id: chat.id }).catch(() => {})
 }

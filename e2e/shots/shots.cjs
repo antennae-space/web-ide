@@ -228,18 +228,18 @@ async function say(page, text) {
     await page.waitForSelector('[data-testid=ai-mode].briefing')
     await say(page, BRIEF)
     let asked = false
-    for (let round = 0; round < 6 && !(await page.isVisible('[data-testid=ai-ticket-bar]')); round++) {
+    for (let round = 0; round < 6 && !(await page.isVisible('[data-testid=ai-ticket]')); round++) {
       await idle(page)
       if (await page.isVisible('[data-testid=ai-ask-question]')) {
         if (!asked) await shot(page, 'briefing')
         asked = true
         await answer(page)
-      } else if (!(await page.isVisible('[data-testid=ai-ticket-bar]'))) await say(page, 'Yes, write the ticket.')
+      } else if (!(await page.isVisible('[data-testid=ai-ticket]'))) await say(page, 'Yes, write the ticket.')
     }
     await idle(page)
     await page.waitForTimeout(1000)
     await stop(path.join(IMAGES, 'briefing.gif'), { max: 30 })
-    const n = Number(/#(\d+)/.exec(await page.textContent('[data-testid=ai-ticket-bar]'))[1])
+    const n = Number(/#(\d+)/.exec(await page.textContent('[data-testid=ai-ticket]'))[1])
     console.log(`ticket #${n} written`)
 
     // 2. Plan: written by the model from the ticket.

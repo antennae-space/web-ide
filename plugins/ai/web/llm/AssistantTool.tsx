@@ -12,63 +12,14 @@ import { DoodleHost } from './doodle/DoodleModal'
 import { Board } from './board/Board'
 import { boardShown, pages, setBoardWide, showBoard, showSide, toggleSide } from './board/pages'
 import { Stats } from './Stats'
-import { setChat } from './state'
+import { TopBar } from './TopBar'
 import './assistant.css'
-import { capability, detached, errorToast, Icon, pick, request, showsQuestions, t } from '../plugin'
-import type { TicketRole, TicketsService } from '../plugin'
-
-/** Ticket linked to the conversation (link, unlink, link another one), with the Kanban plugin. */
-function TicketBar() {
-  return <Show when={capability('tickets')}>{(k) => <TicketLink tickets={k()} />}</Show>
-}
-
-function TicketLink(props: { tickets: TicketsService }) {
-  const k = props.tickets
-  const tk = () => (chat.ticket ? k.summary(chat.ticket.id) : undefined)
-  const roleFor = (status: string): TicketRole => (status === 'new' ? 'briefing' : status === 'todo' ? 'plan' : status === 'to_test' ? 'correction' : 'dev')
-  const link = async () => {
-    k.ensure()
-    const id = await pick<number>({
-      placeholder: t('Link this conversation to a ticket'),
-      items: k
-        .tickets()
-        .filter((x) => x.status !== 'done' && x.status !== 'abandoned')
-        .map((x) => ({ label: `#${x.id} ${x.title}`, detail: k.statusLabel(x.status), value: x.id })),
-    })
-    const s = id ? k.summary(id) : undefined
-    if (!s) return
-    const ticket = { id: s.id, role: roleFor(s.status) }
-    setChat('ticket', ticket)
-    await request('assistant.set', { id: chat.id, ticket }).catch(errorToast)
-  }
-  return (
-    <Show
-      when={chat.ticket}
-      fallback={
-        <Show when={chat.messages.length && !live.busy}>
-          <button class="ai-ticket-link" onClick={() => void link()} title={t('The tools that change the ticket become available')}>
-            <Icon name="kanban" size={12} /> {t('Link to a ticket…')}
-          </button>
-        </Show>
-      }
-    >
-      <div class="ai-ticket-bar" data-testid="ai-ticket-bar">
-        <Icon name="kanban" size={13} />
-        <button class="link" onClick={() => k.open(chat.ticket!.id)} title={tk()?.title}>
-          {t('Ticket #{n}', { n: chat.ticket!.id })}
-        </button>
-        <Show when={tk()}>
-          <span class={`ai-tk-status st-${tk()!.status}`}>{k.statusLabel(tk()!.status)}</span>
-        </Show>
-        <span class="grow" />
-        <span class={`ai-tk-role r-${chat.ticket!.role}`}>{k.roleLabel(chat.ticket!.role)}</span>
-      </div>
-    </Show>
-  )
-}
+import { detached, errorToast, Icon, showsQuestions, t } from '../plugin'
 
 /** Width from which the side bar sits next to the conversation instead of over it. */
 const WIDE = 720
+/** Below this width, the parts of the top bar collapse to an icon and a number. */
+const NARROW = 420
 /** Width from which the board is a column next to the conversation instead of in its place. */
 const BOARD_WIDE = 1000
 
@@ -80,6 +31,7 @@ export function AssistantTool() {
   const [settings, setSettings] = createSignal(false)
   const [dragging, setDragging] = createSignal(false)
   const wide = () => width() >= WIDE
+  const narrow = () => width() < NARROW
   const boardWide = () => width() >= BOARD_WIDE
   createEffect(() => setBoardWide(boardWide()))
   const [splitting, setSplitting] = createSignal(false)
@@ -183,6 +135,7 @@ export function AssistantTool() {
           <Icon name="gear" size={15} />
         </button>
       </div>
+      <TopBar narrow={narrow} />
       <Show when={modelsError()}>
         <div class="ai-banner">
           <Icon name="conflict" size={13} /> {modelsError()}
@@ -226,7 +179,6 @@ export function AssistantTool() {
             <Thread onSuggest={suggest} onSettings={() => setSettings(true)} />
           </div>
           <Composer
-            head={<TicketBar />}
             onSettings={() => setSettings(true)}
             onSent={() => {
               stick = true

@@ -24,6 +24,7 @@ func (s *A) runSavedTool(r *assistantRun, rt *runtime.Runtime, a assistant.Args,
 	if err != nil {
 		return assistant.ToolResult{}, err
 	}
+	s.trackShell(r, rt, console)
 	if running != "" {
 		return assistant.OK(running, assistant.T("{command}: already running", map[string]any{"command": cmd.Name})), nil
 	}

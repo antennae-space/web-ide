@@ -13,7 +13,7 @@ import { captureScreen, canCapture, type Picture } from './doodle/background'
 import { drawPage } from './uiTools'
 import { answerQuestions, dismissPlan, executePlan, send } from './assistant'
 import { PreviewCard } from './PreviewCard'
-import { ChildCard, ChildHeader, EventCard, TaskCard } from './SubAgents'
+import { ChildCard, EventCard, TaskCard } from './SubAgents'
 import { ActionCard, OpenedCard } from './Orchestrator'
 import { activeFile, AskCard, errorToast, Icon, openDiagram, openFile, parseAnsi, project, relPath, request, t, tn, toast } from '../plugin'
 
@@ -919,9 +919,6 @@ export function Thread(props: { onSuggest: (t: string) => void; onSettings: () =
   }
   return (
     <div class="ai-thread">
-      <Show when={chat.parent}>
-        <ChildHeader />
-      </Show>
       <Show when={!chat.messages.length && !live.busy}>
         <Welcome onSuggest={props.onSuggest} onSettings={props.onSettings} />
       </Show>

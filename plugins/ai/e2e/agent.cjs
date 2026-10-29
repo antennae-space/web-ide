@@ -297,6 +297,9 @@ run(async ({ page }) => {
     await page.waitForSelector('.bottom .console-tabs .tab:has-text("Dev server")')
     const devTabs = await page.$$eval('.bottom .console-tabs .tab', (e) => e.filter((x) => x.textContent.includes('Dev server')).length)
     assert(devTabs === 1 && (await page.isVisible('.bottom .console-tabs .tab:has-text("Unit tests")')), 'the commands run in their consoles, one per command')
+    assert((await page.textContent('[data-testid=ai-shells]')).trim() === '1', 'the bar counts the console still running among the ones this conversation started')
+    const shellsTip = await page.getAttribute('[data-testid=ai-shells]', 'title')
+    assert(shellsTip.includes('Dev server'), 'the tooltip lists the running command: ' + shellsTip)
 
     // Reasoning sent back within the turn; an answer without text nor call is an error.
     await page.fill('.ai-composer .ed-content', 'Just think')

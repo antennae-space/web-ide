@@ -106,6 +106,15 @@ func (s *A) saveChat(loc llm.ChatLocation, c *engine.Chat) error {
 			c.Title = "Conversation"
 		}
 	}
+	// GenMs: the time this conversation spent generating its answers (its children are added
+	// by the page, from the list of the conversations).
+	var gen int64
+	for _, m := range c.Messages {
+		if m.Role == "assistant" {
+			gen += m.ElapsedMs
+		}
+	}
+	c.GenMs = gen
 	data, err := json.Marshal(c)
 	if err != nil {
 		return err
@@ -139,6 +148,7 @@ type assistantUpdate struct {
 	Agent     *engine.SubAgent       `json:"agent,omitempty"`
 	Children  []string               `json:"children,omitempty"`
 	Dismissed bool                   `json:"dismissed,omitempty"`
+	GenMs     int64                  `json:"genMs,omitempty"`
 	From      int                    `json:"from"`
 	Count     int                    `json:"count"`
 	Messages  []*engine.Message      `json:"messages,omitempty"`
@@ -146,7 +156,7 @@ type assistantUpdate struct {
 
 func updateOf(c *engine.Chat, state string, ahead, from int) assistantUpdate {
 	u := assistantUpdate{ID: c.ID, State: state, Ahead: ahead, Title: c.Title, Mode: c.Mode, Ticket: c.Ticket, Queue: c.Queue, Approval: c.Approval,
-		ResetAt: c.ResetAt, Nested: c.Nested, Server: c.Server, Model: c.Model, Parent: c.Parent, Agent: c.Agent, Children: c.Children, Dismissed: c.Dismissed, From: from, Count: len(c.Messages)}
+		ResetAt: c.ResetAt, Nested: c.Nested, Server: c.Server, Model: c.Model, Parent: c.Parent, Agent: c.Agent, Children: c.Children, Dismissed: c.Dismissed, GenMs: c.GenMs, From: from, Count: len(c.Messages)}
 	if u.Queue == nil {
 		u.Queue = []engine.QueuedMessage{}
 	}
