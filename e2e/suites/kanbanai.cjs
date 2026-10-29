@@ -308,7 +308,7 @@ run(async ({ page }) => {
     assert(await kp.isVisible('[data-testid=ai-ticket]:has-text("#1")'), 'ticket bar in the assistant')
     await kp.waitForSelector('[data-testid=ai-ticket] .ai-bar-dot.st-todo', { timeout: 5000 })
     assert(true, 'the status of the ticket as a dot on its icon')
-    assert((await kp.textContent('[data-testid=ai-role]')) === 'Plan', 'the role pill of the conversation on the ticket')
+    assert((await kp.textContent('[data-testid=ai-role]')) === 'Plan', 'the role pill of the conversation on the ticket: ' + (await kp.textContent('[data-testid=ai-role]')))
     assert(await kp.isVisible('[data-testid=ai-gentime]'), 'the generation time is shown on a ticket conversation')
     await kp.waitForSelector('[data-testid=ticket-plan] li:has-text("Add the route")')
     assert((await kp.$$('[data-testid=ticket-goal]')).length === 2, 'goals written by the model')

@@ -136,12 +136,13 @@ function ChildrenPart() {
 
 /** Role of the conversation on its ticket (nothing when it is not linked). */
 function RolePart() {
-  const k = capability('tickets')
   return (
-    <Show when={chat.ticket && k}>
-      <span class={`ai-tk-role r-${chat.ticket!.role}`} data-testid="ai-role">
-        {k!.roleLabel(chat.ticket!.role)}
-      </span>
+    <Show when={chat.ticket && capability('tickets')}>
+      {(k) => (
+        <span class={`ai-tk-role r-${chat.ticket!.role}`} data-testid="ai-role">
+          {k().roleLabel(chat.ticket!.role)}
+        </span>
+      )}
     </Show>
   )
 }
