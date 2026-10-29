@@ -131,7 +131,7 @@ Its sub-agents may start sub-agents of their own (depth 2); a sub-agent of the O
 
 ## From an idea to tickets: the Briefing mode
 
-The assistant has four modes (Shift+Tab cycles through them): Orchestrator (the default of a new conversation, see below), Build, Plan and Briefing. In Briefing mode the model changes nothing: its prompt (editable, `briefing-prompt.md` / `.ide/briefing-prompt.md`) makes it question the user in rounds of `ask_user` until the need is clear, then write it as one or several tickets with `kanban_create` when the user agrees. The first ticket created links the conversation to it (role `briefing`), so `kanban_update` and `kanban_add_note` refine it; the other tickets created list the conversation too. A ticket may have several briefing conversations.
+The assistant has four modes (Shift+Tab cycles through them): Orchestrator (the default of a new conversation, see below), Briefing, Plan and Build. In Briefing mode the model changes nothing: its prompt (editable, `briefing-prompt.md` / `.ide/briefing-prompt.md`) makes it question the user in rounds of `ask_user` until the need is clear, then write it as one or several tickets with `kanban_create` when the user agrees. The first ticket created links the conversation to it (role `briefing`), so `kanban_update` and `kanban_add_note` refine it; the other tickets created list the conversation too. A ticket may have several briefing conversations.
 
 The usual path: a briefing makes the tickets, *Generate the plan* writes the plan of each one, then development sessions build them.
 

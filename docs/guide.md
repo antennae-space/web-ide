@@ -69,7 +69,7 @@ A new conversation starts in **Orchestrator** mode, your start page: ask it *wha
 
 ![Briefing: the model asks questions, then writes the ticket](images/briefing.gif)
 
-Open the assistant and switch it to **Briefing** mode (Shift+Tab cycles through Orchestrator, Build, Plan and Briefing). Describe the need in a few words. In this mode the model changes nothing: it reads the code to understand the context, then asks its questions, one at a time, with suggested answers:
+Open the assistant and switch it to **Briefing** mode (Shift+Tab cycles through Orchestrator, Briefing, Plan and Build). Describe the need in a few words. In this mode the model changes nothing: it reads the code to understand the context, then asks its questions, one at a time, with suggested answers:
 
 ![A question of the model, with suggested answers](images/briefing.png)
 

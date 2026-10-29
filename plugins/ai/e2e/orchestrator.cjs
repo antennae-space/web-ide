@@ -2,7 +2,8 @@
 // tickets that can start and offers a card (nothing runs before the click; the click starts
 // the development); "what did we do yesterday?" reads the history of the kanban; "I have an
 // idea" moves the user into a new Briefing conversation where the idea is sent, with a link
-// back in the orchestrator thread; Shift+Tab cycles through the four modes. The development
+// back in the orchestrator thread; Shift+Tab cycles through the four modes (Orchestrator →
+// Briefing → Plan → Build). The development
 // started from a card is followed by the orchestrator; another conversation is adopted with
 // agent_adopt: it announces itself with a note, says who follows it and is nested.
 const http = require('http')
@@ -102,7 +103,7 @@ run(
         await page.keyboard.press('Shift+Tab')
         modes.push((await page.textContent('.ai-mode-label')).trim())
       }
-      assert(modes.join(',') === 'Build,Plan,Briefing,Orchestrator', 'Shift+Tab cycles through the modes: ' + modes)
+      assert(modes.join(',') === 'Briefing,Plan,Build,Orchestrator', 'Shift+Tab cycles through the modes: ' + modes)
 
       // 1. What next: a card; nothing runs before the click.
       await page.fill('.ai-composer .ed-content', 'What do we work on today?')
@@ -144,6 +145,8 @@ run(
       // it announces itself and keeps its own tools.
       await page.click('.ai-panel button[title="New conversation"]')
       await page.focus('.ai-composer .ed-content')
+      await page.keyboard.press('Shift+Tab') // Briefing
+      await page.keyboard.press('Shift+Tab') // Plan
       await page.keyboard.press('Shift+Tab') // Build
       await page.fill('.ai-composer .ed-content', 'Work on the footer')
       await page.keyboard.press('Control+Enter')
@@ -157,10 +160,12 @@ run(
       await page.waitForSelector('.ai-row:has-text("Login page under way")', { timeout: 20000 })
       assert(outputs.devSystem.includes('# You are followed by an Orchestrator'), 'the adopted conversation is told to note and report')
       if (!(await page.isVisible('[data-testid=ai-sidebar]'))) await page.click('.ai-panel button[title="Conversations of the project"]')
-      await page.waitForSelector('[data-testid=ai-side-orchestrator] [data-testid=ai-chat-child]:has-text("footer")', { timeout: 5000 })
-      assert((await page.textContent('[data-testid=ai-side-orchestrator]')).includes('Follow the footer'), 'the last orchestrator conversation comes first, its working child under it')
-      assert(await page.isVisible('[data-testid=ai-side-orchestrator] [data-testid=ai-chat-child]:has-text("#1")'), 'an older orchestrator with a working child keeps its tree in the Orchestrator section')
-      assert((await page.textContent('[data-testid=ai-side-orchestrator] .ai-chat-item')).includes('Follow the footer'), 'the last orchestrator comes first')
+      await page.waitForSelector('[data-testid=ai-side-active] [data-testid=ai-chat-child]:has-text("footer")', { timeout: 5000 })
+      assert((await page.textContent('[data-testid=ai-side-active]')).includes('Follow the footer'), 'the orchestrator conversation with its working child is in Active, the child under it')
+      assert(await page.isVisible('[data-testid=ai-side-active] [data-testid=ai-chat-child]:has-text("#1")'), 'an older conversation with a working child comes back to Active with its tree')
+      assert((await page.textContent('[data-testid=ai-side-active] .ai-chat-item')).includes('Follow the footer'), 'the most recent active conversation comes first')
+      assert(await page.isVisible('[data-testid=ai-side-active] .ai-chat-item:not(.nested):has-text("Follow the footer") .ai-chat-open svg'), 'an Orchestrator conversation keeps its mode icon in the history')
+      assert(!(await page.isVisible('[data-testid=ai-side-active] [data-testid=ai-chat-child]:has-text("footer") .ai-chat-open svg')), 'a child in Build mode has no mode icon')
       await page.click('[data-testid=ai-chat-child]:has-text("footer")')
       await page.waitForSelector('[data-testid=ai-child-header]:has-text("Followed by")', { timeout: 5000 })
       assert(true, 'the adopted conversation says who follows it')
@@ -168,6 +173,8 @@ run(
       // 5. A conversation failed on its own: the orchestrator resumes it and adopts it.
       await page.click('.ai-panel button[title="New conversation"]')
       await page.focus('.ai-composer .ed-content')
+      await page.keyboard.press('Shift+Tab') // Briefing
+      await page.keyboard.press('Shift+Tab') // Plan
       await page.keyboard.press('Shift+Tab') // Build
       await page.fill('.ai-composer .ed-content', 'Break please')
       await page.keyboard.press('Control+Enter')
@@ -179,7 +186,7 @@ run(
       assert(outputs.failedLine.includes('failed (agent_resume)'), 'list_conversations tells the failed conversation: ' + outputs.failedLine)
       await page.waitForSelector('[data-testid=ai-child]:has-text("Break please")', { timeout: 10000 })
       if (!(await page.isVisible('[data-testid=ai-sidebar]'))) await page.click('.ai-panel button[title="Conversations of the project"]')
-      await page.waitForSelector('[data-testid=ai-side-orchestrator] [data-testid=ai-chat-child]:has-text("Break please")', { timeout: 10000 })
+      await page.waitForSelector('[data-testid=ai-side-active] [data-testid=ai-chat-child]:has-text("Break please")', { timeout: 10000 })
       assert(!(await page.isVisible('[data-testid=ai-chat-child]:has-text("Break please") [data-testid=ai-dot-failed]')), 'resumed and adopted: under the orchestrator, no longer failed')
     } finally {
       fake.close()

@@ -285,7 +285,7 @@ export function currentMode(): Mode {
   return chat.mode ?? (chat.messages.length ? 'build' : prefs.defaultMode)
 }
 
-const modeCycle: Mode[] = ['orchestrator', 'build', 'plan', 'briefing']
+const modeCycle: Mode[] = ['orchestrator', 'briefing', 'plan', 'build']
 
 /** Mode after the current one (Shift+Tab). */
 export const nextMode = (): Mode => modeCycle[(modeCycle.indexOf(currentMode()) + 1) % modeCycle.length]

@@ -41,10 +41,10 @@ import type { EditorView } from '../plugin'
 const modeIcons = { build: 'edit', plan: 'outline', briefing: 'kanban', orchestrator: 'locate' } as const
 const modeLabels = { build: () => t('Build'), plan: () => t('Plan'), briefing: () => t('Briefing'), orchestrator: () => t('Orchestrator') }
 const modeTitles = {
-  orchestrator: () => t('Orchestrator mode: tells what to do next and what was done, proposes actions and opens the right conversation, without changing files (Shift+Tab for Build)'),
-  build: () => t('Build mode: acts on the project (Shift+Tab for Plan)'),
-  plan: () => t('Plan mode: explores and proposes a plan, without changing files (Shift+Tab for Briefing)'),
-  briefing: () => t('Briefing mode: questions you to clarify an idea and writes it in kanban tickets, without changing files (Shift+Tab for Orchestrator)'),
+  orchestrator: () => t('Orchestrator mode: tells what to do next and what was done, proposes actions and opens the right conversation, without changing files (Shift+Tab for Briefing)'),
+  build: () => t('Build mode: acts on the project (Shift+Tab for Orchestrator)'),
+  plan: () => t('Plan mode: explores and proposes a plan, without changing files (Shift+Tab for Build)'),
+  briefing: () => t('Briefing mode: questions you to clarify an idea and writes it in kanban tickets, without changing files (Shift+Tab for Plan)'),
 }
 
 const [draft, setDraft] = createSignal('')

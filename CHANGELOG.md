@@ -4,6 +4,10 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ## [Unreleased]
 
+### Changed
+
+- **Assistant: a simple conversation list.** The history side bar drops its *Orchestrator* group: an Orchestrator conversation is a conversation like the others (its small mode icon stays). It lists the active ones (running, waiting for you, failed, or with a child still working — an older parent comes back to *Active* with its working child under it), then the rest by sliding period: *Today*, *Yesterday*, *Last week*, *Last month*, *Last year*, *Older*. A child is nested only under an active conversation; anywhere else it is a plain line of the history, at the date of its last activity, marked with a *↳*. Shift+Tab now cycles Orchestrator → Briefing → Plan → Build (Orchestrator stays the default of a new conversation).
+
 ## [1.24.1] - 2026-10-29
 
 1.24.0 was tagged, but its macOS build failed and it published no archive: 1.24.1 is that release, with the fix.

@@ -87,8 +87,10 @@ run(async ({ page }) => {
     await page.click('.ai-servers .modal-head button')
     await page.waitForSelector('[data-testid=model-pill]:has-text("fake-model")')
 
-    // Shift+Tab: Plan mode.
+    // Shift+Tab: Build → Orchestrator → Briefing → Plan.
     await page.click('.ai-composer .ed-content')
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Shift+Tab')
     await page.keyboard.press('Shift+Tab')
     await page.waitForSelector('[data-testid=ai-mode].plan:has-text("fake-plan")')
     assert(true, 'Shift+Tab switches to Plan mode (dedicated model shown)')

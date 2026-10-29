@@ -1,8 +1,10 @@
-// History side bar of the assistant: the last Orchestrator conversation and the older ones
-// with working children, each with its tree; then the other active conversations (running,
-// waiting for an answer, failed, or with a working child) as trees, the most recent first;
-// then the rest by day. Search, rename, delete, abandon a failed one. A child works until it
-// reports or is stopped by hand; once ended it goes to the history of the day it ended.
+// History side bar of the assistant: the active conversations (running, waiting for an answer,
+// failed, or with a working child) as trees, the most recent first; then the rest by sliding
+// period (today, yesterday, last week, last month, last year, older). A child is nested only
+// under an active conversation: anywhere else it is a plain line of the history, at the date of
+// its last activity, marked with a ↳. Search, rename, delete, abandon a failed one. A child
+// works until it reports or is stopped by hand; once ended it goes to the history of the day it
+// ended.
 import { createMemo, createSignal, For, onMount, Show } from 'solid-js'
 import { dismiss, openChat, runStates } from './assistant'
 import { chat, chatList, deleteChat, refreshChats, renameChat, resetChat, type ChatInfo } from './state'
@@ -15,8 +17,9 @@ function groupOf(ms: number): string {
   const day = 86_400_000
   if (ms >= d.getTime()) return t('Today')
   if (ms >= d.getTime() - day) return t('Yesterday')
-  if (ms >= d.getTime() - 7 * day) return t('Last 7 days')
-  if (ms >= d.getTime() - 30 * day) return t('Last 30 days')
+  if (ms >= d.getTime() - 7 * day) return t('Last week')
+  if (ms >= d.getTime() - 30 * day) return t('Last month')
+  if (ms >= d.getTime() - 365 * day) return t('Last year')
   return t('Older')
 }
 
@@ -86,11 +89,9 @@ export function Sidebar(props: { onPicked: () => void; onNew: () => void }) {
       return { c, kids }
     }
     const out: Group[] = []
-    // The last Orchestrator, and the older ones whose children still work.
-    const last = tops.find((c) => c.mode === 'orchestrator')
-    const orchestrators = tops.filter((c) => c.mode === 'orchestrator' && (c === last || kidsOf(c.id).length > 0))
-    if (orchestrators.length) out.push({ name: t('Orchestrator'), testid: 'ai-side-orchestrator', items: orchestrators.map(take) })
-    const active = tops.filter((c) => !shown.has(c.id) && (running(c) || c.waiting || failed(c) || kidsOf(c.id).length > 0))
+    // Active conversations, each with the tree of its working children; an older parent with a
+    // working child comes back here.
+    const active = tops.filter((c) => running(c) || c.waiting || failed(c) || kidsOf(c.id).length > 0)
     if (active.length) out.push({ name: t('Active'), testid: 'ai-side-active', items: active.map(take) })
     return [...out, ...byDay(tops.filter((c) => !shown.has(c.id)))]
   })
@@ -118,6 +119,9 @@ export function Sidebar(props: { onPicked: () => void; onNew: () => void }) {
         </Show>
         <Show when={c.mode === 'orchestrator'}>
           <Icon name="locate" size={12} class="ai-side-mode" />
+        </Show>
+        <Show when={!depth && c.parent}>
+          <span class="ai-chat-sub" data-testid="ai-chat-sub">↳</span>
         </Show>
         <span class="ellipsis">{c.title || t('Untitled')}</span>
       </button>

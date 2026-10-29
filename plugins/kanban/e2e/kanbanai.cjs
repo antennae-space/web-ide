@@ -420,7 +420,7 @@ run(async ({ page }) => {
     await page.keyboard.press('Shift+Tab')
     await page.keyboard.press('Shift+Tab')
     await page.waitForSelector('[data-testid=ai-mode].briefing:has-text("Briefing")')
-    assert(true, 'Shift+Tab twice: Briefing mode')
+    assert(true, 'Shift+Tab twice from Build: Briefing mode')
     const before3 = requests.length
     await page.fill('.ai-composer .ed-content', 'Brief: an export for accounting')
     await page.keyboard.press('Control+Enter')

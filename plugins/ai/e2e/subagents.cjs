@@ -2,8 +2,8 @@
 // and asks; the parent, woken by the question, asks the user first (ask_user), then replies;
 // the change of the child out of the project waits for the user (toast "Sub-agent … asks to change a file",
 // approved in the child thread, with its header and its task); its report wakes the parent;
-// while it works the child is listed under its parent among the active conversations, then in
-// the history of the day. Then a cloud server (OpenAI-compatible,
+// while it works the child is listed under its parent among the active conversations, then a
+// plain line of the history of the day, marked with ↳. Then a cloud server (OpenAI-compatible,
 // with a key and a typed model) offered to sub-agents: the parent picks it for a child, whose
 // card shows its model, tokens and cost.
 const http = require('http')
@@ -140,6 +140,7 @@ run(async ({ page }) => {
     if (!(await page.isVisible('[data-testid=ai-sidebar]'))) await page.click('.ai-panel button[title="Conversations of the project"]')
     await page.waitForSelector('.ai-side-group:has(.ai-side-group-name:text-is("Today")) .ai-chat-item:not(.nested):has-text("Change the greeting")', { timeout: 5000 })
     assert(!(await page.isVisible('[data-testid=ai-side-active]')), 'the ended sub-agent is in the history of the day, nothing active left')
+    assert(await page.isVisible('.ai-side-group:has(.ai-side-group-name:text-is("Today")) .ai-chat-item:not(.nested):has-text("Change the greeting") [data-testid=ai-chat-sub]'), 'an ended sub-agent is a plain line of the history, marked with ↳')
     assert(!(await page.isVisible('.ai-chat-item:has-text("Change the greeting") .ai-agent-dot')), 'no dot on an ended sub-agent')
 
     // A cloud server for the sub-agents: kind, key, a typed model, a note.

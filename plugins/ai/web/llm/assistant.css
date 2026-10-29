@@ -381,6 +381,8 @@
 .ai-child-header { display: flex; align-items: center; gap: 6px; padding: 6px 10px; margin-bottom: 8px; border-radius: 8px; background: var(--ai-softer); font-size: 13px; min-width: 0; }
 .ai-nudge { padding-left: 22px; }
 .ai-chat-item.nested { padding-left: 14px; }
+/* A sub-agent listed on its own line of the history */
+.ai-chat-sub { flex: none; margin-right: 6px; color: var(--fg-faint); font-size: 12px; }
 .ai-agent-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--fg-muted); }
 .ai-agent-dot.done { background: var(--ok); }
 .ai-agent-dot.error, .ai-agent-dot.failed { background: var(--danger); }
