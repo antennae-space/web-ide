@@ -235,7 +235,8 @@ run(async ({ page }) => {
   await page.fill('[data-testid=cmd-name]', 'Build all')
   await page.click('[data-testid=cmd-save]')
   await page.waitForSelector('[data-testid=cmd-save]:disabled')
-  await page.keyboard.press('Escape')
+  // Not Escape: the disabled Save button lost the focus, the key may not reach the modal.
+  await page.click('.cmd-modal .modal-foot button:has-text("Cancel")')
   await page.waitForSelector('.cmd-modal', { state: 'detached' })
   await page.click('.console-tabs .tab:has-text("Dev server")')
   await page.keyboard.press('Control+Alt+Shift+B')
