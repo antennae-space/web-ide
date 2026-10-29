@@ -1,9 +1,9 @@
 // Sub-agents: the parent delegates with spawn_agent (a card in its thread); the child notes
 // and asks; the parent, woken by the question, asks the user first (ask_user), then replies;
 // the change of the child out of the project waits for the user (toast "Sub-agent … asks to change a file",
-// approved in the child thread, with its header and its task); its report wakes the parent;
-// while it works the child is listed under its parent among the active conversations, then a
-// plain line of the history of the day, marked with ↳. Then a cloud server (OpenAI-compatible,
+// approved in the child thread, whose top bar links back to its parent and counts its children);
+// its report wakes the parent; while it works the child is listed under its parent among the
+// active conversations, then a plain line of the history of the day, marked with ↳. Then a cloud server (OpenAI-compatible,
 // with a key and a typed model) offered to sub-agents: the parent picks it for a child, whose
 // card shows its model, tokens and cost.
 const http = require('http')
@@ -120,20 +120,29 @@ run(async ({ page }) => {
     await page.waitForSelector('.toast:has-text("Sub-agent “Change the greeting” asks to change a file")', { timeout: 20000 })
     assert(fs.readFileSync(WS + '/greeting.txt', 'utf8') === 'Bonjour\n', 'nothing written before the user confirms')
     await page.click('.toast:has-text("Sub-agent") button:has-text("Open")')
-    await page.waitForSelector('[data-testid=ai-child-header]')
-    assert((await page.textContent('[data-testid=ai-child-header]')).includes('Sub-agent of'), 'the child thread says whose sub-agent it is')
+    await page.waitForSelector('[data-testid=ai-parent]')
+    assert((await page.getAttribute('[data-testid=ai-parent] .link', 'title')) === 'Open the parent conversation', 'the top bar of the child links to its parent (collapsed: the panel is narrow)')
     await page.waitForSelector('[data-testid=ai-task]:has-text("Replace the greeting Bonjour")', { timeout: 5000 })
     assert(true, 'the child thread starts with its task')
     await page.click('[data-testid=ai-approval] button:has-text("Apply")')
-    await page.waitForFunction(() => document.querySelector('[data-testid=ai-child-header] .badge')?.textContent.includes('Done'), null, { timeout: 20000 })
+    await page.waitForFunction(() => document.querySelector('[data-testid=ai-parent] .ai-bar-dot')?.className.includes('agent-done'), null, { timeout: 20000 })
+    assert(true, 'the dot of the top bar says the child is done')
     assert(fs.readFileSync(WS + '/greeting.txt', 'utf8') === 'Hello\n', 'the change of the child applied once confirmed')
 
     // Back to the parent: the report woke it.
-    await page.click('[data-testid=ai-child-parent]')
+    await page.click('[data-testid=ai-parent] .link')
     await page.waitForSelector('.ai-msg.assistant .md:has-text("The sub-agent changed the greeting.")', { timeout: 20000 })
     assert((await page.textContent('[data-testid=ai-event-report]')).includes('Bonjour is now Hello in src/main.go.'), 'the report of the child in the parent thread')
     await page.waitForFunction(() => document.querySelector('[data-testid=ai-child-status]')?.textContent.includes('Done'), null, { timeout: 5000 })
     assert(true, 'the card of the child says it is done')
+
+    // The bar of the parent counts its children (working / all) and its menu opens one.
+    await page.waitForSelector('[data-testid=ai-children]', { timeout: 5000 })
+    assert((await page.textContent('[data-testid=ai-children]')).trim() === '0/1', 'the bar counts the children of the conversation: ' + (await page.textContent('[data-testid=ai-children]')))
+    await page.click('[data-testid=ai-children]')
+    await page.waitForSelector('.ctx-item:has-text("Change the greeting")', { timeout: 5000 })
+    assert(true, 'the menu of the bar lists the children')
+    await page.keyboard.press('Escape')
     await page.screenshot({ path: OUT + '/subagent-report.png' })
 
     // Ended, the child goes to the history of the day, beside its parent.

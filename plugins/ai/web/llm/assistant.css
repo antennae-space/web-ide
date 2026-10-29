@@ -332,7 +332,7 @@
 
 /* top bar of the conversation: ticket, shells, parent, children, role, generation time */
 .ai-topbar { display: flex; align-items: center; gap: 10px; padding: 3px 12px; border-bottom: 1px solid var(--line); background: var(--bg-2); font-size: 12px; min-width: 0; flex: none; }
-.ai-bar-item { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 0; border: 0; background: none; color: var(--fg-muted); font-size: 12px; }
+.ai-bar-item { display: inline-flex; align-items: center; gap: 5px; min-width: 0; flex: none; padding: 0; border: 0; background: none; color: var(--fg-muted); font-size: 12px; }
 button.ai-bar-item { cursor: pointer; }
 button.ai-bar-item:hover { color: var(--accent); }
 .ai-bar-item .mono { font-family: var(--font-code); }
@@ -342,8 +342,9 @@ button.ai-bar-item:hover { color: var(--accent); }
 .ai-bar-dot.agent-waiting_user, .ai-bar-dot.agent-waiting_parent, .ai-bar-dot.agent-blocked { background: var(--warn); }
 .ai-bar-dot.agent-done { background: var(--ok); }
 .ai-bar-dot.agent-error, .ai-bar-dot.agent-stopped { background: var(--danger); }
-.ai-bar-parent { min-width: 0; }
+.ai-bar-parent { flex: 0 1 auto; min-width: 18px; }
 .ai-bar-parent .link { padding: 0; min-width: 0; display: inline-flex; align-items: center; gap: 4px; }
+.ai-bar-parent .link .icon { flex: none; }
 .ai-topbar .grow { flex: 1 1 auto; }
 .ai-topbar.narrow .ai-bar-parent .ellipsis { display: none; }
 /* The status of the ticket on its icon, the role of the conversation: colored as on the Kanban's board. */

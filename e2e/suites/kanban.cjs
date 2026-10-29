@@ -139,7 +139,7 @@ run(async ({ page, ctx }) => {
     'In progress: priority and size fixed, shown as badges',
   )
   assert((await kp.textContent('span[data-testid=ticket-complexity]')) === 'Medium complexity', 'In progress: complexity fixed, shown as a badge')
-  assert(!(await kp.$('[data-testid=ai-ticket-bar]')), 'Start development starts no conversation')
+  assert(!(await kp.$('[data-testid=ai-ticket]')), 'Start development starts no conversation')
   assert((await header()).join() === 'Review · Sonnet,Dev session,Send to testing', 'In progress: Review (Sonnet for a medium ticket), Dev session (no session yet) and Send to testing in the header: ' + (await header()).join())
   assert(await kp.isVisible('.tk-meta-row .btn.primary[data-testid=ticket-dev-session]'), 'Dev session is the main action while no development session exists')
   await kp.click('[data-testid=ticket-review-with]')

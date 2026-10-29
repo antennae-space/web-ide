@@ -27,6 +27,10 @@ function TicketPart() {
 function TicketLink(props: { tickets: TicketsService }) {
   const k = props.tickets
   const tk = () => (chat.ticket ? k.summary(chat.ticket.id) : undefined)
+  // The status dot needs the ticket: the bar asks for the tickets of the project.
+  createEffect(() => {
+    if (chat.ticket) k.ensure()
+  })
   const roleFor = (status: string): TicketRole => (status === 'new' ? 'briefing' : status === 'todo' ? 'plan' : status === 'to_test' ? 'correction' : 'dev')
   const link = async () => {
     k.ensure()
@@ -90,7 +94,7 @@ function ParentPart(props: { narrow: () => boolean }) {
   const status = () => agentStatus(chat.id, chat.agent?.status)
   return (
     <div class="ai-bar-item ai-bar-parent" data-testid="ai-parent">
-      <button class="link ellipsis" onClick={() => open(chat.parent)} title={t('Open the parent conversation')}>
+      <button class="link" onClick={() => open(chat.parent)} title={t('Open the parent conversation')}>
         <Icon name="up" size={13} />
         <Show when={!props.narrow()}>
           <span class="ellipsis">{parent()?.title ?? t('the parent conversation')}</span>

@@ -126,7 +126,7 @@ run(async ({ page, ctx }) => {
     const bashOut = (requests[1].messages.find((m) => m.tool_call_id === 'b1') ?? {}).content ?? ''
     assert(bashOut.includes('/.ide/worktrees/1-data-export'), 'the commands run in the worktree')
     assert(r0.messages[0].content.includes('You **develop** this ticket on the branch ticket/1-data-export'), 'development prompt with the branch')
-    assert(await kp.isVisible('[data-testid=ai-ticket-bar]:has-text("#1")'), 'conversation linked to the ticket')
+    assert(await kp.isVisible('[data-testid=ai-ticket]:has-text("#1")'), 'conversation linked to the ticket')
     assert(fs.existsSync(wt + '/setup.log'), 'setup command run in the worktree')
 
     // The ticket view stays open; the explorer goes back to the main folder.
