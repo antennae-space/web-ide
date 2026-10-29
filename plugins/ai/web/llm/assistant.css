@@ -334,6 +334,16 @@
 /* On top of the message box, inside its frame: the focus rule spans both. */
 .ai-ticket-bar { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 14px; background: var(--bg-2); font-size: 12px; min-width: 0; flex: none; }
 .ai-ticket-bar .link { padding: 0; min-width: 0; }
+/* The status and the role of the ticket, colored as on the Kanban's board. */
+.ai-tk-status { --st: var(--fg-muted); display: inline-flex; align-items: center; padding: 0 7px; border-radius: 9px; font-weight: 600; line-height: 18px; white-space: nowrap; color: var(--st); background: color-mix(in srgb, var(--st) 18%, transparent); }
+.ai-tk-status.st-todo { --st: var(--info); }
+.ai-tk-status.st-in_progress { --st: var(--warn); }
+.ai-tk-status.st-to_test { --st: #b48ef0; }
+.ai-tk-status.st-done { --st: var(--ok); }
+.ai-tk-status.st-abandoned { --st: var(--fg-faint); }
+.ai-tk-role { font-weight: 600; border-radius: 4px; padding: 0 4px; background: var(--bg-3); color: var(--fg-muted); white-space: nowrap; }
+.ai-tk-role.r-dev, .ai-tk-role.r-correction { color: var(--warn); }
+.ai-tk-role.r-plan { color: var(--info); }
 .ai-ticket-link { align-self: flex-start; margin: 6px 14px 0; padding: 0; border: 0; background: none; background: none; color: var(--fg-muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .ai-ticket-link:hover { color: var(--accent); }
 
