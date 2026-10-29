@@ -208,16 +208,6 @@ run(async ({ page }) => {
     // The selection reaches the bar after the editor has the focus back.
     await page.waitForFunction(() => /^10:2 /.test(document.querySelector('[data-testid=status-cursor]')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {})
     const pos = await page.textContent('[data-testid=status-cursor]')
-    // On a miss (seen on CI only): what the editor shows, to find the race.
-    if (!/^10:2 /.test(pos)) {
-      await page.screenshot({ path: OUT + '/agent-open-file.png' }).catch(() => {})
-      const diag = await page.evaluate(() => ({
-        tabs: [...document.querySelectorAll('.pane')].map((p) => `${p.classList.contains('active') ? '*' : ''}${[...p.querySelectorAll('.tab')].map((t) => (t.classList.contains('active') ? '>' : '') + t.textContent.trim()).join('|')}`),
-        focus: document.activeElement?.className,
-        line: document.querySelector('.pane.active .ed-line-active, .pane.active .cm-activeLine')?.textContent,
-      }))
-      console.log('  open_file miss:', JSON.stringify(diag), JSON.stringify(byId('s2')))
-    }
     assert((await page.textContent('.pane.active .tab.active')).includes('main.go') && /^10:2 \(\d+ chars\)/.test(pos), 'open_file opens main.go and selects the lines 8 to 10: ' + pos)
     assert(await page.isVisible('.git-panel'), 'focus shows the Git panel')
     assert(await page.isVisible('.bottom .console-tabs .tab.active:has-text("echo hello-console")'), 'console of the command in front')

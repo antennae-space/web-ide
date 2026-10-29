@@ -82,6 +82,8 @@ exports.assert = (cond, msg) => {
 exports.run = (body, opts) =>
   (async () => {
     const t = await exports.start(opts)
+    // E2E_CPU_SLOW=4: the page on a CPU 4 times slower, as on the CI's runners (their races).
+    if (process.env.E2E_CPU_SLOW) await (await t.page.context().newCDPSession(t.page)).send('Emulation.setCPUThrottlingRate', { rate: Number(process.env.E2E_CPU_SLOW) })
     try {
       await body(t)
     } catch (e) {

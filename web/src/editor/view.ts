@@ -136,6 +136,8 @@ export class EditorView {
   private gutterWidth = ''
   private composing = false
   private lastSel: Selection = { anchor: 0, head: 0 }
+  /** A mouse button went down on the text: the focus that follows places the caret itself. */
+  private pressing = false
   private diagnostics: Diagnostic[] = []
   private statement: [number, number] | null = null
   lineHeight = 20
@@ -229,7 +231,12 @@ export class EditorView {
     listen(this.content, 'copy', (e) => this.onCopy(e, false))
     listen(this.content, 'cut', (e) => this.onCopy(e, true))
     listen(this.content, 'paste', (e) => this.onPaste(e))
-    listen(this.content, 'focus', () => opts.onFocus?.())
+    listen(this.content, 'focus', () => {
+      // A content editable element puts its caret at the start when it gets the focus back (a
+      // click on the tab, focusEditor): the selection of the editor goes back in its place.
+      if (!this.pressing) this.putSelection()
+      opts.onFocus?.()
+    })
     listen(this.content, 'blur', () => doc.breakUndoGroup())
     listen(this.content, 'click', (e) => {
       if ((e.ctrlKey || e.metaKey) && opts.onCtrlClick) {
@@ -237,7 +244,11 @@ export class EditorView {
         opts.onCtrlClick(this.getSelection().head)
       }
     })
-    listen(this.content, 'mousedown', (e) => this.onMouseDown(e))
+    listen(this.content, 'mousedown', (e) => {
+      this.pressing = true
+      setTimeout(() => (this.pressing = false))
+      this.onMouseDown(e)
+    })
     listen(this.content, 'auxclick', (e) => e.button === 1 && e.preventDefault())
     listen(this.content, 'mousemove', (e) => this.onHover(e))
     // Fold markers of the gutter and placeholders of the folded ranges.
@@ -510,6 +521,13 @@ export class EditorView {
     if (scroll) this.scrollToOffset(head)
     this.updateCurLine()
     this.opts.onSelection?.(this.lastSel)
+  }
+
+  /** Puts the selection of the editor in the DOM (the focus back). */
+  private putSelection() {
+    const [an, ao] = this.domAt(this.lastSel.anchor)
+    const [hn, ho] = this.domAt(this.lastSel.head)
+    document.getSelection()?.setBaseAndExtent(an, ao, hn, ho)
   }
 
   /** Restores a selection without taking the focus (tab switch). */
