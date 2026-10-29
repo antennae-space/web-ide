@@ -535,6 +535,20 @@ run(async ({ page }) => {
   await page.waitForSelector('.pane.active .ed-mark.mark-mod', { timeout: 5000 })
   assert((await page.$$('.pane.active .ed-mark.mark-mod')).length === 2, 'a marker for each changed line')
 
+  // Hovering a mark animates it: the bar widens and brightens (the sign that it is clickable).
+  const markStyle = () => page.$eval('.pane.active .ed-mark.mark-mod', (e) => {
+    const cs = getComputedStyle(e)
+    return cs.transform + ' ' + cs.backgroundColor + ' ' + cs.transitionDuration
+  })
+  const calm = await markStyle()
+  await page.hover('.pane.active .ed-mark.mark-mod')
+  await page.waitForTimeout(300)
+  const hot = await markStyle()
+  assert(hot.split(' ')[0] !== calm.split(' ')[0], 'hovering a mark widens it: ' + calm + ' -> ' + hot)
+  assert(hot !== calm, 'and brightens it: ' + calm + ' -> ' + hot)
+  assert(!/\b0s\b/.test(hot), 'with a transition: ' + hot)
+  await page.screenshot({ path: OUT + '/editor-hunk-hover.png' })
+
   const popup = '[data-testid="hunk-popup"]'
   const sides = () => page.$$eval(popup + ' .hunk-col', (cols) => cols.map((c) => [...c.querySelectorAll('.hunk-line')].map((l) => l.querySelector('.hunk-text').textContent)))
   await page.click('.pane.active .ed-mark.mark-mod >> nth=0')

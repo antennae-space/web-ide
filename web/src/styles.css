@@ -853,12 +853,15 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 
 /* gutter change markers */
 .ed-marks { position: absolute; left: 2px; top: 0; width: 4px; }
-.ed-mark { position: absolute; left: 0; width: 3px; border-radius: 1px; cursor: pointer; }
+.ed-mark { position: absolute; left: 0; width: 3px; border-radius: 1px; cursor: pointer; transform-origin: 0 center; transition: transform 0.12s ease-out, background-color 0.12s, border-color 0.12s; }
 /* A wider, invisible hit area: the visible bar stays 3 px but the mark is easy to click. */
 .ed-mark::after { content: ''; position: absolute; left: -4px; right: -8px; top: 0; bottom: 0; }
 .mark-add { background: var(--ok); }
 .mark-mod { background: var(--info); }
 .mark-del { height: 0 !important; width: 0; border-left: 5px solid var(--danger); border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-radius: 0; margin-top: -4px; }
+/* Hover: the bar grows to the right (the triangle of a deletion too, scaleX only) and brightens —
+   the sign that the mark is clickable, and where its hit area ends. */
+.ed-mark:hover { transform: scaleX(2.2); }
 .mark-add:hover { background: color-mix(in srgb, var(--ok) 70%, var(--fg)); }
 .mark-mod:hover { background: color-mix(in srgb, var(--info) 70%, var(--fg)); }
 .mark-del:hover { border-left-color: color-mix(in srgb, var(--danger) 70%, var(--fg)); }
