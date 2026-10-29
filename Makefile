@@ -49,6 +49,8 @@ GO_PKGS := $(addprefix ./,$(addsuffix /...,$(GO_DIRS)))
 test: pod/webdist/dist docs-content
 	@unformatted="$$($(dir $(GO))gofmt -l $(GO_DIRS))"; test -z "$$unformatted" || (echo "gofmt needed:"; echo "$$unformatted"; exit 1)
 	$(GO) vet $(GO_PKGS) && $(GO) test $(GO_PKGS)
+	# The release builds macOS too: its syscalls differ (termios, socketpair).
+	GOOS=darwin CGO_ENABLED=0 $(GO) vet $(GO_PKGS)
 	cd web && npm run check
 	node scripts/identity-vectors.mjs
 	node --test scripts/routes-test.mjs

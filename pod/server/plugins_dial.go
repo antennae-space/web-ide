@@ -37,7 +37,7 @@ type fdChannel struct {
 
 // newFDChannel makes the socketpair: the pod's end, and the backend's (inherited as fd 3).
 func newFDChannel() (*fdChannel, *os.File, error) {
-	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_SEQPACKET|unix.SOCK_CLOEXEC, 0)
+	fds, err := socketpair(unix.SOCK_SEQPACKET)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -162,7 +162,7 @@ func socketFile(conn net.Conn) (*os.File, error) {
 		fc.Close()
 		return f, err
 	}
-	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+	fds, err := socketpair(unix.SOCK_STREAM)
 	if err != nil {
 		conn.Close()
 		return nil, err

@@ -25,12 +25,12 @@ func TestFilter(t *testing.T) {
 	}
 
 	// Raw, as readline: the outer pair stays, a marker inside goes.
-	tio, err := unix.IoctlGetTermios(int(slave.Fd()), unix.TCGETS)
+	tio, err := unix.IoctlGetTermios(int(slave.Fd()), getTermios)
 	if err != nil {
 		t.Fatal(err)
 	}
 	tio.Lflag &^= unix.ICANON | unix.ECHO
-	if err := unix.IoctlSetTermios(int(slave.Fd()), unix.TCSETS, tio); err != nil {
+	if err := unix.IoctlSetTermios(int(slave.Fd()), setTermios, tio); err != nil {
 		t.Fatal(err)
 	}
 	if got := string(Filter(wrapped, master)); got != string(wrapped) {

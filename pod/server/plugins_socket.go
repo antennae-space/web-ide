@@ -99,7 +99,7 @@ func (s *Server) pluginTerminal(rt *runtime.Runtime, e plugins.External, ch *fdC
 	if err != nil {
 		return nil, err
 	}
-	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
+	fds, err := socketpair(unix.SOCK_STREAM)
 	if err != nil {
 		return nil, err
 	}

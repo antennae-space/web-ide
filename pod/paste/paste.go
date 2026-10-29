@@ -39,7 +39,7 @@ func Filter(data []byte, f *os.File) []byte {
 // Canonical tells whether the program of the PTY reads lines (ICANON); Linux gives the master
 // the termios of the pair.
 func Canonical(f *os.File) bool {
-	t, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS)
+	t, err := unix.IoctlGetTermios(int(f.Fd()), getTermios)
 	return err == nil && t.Lflag&unix.ICANON != 0
 }
 
