@@ -366,7 +366,8 @@ func TestClipboardHistory(t *testing.T) {
 	a.call("clipboard.add", map[string]any{"text": "two", "max": 10})
 	for e := range b.events {
 		if e["event"] == "clipboard.changed" {
-			if len(e["data"].([]any)) != 1 {
+			// The list at the time it is sent: the second add may be in it already.
+			if n := len(e["data"].([]any)); n != 1 && n != 2 {
 				t.Fatalf("event = %v", e)
 			}
 			break
