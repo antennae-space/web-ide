@@ -67,7 +67,7 @@ run(async ({ page, ctx }) => {
     for (let i = 0; i < 20 && git('ls-files .ide'); i++) await page.waitForTimeout(200)
     assert(git('ls-files .ide') === '' && fs.existsSync(repo + '/.ide/folders.json'), '.ide files untracked, kept on disk')
     git('commit -q -m "untrack .ide"')
-    await kp.click('.rail-right .rail-btn[title="Assistant"]')
+    await kp.click('.rail-right .rail-btn[title^="Assistant"]')
     await kp.click('.ai-empty button:has-text("Add a model server")')
     await kp.fill('.ai-servers input[name=url]', `127.0.0.1:${fake.address().port}`)
     await kp.click('.ai-servers button:has-text("Add")')
@@ -77,7 +77,7 @@ run(async ({ page, ctx }) => {
 
     // Kanban settings: the setup of a worktree is the project commands flagged setup, edited
     // in the commands modal.
-    await kp.click('.rail-left .rail-btn[title="Kanban"]')
+    await kp.click('.rail-left .rail-btn[title^="Kanban"]')
     await kp.click('[data-testid=kanban-open-board]')
     await kp.click('[data-testid=kanban-settings]')
     await kp.waitForSelector('[data-testid=kanban-setup-list]:has-text("No command flagged")')
@@ -116,7 +116,7 @@ run(async ({ page, ctx }) => {
     assert(!/\.ide/.test(status), 'the main folder stays clean (.ide ignored): ' + status)
     // The worktree has no .ide of its own: it shows the folder marks of the main project.
     assert(!fs.existsSync(wt + '/.ide'), 'no .ide in the worktree')
-    await kp.click('.rail-left .rail-btn[title="Explorer"]')
+    await kp.click('.rail-left .rail-btn[title^="Explorer"]')
     await kp.waitForSelector(`.explorer .tree-row[data-path="${wt}/src"] .file-icon.mark-source`, { timeout: 5000 })
     assert(requests.length === 0, 'Start development starts no conversation')
     await kp.click('.pane .tab:has-text("#1")')
