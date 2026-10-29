@@ -58,5 +58,15 @@
       "linux-amd64": "39249ae54c14e4f76c0cbca568fa9c514e2c7774920609a6fd4f47af53b00c87",
       "linux-arm64": "39249ae54c14e4f76c0cbca568fa9c514e2c7774920609a6fd4f47af53b00c87"
     }
+  },
+  {
+    "id": "kanban",
+    "url": "https://github.com/antennae-space/plugin-kanban",
+    "constraint": "^1",
+    "version": "1.0.0",
+    "sha256": {
+      "linux-amd64": "b7f695844563efcbbe104cdf12aeeeb73cde20f92d252eacc23beaf191010af9",
+      "linux-arm64": "167135a9ebf9f67cad20e0a4aba57b57623544d264c69484a9a55733da3bfee1"
+    }
   }
 ]
