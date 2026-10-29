@@ -20,7 +20,7 @@ export interface HunkView {
   to: number
   added: number
   removed: number
-  /** Position of the hunk among the changes of the file (0-based). */
+  /** Position of the hunk among the changes of the side shown (-1: the line is unchanged there). */
   index: number
   total: number
   /** What the *before* side shows. */
@@ -73,9 +73,11 @@ export function HunkPopup(props: {
               </button>
             </div>
           </Show>
-          <span class="hunk-index">
-            {v().index + 1}/{v().total}
-          </span>
+          <Show when={v().index >= 0}>
+            <span class="hunk-index">
+              {v().index + 1}/{v().total}
+            </span>
+          </Show>
           <button class="icon-btn hunk-close" title={t('Close')} onClick={props.onClose}>
             ✕
           </button>
@@ -85,12 +87,14 @@ export function HunkPopup(props: {
           <Side lines={v().after} hidden={v().hiddenAfter} head={t('Current')} />
         </div>
         <div class="hunk-actions">
-          <button class="btn small" onClick={props.onRevert}>
-            {t('Revert the hunk')}
-          </button>
-          <button class="btn small" onClick={props.onCopy}>
-            {t('Copy the old text')}
-          </button>
+          <Show when={v().index >= 0} fallback={<span class="hunk-none">{t('No change against this reference')}</span>}>
+            <button class="btn small" onClick={props.onRevert}>
+              {t('Revert the hunk')}
+            </button>
+            <button class="btn small" onClick={props.onCopy}>
+              {t('Copy the old text')}
+            </button>
+          </Show>
           <Show when={v().truncated}>
             <button class="btn small" onClick={props.onFullDiff}>
               {t('Open the full diff')}

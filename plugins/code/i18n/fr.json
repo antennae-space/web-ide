@@ -36,5 +36,6 @@
   "Copy the old text": "Copier l’ancien texte",
   "Open the full diff": "Ouvrir le diff complet",
   "{n} lines hidden": "{n} lignes masquées",
-  "Nothing here": "Rien ici"
+  "Nothing here": "Rien ici",
+  "No change against this reference": "Aucun écart avec cette référence"
 }

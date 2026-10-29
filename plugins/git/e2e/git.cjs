@@ -109,6 +109,7 @@ run(async ({ page }) => {
   await page.waitForTimeout(600)
   side = await beforeSide()
   assert(side[0] === 'package main // changed', 'the saved side is the last saved content ' + JSON.stringify(side))
+  assert((await page.$$('.pane.active .ed-mark')).length > 0, 'the markers of the file are not changed by the choice of the popup')
   await page.screenshot({ path: OUT + '/git-hunk-popup.png' })
   await page.click(popup + ' .hunk-close')
   await page.waitForFunction(() => !document.querySelector('[data-testid="hunk-popup"]'))

@@ -160,9 +160,9 @@ On a screen 720 px wide or less (phones; tablets keep the layout above):
 
 ### 6.8 Change markers and the popup of a hunk
 
-- The gutter shows a mark on each line added, changed or removed against the **before** side of the file: HEAD when the file is in the repository, its last saved content otherwise (no repository, untracked file, or the *Saved* choice in the popup). A deletion marks the line after the gap.
-- A **hunk** is one run of changed lines, before and after. Clicking a mark opens its popup at the line: the two sides with two context lines around, the changed *words* highlighted (not the whole line), the line numbers, `+n −m`, and which hunk it is among the changes of the file.
-- Actions: *Revert the hunk* (the old lines come back, as one undo step), *Copy the old text*, and *Open the full diff* when the popup is truncated. The *HEAD* / *Saved* switch changes the before side of the markers and of the popup; it is hidden when there is no repository or the file is untracked.
+- The gutter shows a mark on each line added, changed or removed against the **before** side of the file: HEAD when the file is in the repository, its last saved content otherwise (no repository, or an untracked file). A deletion marks the line after the gap. Saving the file does not move the markers: they stay against HEAD.
+- A **hunk** is one run of changed lines, before and after. Clicking a mark opens its popup at the line: the two sides with two context lines around, the changed *words* highlighted (not the whole line), the line numbers, `+n −m`, and which hunk it is among the changes of the reference shown.
+- Actions: *Revert the hunk* (the old lines come back, as one undo step; an added hunk is simply removed), *Copy the old text*, and *Open the full diff* when the popup is truncated. The *HEAD* / *Saved* switch changes the before side **of the popup only** — the markers and the file are untouched; it is hidden when there is no repository or the file is untracked. When the line chosen is unchanged against that reference, the popup keeps the same lines, both sides identical, with *No change against this reference* in place of the actions.
 - `ArrowUp` / `ArrowDown` walk the hunks (the caret moves to the first line of the next one, wrapped); `Escape`, a click outside the popup, an edit, or scrolling the hunk out of view close it.
 - A hunk longer than 14 lines per side is truncated with `… n lines hidden` and the link to the diff tab. A file whose changed middle is over 8000 lines gets no markers at all.
 
