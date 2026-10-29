@@ -201,7 +201,7 @@ run(async ({ ctx, page }) => {
   const group = (zone) => page.$$eval(`[data-zone=${zone}] .rail-btn`, (els) => els.map((e) => e.title.split(' · ')[0]))
   await page.click('.rail-right .rail-btn[title^="Problems"]')
   await page.dragAndDrop('.rail-right .rail-btn[title^="Problems"]', '[data-zone=left] .rail-btn[title^="Search"]', { targetPosition: { x: 16, y: 3 } })
-  assert(JSON.stringify(await group('left')) === JSON.stringify(['Explorer', 'Problems', 'Search', 'Git', 'Kanban']), 'Problems dropped before Search: ' + JSON.stringify(await group('left')))
+  assert(JSON.stringify(await group('left')) === JSON.stringify(['Explorer', 'Problems', 'Search', 'Git']), 'Problems dropped before Search: ' + JSON.stringify(await group('left')))
   assert(await page.isVisible('.zone-left[data-tool=problems]'), 'a shown tool stays shown in its new zone')
   // Port forwards and previews leaves the bottom right zone too, which is then empty.
   await page.dragAndDrop('.rail-right .rail-btn[title^="Port forwards and previews"]', '[data-zone=right] .rail-btn[title^="Infos"]', { targetPosition: { x: 16, y: 20 } })
@@ -217,7 +217,7 @@ run(async ({ ctx, page }) => {
   await page.waitForTimeout(600)
   await page.reload()
   await page.waitForSelector('.rail-left')
-  assert(JSON.stringify(await group('left')) === JSON.stringify(['Explorer', 'Problems', 'Search', 'Git', 'Kanban']) && (await group('bottomRight'))[0] === 'Console', 'placement kept after a reload')
+  assert(JSON.stringify(await group('left')) === JSON.stringify(['Explorer', 'Problems', 'Search', 'Git']) && (await group('bottomRight'))[0] === 'Console', 'placement kept after a reload')
   await page.screenshot({ path: OUT + '/s5-moved.png' })
   await page.keyboard.press('Control+Shift+a')
   await page.waitForSelector('.pick-input')
@@ -225,7 +225,7 @@ run(async ({ ctx, page }) => {
   await page.waitForTimeout(200)
   await page.keyboard.press('Enter')
   await page.waitForTimeout(200)
-  assert((await group('bottomLeft'))[0] === 'Console' && (await group('bottomRight'))[0] === 'Problems' && (await group('left')).length === 4, 'default placement restored')
+  assert((await group('bottomLeft'))[0] === 'Console' && (await group('bottomRight'))[0] === 'Problems' && (await group('left')).length === 3, 'default placement restored')
 
   // Focus: the focused part shows its active tab and rail icon in the accent color, the others in white
   const color = (sel, pseudo) => page.$eval(sel, (e, p) => getComputedStyle(e, p)[p ? 'backgroundColor' : 'color'], pseudo)
