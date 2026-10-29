@@ -1,0 +1,4 @@
+/* The classes the Hello plugin puts on its editor decorations (editorDecorations, #187). */
+.deco-mark { background: var(--accent); border-radius: 3px; opacity: 0.9; }
+.deco-line { background: color-mix(in srgb, var(--warn) 20%, transparent); }
+.deco-widget { color: var(--warn); }

@@ -866,6 +866,23 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .mark-mod:hover { background: color-mix(in srgb, var(--info) 70%, var(--fg)); }
 .mark-del:hover { border-left-color: color-mix(in srgb, var(--danger) 70%, var(--fg)); }
 
+/* decorations given by the plugins (editorDecorations, #187): a lane of marks in the gutter,
+   full-width rows under the text, and text at the end of a line. A plugin styles its own classes. */
+.ed-decos { position: absolute; left: 10px; top: 0; bottom: 0; width: 14px; }
+.ed-deco { position: absolute; left: 0; width: 14px; cursor: pointer; }
+.ed-lineclasses { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.ed-lineclass { position: absolute; left: 0; right: 0; }
+.ed-widgets { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.ed-widget {
+  position: absolute; padding-left: 12px; white-space: pre; font-family: var(--font-code);
+  font-size: var(--font-size-code); font-style: italic; color: var(--fg-muted); user-select: none;
+}
+.ed-hover {
+  position: fixed; z-index: 116; max-width: 420px; max-height: 320px; overflow: auto; padding: 8px 10px;
+  background: var(--bg-3); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.35); white-space: pre-wrap; font-size: 12.5px;
+}
+
 /* popup of a hunk (click a change marker) */
 .hunk-popup {
   position: fixed; z-index: 116; width: min(620px, calc(100vw - 24px)); display: flex; flex-direction: column;

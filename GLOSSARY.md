@@ -260,6 +260,10 @@ What gives Search Everywhere one kind of results (files, symbols, actions, textâ
 What the plugins say about a path shown in **any** tree of the window (Explorer, Recent Files, Commit tab, Search), merged channel by channel by the core: `state` (color of the name), `badge` (letter at the end of the row), `kind`, `tint` (family of the background of the row), `label` (text after the name). A folder passes `kind`, `tint` and `label` to its content.
 _Avoid_: decorator, highlight (a search match is a highlight)
 
+**Editor decoration** ([plugins](docs/design/plugins.md#what-the-editor-decorations-added-to-the-api))
+What a plugin puts on the file view of another plugin (#187): a mark in the **decoration lane** of the gutter, a class on a whole line, text at the end of a line, a hover, menu items. They follow the edits of the buffer, the plugin being told of each move.
+_Avoid_: gutter icon (one kind of them), overlay
+
 **File row** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
 The shared row component (`web/src/ui/FileRow.tsx`, `api.ui.FileRow`) every tree draws its files with (#183): twist, icon, name colored by its state, label, error sign, status letter, then the slots of the tree. A tree keeps its own handlers and slots, none draws a name by hand.
 _Avoid_: tree item, file item

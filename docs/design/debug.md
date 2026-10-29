@@ -47,7 +47,7 @@ A tool of the bottom zone, one tab per session (its configuration's name and its
 
 ## In the editor
 
-The file view is the Code plugin's: the debug host decorates it through a contribution of the plugin API (`editorDecorations`: gutter marks, line classes, widgets at the end of a line, hovers, items of the context menu), which the Debug plugin is the first to use.
+The file view is the Code plugin's: the debug host decorates it through a contribution of the plugin API (`editorDecorations`: gutter marks, line classes, widgets at the end of a line, hovers, items of the context menu), which the Debug plugin is the first to use. The contribution exists since #187 (fixture: the Hello plugin on `deco.txt`, suite `decorations`); the debug host does not use it yet.
 
 - **The gutter**: a click toggles a breakpoint; its context menu (or Ctrl+Shift+F8 on the line) edits its condition, its hit count, its log message, and enables or disables it. A disabled breakpoint is hollow, a muted one grey, one the adapter could not set crossed.
 - The breakpoints follow the edits of the buffer (its line moves with the text) and are sent again when the file is saved.
