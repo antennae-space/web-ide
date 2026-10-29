@@ -4,7 +4,9 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ## [Unreleased]
 
-## [1.24.0] - 2026-10-29
+## [1.24.1] - 2026-10-29
+
+1.24.0 was tagged, but its macOS build failed and it published no archive: 1.24.1 is that release, with the fix.
 
 ### Added
 
@@ -37,10 +39,16 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ### Fixed
 
+- The macOS archives build again: the pod reads the terminal mode and makes its socket pairs the macOS way (no `TCGETS`, no `SOCK_CLOEXEC` there); `make test` vets the code for macOS too.
+- CI: the build knows its version (the tags are fetched), so the version checks of the plugins run; the e2e suites have a git identity, and the unstable steps of the restore, externals, commands, keeper and agent suites wait for what they check.
 - A paste in a console no longer leaves stray bracketed-paste markers (`ESC[200~`): the write to the PTY fits them to the mode of the program reading it — none in canonical mode, the outer pair only in raw mode — in the pod, in the keeper, and on the SSH host of a project.
 - Explorer colors and Git letters: git answers paths under the name the pod gives the repository (git resolves symlinks, the pod does not), the status letter and the count of a folder sit at the right end of the row, and the ignored paths are asked again when the Git decoration arrives after the first listing.
 - The red wavy underline of a file in error was clipped by the ellipsis of a long name; it now has room below the baseline.
 - A build of the IDE made of commits after a release (`v1.23.0-111-g2370845`) counts as the next minor release (1.24.0) for the `ide` constraint of a plugin, as the docs say.
+
+## [1.24.0] - 2026-10-29
+
+Tagged, not published: its macOS build failed. Its changes are in 1.24.1.
 
 ## [1.23.0] - 2026-10-18
 
