@@ -18,7 +18,7 @@ import { detached, errorToast, Icon, showsQuestions, t } from '../plugin'
 
 /** Width from which the side bar sits next to the conversation instead of over it. */
 const WIDE = 720
-/** Below this width, the parts of the top bar collapse to an icon and a number. */
+/** Below this width, the parts of the bar collapse to an icon and a number. */
 const NARROW = 420
 /** Width from which the board is a column next to the conversation instead of in its place. */
 const BOARD_WIDE = 1000
@@ -135,7 +135,6 @@ export function AssistantTool() {
           <Icon name="gear" size={15} />
         </button>
       </div>
-      <TopBar narrow={narrow} />
       <Show when={modelsError()}>
         <div class="ai-banner">
           <Icon name="conflict" size={13} /> {modelsError()}
@@ -179,6 +178,7 @@ export function AssistantTool() {
             <Thread onSuggest={suggest} onSettings={() => setSettings(true)} />
           </div>
           <Composer
+            head={<TopBar narrow={narrow} />}
             onSettings={() => setSettings(true)}
             onSent={() => {
               stick = true

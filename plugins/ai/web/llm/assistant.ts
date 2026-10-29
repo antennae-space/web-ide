@@ -159,7 +159,7 @@ on('assistant.update', (u: Update) => {
   listSoon()
 })
 
-/** The consoles this conversation started that still run (the shells of its top bar). */
+/** The consoles this conversation started that still run (the shells of its bar). */
 export async function loadShells(id: string) {
   try {
     const r = await request<{ shells: Shell[] }>('assistant.shells', { id })

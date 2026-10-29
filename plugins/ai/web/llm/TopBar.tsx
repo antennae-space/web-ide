@@ -1,7 +1,7 @@
-// Top bar of the Assistant, shown on every conversation: its ticket, the consoles it started
-// that still run, its parent and its children, its role on the ticket, and the time it spent
-// generating (with its children). Each part hides when it has nothing, except the shells and
-// the time. Narrow: the parts collapse to an icon and a number.
+// Bar of the Assistant, on top of the message box, on every conversation: the time it spent
+// generating (with its children), the consoles it started that still run, its parent, its
+// children, then on the right its ticket and the role of the conversation on it. Each part
+// hides when it has nothing, except the time. Narrow: they collapse to an icon and a number.
 import { createEffect, Show } from 'solid-js'
 import { chat, chatList, live, setChat, shells, type ChatInfo } from './state'
 import { loadShells, openChat, runStates } from './assistant'
@@ -74,17 +74,19 @@ function TicketLink(props: { tickets: TicketsService }) {
   )
 }
 
-/** The consoles this conversation started that still run (shown at 0 too). */
+/** The consoles this conversation started that still run (nothing when none). */
 function ShellsPart() {
   const tip = () =>
     shells()
       .map((s) => [s.title || s.id, s.command, s.since ? new Date(s.since).toLocaleTimeString() : ''].filter(Boolean).join(' · '))
       .join('\n')
   return (
-    <span class="ai-bar-item" data-testid="ai-shells" title={tip() || t('No command running')}>
-      <Icon name="terminal" size={13} />
-      <span class="mono">{shells().length}</span>
-    </span>
+    <Show when={shells().length}>
+      <span class="ai-bar-item" data-testid="ai-shells" title={tip()}>
+        <Icon name="terminal" size={13} />
+        <span class="mono">{shells().length}</span>
+      </span>
+    </Show>
   )
 }
 
@@ -165,7 +167,7 @@ function TimePart() {
   )
 }
 
-/** The bar above the conversation. */
+/** The bar on top of the message box, inside its frame. */
 export function TopBar(props: { narrow: () => boolean }) {
   // The shells of a conversation shown: the pod knows which ones still run.
   createEffect(() => {
@@ -173,15 +175,15 @@ export function TopBar(props: { narrow: () => boolean }) {
   })
   return (
     <div class="ai-topbar" data-testid="ai-topbar" classList={{ narrow: props.narrow() }}>
-      <TicketPart />
+      <TimePart />
       <ShellsPart />
       <Show when={chat.parent}>
         <ParentPart narrow={props.narrow} />
       </Show>
       <ChildrenPart />
-      <RolePart />
       <span class="grow" />
-      <TimePart />
+      <TicketPart />
+      <RolePart />
     </div>
   )
 }

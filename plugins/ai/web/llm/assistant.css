@@ -330,8 +330,9 @@
   .ai-mode { padding: 0 7px; }
 }
 
-/* top bar of the conversation: ticket, shells, parent, children, role, generation time */
-.ai-topbar { display: flex; align-items: center; gap: 10px; padding: 3px 12px; border-bottom: 1px solid var(--line); background: var(--bg-2); font-size: 12px; min-width: 0; flex: none; }
+/* bar of the conversation: time, ticket, shells, parent, children, then the role on the right */
+/* On top of the message box, inside its frame: the focus rule spans both. */
+.ai-topbar { display: flex; align-items: center; gap: 10px; padding: 4px 10px 4px 14px; background: var(--bg-2); font-size: 12px; min-width: 0; flex: none; }
 .ai-bar-item { display: inline-flex; align-items: center; gap: 5px; min-width: 0; flex: none; padding: 0; border: 0; background: none; color: var(--fg-muted); font-size: 12px; }
 button.ai-bar-item { cursor: pointer; }
 button.ai-bar-item:hover { color: var(--accent); }

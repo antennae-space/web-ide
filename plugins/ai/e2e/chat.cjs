@@ -112,12 +112,14 @@ run(async ({ page, ctx }) => {
     assert(order[0].includes('ai-side-search') && order[1].includes('ai-new-chat'), 'side bar: search, then new conversation')
     await page.click('.ai-panel button[title="Conversations of the project"]')
 
-    // The top bar is on every conversation: the shells (at 0) and the generation time, no
+    // The bar is on every conversation: the generation time, no shells (none running), no
     // ticket, parent or children part.
-    assert(await page.isVisible('[data-testid=ai-topbar]'), 'the top bar is shown on a plain conversation')
-    assert((await page.textContent('[data-testid=ai-shells]')).trim() === '0', 'the shells of the conversation are counted, shown at 0')
+    assert(await page.isVisible('[data-testid=ai-topbar]'), 'the bar is shown on a plain conversation')
     assert((await page.textContent('[data-testid=ai-gentime]')).trim().length > 0, 'the generation time is always shown')
+    assert(!(await page.$('[data-testid=ai-shells]')), 'no shells part when the conversation started no console')
     assert(!(await page.$('[data-testid=ai-ticket]')) && !(await page.$('[data-testid=ai-parent]')) && !(await page.$('[data-testid=ai-children]')), 'nothing else on a conversation without a ticket, a parent or a child')
+    const barX = await page.$$eval('[data-testid=ai-topbar] > *', (e) => e.map((x) => x.getBoundingClientRect().left))
+    assert(barX.every((x, i) => i === 0 || x > barX[i - 1]), 'bar order, left to right: ' + JSON.stringify(barX))
 
     // The message box: Mode, Dictate, Attach, Options; a Markdown editor where Enter adds a
     // line and continues the lists, @paths stand out, Ctrl+S sends.
