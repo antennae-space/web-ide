@@ -101,6 +101,7 @@ run(async ({ page }) => {
 
   // Left: the tools; a filter matching only a tool selects it.
   await page.keyboard.press('Control+e')
+  await page.waitForSelector('.pick.rf')
   await page.keyboard.press('ArrowLeft')
   assert(await page.isVisible('.rf-tools .pick-item.selected'), 'ArrowLeft selects a tool')
   await page.keyboard.press('ArrowRight')
@@ -128,6 +129,7 @@ run(async ({ page }) => {
 
   // Delete forgets a recent file.
   await page.keyboard.press('Control+e')
+  await page.waitForSelector('.pick.rf')
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('Delete')
   assert(!(await files()).includes('main.go') && (await files()).length === 2, 'Delete removes main.go from the recent files ' + (await files()))

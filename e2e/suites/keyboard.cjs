@@ -107,6 +107,8 @@ run(async ({ page }) => {
   await page.keyboard.type('created.txt')
   await page.keyboard.press('Enter')
   await page.waitForFunction(() => document.querySelector('.pane.active .tab.active')?.textContent.includes('created.txt'))
+  // Its editor takes the focus once loaded (a slow machine: after the next shortcut otherwise).
+  await page.waitForFunction(() => document.activeElement === document.querySelector('.pane.active .ed-content'))
   assert(require('fs').existsSync(require('path').join(process.env.E2E_WS, 'demo/created.txt')), 'File › New file creates and opens the file')
 
   // Context menu of the editor: code navigation, clipboard, file.

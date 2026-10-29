@@ -220,6 +220,8 @@ run(
       await app.fill('.ai-composer .ed-content', text)
       await app.click('[data-testid=send]')
       await app.waitForFunction((n) => document.querySelectorAll('.ai-msg.assistant').length > n, n, { timeout: 20000 })
+      // The turn over (its tools run after the first answer): the box can send again.
+      await app.waitForSelector('[data-testid=send]', { timeout: 20000 })
     }
     await app.evaluate(() => (window.sameFrame = true))
     await app.fill('.ai-composer .ed-content', 'typed while asleep')

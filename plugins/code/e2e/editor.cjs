@@ -95,6 +95,9 @@ run(async ({ page }) => {
   }, line)
   await caretAt(12)
   await page.waitForSelector('.pane.active .ed-guide.active')
+  // The active guide follows the caret a frame later (a slow machine): until it is at line 12.
+  const top12 = await lineTop(12)
+  await page.waitForFunction((top) => Math.abs((document.querySelector('.pane.active .ed-guide.active')?.offsetTop ?? -99) - top) < 4, top12, { timeout: 5000 }).catch(() => {})
   const guides = await page.$$eval('.pane.active .ed-guide', (g) => g.map((e) => ({ top: e.offsetTop, h: e.offsetHeight, active: e.classList.contains('active') })))
   assert(guides.length === 2, 'a guide per indented block (' + guides.length + ')')
   const active = guides.find((g) => g.active)
