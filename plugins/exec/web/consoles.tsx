@@ -91,8 +91,13 @@ export function watchConsoles() {
   })
   api.on('console.output', (e: { id: string; data: string; offset: number }) => {
     const t = terms.get(e.id)
-    if (t?.ready) writeAt(t, e.offset, b64(e.data))
-    else t?.queue.push(e)
+    if (!t) return
+    if (!t.ready) t.queue.push(e)
+    // Output after a gap (it came before the scrollback of a reconnection): the gap first.
+    else if (e.offset > t.next) {
+      t.queue.push(e)
+      attachTerm(e.id, t, t.next)
+    } else writeAt(t, e.offset, b64(e.data))
   })
   createRoot(() =>
     createEffect(
