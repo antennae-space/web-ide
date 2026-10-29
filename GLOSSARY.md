@@ -197,6 +197,23 @@ The built-in plugin that runs the language servers of the language packs and sho
 An external plugin that gives one language to the language host: its grammar, its language servers (run confined on this machine with the pack's grants: its program, the folders of the host it needs; on the host of an SSH project as its granted program), its test patterns, later its debug adapter and its project templates. A server it gives a recipe is installed by the IDE into the pack's *folder of tools* (`~/.local/share/web-ide/tools/<pack>`), looked up before the PATH.
 _Avoid_: language plugin, language extension
 
+**Debug host** ([debug](docs/design/debug.md))
+The built-in plugin that runs the debug sessions with the adapters of the language packs and shows them: the Debug tool, the breakpoints in the editor.
+
+**Debug adapter** ([debug](docs/design/debug.md#the-language-packs))
+The program a language pack names that speaks the Debug Adapter Protocol for one runtime; run by the core on its grant, not confined.
+_Avoid_: debugger (for the adapter itself)
+
+**Debug configuration** ([debug](docs/design/debug.md#configurations))
+A named way to start or reach a program under the debugger (launch, attach or listen), an entry of `.ide/debug.json`.
+_Avoid_: run configuration, launch config
+
+**Debug session** ([debug](docs/design/debug.md#the-debug-tool))
+One run of a debug configuration, a tab of the Debug tool, from its start to its end.
+
+**Breakpoint** / **Logpoint** ([debug](docs/design/debug.md#the-breakpoints))
+A line where a debug session stops, optionally on a condition or a hit count; a logpoint writes a message to the console instead of stopping.
+
 **Glyph family** ([plugins](docs/design/plugins.md#language-packs))
 The group a symbol kind belongs to, which gives its color: *type*, *function*, *variable*, *value*, *other*. `plugins/languages/web/kinds.json` is the one table of the kinds (name, glyph, family) the Structure tool, the Symbols tab, the file structure list and the assistant's `lsp_*` tools read; a theme colors each family (`--sym-type`…) and the detail of a symbol (`--sym-detail`).
 

@@ -326,7 +326,7 @@ Decided on 2026-10-24 (milestone *Plugins, phase 4*). Phase 3 proved that an ext
 | The servers of `Defaults` (`plugins/languages/internal/lsp/lsp.go`, removed in #149), the grammars (`web/src/editor/grammars`) | **language packs**, external, one per language: `lang-go` (#146), `lang-php`, `lang-python`, `lang-typescript` (#149), all done | data and a server to run, no UI |
 | AI (`plugins/ai`) | stays built-in in phase 4; external in [phase 5](#phase-5-the-kanban-and-the-ai-external) | it reads the kanban, runs the tools of the other plugins, calls the windows (`ui.call`), runs the ACP agents, which cannot run confined: phase 5 has the core run them |
 
-Explorer, Editor and the consoles stay core and locked (decision 6). Later, on the same model: a **debug host** (a DAP client, built-in) fed by the packs' debug adapters, `plugin-adb`.
+Explorer, Editor and the consoles stay core and locked (decision 6). Later, on the same model: a **debug host** (a DAP client, built-in) fed by the packs' debug adapters ([debug](debug.md)), `plugin-adb`.
 
 ### Official plugins
 
@@ -370,7 +370,7 @@ Every plugin serves the human and the AIs alike: **one declaration of an action 
 
 - **Database**: an AI policy per connection, read-only by default; a write is refused or asked through `ask_user`. The password stays in the vault: the AI names a connection, never sees its secret.
 - **Docker**: `docker_ps` and `docker_logs` stay assistant tools of the plugin (a shell reaches Docker anyway).
-- **Debug** (later): one DAP session per worktree, so an agent debugs in its own worktree, and the user can watch it.
+- **Debug** (later, [debug](debug.md#the-ai)): one DAP session per worktree, so an agent debugs in its own worktree, and the user can watch it.
 
 ### API bricks
 
