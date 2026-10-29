@@ -232,6 +232,10 @@ The `plugin-sdk` repository: the types of the sandbox API, a UI kit using the th
 **Diff source**
 What gives the diff view the two sides of a diff tab (Git: the working tree, the index, HEAD, a commit).
 
+**Hunk**
+One run of lines changed between the two sides of a diff, with its lines before and after. The gutter marks the hunks of the open file, a click on a mark opens the popup of its hunk, and *Revert the hunk* puts its old lines back.
+_Avoid_: chunk, block (a block is a chunk of lines in the editor), change group
+
 **Search provider**
 What gives Search Everywhere one kind of results (files, symbols, actions, text…) and its tab: the core or a plugin.
 

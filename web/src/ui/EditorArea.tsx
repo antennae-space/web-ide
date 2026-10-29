@@ -5,6 +5,7 @@ import { pluginFileView, pluginView, pluginViewLabel, pluginViewTitle, toolCorne
 import { activateTab, basename, closeTab, findLeaf, getDoc, moveTab, relPath, session, setActivePane, setSplitSizes, splitPane, type LayoutNode, type TabState, docsVersion, moveTabToDesk } from '../state/project'
 import { distinctDirs } from './tabNames'
 import { EditorView } from '../editor/view'
+import type { LineMark } from '../editor/linediff'
 import { hintAt, lockEditor, phone, unlocked } from '../state/mobile'
 import { Icon } from './icons'
 import { Doc } from '../editor/doc'
@@ -366,6 +367,10 @@ export interface UseViewOptions {
   onKey?: (e: KeyboardEvent) => boolean
   onType?: (text: string) => void
   onFolds?: (v: EditorView) => void
+  /** A change marker of the gutter was clicked. */
+  onMarkClick?: (v: EditorView, line: number, mark: LineMark) => void
+  /** The text was scrolled (a popup anchored at a line closes when the line leaves the view). */
+  onScroll?: (v: EditorView, top: number) => void
 }
 
 // Soft wrap: the setting, unless Alt+Z toggled it for a document (until the page reloads).
@@ -416,6 +421,8 @@ export function useEditorView(doc: () => Doc | null, host: () => HTMLElement | u
         onKey: (e) => untrack(() => opts.onKey?.(e) ?? false),
         onType: (t) => untrack(() => opts.onType?.(t)),
         onFolds: () => untrack(() => opts.onFolds?.(v)),
+        onMarkClick: (line, mark) => untrack(() => opts.onMarkClick?.(v, line, mark)),
+        onScroll: (top) => untrack(() => opts.onScroll?.(v, top)),
       })
       v.mount(h)
       setView(v)

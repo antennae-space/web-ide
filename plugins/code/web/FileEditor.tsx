@@ -1,13 +1,22 @@
 // The view of a file buffer, the default view of the file tabs (fileView contribution): the
-// editor, its find bar, rendered Markdown, the change markers against HEAD, the completion, the
-// context menu and the editing actions while it is the active one.
+// editor, its find bar, rendered Markdown, the change markers against HEAD or the last saved
+// content (clickable, with the popup of their hunk), the completion, the context menu and the
+// editing actions while it is the active one.
 import { createEffect, createResource, createSignal, on, onCleanup, onMount, Show, untrack } from 'solid-js'
-import type { Diagnostic, Doc, EditorView, LspDiagnostic, MarkdownViewApi, TabState } from '@ide/api'
+import type { Diagnostic, Doc, EditorView, Hunk, LspDiagnostic, MarkdownViewApi, TabState, WordSpan } from '@ide/api'
 import {
   actionOf, api, basename, capability, contextMenu, copyText, docError, docsVersion, FindBar, getDoc, Icon, isMarkdownPath, languageName,
-  lineMarks, loadDoc, MarkdownView, openConflict, openFile, pick, prompt, registerAction, relPath, request, reveal, runAction, saveCursor,
-  saveDoc, setActivePane, setCursorInfo, shortcutOf, showRaw, shownRaw, t, toast, toggleWrap, useCompletion, useEditorView,
+  lineHunks, loadDoc, marksOfHunks, MarkdownView, openConflict, openDiffTab, openFile, pick, prompt, registerAction, relPath, request, reveal,
+  runAction, saveCursor, saveDoc, setActivePane, setCursorInfo, shortcutOf, showRaw, shownRaw, t, toast, toggleWrap, useCompletion, useEditorView,
+  wordHunks,
 } from './plugin'
+import { HunkPopup, type HunkLine, type HunkView } from './HunkPopup'
+
+/** Lines of a hunk shown on each side of its popup, and the context lines kept around it. */
+const POPUP_LINES = 14
+const CONTEXT_LINES = 2
+/** Width the popup of a hunk does not pass. */
+const POPUP_WIDTH = 620
 
 function toDiagnostics(doc: Doc, list: LspDiagnostic[]): Diagnostic[] {
   return (list as any[]).map((d) => ({
@@ -62,8 +71,11 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
   // The completion needs the view, the view forwards keys and keystrokes to the completion.
   let completion: ReturnType<typeof useCompletion> | null = null
   const view = useEditorView(doc, hostEl, {
-    onKey: (e) => completion?.onKey(e) ?? false,
-    onType: (t) => completion?.onType(t),
+    onKey: (e) => hunkKeys(e) || (completion?.onKey(e) ?? false),
+    onType: (t) => {
+      closeHunk()
+      completion?.onType(t)
+    },
     onSelection: (v) => {
       completion?.onSelection()
       const sel = v.getSelection()
@@ -74,6 +86,8 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
     onFolds: (v) => save(v),
     onCtrlClick: (v, off) => capability('language')?.gotoDeclaration(v.doc, off),
     onFocus: () => setActivePane(props.paneId),
+    onMarkClick: (_, line) => openHunk(line),
+    onScroll: (v) => followHunk(v),
   })
   // Cursor, folds and chosen indentation of the file, kept in the session.
   function save(v: EditorView) {
@@ -134,7 +148,8 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
     v.setDiagnostics(toDiagnostics(d, capability('language')?.diagnostics(path) ?? []))
   })
 
-  // Change markers against HEAD, recomputed a moment after the edits.
+  // Change markers against HEAD or the last saved content, and the hunks behind them: a click on
+  // a marker opens the popup of its hunk. Recomputed a moment after the edits.
   const [head] = createResource(
     () => (capability('git')?.status()?.repo ? { rev: capability('git')!.revision(), d: doc() } : null),
     async ({ d }) => {
@@ -146,22 +161,310 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
       }
     },
   )
+  // The *before* side of the markers never changes with the popup: HEAD when the file is in the
+  // repository, its last saved content otherwise. The popup alone can show the other reference.
+  const [side, setSide] = createSignal<'head' | 'base'>('head')
+  const [refHunks, setRefHunks] = createSignal<Hunk[]>([])
+  const [sideLines, setSideLines] = createSignal<string[]>([])
+  const [sideHunks, setSideHunks] = createSignal<Hunk[]>([])
+  /** The popup: the line it was opened at, the lines it shows, and its hunk among the changes of the side (-1: none). */
+  const [popup, setPopup] = createSignal<{ anchor: number; region: [number, number]; idx: number } | null>(null)
+  const [popupPos, setPopupPos] = createSignal({ left: 0, top: 0 })
+
+  const untrackedFile = () => capability('git')?.status()?.files.some((f) => f.path === path && f.untracked) ?? false
+  const canSwitchSide = () => !!capability('git')?.status()?.repo && !untrackedFile()
+  const refSide = () => (capability('git')?.status()?.repo && !untrackedFile() ? 'head' : 'base')
+  const shownSide = () => (canSwitchSide() ? side() : refSide())
+  /** The content of a reference (null: HEAD not read yet). */
+  function textFor(d: Doc, s: 'head' | 'base'): string | null {
+    if (s === 'head') {
+      const h = head()
+      return h ? (h.exists ? h.content.replace(/\r\n/g, '\n') : '') : null
+    }
+    return d.base.replace(/\r\n/g, '\n')
+  }
+
   let markTimer: number | undefined
   createEffect(() => {
     const v = view()
     const d = doc()
-    const h = head()
     if (!v || !d) return
+    side()
+    head()
+    capability('git')?.revision()
     d.changed()
     clearTimeout(markTimer)
-    if (!h) return v.setLineMarks(new Map())
-    const untracked = capability('git')?.status()?.files.some((f) => f.path === path && f.untracked)
+    if (d.readOnly) {
+      setRefHunks([])
+      setSideHunks([])
+      v.setLineMarks(new Map())
+      return
+    }
     markTimer = window.setTimeout(() => {
-      if (!h.exists) v.setLineMarks(untracked ? new Map(Array.from({ length: d.lineCount }, (_, i) => [i, 'add' as const])) : new Map())
-      else v.setLineMarks(lineMarks(h.content.replace(/\r\n/g, '\n'), d.text))
+      const b = d.text.split('\n')
+      const rs = refSide()
+      const refText = textFor(d, rs)
+      const ra = refText === null ? [] : refText.split('\n')
+      const rh = refText === null ? [] : lineHunks(ra, b) ?? []
+      setRefHunks(rh)
+      v.setLineMarks(marksOfHunks(rh, b))
+      const ss = shownSide()
+      if (ss === rs) {
+        setSideLines(ra)
+        setSideHunks(rh)
+      } else {
+        const st = textFor(d, ss)
+        const sa = st === null ? [] : st.split('\n')
+        setSideLines(sa)
+        setSideHunks(st === null ? [] : lineHunks(sa, b) ?? [])
+      }
+      // The markers the popup was opened from are gone, or the side changed: keep it on its line.
+      if (!rh.length) closeHunk()
+      else reanchor()
     }, 250)
   })
   onCleanup(() => clearTimeout(markTimer))
+
+  // ---------- the popup of a hunk ----------
+  let offOutside: (() => void) | undefined
+
+  /** Index of the hunk whose mark sits on that line (a pure deletion: the line after the gap). */
+  function hunkAt(hs: Hunk[], line: number): number {
+    const last = (doc()?.lineCount ?? 1) - 1
+    for (let i = 0; i < hs.length; i++) {
+      const [bs, bl] = hs[i].b
+      if (line >= bs && line <= (bl === 0 ? Math.min(bs, last) : bs + bl - 1)) return i
+    }
+    const next = hs.findIndex((h) => h.b[0] >= line)
+    return next >= 0 ? next : hs.length - 1
+  }
+
+  /** Index of the hunk of a side covering that line (-1: the line is unchanged against it). */
+  function covering(hs: Hunk[], line: number): number {
+    for (let i = 0; i < hs.length; i++) {
+      const [bs, bl] = hs[i].b
+      if (line >= bs && line <= (bl === 0 ? bs : bs + bl - 1)) return i
+    }
+    return -1
+  }
+
+  /** Line of the *before* text matching a line of the current text (the hunks above it shift it). */
+  function alignOffset(hs: Hunk[], line: number): number {
+    let d = 0
+    for (const h of hs) {
+      if (h.b[0] + h.b[1] <= line) d += h.a[1] - h.b[1]
+      else break
+    }
+    return d
+  }
+
+  function openHunk(line: number) {
+    const hs = refHunks()
+    if (!hs.length) return
+    const h = hs[hunkAt(hs, line)]
+    setPopup({ anchor: line, region: h.b, idx: covering(sideHunks(), line) })
+    placeHunk()
+    offOutside?.()
+    const away = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest('[data-testid="hunk-popup"]')) return
+      closeHunk()
+    }
+    // Registered after the click that opened it: the marker's own mousedown must not close it.
+    window.setTimeout(() => {
+      document.addEventListener('mousedown', away)
+      offOutside = () => document.removeEventListener('mousedown', away)
+    })
+  }
+
+  /** Keeps the popup on the lines it shows, and re-picks its hunk for the side shown. */
+  function reanchor() {
+    const p = popup()
+    if (!p) return
+    const hs = sideHunks()
+    const i = covering(hs, p.anchor)
+    setPopup(i >= 0 ? { anchor: p.anchor, region: hs[i].b, idx: i } : { ...p, idx: -1 })
+    placeHunk()
+  }
+
+  function closeHunk(refocus = false) {
+    if (popup() === null) return
+    setPopup(null)
+    offOutside?.()
+    offOutside = undefined
+    if (refocus) view()?.focus()
+  }
+  onCleanup(() => offOutside?.())
+
+  /** Anchored at the first line shown, flipped above when the pane is too short below it. */
+  function placeHunk() {
+    const v = view()
+    const d = doc()
+    const p = popup()
+    if (!v || !d || !p) return
+    const line = Math.min(p.region[0], d.lineCount - 1)
+    const c = v.coordsAt(d.offset(line, 0))
+    const rows = Math.min(p.region[1] + 2 * CONTEXT_LINES, POPUP_LINES)
+    const height = 92 + rows * v.lineHeight
+    const below = c.bottom + 6
+    setPopupPos({
+      left: Math.max(8, Math.min(c.left + 12, innerWidth - POPUP_WIDTH - 12)),
+      top: below + height > innerHeight ? Math.max(8, c.top - height - 6) : below,
+    })
+  }
+
+  /** The scroll closes the popup once its lines are out of view, and keeps it on them. */
+  function followHunk(v: EditorView) {
+    const p = popup()
+    if (!p) return
+    const [first, last] = v.visibleLines()
+    const line = Math.min(p.region[0], v.doc.lineCount - 1)
+    if (line < first || line > last) closeHunk()
+    else placeHunk()
+  }
+
+  /** ArrowUp / ArrowDown walk the hunks, Escape closes the popup. */
+  function hunkKeys(e: KeyboardEvent): boolean {
+    if (popup() === null) return false
+    if (e.key === 'Escape') {
+      closeHunk(true)
+      return true
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') return stepHunk(e.key === 'ArrowDown' ? 1 : -1)
+    return false
+  }
+
+  function stepHunk(dir: number): boolean {
+    const v = view()
+    const d = doc()
+    const p = popup()
+    const hs = sideHunks()
+    if (!v || !d || !p || !hs.length) return false
+    let i: number
+    if (p.idx >= 0) i = (((p.idx + dir) % hs.length) + hs.length) % hs.length
+    else if (dir > 0) i = hs.findIndex((h) => h.b[0] > p.anchor)
+    else {
+      i = -1
+      for (let k = 0; k < hs.length; k++) if (hs[k].b[0] + Math.max(hs[k].b[1], 1) - 1 < p.anchor) i = k
+      if (i < 0) i = hs.length - 1
+    }
+    if (i < 0) i = 0
+    setPopup({ anchor: hs[i].b[0], region: hs[i].b, idx: i })
+    const off = d.offset(Math.min(hs[i].b[0], d.lineCount - 1), 0)
+    v.setSelection(off, off, false)
+    v.scrollToOffset(off)
+    placeHunk()
+    return true
+  }
+
+  /** Any edit makes the hunks stale: the popup closes (they are recomputed right after). */
+  createEffect(
+    on(view, (v) => {
+      if (!v) return
+      const off = v.doc.onChange(() => closeHunk())
+      onCleanup(off)
+    }),
+  )
+
+  function hunkData(p: { anchor: number; region: [number, number]; idx: number }): HunkView {
+    const a = sideLines()
+    const b = doc()?.text.split('\n') ?? []
+    const hs = sideHunks()
+    const [bs, bl] = p.region
+    const h = p.idx >= 0 ? hs[p.idx] : undefined
+    // A hunk of the side shown, or the same lines against it when the line is unchanged there.
+    const [as, al] = h ? h.a : [bs + alignOffset(hs, bs), 0]
+    const lStart = h ? as : bs + (as - bs)
+    const lLen = h ? al : bl
+    /** One column: the lines shown, each paired with the line it is compared to on the other side. */
+    const column = (
+      arr: string[],
+      start: number,
+      len: number,
+      pairOf: (l: number) => string | undefined,
+      kindOf: (l: number, pair: string | undefined) => HunkLine['kind'],
+    ) => {
+      const from = Math.max(0, start - CONTEXT_LINES)
+      const to = Math.min(arr.length, start + len + CONTEXT_LINES)
+      const shown = Math.min(to - from, POPUP_LINES)
+      const lines: HunkLine[] = []
+      for (let l = from; l < from + shown; l++) {
+        const text = arr[l] ?? ''
+        const pair = pairOf(l)
+        const kind = kindOf(l, pair)
+        let spans: WordSpan[]
+        if (pair === undefined) spans = text ? [{ text, changed: kind !== 'ctx' }] : []
+        else if (pair === text) spans = text ? [{ text, changed: false }] : []
+        // The spans of the line of this side (wordHunks compares it with the other side).
+        else spans = wordHunks(text, pair).left
+        lines.push({ no: l + 1, kind, spans })
+      }
+      return { lines, hidden: to - from - shown }
+    }
+    const inHunk = (l: number, start: number, len: number) => l >= start && l < start + len
+    const left = column(
+      a,
+      lStart,
+      lLen,
+      (l) => (h && inHunk(l, as, al) && l - as < bl ? b[bs + (l - as)] : h ? undefined : b[l - (as - bs)]),
+      (l, pair) => (h ? (inHunk(l, as, al) ? 'del' : 'ctx') : pair !== undefined && pair !== a[l] ? 'mod' : 'ctx'),
+    )
+    const right = column(
+      b,
+      bs,
+      bl,
+      (l) => (h && inHunk(l, bs, bl) && l - bs < al ? a[as + (l - bs)] : h ? undefined : a[l + (as - bs)]),
+      (l, pair) => (h ? (inHunk(l, bs, bl) ? (al === 0 ? 'add' : 'mod') : 'ctx') : pair !== undefined && pair !== b[l] ? 'mod' : 'ctx'),
+    )
+    return {
+      from: bs,
+      to: bl === 0 ? bs : bs + bl - 1,
+      added: h ? bl : 0,
+      removed: h ? al : 0,
+      index: p.idx,
+      total: hs.length,
+      side: shownSide(),
+      canSwitch: canSwitchSide(),
+      before: left.lines,
+      after: right.lines,
+      hiddenBefore: left.hidden,
+      hiddenAfter: right.hidden,
+      truncated: left.hidden > 0 || right.hidden > 0,
+    }
+  }
+
+  /** Puts the old lines back (or drops the added ones), as one undo step. */
+  function revertHunk(p: { idx: number }) {
+    const v = view()
+    const d = doc()
+    const h = sideHunks()[p.idx]
+    if (!v || !d || !h || d.readOnly) return
+    const [as, al] = h.a
+    const [bs, bl] = h.b
+    const old = sideLines().slice(as, as + al)
+    const atEnd = bs >= d.lineCount
+    const from = atEnd ? d.text.length : d.lineStart(bs)
+    const to = bs + bl >= d.lineCount ? d.text.length : d.lineStart(bs + bl)
+    // Each restored line keeps its newline, except at the very end of the text; a pure deletion
+    // sits on the line after the gap, a pure addition is simply removed.
+    const text =
+      bl === 0
+        ? atEnd ? '\n' + old.join('\n') : old.join('\n') + '\n'
+        : al === 0
+          ? ''
+          : bs + bl < d.lineCount ? old.join('\n') + '\n' : old.join('\n')
+    closeHunk()
+    d.breakUndoGroup()
+    d.transact(() => d.replace(from, to, text, 'hunk-revert'))
+    d.breakUndoGroup()
+    v.focus()
+  }
+
+  const copyHunk = (p: { idx: number }) => {
+    const h = sideHunks()[p.idx]
+    if (!h) return
+    const text = sideLines().slice(h.a[0], h.a[0] + h.a[1]).join('\n')
+    if (text) copyText(text)
+  }
 
   // Context menu of the text: code navigation, clipboard, comment, file.
   const editorMenu = (e: MouseEvent) => {
@@ -376,6 +679,17 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
           <FindBar view={view()!} doc={doc()!} initial={findInitial()} focusSignal={findFocus()} onClose={() => setFindOpen(false)} />
         </Show>
         <comp.Popup />
+        <Show when={popup() !== null}>
+          <HunkPopup
+            view={() => hunkData(popup()!)}
+            pos={popupPos}
+            onClose={() => closeHunk(true)}
+            onRevert={() => revertHunk(popup()!)}
+            onCopy={() => copyHunk(popup()!)}
+            onFullDiff={() => openDiffTab(path)}
+            onSide={(s) => setSide(s)}
+          />
+        </Show>
       </div>
     </div>
   )

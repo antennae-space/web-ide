@@ -6,7 +6,7 @@ import { podPath } from '../app/base'
 import { Markdown } from '../ui/Markdown'
 import { Switch } from '../ui/Switch'
 import { openDiagram } from '../ui/DiagramViewer'
-import { resolvePath } from '../ui/uiCalls'
+import { resolvePath, openDiffTab } from '../ui/uiCalls'
 import { route } from '../app/router'
 import { openSettings } from '../settings/SettingsModal'
 import { AskCard } from '../questions/AskCard'
@@ -45,7 +45,7 @@ import { toggleWrap } from '../ui/EditorArea'
 import { useCompletion } from '../ui/Completion'
 import { FindBar } from '../editor/FindBar'
 import { isMarkdownPath, MarkdownView, showRaw, shownRaw } from '../ui/MarkdownView'
-import { lineHunks, lineMarks } from '../editor/linediff'
+import { lineHunks, lineMarks, marksOfHunks, wordHunks } from '../editor/linediff'
 import { openConflict } from '../conflict/ConflictDialog'
 import { copyText } from '../ui/clipboard'
 import { cursorInfo, setCursorInfo } from '../ui/status'
@@ -223,6 +223,12 @@ export function makeApi(id: string) {
       lineMarks,
       /** The hunks between two texts (a diff of lines). */
       lineHunks,
+      /** Gutter markers of hunks (the lines of the new text they touch). */
+      marksOfHunks,
+      /** Word-level diff of a pair of lines: the spans of each side, the changed ones marked. */
+      wordHunks,
+      /** Opens the diff tab of a file against HEAD (false when the Git plugin is off). */
+      openDiffTab,
       languageName,
       /** The language server language of a path (go, typescript…), and the languageId it is announced with. */
       serverLanguage: lspLanguage,
@@ -258,6 +264,7 @@ export type { TabState }
 export type { NavTarget } from '../state/project'
 export type { Doc } from '../editor/doc'
 export type { Diagnostic } from '../editor/view'
+export type { Hunk, LineMark, WordSpan } from '../editor/linediff'
 export type { MarkdownViewApi } from '../ui/MarkdownView'
 export type { LspDiagnostic } from './capabilities'
 export type { EditorView } from '../editor/view'

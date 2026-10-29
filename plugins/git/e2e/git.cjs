@@ -91,6 +91,35 @@ run(async ({ page }) => {
   assert(await page.isVisible(row('main.go')), 'saved file listed under its folder')
   assert(await page.isVisible('.git-tree .tree-row:has(.tree-name:text-is("src"))'), 'folder row')
 
+  // The popup of a change marker, and its HEAD / saved switch.
+  const popup = '[data-testid="hunk-popup"]'
+  const beforeSide = () => page.$$eval(popup + ' .hunk-col', (c) => [...c[0].querySelectorAll('.hunk-text')].map((e) => e.textContent))
+  await open(page, 'main.go')
+  await page.click('.pane.active .ed-content')
+  await page.keyboard.press('Control+Home')
+  await page.keyboard.press('End')
+  await page.keyboard.type(' // second')
+  await page.waitForSelector('.pane.active .ed-mark.mark-mod', { timeout: 5000 })
+  await page.click('.pane.active .ed-mark.mark-mod >> nth=0')
+  await page.waitForSelector(popup)
+  assert(await page.isVisible(popup + ' .hunk-sides'), 'the popup offers HEAD and the last saved content')
+  let side = await beforeSide()
+  assert(side[0] === 'package main', 'the before side is HEAD ' + JSON.stringify(side))
+  await page.click(popup + ' .hunk-sides button:has-text("Saved")')
+  await page.waitForTimeout(600)
+  side = await beforeSide()
+  assert(side[0] === 'package main // changed', 'the saved side is the last saved content ' + JSON.stringify(side))
+  assert((await page.$$('.pane.active .ed-mark')).length > 0, 'the markers of the file are not changed by the choice of the popup')
+  await page.screenshot({ path: OUT + '/git-hunk-popup.png' })
+  await page.click(popup + ' .hunk-close')
+  await page.waitForFunction(() => !document.querySelector('[data-testid="hunk-popup"]'))
+  assert(true, 'the close button closes the popup')
+  // The file is left as it was: the tests below discard its changes.
+  await page.click('.pane.active .ed-content')
+  await page.keyboard.press('Control+z')
+  await page.waitForFunction(() => !document.querySelector('.pane.active .tab.active.dirty'), null, { timeout: 5000 })
+  assert(!(await text(page)).includes('// second'), 'the popup did not change the file')
+
   // Single folders are joined on one row; untracked files are red.
   fs.mkdirSync(repo + '/a/b', { recursive: true })
   fs.writeFileSync(repo + '/a/b/c.txt', 'c\n')

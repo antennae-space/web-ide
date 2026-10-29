@@ -853,10 +853,51 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 
 /* gutter change markers */
 .ed-marks { position: absolute; left: 2px; top: 0; width: 4px; }
-.ed-mark { position: absolute; left: 0; width: 3px; border-radius: 1px; }
+.ed-mark { position: absolute; left: 0; width: 3px; border-radius: 1px; cursor: pointer; transform-origin: 0 center; transition: transform 0.12s ease-out, background-color 0.12s, border-color 0.12s; }
+/* A wider, invisible hit area: the visible bar stays 3 px but the mark is easy to click. */
+.ed-mark::after { content: ''; position: absolute; left: -4px; right: -8px; top: 0; bottom: 0; }
 .mark-add { background: var(--ok); }
 .mark-mod { background: var(--info); }
 .mark-del { height: 0 !important; width: 0; border-left: 5px solid var(--danger); border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-radius: 0; margin-top: -4px; }
+/* Hover: the bar grows to the right (the triangle of a deletion too, scaleX only) and brightens —
+   the sign that the mark is clickable, and where its hit area ends. */
+.ed-mark:hover { transform: scaleX(2.2); }
+.mark-add:hover { background: color-mix(in srgb, var(--ok) 70%, var(--fg)); }
+.mark-mod:hover { background: color-mix(in srgb, var(--info) 70%, var(--fg)); }
+.mark-del:hover { border-left-color: color-mix(in srgb, var(--danger) 70%, var(--fg)); }
+
+/* popup of a hunk (click a change marker) */
+.hunk-popup {
+  position: fixed; z-index: 116; width: min(620px, calc(100vw - 24px)); display: flex; flex-direction: column;
+  background: var(--bg-3); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 8px 28px rgb(0 0 0 / 0.4);
+  font-family: var(--font-code); font-size: var(--font-size-code); line-height: var(--line-height-code);
+}
+.hunk-head { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 10px; border-bottom: 1px solid var(--line); font-family: var(--font-ui); font-size: 12px; }
+.hunk-title { color: var(--fg); }
+.hunk-stats { color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.hunk-stats .add { color: var(--ok); }
+.hunk-stats .del { color: var(--danger); }
+.hunk-sides { display: flex; gap: 2px; margin-left: auto; }
+.hunk-sides .btn.on { background: var(--bg-active); color: var(--fg); }
+.hunk-index { color: var(--fg-faint); font-variant-numeric: tabular-nums; }
+.hunk-close { padding: 0 6px; }
+.hunk-body { display: grid; grid-template-columns: 1fr 1fr; min-width: 0; }
+.hunk-col { min-width: 0; overflow: hidden; }
+.hunk-col + .hunk-col { border-left: 1px solid var(--line); }
+.hunk-col-head { padding: 2px 8px; color: var(--fg-faint); font-family: var(--font-ui); font-size: 11px; background: var(--bg-2); }
+.hunk-hidden { padding: 2px 8px; color: var(--fg-muted); font-family: var(--font-ui); font-size: 11.5px; background: var(--bg-2); }
+.hunk-line { display: flex; gap: 8px; padding: 0 8px; white-space: pre; overflow: hidden; }
+.hunk-line .hunk-no { flex: none; width: 3ch; text-align: right; color: var(--gutter); user-select: none; }
+.hunk-line .hunk-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.hunk-line.ctx { color: var(--fg-muted); }
+.hunk-line.del { background: color-mix(in srgb, var(--danger) 16%, transparent); }
+.hunk-line.add { background: color-mix(in srgb, var(--ok) 16%, transparent); }
+.hunk-line.mod { background: color-mix(in srgb, var(--info) 14%, transparent); }
+.hunk-line.mod .hunk-word { background: color-mix(in srgb, var(--info) 40%, transparent); border-radius: 2px; }
+.hunk-line.del .hunk-word { background: color-mix(in srgb, var(--danger) 45%, transparent); border-radius: 2px; }
+.hunk-line.add .hunk-word { background: color-mix(in srgb, var(--ok) 45%, transparent); border-radius: 2px; }
+.hunk-actions { display: flex; gap: 6px; padding: 5px 8px; border-top: 1px solid var(--line); font-family: var(--font-ui); }
+.hunk-none { color: var(--fg-muted); font-size: 12px; align-self: center; }
 
 /* diff view */
 .diff-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
