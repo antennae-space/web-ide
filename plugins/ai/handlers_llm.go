@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"antennae.space/ide/plugins/ai/engine"
-	"antennae.space/ide/plugins/kanban/kanban"
 
 	"antennae.space/ide/plugins/ai/llm"
 	"antennae.space/ide/pod/fsx"
@@ -156,8 +155,7 @@ func (s *A) registerLLM() {
 		// The worktree of a ticket keeps its conversations with those of its parent.
 		if p, ok := s.Projects.Get(c.project); ok && p.Parent != "" {
 			if parent, err := s.Projects.Root(c.project); err == nil {
-				k := kanban.LocationOf(parent)
-				return llm.ChatLocation{Project: k.Project, IdeDir: k.IdeDir}
+				return chatLocOf(parent)
 			}
 		}
 		l := llm.ChatLocation{Project: c.project}
@@ -216,7 +214,7 @@ func (s *A) registerLLM() {
 		}
 		// The tickets linking this conversation show its new title.
 		if root, err := s.Projects.Root(c.project); err == nil {
-			s.kb().Kanban.RenameChat(kanban.LocationOf(root), a.ID, a.Title)
+			_ = s.kanbanCall(ctx, root.ID, "kanban.renameChat", map[string]any{"chat": a.ID, "title": a.Title}, nil)
 		}
 		return nil, nil
 	}))

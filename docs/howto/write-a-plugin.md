@@ -48,7 +48,7 @@ A release carries one archive per architecture, `<id>-linux-amd64.tar.gz` and `<
 - `backend`: its executable in the archive, `bin/<name>`; none for a plugin made of views only.
 - `permissions`: what it asks, each one granted by the user or not (see *Grants*).
 - `contributes`: its tools (an icon of a rail: `left`, `bottomLeft`, `bottomRight`, `right`), tab views, commands, and its assistant tools, each described in `toolSchemas` (a description and the JSON Schema properties of its arguments; its backend runs them). `links: [{"param": "note", "view": "note", "type": "string"}]`: `/project/<id>?note=x` opens the view `note`, `x` the key of its tab and `{"note": "x"}` its state (`"type": "number"` for a number).
-- `provides`, `requires`: the capabilities it serves to the other external plugins and those it uses (see *Services*); it is off on a project where nothing provides one it requires.
+- `provides`, `requires`, `uses`: the capabilities it serves to the other external plugins, those it needs (it is off on a project where nothing provides one) and those it uses when they are there (see *Services*).
 
 ## The page module
 
@@ -88,11 +88,12 @@ Each tool and tab view is a frame of its own, running the module and the view of
 | `ide.openFile(path, line)`, `ide.openView(view, state, title)`, `ide.setViewState(state)` | open a file, a tab of one of its views, save the state of its tab |
 | `ide.t(text, params)`, `ide.tn(n, one, other, params)`, `ide.lang` | its texts, from its `i18n/<lang>.json` |
 | `ide.toast(text, kind)` | a message of the IDE (`info`, `warn`, `error`, `ok`) |
-| `ide.confirm({title, text, ok, danger})`, `ide.prompt({title, label, value, password})`, `ide.pick({title, items})` | the dialogs of the IDE, centered in its window, titled with your plugin's name: a boolean, a text (null if cancelled), the index of the item chosen; only while the user is in your frame (a click, a key) |
+| `ide.confirm({title, text, ok, danger})`, `ide.prompt({title, label, value, password})`, `ide.pick({title, items})` | the dialogs of the IDE, centered in its window, titled with your plugin's name: a boolean, a text (null if cancelled), the index of the item chosen; only while the user is in your frame (a click, a key), within 2 s of your last dialog answered, after a choice in your status items, or within 10 s of a call the IDE made to your background frame on a click of the user |
 | `ide.openModal(view, state, {title, size})`, `ide.closeModal(result)`, `ide.modal` | one of your views (`contributes.modals: [{"id", "label"}]`) in a modal of the IDE (`small`, `medium`, `large`), while the user is in your frame, one at a time; the view closes it with a result for the promise of its opener (null when the user closes it) |
 | `ide.setStatus(items)`, `ide.onStatus(f)` | in a tab view: the items of the status bar while its tab is in focus (`{id, text, title, menu: [{id, label, checked}]}`), and the choices of their menus (`{item, choice}`) |
 | `ide.setToolMenu(items)`, `ide.onToolMenu(f)` | the items your tool (or the tab your view shows) adds after the core items of its **⋮ menu** (`{id, label, hint, title, checked, disabled, separator}`), and the item the user chose (`{item}`). Push them once, and again whenever they change; a frame that pushes none adds nothing |
 | `ide.markdown(text)`, `ide.openLink(url)`, `ide.help(topic)` | the HTML of a Markdown text as the IDE renders it (sanitized), an http(s) address in a new tab (while the user is in the frame), a page of the IDE's documentation |
+| `ide.project`, `ide.setTitle(title)`, `ide.closeView()`, `ide.showTool(id)` | the project of the window (`{id, main, name, root, local}`), the title of its tab and closing it (a tab view), one of its tools shown; `"alone": true` on a tab view keeps it a tab of its own in the Full mode |
 | `ide.theme`, `ide.onTheme(f)` | the colors and fonts of the IDE, also set as CSS variables (`var(--bg)`, `var(--fg)`…, the list is `themeTokens` of the SDK), its `color-scheme`, and `--ide-head-inset`: the room the IDE's buttons take over the frame's top right corner, to leave in the first row of a view (the kit's toolbar does) |
 
 The keys pressed in the frame with a modifier, Escape and F1-F12 reach the IDE's shortcuts.
@@ -108,7 +109,7 @@ ide.register({
 ide.publish('greeting', 'count', 1) // a value its users read and follow
 ```
 
-Another plugin, with `"requires": ["greeting"]`, uses it from any of its frames: `const g = ide.use('greeting')`, `await g.call('hello', 'Ada')`, `g.value('count')`, `g.onValue('count', f)`, `g.on('said', f)`; `ide.openModal('pick', state, {plugin: 'alpha'})` opens a modal view of the plugin providing it, titled with that plugin's name. Its backend calls the provider's backend with the core calls `service.call {capability, method, params}` (a method `<provider>.*`, which the provider's backend gets as a `call` with `from`, the caller's id) and `service.on {capability}` (the events the provider's backend emits come as the notification `event {event, data}`). A built-in's capability is reached through `core:<method>` grants, or through its **bridge**, a reviewed part the IDE offers on the grant `use:<capability>`: `ide.use('terminal')` (`open({cwd, command, title})`, `show(id)`), `ide.use('assistant')` (`newChat({mode, title, ticket})`, `send(text)`, `openChat(id)`, the values `chat` and `config`), `ide.use('agents')` (`show(session)`, `catalog()`); from the backend, `service.call` on `agents` (`agents.develop`, `agents.ticketSession`, `agents.purge`, `agents.chatTimes`). `ide.showWorktree(project)` shows a worktree of the project in the window.
+Another plugin, with `"requires": ["greeting"]`, uses it from any of its frames: `const g = ide.use('greeting')`, `await g.call('hello', 'Ada')`, `g.value('count')`, `g.onValue('count', f)`, `g.on('said', f)`; `ide.openModal('pick', state, {plugin: 'alpha'})` opens a modal view of the plugin providing it, titled with that plugin's name. Its backend calls the provider's backend with the core calls `service.call {capability, method, params}` (a method `<provider>.*`, which the provider's backend gets as a `call` with `from`, the caller's id) and `service.on {capability}` (the events the provider's backend emits come as the notification `event {event, data}`). A built-in's capability is reached through `core:<method>` grants, or through its **bridge**, a reviewed part the IDE offers on the grant `use:<capability>`: `ide.use('terminal')` (`open({cwd, command, title})`, `show(id)`), `ide.use('assistant')` (`newChat({mode, title, ticket})`, `send(text)`, `openChat(id)`, the values `chat` and `config`), `ide.use('agents')` (`show(session)`, `catalog()`), `ide.use('commands')` (the saved commands: `load()`, `edit({id?})`, the value `list`; grant `use:commands`); from the backend, `service.call` on `agents` (`agents.develop`, `agents.ticketSession`, `agents.purge`, `agents.chatTimes`). `ide.showWorktree(project)` shows a worktree of the project in the window.
 
 ## Editor tabs, settings, actions
 
@@ -134,7 +135,7 @@ The IDE starts it on the first call of a project, through `web-ide-pod plugin-ex
 
 | From the IDE | |
 |---|---|
-| `initialize {apiVersion, plugin, version, grants, project: {id, root, local}}` | answer `{}` |
+| `initialize {apiVersion, plugin, version, grants, project: {id, root, local, main, name, mainRoot, mainName}}` | answer `{}`; `main`, `mainRoot`, `mainName`: the main project of a worktree (the project itself otherwise) |
 | `call {method, params, lang, from?}` | an `<id>.*` method of one of its views, or of another plugin's backend using a capability it provides (`from`: that plugin's id): answer its result |
 | `event {event, data}` (no id) | an event of the backend of a capability it listens to (`service.on`) |
 | `mcp {name, args, lang, scope: {project, main, ticket, url}}` | one of its MCP tools (`contributes.mcpTools`, described in `toolSchemas`): `project` of the client's folder, `main` its main project, `ticket` that of its worktree (0 elsewhere), `url` the address of the IDE; answer `{content, error}` |
@@ -156,10 +157,10 @@ The IDE starts it on the first call of a project, through `web-ide-pod plugin-ex
 | `core {method: "questions.changed", params: {asked?}}` | its questions changed: the windows ask again; `asked: true` notifies the devices |
 | `core {method: "notify", params: {kind, query?, tag?, urgency?, texts: {en: {title, body}, fr: …}}}` | a push notification (grant `notify`), of a kind the devices choose (`feedback`, `asks`, `finished`, `tests`), opening the project at `?<query>` |
 | `core {method: "commands.list"}` (and `commands.save`, `commands.run`) | the saved commands of the project, with `core:commands.list`… |
-| `core {method: "git", params: {args, dir?}}` | git in the project or one of its `.ide/worktrees/*` (grant `git`), with the user's keys: answers `{output}`; an option that would run another program (`-c core.pager=…`, `--upload-pack`…) is refused |
+| `core {method: "git", params: {args, dir?, anyExit?}}` | git in the project or one of its `.ide/worktrees/*` (grant `git`), with the user's keys: answers `{output, exit}` (with `anyExit`, whatever its exit code: `diff --no-index`); an option that would run another program (`-c core.pager=…`, `--upload-pack`…) is refused |
 | `core {method: "gh", params: {args}}` | `gh pr …` (grant `gh`) |
 | `core {method: "worktree.register" / "worktree.unregister" / "worktree.setup" / "ide.keepOut"}` | the worktree projects (grant `worktrees`): register a folder of `.ide/worktrees` as the project of a ticket (`{owner, title, path}`), remove it (`{owner}`), run the setup commands of the project in it (`{path}`), keep `.ide` out of git |
-| `emit {event, data}` (no id) | an event to the windows of the project, `<id>.*` only, and to the backends listening to it |
+| `emit {event, data, family?}` (no id) | an event to the windows of the project (with `family`, of its main project and of its worktrees), `<id>.*` only, and to the backends listening to it |
 
 A call waits two minutes at most; a backend that ends three times in a minute stays off until the project opens again. It runs confined: it reads its own folder and the system, writes its data folder (its `HOME` and `TMPDIR`), reads the project with `files:read`, writes it with `files:write`, reaches the network with `net` only; never the home, nor `~/.web-ide`, nor the other processes. A project over SSH is not on the pod: reach its files with `core` calls. Build it static (`CGO_ENABLED=0` for Go): it starts with the system's libraries only. A kernel without Landlock does not run it.
 

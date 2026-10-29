@@ -20,19 +20,11 @@ func TestOrchestrator(t *testing.T) {
 	a, _ := dial(t, ts, "secret-token-0123456789abcdef0123")
 	id := a.call("projects.create", map[string]any{"type": "local", "path": t.TempDir()})["result"].(map[string]any)["id"].(string)
 	a.call("project.open", map[string]any{"id": id})
-	for _, title := range []string{"Small one", "Urgent one"} {
-		a.call("kanban.create", map[string]any{"title": title})
-	}
-	a.call("kanban.update", map[string]any{"id": 2, "patch": map[string]any{"priority": "high"}})
-	for i := 1; i <= 2; i++ {
-		a.call("kanban.plan", map[string]any{"id": i, "plan": "p", "goals": []string{"g"}})
-	}
 	open := func(chat string) map[string]any {
 		return a.call("assistant.open", map[string]any{"id": chat})["result"].(map[string]any)["chat"].(map[string]any)
 	}
 	var mu sync.Mutex
 	tools := map[string]map[string]bool{}
-	var nextOut string
 	model.answer = func(req map[string]any) []string {
 		last := lastMessage(req)
 		content := fmt.Sprint(last["content"])
@@ -44,10 +36,9 @@ func TestOrchestrator(t *testing.T) {
 			tools["orchestrator"] = toolNames(req)
 			switch {
 			case content == "What next?":
-				return toolCalls([3]string{"n", "kanban_next", `{}`})
-			case strings.HasPrefix(content, "Can start now"):
-				nextOut = content
-				return toolCalls([3]string{"c", "action_card", `{"kind":"start_dev","ticket":2,"label":"Start #2","reason":"high priority"}`})
+				return toolCalls([3]string{"c", "action_card", `{"kind":"start_dev","ticket":2,"label":"Start #2"}`})
+			case strings.Contains(content, "ticket #2 not found"):
+				return toolCalls([3]string{"c2", "action_card", `{"kind":"open_conversation","chat":"o0","label":"Back to it","reason":"still open"}`})
 			case strings.HasPrefix(content, "I have an idea"):
 				return toolCalls([3]string{"o", "open_conversation", `{"mode":"briefing","message":"Idea: dark mode","send":true}`})
 			case content == "Dig":
@@ -79,18 +70,21 @@ func TestOrchestrator(t *testing.T) {
 		a.call("assistant.send", map[string]any{"id": chat, "text": msg, "server": "s1", "model": "m", "mode": "orchestrator"})
 	}
 
-	// What next: the high priority ticket first, a card to start it.
+	// What next: a card of a ticket needs the Kanban (with it, kanban_next and start_dev: e2e
+	// orchestrator); one going back to a conversation.
+	send("o0", "Hello")
+	a.waitUpdate("o0", idle)
 	send("o1", "What next?")
 	a.waitUpdate("o1", idle)
 	ms := open("o1")["messages"].([]any)
 	card := ms[len(ms)-2].(map[string]any)["card"].(map[string]any)
-	if !strings.Contains(nextOut, "- #2 [To do] (High) Urgent one\n- #1") || card["kind"] != "start_dev" || card["ticket"] != float64(2) {
-		t.Fatalf("next: %q / card %+v", nextOut, card)
+	if card["kind"] != "open_conversation" || card["chat"] != "o0" {
+		t.Fatalf("card %+v", card)
 	}
 	mu.Lock()
 	ot := tools["orchestrator"]
 	mu.Unlock()
-	if !ot["edit_file"] || ot["kanban_create"] || ot["exit_plan_mode"] || !ot["action_card"] || !ot["kanban_history"] || !ot["spawn_agent"] {
+	if !ot["edit_file"] || ot["kanban_create"] || ot["exit_plan_mode"] || !ot["action_card"] || !ot["spawn_agent"] {
 		t.Fatalf("orchestrator tools: %v", ot)
 	}
 	// The card records what the click did.

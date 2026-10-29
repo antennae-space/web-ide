@@ -10,6 +10,7 @@ import (
 
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/pod/commands"
+	"antennae.space/ide/pod/execx"
 	"antennae.space/ide/pod/plugins"
 	"antennae.space/ide/pod/projects"
 	"antennae.space/ide/pod/runtime"
@@ -22,12 +23,18 @@ import (
 // options that would run another program refused), gh (`gh`, its pull requests only) and the
 // worktree projects (`worktrees`).
 
-// gitOptions are the options of git refused to a plugin: they run another program, or reach
-// past the folder of the call.
-var gitOptions = []string{"-C", "--git-dir", "--work-tree", "--exec-path", "--upload-pack", "--receive-pack", "--exec", "--ext-diff", "--textconv", "--output", "--config-env", "--namespace"}
+// gitGlobal are the options of git itself (before its command) refused to a plugin: they reach
+// past the folder of the call or change the program run; after the command, the same words are
+// its own (rev-parse --git-dir asks the folder of the repository).
+var gitGlobal = []string{"-C", "--git-dir", "--work-tree", "--exec-path", "--config-env", "--namespace"}
 
-// gitSafeConfig are the settings a plugin may give with -c.
-var gitSafeConfig = []string{"core.quotepath", "color.ui"}
+// gitOptions are the options of a command refused to a plugin, wherever they are: they run
+// another program, or write a file the plugin names.
+var gitOptions = []string{"--upload-pack", "--receive-pack", "--exec", "--ext-diff", "--textconv", "--output"}
+
+// gitSafeConfig are the settings a plugin may give with -c; core.editor only as true (no
+// editor: a rebase going on by itself).
+var gitSafeConfig = []string{"core.quotepath", "color.ui", "core.commentchar"}
 
 // checkGitArgs refuses what would make git run a program the plugin chooses.
 func checkGitArgs(args []string) error {
@@ -42,13 +49,17 @@ func checkGitArgs(args []string) error {
 				return i18n.New("git: -c needs a setting")
 			}
 			i++
-			key, _, _ := strings.Cut(args[i], "=")
-			if !slices.Contains(gitSafeConfig, strings.ToLower(key)) {
+			key, val, _ := strings.Cut(args[i], "=")
+			if !slices.Contains(gitSafeConfig, strings.ToLower(key)) && !(strings.ToLower(key) == "core.editor" && val == "true") {
 				return i18n.Errorf("git: the setting %s is refused to a plugin", key)
 			}
 			continue
 		}
-		for _, o := range gitOptions {
+		refused := gitOptions
+		if sub == "" {
+			refused = append(append([]string{}, gitGlobal...), gitOptions...)
+		}
+		for _, o := range refused {
 			if a == o || strings.HasPrefix(a, o+"=") {
 				return i18n.Errorf("git: %s is refused to a plugin", o)
 			}
@@ -74,6 +85,11 @@ func checkGitArgs(args []string) error {
 // its worktrees (.ide/worktrees/<name>).
 func (s *Server) projectDir(rt *runtime.Runtime, dir string) (string, *projects.Project, error) {
 	root, err := s.Projects.Root(rt.P.ID)
+	if err != nil && rt.P.Parent != "" {
+		// The project of a worktree just removed (its runtime closes a moment later): its main
+		// project's.
+		root, err = s.Projects.Root(rt.P.Parent)
+	}
 	if err != nil {
 		return "", nil, err
 	}
@@ -99,6 +115,9 @@ func (s *Server) pluginGit(ctx context.Context, rt *runtime.Runtime, e plugins.E
 	a, err := bind[struct {
 		Args []string `json:"args"`
 		Dir  string   `json:"dir"`
+		// AnyExit: the output and the exit code whatever it is (git diff --no-index exits 1 on a
+		// difference), an error only when git could not run.
+		AnyExit bool `json:"anyExit"`
 	}](params)
 	if err != nil {
 		return nil, err
@@ -118,15 +137,22 @@ func (s *Server) pluginGit(ctx context.Context, rt *runtime.Runtime, e plugins.E
 	if prog == "gh" && !rt.Runner.Has("gh") {
 		return nil, i18n.New("gh is not installed")
 	}
+	// gh --version asks whether it is there: answered without running it.
+	if prog == "gh" && len(a.Args) == 1 {
+		return map[string]any{"output": "", "truncated": false, "exit": 0}, nil
+	}
 	out, err := rt.Runner.Output(ctx, append([]string{prog}, a.Args...), dir)
+	exit := 0
 	if err != nil {
-		return nil, err
+		if exit = execx.ExitCode(err); !a.AnyExit || exit < 0 {
+			return nil, err
+		}
 	}
 	truncated := len(out) > maxExecOutput
 	if truncated {
 		out = out[:maxExecOutput]
 	}
-	return map[string]any{"output": string(out), "truncated": truncated}, nil
+	return map[string]any{"output": string(out), "truncated": truncated, "exit": exit}, nil
 }
 
 // pluginWorktree runs the core calls of the worktree projects (grant worktrees):
@@ -174,7 +200,16 @@ func (s *Server) pluginWorktree(ctx context.Context, rt *runtime.Runtime, e plug
 	case "worktree.unregister":
 		child := projects.ChildID(root.ID, a.Owner)
 		if _, ok := s.Projects.Get(child); ok {
-			s.closeRuntime(child)
+			if child == rt.P.ID {
+				// Asked by the backend of that worktree (its window shows it): its runtime, the
+				// backend with it, closes once the call that asked has answered.
+				go func() {
+					time.Sleep(3 * time.Second)
+					s.closeRuntime(child)
+				}()
+			} else {
+				s.closeRuntime(child)
+			}
 			_ = s.Projects.Delete(child)
 			s.Desks.Delete(child)
 			s.broadcast("projects.changed", nil, nil)

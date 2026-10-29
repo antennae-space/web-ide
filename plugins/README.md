@@ -10,7 +10,6 @@ The built-in plugins of the IDE, one folder each, in the shape of an external pl
 | [files](files/README.md) | The Explorer (locked) |
 | [git](git/README.md) | The Git tool, worktrees |
 | [hello](hello/README.md) | The plugin of the browser tests |
-| [kanban](kanban/README.md) | Kanban, tickets, milestones, objectives |
 | [languages](languages/README.md) | Language servers, Problems, Structure |
 | [previews](previews/README.md) | Port forwards and app previews |
 | [search](search/README.md) | The Search tool |

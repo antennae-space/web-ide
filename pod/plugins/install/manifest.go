@@ -13,7 +13,7 @@ import (
 // running programs, connections the pod opens for it (dial, through SSH: ssh; each destination
 // approved by the user), its entries of the vault (vault), and core:<method> for a method of
 // the core it calls (core:fs.read).
-var Grants = []string{"files:read", "files:write", "net", "exec", "dial", "ssh", "vault", "socket:docker", "terminal", "notify", "git", "gh", "worktrees", "use:assistant", "use:agents", "use:terminal"}
+var Grants = []string{"files:read", "files:write", "net", "exec", "dial", "ssh", "vault", "socket:docker", "terminal", "notify", "git", "gh", "worktrees", "use:assistant", "use:agents", "use:terminal", "use:commands"}
 
 var backendRe = regexp.MustCompile(`^bin/[A-Za-z0-9._-]+$`)
 

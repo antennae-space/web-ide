@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"encoding/json"
-	"slices"
 	"strings"
 
 	"antennae.space/ide/lib/i18n"
@@ -20,7 +19,7 @@ import (
 // serviceProvider is the external plugin with a backend providing capability to the backend of
 // caller in the project of rt.
 func (s *Server) serviceProvider(rt *runtime.Runtime, caller plugins.External, capability string) (plugins.External, error) {
-	if !slices.Contains(caller.Manifest.Requires, capability) {
+	if !caller.Manifest.Needs(capability) {
 		return plugins.External{}, i18n.Errorf("%s does not require %s", caller.Manifest.Name, capability)
 	}
 	id := plugins.Provider(s.pluginStates(rt), capability)
@@ -47,7 +46,7 @@ func (s *Server) serviceCall(ctx context.Context, rt *runtime.Runtime, caller pl
 		return nil, err
 	}
 	// A capability of a built-in: through its bridge only (#167).
-	if slices.Contains(caller.Manifest.Requires, a.Capability) {
+	if caller.Manifest.Needs(a.Capability) {
 		b, err := s.bridgeOf(rt, caller, a.Capability)
 		if err != nil {
 			return nil, err

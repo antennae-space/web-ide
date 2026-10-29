@@ -3,7 +3,8 @@
 // one MessageChannel per frame carries what they may ask. The page is the boundary: a method of
 // the core needs its grant, an event must be of the plugin's namespace.
 import { on, request } from '../pod/rpc'
-import { home, openFile, openTab, mutate, showWorktree, type TabState } from '../state/project'
+import { closeTab, home, isLocal, leaves, openFile, openTab, mutate, project, root, showWorktree, type TabState } from '../state/project'
+import { showTool } from '../state/zones'
 import { toast } from '../ui/toast'
 import { confirmModal, pick, prompt } from '../ui/overlay'
 import { copyText } from '../ui/clipboard'
@@ -13,7 +14,7 @@ import { renderMarkdown } from '../ui/markdown'
 import { docTarget, openDoc, type HelpTopic } from '../state/docs'
 import topics from '../help/topics.json'
 import { lang, t } from '../i18n'
-import type { FrameCall, PageMessage, SandboxEditorState, SandboxModalSize, SandboxStatusItem, SandboxTheme, SandboxToolMenuItem } from './sandbox-api'
+import type { FrameCall, PageMessage, SandboxEditorState, SandboxModalSize, SandboxProject, SandboxStatusItem, SandboxTheme, SandboxToolMenuItem } from './sandbox-api'
 
 /** The CSP of a frame: inline scripts and styles, images as data, no network at all. */
 export const frameCSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'"
@@ -87,7 +88,11 @@ export const bootstrap = `(() => {
     markdown: (text) => call({ call: 'markdown', text: String(text) }),
     openLink: (url) => send({ call: 'openLink', url: String(url) }),
     help: (topic) => send({ call: 'help', topic: String(topic) }),
-    showWorktree: (project) => send({ call: 'showWorktree', project: String(project) }),
+    showWorktree: (project) => call({ call: 'showWorktree', project: String(project) }).then(() => undefined),
+    get project() { return (info && info.project) || null },
+    setTitle: (title) => send({ call: 'setTitle', title: String(title) }),
+    closeView: () => send({ call: 'closeView' }),
+    showTool: (id) => send({ call: 'showTool', id: String(id) }),
     closeModal: (result) => send({ call: 'closeModal', result: plain(result) }),
     get modal() { return !!(info && info.modal) },
     get settings() { return (info && info.settings) || {} },
@@ -138,6 +143,7 @@ export const bootstrap = `(() => {
     if (m.settings) { info.settings = m.settings; settingsFns.forEach((f) => f(m.settings)) }
     if (m.status) statusFns.forEach((f) => f(m.status))
     if (m.toolMenu) toolMenuFns.forEach((f) => f(m.toolMenu))
+    if (m.project && info) info.project = m.project
     // A method of a capability it provides, asked by the page for another plugin.
     if (m.serviceRequest) {
       const id = m.serviceRequest, f = services[m.capability] && services[m.capability][m.method]
@@ -226,6 +232,10 @@ export type FrameHost = {
   openModal?: (view: string, state: unknown, title: string, size: SandboxModalSize) => Promise<unknown>
   /** A modal view: closes its modal with a result. */
   closeModal?: (result: unknown) => void
+  /** Its tools (it may show them). */
+  tools?: string[]
+  /** A tab view: the title it gives its tab. */
+  setTitle?: (title: string) => void
   /** A tab view: the items of the status bar it gives for its tab. */
   setStatus?: (items: SandboxStatusItem[]) => void
   /** Its tool or its tab: the items it adds to the options menu (the ⋮) of the zone or tile. */
@@ -266,6 +276,13 @@ export interface FrameEditor {
   setWords(words: string[]): void
 }
 
+/** The project of the window, for a frame. */
+export function projectInfo(): SandboxProject | undefined {
+  const p = project()
+  const h = home()
+  return p ? { id: p.id, main: h?.id ?? p.id, name: p.name, root: root(), local: isLocal(), origin: location.origin } : undefined
+}
+
 /** The largest text of an editor pushed to a frame. */
 const maxEditorText = 1 << 20
 
@@ -277,6 +294,14 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   // A frame moved in the page loads again: each load gets a new channel.
   let port: MessagePort | undefined
   let offs: (() => void)[] = []
+  // When its last dialog was answered, or a choice of its status items or of its tool menu made:
+  // a dialog that follows (a pick, then the text of its choice) is the same action of the user,
+  // whose focus went elsewhere.
+  let dialogDone = 0
+  // When the page last asked it a service on a click of the user (a card of the assistant
+  // starting a ticket in the Kanban's background frame): the dialogs of that work are the user's.
+  let askedByUser = 0
+  const userAct = async () => Date.now() - dialogDone < 2000 || Date.now() - askedByUser < 10000 || (await userInSoon(frame))
   // What the page asked the frame for another plugin (a method of a capability it serves).
   const asked = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   let nextAsk = 1
@@ -362,22 +387,28 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       case 'dialog':
         void (async () => {
           // The dialogs of the core, while the user is in the view, titled with the plugin.
-          if (!(await userInSoon(frame))) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
-          const title = `${host.name} · ${clip(m.confirm?.title ?? m.prompt?.title ?? m.pick?.title, 200)}`
+          if (!(await userAct())) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
+          const answered = (result: unknown) => {
+            dialogDone = Date.now()
+            reply(m.id, { result })
+          }
+          const own = clip(m.confirm?.title ?? m.prompt?.title ?? m.pick?.title, 200)
+          // Titled with the plugin's name, once when the dialog's title is that name or none.
+          const title = !own || own === host.name ? host.name : `${host.name} · ${own}`
           if (m.confirm) {
-            void confirmModal({ title, text: clip(m.confirm.text, 2000), ok: clip(m.confirm.ok, 60) || undefined, danger: !!m.confirm.danger }).then((result) => reply(m.id, { result }))
+            void confirmModal({ title, text: clip(m.confirm.text, 2000), ok: clip(m.confirm.ok, 60) || undefined, danger: !!m.confirm.danger }).then(answered)
           } else if (m.prompt) {
             const p = m.prompt
-            void prompt({ title, label: clip(p.label, 2000) || undefined, value: clip(p.value, 10000), password: !!p.password, placeholder: clip(p.placeholder, 200) || undefined }).then((result) => reply(m.id, { result }))
+            void prompt({ title, label: clip(p.label, 2000) || undefined, value: clip(p.value, 10000), password: !!p.password, placeholder: clip(p.placeholder, 200) || undefined }).then(answered)
           } else if (m.pick && Array.isArray(m.pick.items)) {
             const items = m.pick.items.slice(0, 500).map((it, i) => ({ label: clip(it?.label, 300), detail: clip(it?.detail, 300) || undefined, value: i }))
-            void pick<number>({ placeholder: title, items, initial: Number.isInteger(m.pick.initial) ? m.pick.initial : 0 }).then((result) => reply(m.id, { result: result ?? null }))
+            void pick<number>({ placeholder: title, items, initial: Number.isInteger(m.pick.initial) ? m.pick.initial : 0 }).then((result) => answered(result ?? null))
           } else reply(m.id, { error: 'dialog: confirm, prompt or pick' })
         })()
         return
       case 'openModal':
         void (async () => {
-          if (!(await userInSoon(frame))) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
+          if (!(await userAct())) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
           const size: SandboxModalSize = m.size === 'small' || m.size === 'large' ? m.size : 'medium'
           // A modal view of another plugin: one providing a capability this one requires.
           const other = typeof m.plugin === 'string' && m.plugin !== host.plugin ? m.plugin : ''
@@ -393,7 +424,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         host.closeModal?.(m.result)
         return
       case 'serviceCall': {
-        const svc = use({ name: host.name, requires: host.requires ?? [], grants: host.grants() }, String(m.capability ?? ''))
+        const svc = use({ name: host.name, requires: [...(host.requires ?? []), ...(host.provides ?? [])], grants: host.grants() }, String(m.capability ?? ''))
         if (typeof svc === 'string') return reply(m.id, { error: svc })
         svc.call(String(m.method ?? ''), Array.isArray(m.args) ? m.args : []).then(
           (result) => reply(m.id, { result }),
@@ -403,7 +434,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       }
       case 'serviceWatch': {
         const capability = String(m.capability ?? '')
-        const svc = use({ name: host.name, requires: host.requires ?? [], grants: host.grants() }, capability)
+        const svc = use({ name: host.name, requires: [...(host.requires ?? []), ...(host.provides ?? [])], grants: host.grants() }, capability)
         if (typeof svc === 'string') return
         port.postMessage({ serviceValues: { capability, values: JSON.parse(JSON.stringify(svc.values())) } } satisfies PageMessage)
         offs.push(svc.onValue((key, value) => port.postMessage({ serviceValue: { capability, key, value } } satisfies PageMessage)))
@@ -458,11 +489,31 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         if (typeof m.topic === 'string' && m.topic in topics) openDoc(docTarget(m.topic as HelpTopic))
         return
       case 'showWorktree': {
-        // A worktree of the project of the window, or the project itself.
+        // A worktree of the project of the window, or the project itself; answered once shown.
         const main = home()?.id
-        if (main && typeof m.project === 'string' && (m.project === main || m.project.startsWith(main + '-'))) void showWorktree(m.project).catch(() => {})
+        const done = (r: { result?: unknown; error?: string }) => m.id !== undefined && reply(m.id, r)
+        if (main && typeof m.project === 'string' && (m.project === main || m.project.startsWith(main + '-')))
+          void showWorktree(m.project).then(
+            () => done({ result: null }),
+            (e) => done({ error: e instanceof Error ? e.message : String(e) }),
+          )
+        else done({ error: t('{name} is not a worktree of this project', { name: String(m.project) }) })
         return
       }
+      case 'setTitle':
+        // The title of its tab, kept by the window (not in the desk: every window showing the
+        // tab sets it, and the desk is shared).
+        if (typeof m.title === 'string') host.setTitle?.(m.title.slice(0, 100))
+        return
+      case 'closeView': {
+        const tab = host.tab
+        if (tab) for (const l of leaves()) if (l.tabs.includes(tab.id)) closeTab(l.id, tab.id, true)
+        return
+      }
+      case 'showTool':
+        // One of its own tools only.
+        if (typeof m.id === 'string' && host.tools?.includes(m.id)) mutate((s) => showTool(s, m.id))
+        return
       case 'serviceEmit':
         if (host.provides?.includes(m.capability) && typeof m.event === 'string') emit(host.plugin, m.capability, m.event.slice(0, 200), m.data)
         return
@@ -487,7 +538,10 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         m satisfies never
     }
   }
-  const send = (m: PageMessage) => port?.postMessage(m)
+  const send = (m: PageMessage) => {
+    if ('status' in m || 'toolMenu' in m) dialogDone = Date.now()
+    port?.postMessage(m)
+  }
   // The theme, and the room of the buttons over its corner (headInset), last sent.
   let inset = ''
   const theme = (): SandboxTheme => {
@@ -512,7 +566,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     // The state of the tab is a proxy of the store: a plain copy crosses the channel.
     const st = host.tab ? host.tab.state : host.state
     const state = st === undefined ? undefined : JSON.parse(JSON.stringify(st))
-    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme(), editor: editorState(), settings: host.settings?.(), modal: !!host.closeModal } })
+    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme(), editor: editorState(), settings: host.settings?.(), modal: !!host.closeModal, project: projectInfo() } })
   }
   frame.addEventListener('load', start)
   // The theme and the language follow the page.
@@ -541,6 +595,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         if (!port) return reject(new Error(t('{name} is not ready', { name: host.name })))
         const id = nextAsk++
         asked.set(id, { resolve, reject })
+        if (navigator.userActivation?.isActive) askedByUser = Date.now()
         send({ serviceRequest: id, capability, method, args: JSON.parse(JSON.stringify(args)) })
       }),
     stop: () => {

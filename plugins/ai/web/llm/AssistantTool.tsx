@@ -58,10 +58,10 @@ function TicketLink(props: { tickets: TicketsService }) {
           {t('Ticket #{n}', { n: chat.ticket!.id })}
         </button>
         <Show when={tk()}>
-          <span class={`kb-status st-${tk()!.status}`}>{k.statusLabel(tk()!.status)}</span>
+          <span class={`ai-tk-status st-${tk()!.status}`}>{k.statusLabel(tk()!.status)}</span>
         </Show>
         <span class="grow" />
-        <span class={`kb-role r-${chat.ticket!.role}`}>{k.roleLabel(chat.ticket!.role)}</span>
+        <span class={`ai-tk-role r-${chat.ticket!.role}`}>{k.roleLabel(chat.ticket!.role)}</span>
       </div>
     </Show>
   )

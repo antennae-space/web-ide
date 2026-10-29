@@ -4,7 +4,7 @@
 // Ctrl+Shift+D and sending from the composer of the modal.
 const http = require('http')
 const fs = require('fs')
-const { run, openProject, assert, pinchRefused, OUT, WS } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, pinchRefused, OUT, WS, installOfficial } = require('../../../e2e/common.cjs')
 
 const requests = []
 const sse = (res, delta) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`)
@@ -128,6 +128,8 @@ function penStroke(page, x0, y0, x1, y1, opts) {
 run(async ({ page }) => {
   await new Promise((r) => fake.listen(0, '127.0.0.1', r))
   try {
+    // The Kanban is an external official plugin (#158).
+    await installOfficial('kanban')
     await openProject(page)
     await page.click('.rail-right .rail-btn[title^="Assistant"]')
     await page.click('.ai-empty button:has-text("Add a model server")')

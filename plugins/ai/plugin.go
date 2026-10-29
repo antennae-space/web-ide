@@ -15,7 +15,6 @@ import (
 
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/plugins/ai/llm"
-	kbp "antennae.space/ide/plugins/kanban"
 	"antennae.space/ide/pod/assistant"
 	"antennae.space/ide/pod/commands"
 	"antennae.space/ide/pod/runtime"
@@ -148,14 +147,6 @@ func bind[T any](raw json.RawMessage) (T, error) {
 	}
 	err := json.Unmarshal(raw, &v)
 	return v, err
-}
-
-// kb is the Kanban plugin, for the kanban tools of the assistant and the Orchestrator (nil
-// without it).
-func (s *A) kb() *kbp.K {
-	p, _ := s.pod.Plugin("kanban")
-	k, _ := p.(*kbp.K)
-	return k
 }
 
 func (s *A) stopping() bool { return s.pod.Stopping() }

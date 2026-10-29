@@ -15,4 +15,4 @@ Its unit tests run on a fake pod (`harness_test.go`), with `go test ./plugins/ai
 
 The page module imports the plugin API only (`@ide/api`, `@ide/types`, `@ide/capabilities`); the Go package imports the core of `pod/`.
 
-AI imports the Kanban plugin (`exports.go`, `TicketTool`, the manager `K.Kanban`) and its package `kanban/`; no package of `pod/` imports the AI's packages (`pod/plugins/builtin` registers the plugin), and the Kanban reaches the AI through `caps.Agents` only.
+AI imports no code of the Kanban (#158): it reaches it through its methods (`Pod.CallPlugin`, `kanban_client.go`): its kanban tools run in the Kanban (`kanban.assistantTool`, with the conversation), it reads a ticket (`kanban.get`), its Markdown (`kanban.markdown`), the ticket of a worktree (`kanban.worktreeTicket`), links and renames its conversations (`kanban.chat.link`, `kanban.renameChat`); built-in or external, the Kanban answers the same. No package of `pod/` imports the AI's packages (`pod/plugins/builtin` registers the plugin), and the Kanban reaches the AI through `caps.Agents` only.

@@ -3,13 +3,15 @@
 // another desk; desks are renamed and removed; the home page opens the last desk of the device.
 // A desk in Grid mode is a tree of tiles (files, tools, consoles) driven by the keyboard; in
 // Scroll mode its columns go side by side in a strip, 1 to 3 in sight.
-const { run, openProject, open, assert, OUT } = require('../common.cjs')
+const { run, openProject, open, assert, OUT, installOfficial, inFrames } = require('../common.cjs')
 
 const tabs = (p) => p.$$eval('.pane .tab .tab-title', (e) => e.map((x) => x.textContent.trim()))
 const path = (p) => new URL(p.url()).pathname
 
 run(async ({ ctx, page }) => {
   page.on('dialog', (d) => d.accept())
+  // The Kanban is an external official plugin (#158).
+  await installOfficial('kanban')
   await openProject(page)
   await open(page, 'main.go')
   await open(page, 'notes.txt')
@@ -414,7 +416,7 @@ run(async ({ ctx, page }) => {
   await page.waitForSelector('.rail-left')
   assert((await shownPanes()) === 1 && (await page.$$eval('.pane.active > .tabbar .tab', (l) => l.length)) === 2, 'in Full only the group of files shows')
   await page.click('.rail .rail-btn[title^="Kanban"]')
-  await page.click('[data-testid=kanban-open-board]')
+  await inFrames(page).click('[data-testid=kanban-open-board]')
   await page.waitForFunction(() => document.querySelectorAll('.pane.active > .tabbar .tab').length === 3)
   await page.click(`[data-testid=desk-${scrollDesk}]`, { button: 'right' })
   await page.click('.ctx-menu >> text=Scrolling columns')

@@ -12,10 +12,11 @@ import type { EditorView } from '../editor/view'
 import { comboFromEvent } from '../keys/bindings'
 import { useEditorView } from '../ui/EditorArea'
 import { useCompletion } from '../ui/Completion'
-import { frameDoc, serveFrame, type FrameEditor } from './sandbox'
+import { frameDoc, projectInfo, serveFrame, type FrameEditor } from './sandbox'
 import { pluginSettingValues } from './settings'
 import type { PageMessage, SandboxModalSize, SandboxStatusItem, SandboxToolMenuItem } from './sandbox-api'
 import { serve, setModalOpener } from './services'
+import './adapters'
 import type { PluginContributions, PluginManifest, PluginModule, PluginState, StatusItem } from './types'
 import type { MenuItem } from '../ui/overlay'
 
@@ -33,6 +34,12 @@ const [frameTabMenu, setFrameTabMenu] = createSignal<Record<string, { items: San
 /** The items of a frame as the core's menu items: a choice goes back to the frame as a message. */
 const frameMenuItems = (st: { items: SandboxToolMenuItem[]; send: (m: PageMessage) => void }): MenuItem[] =>
   st.items.map((it) => ({ label: it.label, hint: it.hint, title: it.title, checked: !!it.checked, disabled: !!it.disabled, separator: !!it.separator, action: () => st.send({ toolMenu: { item: it.id } }) }))
+
+/** The titles the tab frames gave their tabs (setTitle), by tab id: the window's, not the desk's. */
+const [tabTitles, setTabTitles] = createSignal<Record<string, string>>({})
+
+/** The title of a tab of an external plugin's view: the one its frame gave. */
+const viewTitle = (tab: TabState) => tabTitles()[tab.id]
 
 /** The items of the status bar of a tab of an external plugin's view. */
 function viewStatus(tab: TabState): StatusItem[] {
@@ -103,8 +110,9 @@ function SandboxFrame(props: {
     served = serveFrame(frame, {
       plugin: props.state.manifest.id,
       name: props.state.manifest.name,
-      requires: props.state.manifest.requires,
+      requires: [...(props.state.manifest.requires ?? []), ...(props.state.manifest.uses ?? [])],
       provides: props.state.manifest.provides,
+      tools: props.state.manifest.contributes.tools?.map((x) => x.id),
       grants: props.grants,
       catalogs: props.bundle.catalogs,
       view: props.view,
@@ -122,10 +130,22 @@ function SandboxFrame(props: {
         props.tab
           ? setFrameTabMenu((all) => ({ ...all, [props.tab!.id]: { items, send: served!.send } }))
           : setFrameToolMenu((all) => ({ ...all, [props.view]: { items, send: served!.send } })),
+      setTitle: props.tab ? (title) => setTabTitles((all) => ({ ...all, [props.tab!.id]: title })) : undefined,
     })
     props.served?.(served)
   })
   createEffect(onSignal(lang, () => served?.lang(), { defer: true }))
+  // The window shows another worktree: the frame's project follows.
+  createEffect(
+    onSignal(
+      () => projectInfo()?.id,
+      () => {
+        const p = projectInfo()
+        if (p) served?.send({ project: p })
+      },
+      { defer: true },
+    ),
+  )
   createEffect(onSignal(() => JSON.stringify(pluginSettingValues(props.state.manifest)), () => served?.settings(), { defer: true }))
   onCleanup(() => {
     served?.stop()
@@ -244,7 +264,7 @@ function backgroundFrame(state: PluginState, grants: () => string[], bundle: Bun
       served = serveFrame(frame, {
         plugin: state.manifest.id,
         name: state.manifest.name,
-        requires: state.manifest.requires,
+        requires: [...(state.manifest.requires ?? []), ...(state.manifest.uses ?? [])],
         provides: state.manifest.provides,
         grants,
         catalogs: bundle.catalogs,
@@ -298,6 +318,8 @@ export async function externalModule(state: PluginState, current: () => PluginSt
         ...Object.fromEntries((c.tools ?? []).map((x) => [x.id, () => (frameToolMenu()[x.id] ? frameMenuItems(frameToolMenu()[x.id]!) : [])])),
         ...Object.fromEntries((c.tabViews ?? []).map((v) => [v.id, (tab?: TabState) => (tab && frameTabMenu()[tab.id] ? frameMenuItems(frameTabMenu()[tab.id]!) : [])])),
       },
+      viewTitle,
+      aloneViews: (c.tabViews ?? []).filter((v) => v.alone).map((v) => v.id),
       }
     },
   }

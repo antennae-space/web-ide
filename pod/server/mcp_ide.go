@@ -60,12 +60,6 @@ func ideTool(f func(ctx context.Context, s *Server, a assistant.Args, sc mcpScop
 	}
 }
 
-func strArray(a assistant.Args, k string) []string {
-	var out []string
-	_ = json.Unmarshal(a[k], &out)
-	return out
-}
-
 // mcpWindow is the window that shows what a tool of the MCP asks: one of the folder of the
 // client, else one of its main project (the page attaches the worktree).
 func (s *Server) mcpWindow(sc mcpScope) (*Client, error) {

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"antennae.space/ide/plugins/kanban/kanban"
-
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/plugins/ai/engine"
 	"antennae.space/ide/plugins/ai/llm"
@@ -43,7 +41,7 @@ func (s *A) runProject(chat *engine.Chat, root, project string) string {
 	if chat.Ticket.Project == "" && (chat.Ticket.Role == "dev" || chat.Ticket.Role == "correction") {
 		if p, ok := s.Projects.Get(root); ok {
 			owner := chat.Ticket.ID
-			if t, err := s.kb().Kanban.Get(kanban.LocationOf(p), owner); err == nil && t.Parent != 0 {
+			if t, err := s.kanbanGet(context.Background(), p.ID, owner); err == nil && t.Parent != 0 {
 				owner = t.Parent
 			}
 			if _, ok := s.Projects.Get(projects.ChildID(root, owner)); ok {

@@ -39,6 +39,7 @@ func (s *Server) registerPluginInstall() {
 	s.loadExternals()
 	runtime.PackTests = s.packTests
 	s.migrateDatabase()
+	s.migrateKanban()
 	go s.ensureOfficial()
 
 	type resolveArgs struct {

@@ -29,11 +29,15 @@ ide.register({
       el.querySelector('#choose').onclick = () => ide.closeModal({ chosen: 'green' })
     },
     note: (el, ide) => {
-      el.innerHTML = '<p id="note">' + JSON.stringify(ide.view.state) + '</p><button id="opened">opened</button><button id="ask">ask</button><button id="answer">answer</button><button id="notify">notify</button><button id="git">git</button><button id="worktree">worktree</button><button id="unworktree">unworktree</button><button id="md">md</button><button id="agents">agents</button><pre id="out"></pre><pre id="choice"></pre>'
+      el.innerHTML = '<p id="note">' + JSON.stringify(ide.view.state) + '</p><button id="opened">opened</button><button id="ask">ask</button><button id="answer">answer</button><button id="notify">notify</button><button id="git">git</button><button id="worktree">worktree</button><button id="unworktree">unworktree</button><button id="md">md</button><button id="agents">agents</button><button id="close">close</button><p id="proj"></p><pre id="out"></pre><pre id="choice"></pre>'
       // #157: its status items, a choice of their menu back; the IDE's Markdown.
       ide.setStatus([{ id: 'alpha-mood', text: 'Mood: calm', title: 'The mood of alpha', menu: [{ id: 'calm', label: 'Calm', checked: true }, { id: 'busy', label: 'Busy' }] }])
       ide.onStatus((e) => (el.querySelector('#choice').textContent = e.item + '=' + e.choice))
       el.querySelector('#md').onclick = () => ide.markdown('**bold** <img src=x onerror=alert(1)>').then((h) => (el.querySelector('#out').textContent = h))
+      // #158: its tab's title, its project, its tab closed by itself.
+      ide.setTitle('Alpha note')
+      el.querySelector('#proj').textContent = ide.project ? ide.project.id + ' ' + ide.project.name : 'none'
+      el.querySelector('#close').onclick = () => ide.closeView()
       el.querySelector('#agents').onclick = () => ide.use('agents').call('catalog').then((r) => (el.querySelector('#out').textContent = JSON.stringify(r)), (e) => (el.querySelector('#out').textContent = 'error: ' + e.message))
       for (const b of ['opened', 'ask', 'answer', 'notify', 'git', 'worktree', 'unworktree'])
         el.querySelector('#' + b).onclick = () => ide.rpc('alpha.' + b).then((r) => (el.querySelector('#out').textContent = JSON.stringify(r)), (e) => (el.querySelector('#out').textContent = 'error: ' + e.message))
@@ -220,9 +224,17 @@ run(async ({ page }) => {
   got = await alpha('md')
   assert(got.includes('<strong>bold</strong>') && !got.includes('onerror'), 'the IDE renders Markdown, sanitized: ' + got)
 
+  // #158: the title it gave its tab, its project; it closes its tab.
+  await page.waitForSelector('.tab:has-text("Alpha note")')
+  const proj = await note.locator('#proj').textContent()
+  assert(/^\S+ demo$/.test(proj), 'the frame knows its project: ' + proj)
+
   // #167: a capability of a built-in through the bridge of the core, refused without its grant.
   got = await alpha('agents')
   assert(got.includes('use:agents is not granted to Alpha'), 'a bridge without its grant: ' + got)
+  await note.locator('#close').click()
+  await page.waitForSelector('.tab:has-text("Alpha note")', { state: 'detached' })
+  assert(true, 'a frame closes its own tab')
 
   // alpha disabled on the project: beta, which requires it, is off too; back with it.
   page.on('dialog', (d) => d.accept())

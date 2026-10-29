@@ -29,6 +29,8 @@ export interface PluginManifest {
   backend?: string
   provides?: string[]
   requires?: string[]
+  /** Capabilities it uses when they are there (not needed to be on, #158). */
+  uses?: string[]
   namespaces?: string[]
   contributes: {
     tools?: PluginTool[]
@@ -39,7 +41,7 @@ export interface PluginManifest {
     settings?: { properties: Record<string, PluginSetting> }
     /** Its actions (#151): a method of its backend and an assistant tool each. */
     actions?: { id: string; label: string; description: string; properties?: Record<string, unknown>; required?: string[]; access: 'read' | 'write'; target?: string }[]
-    tabViews?: { id: string; label: string; editor?: { lang: string; size?: number; keys?: Record<string, string> } }[]
+    tabViews?: { id: string; label: string; alone?: boolean; editor?: { lang: string; size?: number; keys?: Record<string, string> } }[]
     /** The views an external plugin opens in a modal of the core (#154). */
     modals?: { id: string; label: string }[]
     /** Parameters of a project's address opening a tab view (#155): ?ticket=12. */
