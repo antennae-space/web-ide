@@ -149,7 +149,9 @@ run(async ({ page, errors }) => {
   // Its tool shown (a desk restored after a reload may show it already: a click would hide it).
   const showGreet = async () => {
     await page.waitForSelector('.rail-btn[data-id=greet]')
-    if (!(await page.isVisible('iframe.plugin-frame[data-view=greet]'))) await page.click('.rail-btn[data-id=greet]')
+    // After an update its frame is drawn again: a click while it is gone would close the tool.
+    const shown = await page.waitForSelector('iframe.plugin-frame[data-view=greet]', { state: 'visible', timeout: 2000 }).then(() => true, () => false)
+    if (!shown) await page.click('.rail-btn[data-id=greet]')
   }
   await openSettings()
 
