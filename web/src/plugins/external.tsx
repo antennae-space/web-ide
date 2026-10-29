@@ -15,7 +15,7 @@ import { useCompletion } from '../ui/Completion'
 import { frameDoc, projectInfo, serveFrame, type FrameEditor } from './sandbox'
 import { pluginSettingValues } from './settings'
 import type { PageMessage, SandboxModalSize, SandboxStatusItem, SandboxToolMenuItem } from './sandbox-api'
-import { serve, setModalOpener } from './services'
+import { claim, serve, setModalOpener } from './services'
 import './adapters'
 import type { PluginContributions, PluginManifest, PluginModule, PluginState, StatusItem } from './types'
 import type { MenuItem } from '../ui/overlay'
@@ -297,8 +297,10 @@ export async function externalModule(state: PluginState, current: () => PluginSt
     activate: (): PluginContributions => {
       // Its capabilities, served by its background frame to the other external plugins.
       const provides = state.manifest.provides ?? []
-      if (provides.length)
+      if (provides.length) {
+        provides.forEach((cap) => claim(cap, id))
         void bg.start().then((s) => provides.forEach((cap) => serve(cap, id, (method, args) => s.request(cap, method, args))))
+      }
       return {
       tools: Object.fromEntries((c.tools ?? []).map((x) => [x.id, { component: () => <SandboxFrame state={state} grants={grants} bundle={bundle} view={x.id} /> }])),
       views: Object.fromEntries(
