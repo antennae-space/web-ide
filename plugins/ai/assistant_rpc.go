@@ -219,6 +219,22 @@ func (s *A) registerAssistant() {
 	}))
 	// assistant.stats: statistics of a conversation (with its sub-agents) or of the project.
 	s.handle("assistant.stats", withChat(s.assistantStats))
+	// assistant.shells: the consoles this conversation started that still run.
+	s.handle("assistant.shells", withChat(func(ctx context.Context, c *Client, cc chatCtx, p json.RawMessage) (any, error) {
+		a, err := bind[idArg](p)
+		if err != nil {
+			return nil, err
+		}
+		chat, err := s.readChat(cc, a.ID)
+		if err != nil {
+			return nil, err
+		}
+		shells, err := s.pruneShells(cc, s.runProject(chat, cc.root, c.project), a.ID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"shells": shells}, nil
+	}))
 	// assistant.watch: the conversation shown by the window ("" for none).
 	s.handle("assistant.watch", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
 		a, err := bind[idArg](p)

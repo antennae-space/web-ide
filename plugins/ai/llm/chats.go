@@ -38,6 +38,8 @@ type ChatInfo struct {
 	// a sub-agent for its parent); Failed: its last answer ended in an error (not abandoned).
 	Waiting bool `json:"waiting,omitempty"`
 	Failed  bool `json:"failed,omitempty"`
+	// GenMs: time this conversation spent generating its answers (engine.Chat.GenMs).
+	GenMs int64 `json:"genMs,omitempty"`
 }
 
 // ChatLocation says where the conversations of a project live.
@@ -130,7 +132,7 @@ func (m *Manager) ListChats(loc ChatLocation) ([]ChatInfo, error) {
 	}
 	rows, err := db.Query(`SELECT id, title, updated, model, coalesce(json_extract(extra, '$.parent'), ''), coalesce(json_extract(extra, '$.agent.status'), ''),
 		coalesce(json_extract(extra, '$.agent.tokens'), 0), coalesce(json_extract(extra, '$.agent.cost'), 0),
-		coalesce(json_extract(extra, '$.mode'), ''), coalesce(json_extract(extra, '$.ticket.id'), 0),
+		coalesce(json_extract(extra, '$.mode'), ''), coalesce(json_extract(extra, '$.ticket.id'), 0), coalesce(json_extract(extra, '$.genMs'), 0),
 		json_extract(extra, '$.approval') IS NOT NULL OR EXISTS (SELECT 1 FROM messages m WHERE m.chat_id = chats.id AND m.role = 'tool'
 			AND m.seq > (SELECT coalesce(max(seq), -1) FROM messages WHERE chat_id = chats.id AND role != 'tool')
 			AND (json_extract(m.data, '$.askState') = 'pending' OR json_extract(m.data, '$.planState') = 'pending'
@@ -145,7 +147,7 @@ func (m *Manager) ListChats(loc ChatLocation) ([]ChatInfo, error) {
 	list := []ChatInfo{}
 	for rows.Next() {
 		var c ChatInfo
-		if err := rows.Scan(&c.ID, &c.Title, &c.Updated, &c.Model, &c.Parent, &c.Status, &c.Tokens, &c.Cost, &c.Mode, &c.Ticket, &c.Waiting, &c.Failed); err != nil {
+		if err := rows.Scan(&c.ID, &c.Title, &c.Updated, &c.Model, &c.Parent, &c.Status, &c.Tokens, &c.Cost, &c.Mode, &c.Ticket, &c.GenMs, &c.Waiting, &c.Failed); err != nil {
 			return nil, err
 		}
 		list = append(list, c)

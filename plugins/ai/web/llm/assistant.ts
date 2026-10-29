@@ -4,7 +4,7 @@
 // a conversation goes on when the window closes, and any window can follow or stop it.
 import { produce, reconcile } from 'solid-js/store'
 import { createSignal } from 'solid-js'
-import { approval, chat, chatTrail, config, emptyChat, leaveChat, live, loadModels, newId, prefs, refreshChats, setApproval, setChat, setIncomingDraft, setLive, type Chat, type ChatMessage, type Mode, type Part } from './state'
+import { approval, chat, chatTrail, config, emptyChat, leaveChat, live, loadModels, newId, prefs, refreshChats, setApproval, setChat, setIncomingDraft, setLive, setShells, type Chat, type ChatMessage, type Mode, type Part, type Shell } from './state'
 import { activeFile, answerStrings, home, on, pluginAssistantOptions, relPath, request, t, toast } from '../plugin'
 import type { AnswerEntry } from '../plugin'
 
@@ -95,6 +95,7 @@ interface Update {
   agent?: Chat['agent']
   children?: string[]
   dismissed?: boolean
+  genMs?: number
   from: number
   count: number
   messages?: ChatMessage[]
@@ -146,6 +147,7 @@ on('assistant.update', (u: Update) => {
       c.agent = u.agent
       c.children = u.children
       c.dismissed = u.dismissed
+      if (u.genMs) c.genMs = u.genMs
     }),
   )
   setApproval(u.approval ?? null)
@@ -155,6 +157,20 @@ on('assistant.update', (u: Update) => {
   attach(u.state === 'idle' ? undefined : u.stream)
   rememberActive()
   listSoon()
+})
+
+/** The consoles this conversation started that still run (the shells of its top bar). */
+export async function loadShells(id: string) {
+  try {
+    const r = await request<{ shells: Shell[] }>('assistant.shells', { id })
+    if (id === chat.id) setShells(r.shells ?? [])
+  } catch {
+    setShells([])
+  }
+}
+
+on('assistant.shells', (e: { id: string; shells: Shell[] }) => {
+  if (e.id === chat.id) setShells(e.shells ?? [])
 })
 
 // The list of the conversations follows their titles and dates (at most once a second).
@@ -233,6 +249,7 @@ export async function openChat(id: string, record = true) {
   applyState(r.state, r.ahead)
   attach(r.state === 'idle' ? undefined : r.chat.running?.stream)
   rememberActive()
+  loadShells(id)
 }
 
 /** Shows the conversation shown before (-1) or after (1); one deleted since is skipped. */
@@ -265,6 +282,7 @@ export async function restoreActive() {
   chatProject = pid
   if (changed) {
     setChat(reconcile(emptyChat()))
+    setShells([])
     chatTrail.back = []
     chatTrail.forward = []
   }

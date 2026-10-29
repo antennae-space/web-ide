@@ -4,7 +4,7 @@
 import { For, Show } from 'solid-js'
 import { openChat, runStates } from './assistant'
 import { formatTokens, Markdown } from './parts'
-import { chat, chatList, config, type AgentEvent, type ChatInfo, type ChatMessage } from './state'
+import { chat, chatList, type AgentEvent, type ChatInfo, type ChatMessage } from './state'
 import { errorToast, Icon, request, t } from '../plugin'
 
 /** Status of a sub-agent shown to the user: its run first (waiting for you, queued). */
@@ -142,22 +142,3 @@ export function TaskCard(props: { msg: ChatMessage }) {
   )
 }
 
-/** Header of a child conversation: its parent and its status. */
-export function ChildHeader() {
-  const parent = () => chatList().find((c) => c.id === chat.parent)
-  const status = () => agentStatus(chat.id, chat.agent?.status)
-  return (
-    <div class="ai-child-header" data-testid="ai-child-header">
-      <Icon name="sparkle" size={13} />
-      <span>{chat.agent?.adopted ? t('Followed by') : t('Sub-agent of')}</span>
-      <button class="link ellipsis" onClick={() => open(chat.parent)} data-testid="ai-child-parent">
-        {parent()?.title ?? t('the parent conversation')}
-      </button>
-      <span class="grow" />
-      <span class="muted small ellipsis" data-testid="ai-child-model">
-        {config.servers.find((s) => s.id === chat.server)?.name ?? chat.server} · {chat.model}
-      </span>
-      <span class={`badge ai-child-status ${status()}`}>{t(agentLabels[status()] ?? status())}</span>
-    </div>
-  )
-}

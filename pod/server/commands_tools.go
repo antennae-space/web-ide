@@ -72,7 +72,7 @@ func (s *Server) startSaved(rt *runtime.Runtime, id string, restart bool) (comma
 		if out == "" {
 			out = "(no output yet)"
 		}
-		return cmd, "", fmt.Sprintf("“%s” is already running in console %s (one console per command): nothing started. End of its output:\n%s\n\nPass restart=true to restart it, or follow it with read_console.", cmd.Name, r.Running.ID, out), nil
+		return cmd, r.Running.ID, fmt.Sprintf("“%s” is already running in console %s (one console per command): nothing started. End of its output:\n%s\n\nPass restart=true to restart it, or follow it with read_console.", cmd.Name, r.Running.ID, out), nil
 	}
 	return cmd, r.Console.ID, "", nil
 }

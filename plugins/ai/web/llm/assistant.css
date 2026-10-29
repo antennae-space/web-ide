@@ -330,21 +330,32 @@
   .ai-mode { padding: 0 7px; }
 }
 
-/* ticket linked to the conversation */
-/* On top of the message box, inside its frame: the focus rule spans both. */
-.ai-ticket-bar { display: flex; align-items: center; gap: 6px; padding: 4px 10px 4px 14px; background: var(--bg-2); font-size: 12px; min-width: 0; flex: none; }
-.ai-ticket-bar .link { padding: 0; min-width: 0; }
-/* The status and the role of the ticket, colored as on the Kanban's board. */
-.ai-tk-status { --st: var(--fg-muted); display: inline-flex; align-items: center; padding: 0 7px; border-radius: 9px; font-weight: 600; line-height: 18px; white-space: nowrap; color: var(--st); background: color-mix(in srgb, var(--st) 18%, transparent); }
-.ai-tk-status.st-todo { --st: var(--info); }
-.ai-tk-status.st-in_progress { --st: var(--warn); }
-.ai-tk-status.st-to_test { --st: #b48ef0; }
-.ai-tk-status.st-done { --st: var(--ok); }
-.ai-tk-status.st-abandoned { --st: var(--fg-faint); }
+/* top bar of the conversation: ticket, shells, parent, children, role, generation time */
+.ai-topbar { display: flex; align-items: center; gap: 10px; padding: 3px 12px; border-bottom: 1px solid var(--line); background: var(--bg-2); font-size: 12px; min-width: 0; flex: none; }
+.ai-bar-item { display: inline-flex; align-items: center; gap: 5px; min-width: 0; padding: 0; border: 0; background: none; color: var(--fg-muted); font-size: 12px; }
+button.ai-bar-item { cursor: pointer; }
+button.ai-bar-item:hover { color: var(--accent); }
+.ai-bar-item .mono { font-family: var(--font-code); }
+.ai-bar-icon { position: relative; display: inline-flex; flex: none; }
+.ai-bar-dot { position: absolute; right: -3px; bottom: -2px; width: 7px; height: 7px; border-radius: 50%; background: var(--st, var(--fg-muted)); box-shadow: 0 0 0 2px var(--bg-2); }
+.ai-bar-dot.agent-running, .ai-bar-dot.agent-queued, .ai-bar-dot.agent-compacting { background: var(--accent); }
+.ai-bar-dot.agent-waiting_user, .ai-bar-dot.agent-waiting_parent, .ai-bar-dot.agent-blocked { background: var(--warn); }
+.ai-bar-dot.agent-done { background: var(--ok); }
+.ai-bar-dot.agent-error, .ai-bar-dot.agent-stopped { background: var(--danger); }
+.ai-bar-parent { min-width: 0; }
+.ai-bar-parent .link { padding: 0; min-width: 0; display: inline-flex; align-items: center; gap: 4px; }
+.ai-topbar .grow { flex: 1 1 auto; }
+.ai-topbar.narrow .ai-bar-parent .ellipsis { display: none; }
+/* The status of the ticket on its icon, the role of the conversation: colored as on the Kanban's board. */
+.ai-bar-dot.st-todo { --st: var(--info); }
+.ai-bar-dot.st-in_progress { --st: var(--warn); }
+.ai-bar-dot.st-to_test { --st: #b48ef0; }
+.ai-bar-dot.st-done { --st: var(--ok); }
+.ai-bar-dot.st-abandoned { --st: var(--fg-faint); }
 .ai-tk-role { font-weight: 600; border-radius: 4px; padding: 0 4px; background: var(--bg-3); color: var(--fg-muted); white-space: nowrap; }
 .ai-tk-role.r-dev, .ai-tk-role.r-correction { color: var(--warn); }
 .ai-tk-role.r-plan { color: var(--info); }
-.ai-ticket-link { align-self: flex-start; margin: 6px 14px 0; padding: 0; border: 0; background: none; background: none; color: var(--fg-muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.ai-ticket-link { padding: 0; border: 0; background: none; color: var(--fg-muted); font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; flex: none; }
 .ai-ticket-link:hover { color: var(--accent); }
 
 /* Doodle sent, in the thread. */
@@ -388,7 +399,6 @@
 .ai-event-head { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--fg-muted); }
 .ai-event-head .link { color: inherit; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
 .ai-event-files { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--fg-muted); }
-.ai-child-header { display: flex; align-items: center; gap: 6px; padding: 6px 10px; margin-bottom: 8px; border-radius: 8px; background: var(--ai-softer); font-size: 13px; min-width: 0; }
 .ai-nudge { padding-left: 22px; }
 .ai-chat-item.nested { padding-left: 14px; }
 /* A sub-agent listed on its own line of the history */
