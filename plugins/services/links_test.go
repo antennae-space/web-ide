@@ -130,10 +130,14 @@ func TestLinks(t *testing.T) {
 	peers.offline = false
 	peers.mu.Unlock()
 
-	// Cut by bravo: the next request turns the link off, its port is freed.
+	// Cut by bravo: the next request turns the link off, its port is freed; the attach again of
+	// the link back online may learn it first (the port already closed).
 	share2.Cut(s.ID, alpha.Key)
-	if code, _ := getBody(t, v.Listen); code != http.StatusForbidden {
-		t.Fatalf("after Cut: %d", code)
+	if resp, err := http.Get("http://127.0.0.1:" + strconv.Itoa(v.Listen) + "/api/tags"); err == nil {
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("after Cut: %d", resp.StatusCode)
+		}
 	}
 	deadline := time.Now().Add(3 * time.Second)
 	for view(links, v.ID).State != StateCut && time.Now().Before(deadline) {
