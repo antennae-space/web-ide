@@ -145,12 +145,16 @@ run(async ({ page, errors }) => {
     await page.click('.menubar button[title^="Settings"]')
     await page.click('.settings-nav button:has-text("Plugins")')
   }
-  const closeSettings = () => page.keyboard.press('Escape')
+  // By its button when it is open: Escape is lost while the focus is still in a frame (a slow machine).
+  const closeSettings = async () => {
+    if (await page.$('.modal-settings')) await page.click('.modal-settings .modal-head .icon-btn')
+    await page.waitForSelector('.modal-settings', { state: 'detached' })
+  }
   // Its tool shown (a desk restored after a reload may show it already: a click would hide it).
   const showGreet = async () => {
     await page.waitForSelector('.rail-btn[data-id=greet]')
     // After an update its frame is drawn again: a click while it is gone would close the tool.
-    const shown = await page.waitForSelector('iframe.plugin-frame[data-view=greet]', { state: 'visible', timeout: 2000 }).then(() => true, () => false)
+    const shown = await page.waitForSelector('iframe.plugin-frame[data-view=greet]', { state: 'visible', timeout: 10000 }).then(() => true, () => false)
     if (!shown) await page.click('.rail-btn[data-id=greet]')
   }
   await openSettings()
