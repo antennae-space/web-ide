@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -281,6 +282,46 @@ func TestLanguagePackManifest(t *testing.T) {
 		func(m *Manifest) { m.Contributes.Languages[0].Extensions = []string{"go"} },
 		func(m *Manifest) { m.Contributes.Languages[0].Servers[0].PathDirs = []string{"GOROOT/bin"} },
 		func(m *Manifest) { m.Contributes.Languages[0].Servers[0].Paths[0].Access = "exec" },
+	}
+	for i, f := range bad {
+		m := base()
+		f(&m)
+		if err := m.Check(); err == nil {
+			t.Fatalf("bad %d accepted", i)
+		}
+	}
+}
+
+// A pack's debug adapters: the grant debugger:<type>, a bare program, a valid request, {port}
+// only for a tcp adapter (#188).
+func TestDebuggerManifest(t *testing.T) {
+	base := func() Manifest {
+		return Manifest{ID: "lang-go", Name: "Go", APIVersion: APIVersion, Permissions: []string{"program:gopls", "debugger:go", "path:GOROOT"},
+			Contributes: Contributions{
+				Languages: []Language{{ID: "go", Name: "Go", Extensions: []string{".go"}}},
+				Debuggers: []Debugger{{Type: "go", Label: "Go (Delve)", Languages: []string{"go"},
+					Argv: []string{"dlv", "dap", "--listen", "127.0.0.1:{port}"}, Transport: "tcp",
+					Paths: []PathGrant{{Name: "GOROOT", Candidates: []string{"$GOROOT"}}}, PathDirs: []string{"GOROOT/bin"}, Install: &ServerInstall{Manager: "go", Packages: []string{"github.com/go-delve/delve/cmd/dlv@latest"}},
+					Templates: []DebuggerTemplate{{Label: "Launch the package", Request: "launch", Config: json.RawMessage(`{"program":"${workspaceFolder}"}`)}}}}}}
+	}
+	m := base()
+	if err := m.Check(); err != nil {
+		t.Fatal(err)
+	}
+	bad := []func(m *Manifest){
+		func(m *Manifest) { m.Permissions = []string{"program:gopls", "path:GOROOT"} },          // no debugger:go
+		func(m *Manifest) { m.Contributes.Debuggers[0].Argv = []string{"/usr/bin/dlv", "dap"} }, // not a bare name
+		func(m *Manifest) { m.Contributes.Debuggers[0].Label = "" },
+		func(m *Manifest) { m.Contributes.Debuggers[0].Templates[0].Request = "run" },
+		func(m *Manifest) {
+			m.Contributes.Debuggers[0].Transport = "stdio"
+			m.Contributes.Debuggers[0].Argv = []string{"dlv", "dap", "{port}"}
+		},
+		func(m *Manifest) { m.Contributes.Debuggers[0].PathDirs = []string{"GOMODCACHE/bin"} },
+		func(m *Manifest) { m.Contributes.Debuggers[0].Type = "Go" },
+		func(m *Manifest) {
+			m.Contributes.Debuggers = append(m.Contributes.Debuggers, m.Contributes.Debuggers[0])
+		},
 	}
 	for i, f := range bad {
 		m := base()
