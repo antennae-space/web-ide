@@ -123,7 +123,7 @@ run(
       await page.waitForSelector('.ai-msg.assistant .md:has-text("Developing.")', { timeout: 20000 })
       assert(true, 'the click started the development of #1')
       await page.waitForSelector('[data-testid=ai-parent]', { timeout: 5000 })
-      assert(true, 'the top bar of the development links to the orchestrator that follows it')
+      assert(true, 'the bar of the development links to the orchestrator that follows it')
 
       // 2. What did we do: the history of the kanban.
       await page.click('.ai-panel button[title="New conversation"]')
@@ -172,7 +172,7 @@ run(
       assert(!(await page.isVisible('[data-testid=ai-side-active] [data-testid=ai-chat-child]:has-text("footer") .ai-chat-open svg')), 'a child in Build mode has no mode icon')
       await page.click('[data-testid=ai-chat-child]:has-text("footer")')
       await page.waitForSelector('[data-testid=ai-parent]', { timeout: 5000 })
-      assert((await page.getAttribute('[data-testid=ai-parent] .link', 'title')) === 'Open the parent conversation', 'the top bar of the adopted conversation links to the orchestrator that follows it')
+      assert((await page.getAttribute('[data-testid=ai-parent] .link', 'title')) === 'Open the parent conversation', 'the bar of the adopted conversation links to the orchestrator that follows it')
 
       // 5. A conversation failed on its own: the orchestrator resumes it and adopts it.
       await page.click('.ai-panel button[title="New conversation"]')

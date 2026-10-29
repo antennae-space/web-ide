@@ -1,7 +1,7 @@
 // Sub-agents: the parent delegates with spawn_agent (a card in its thread); the child notes
 // and asks; the parent, woken by the question, asks the user first (ask_user), then replies;
 // the change of the child out of the project waits for the user (toast "Sub-agent … asks to change a file",
-// approved in the child thread, whose top bar links back to its parent and counts its children);
+// approved in the child thread, whose bar links back to its parent and counts its children);
 // its report wakes the parent; while it works the child is listed under its parent among the
 // active conversations, then a plain line of the history of the day, marked with ↳. Then a cloud server (OpenAI-compatible,
 // with a key and a typed model) offered to sub-agents: the parent picks it for a child, whose
@@ -121,12 +121,12 @@ run(async ({ page }) => {
     assert(fs.readFileSync(WS + '/greeting.txt', 'utf8') === 'Bonjour\n', 'nothing written before the user confirms')
     await page.click('.toast:has-text("Sub-agent") button:has-text("Open")')
     await page.waitForSelector('[data-testid=ai-parent]')
-    assert((await page.getAttribute('[data-testid=ai-parent] .link', 'title')) === 'Open the parent conversation', 'the top bar of the child links to its parent (collapsed: the panel is narrow)')
+    assert((await page.getAttribute('[data-testid=ai-parent] .link', 'title')) === 'Open the parent conversation', 'the bar of the child links to its parent (collapsed: the panel is narrow)')
     await page.waitForSelector('[data-testid=ai-task]:has-text("Replace the greeting Bonjour")', { timeout: 5000 })
     assert(true, 'the child thread starts with its task')
     await page.click('[data-testid=ai-approval] button:has-text("Apply")')
     await page.waitForFunction(() => document.querySelector('[data-testid=ai-parent] .ai-bar-dot')?.className.includes('agent-done'), null, { timeout: 20000 })
-    assert(true, 'the dot of the top bar says the child is done')
+    assert(true, 'the dot of the bar says the child is done')
     assert(fs.readFileSync(WS + '/greeting.txt', 'utf8') === 'Hello\n', 'the change of the child applied once confirmed')
 
     // Back to the parent: the report woke it.

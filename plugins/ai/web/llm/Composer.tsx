@@ -495,7 +495,7 @@ export function Composer(props: {
   inDoodle?: boolean
   sendable?: () => boolean
   beforeSend?: () => Promise<void>
-  /** Above the box, inside its frame (the bar of the linked ticket). */
+  /** Above the box, inside its frame (the bar of the conversation). */
   head?: JSX.Element
 }) {
   let fileInput!: HTMLInputElement

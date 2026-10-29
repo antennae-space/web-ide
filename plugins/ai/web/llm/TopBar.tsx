@@ -1,7 +1,8 @@
-// Top bar of the Assistant, shown on every conversation: its ticket, the consoles it started
-// that still run, its parent and its children, its role on the ticket, and the time it spent
-// generating (with its children). Each part hides when it has nothing, except the shells and
-// the time. Narrow: the parts collapse to an icon and a number.
+// Bar of the Assistant, on top of the message box, on every conversation: the time it spent
+// generating (with its children), its ticket, the consoles it started that still run, its
+// parent, its children, and the role of the conversation on its ticket, on the right. Each
+// part hides when it has nothing, except the time and the shells. Narrow: they collapse to an
+// icon and a number.
 import { createEffect, Show } from 'solid-js'
 import { chat, chatList, live, setChat, shells, type ChatInfo } from './state'
 import { loadShells, openChat, runStates } from './assistant'
@@ -165,7 +166,7 @@ function TimePart() {
   )
 }
 
-/** The bar above the conversation. */
+/** The bar on top of the message box, inside its frame. */
 export function TopBar(props: { narrow: () => boolean }) {
   // The shells of a conversation shown: the pod knows which ones still run.
   createEffect(() => {
@@ -173,15 +174,15 @@ export function TopBar(props: { narrow: () => boolean }) {
   })
   return (
     <div class="ai-topbar" data-testid="ai-topbar" classList={{ narrow: props.narrow() }}>
+      <TimePart />
       <TicketPart />
       <ShellsPart />
       <Show when={chat.parent}>
         <ParentPart narrow={props.narrow} />
       </Show>
       <ChildrenPart />
-      <RolePart />
       <span class="grow" />
-      <TimePart />
+      <RolePart />
     </div>
   )
 }

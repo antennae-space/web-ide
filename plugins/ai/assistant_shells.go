@@ -10,7 +10,7 @@ import (
 )
 
 // The consoles a conversation started (run_command, run_saved_command). The conversation keeps
-// their ids; the top bar of the page shows how many still run, and the pod tells the windows
+// their ids; the bar of the page shows how many still run, and the pod tells the windows
 // when one starts or ends (assistant.shells).
 
 // shellWatchEvery: how often a watcher looks at a console it started.
