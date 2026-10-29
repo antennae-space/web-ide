@@ -128,7 +128,8 @@ run(async ({ page }) => {
     await page.click('.ai-servers .modal-head button')
     await page.waitForSelector('[data-testid=model-pill]:has-text("slow-model")', { timeout: 5000 })
     await page.fill('.ai-composer .ed-content', 'Write slowly then run the command')
-    await page.keyboard.press('Control+Enter')
+    // The button waits until it can send (the pod was just restarted); Ctrl+Enter could be lost.
+    await page.click('[data-testid=send]')
     await page.waitForFunction(() => /word5 /.test(document.querySelector('.ai-msg.live')?.textContent ?? ''), null, { timeout: 10000 })
     execFileSync('bash', [process.env.E2E_RESTART_POD])
     const whole = await page

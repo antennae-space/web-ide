@@ -205,6 +205,8 @@ run(async ({ page }) => {
     assert(!(await page.$('[data-testid=status-cursor]')), 'no caret in the bar while the assistant has the focus')
     await page.click('.pane.active .tab.active')
     await page.waitForSelector('[data-testid=status-cursor]')
+    // The selection reaches the bar after the editor has the focus back.
+    await page.waitForFunction(() => /^10:2 /.test(document.querySelector('[data-testid=status-cursor]')?.textContent ?? ''), null, { timeout: 5000 }).catch(() => {})
     const pos = await page.textContent('[data-testid=status-cursor]')
     assert((await page.textContent('.pane.active .tab.active')).includes('main.go') && /^10:2 \(\d+ chars\)/.test(pos), 'open_file opens main.go and selects the lines 8 to 10: ' + pos)
     assert(await page.isVisible('.git-panel'), 'focus shows the Git panel')
