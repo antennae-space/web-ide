@@ -201,8 +201,12 @@ run(async ({ page, errors }) => {
   // Its backend, confined: it answers its frame and emits to it; it reads the project
   // (files:read), not the pod's key nor the network; the core refuses it fs.list.
   const answer = async (button, want) => {
-    await frame(page, 'greet').locator('#' + button).click()
-    await frame(page, 'greet').locator('#answer:not(:empty)').waitFor()
+    // A frame drawn again (a grant changed) loses the answer of a click on the old one: once more.
+    for (let i = 0; ; i++) {
+      await frame(page, 'greet').locator('#' + button).click()
+      const ok = await frame(page, 'greet').locator('#answer:not(:empty)').waitFor({ timeout: 10000 }).then(() => true, (e) => (i < 2 ? false : Promise.reject(e)))
+      if (ok) break
+    }
     const got = await frame(page, 'greet').locator('#answer').textContent()
     await frame(page, 'greet').locator('#answer').evaluate((e) => (e.textContent = ''))
     return got
