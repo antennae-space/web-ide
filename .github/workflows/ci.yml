@@ -12,7 +12,11 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
+      # The tags make the version of the build (git describe): the IDE version checks of the
+      # plugins need one (the externals suite).
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod

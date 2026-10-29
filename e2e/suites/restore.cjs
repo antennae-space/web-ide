@@ -12,9 +12,10 @@ run(async ({ ctx, page }) => {
   await page.click('.rail-left .rail-btn[title^="Console"]')
   await page.waitForSelector('.xterm', { timeout: 5000 }).catch(() => {})
   assert(await page.isVisible('.xterm'), 'terminal still there after reload')
-  await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('pod-42'), null, { timeout: 5000 }).catch(() => {})
+  // multi-6: the last output of the features suite, still in the rows on screen.
+  await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('multi-6'), null, { timeout: 5000 }).catch(() => {})
   const term = await page.textContent('.xterm-rows')
-  assert(term.includes('pod-42'), 'terminal scrollback restored')
+  assert(term.includes('multi-6'), 'terminal scrollback restored')
 
   // Detached editor window in sync
   const url = new URL(page.url())

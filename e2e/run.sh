@@ -9,6 +9,8 @@
 set -u
 cd "$(dirname "$0")"
 ROOT=$(cd .. && pwd)
+# A git identity for the commits of the tests and of the pods: CI runners have none.
+export GIT_AUTHOR_NAME=e2e GIT_AUTHOR_EMAIL=e2e@x GIT_COMMITTER_NAME=e2e GIT_COMMITTER_EMAIL=e2e@x
 SUITES=()
 JOBS=${E2E_JOBS:-}
 SHARD=${E2E_SHARD:-}
@@ -206,10 +208,9 @@ PY
     KEEPER_PID=$!
     for _ in $(seq 50); do [ -S "$TMP/data/keeper.sock" ] && break; sleep 0.1; done
   fi
-  # A git identity for the commits of the tests: CI runners have none. The projects folder is in
-  # /tmp: another scratch folder keeps the approvals of the changes out of the projects.
+  # The projects folder is in /tmp: another scratch folder keeps the approvals of the changes out
+  # of the projects.
   cat >"$TMP/launch-pod.sh" <<EOF
-GIT_AUTHOR_NAME=e2e GIT_AUTHOR_EMAIL=e2e@x GIT_COMMITTER_NAME=e2e GIT_COMMITTER_EMAIL=e2e@x \\
 WEBIDE_TEST_PLUGINS=1 XDG_DATA_HOME="$TMP/xdg" WEBIDE_OFFICIAL_DIR="$TMP/official" WEBIDE_PEER_IDLE=4s WEBIDE_INSTRUCTIONS_HOME="$TMP/home" WEBIDE_SCRATCH="$TMP/scratch" WEBIDE_CLAUDE="$ROOT/e2e/bin/claude" PATH="$TMP/bin:$ROOT/e2e/bin:$HOME/go/bin:$HOME/sdk/go/bin:$PATH" "$ROOT/bin/web-ide-pod" -addr "127.0.0.1:$PORT" -data "$TMP/data" -projects "$TMP/ws" \\
   -static "$ROOT/pod/webdist/dist" ${EXTRA[@]+"${EXTRA[@]}"} >>"$TMP/pod.log" 2>&1 </dev/null &
 echo \$! >"$TMP/pod.pid"
