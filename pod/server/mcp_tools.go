@@ -30,9 +30,8 @@ func (t mcpTool) schema() map[string]any { return plugins.MCPSchema(t.props, t.r
 
 // The schemas of the parameters, shared with the tools of the plugins.
 var (
-	str     = plugins.Str
-	strList = plugins.StrList
-	enum    = plugins.Enum
+	str  = plugins.Str
+	enum = plugins.Enum
 )
 
 // mcpScope is the project a call works on, found from the working directory of the client.
