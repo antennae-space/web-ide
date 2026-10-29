@@ -294,9 +294,9 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   // A frame moved in the page loads again: each load gets a new channel.
   let port: MessagePort | undefined
   let offs: (() => void)[] = []
-  // When its last dialog was answered, or a choice of its status items made: a dialog that
-  // follows (a pick, then the text of its choice) is the same action of the user, whose focus
-  // went elsewhere.
+  // When its last dialog was answered, or a choice of its status items or of its tool menu made:
+  // a dialog that follows (a pick, then the text of its choice) is the same action of the user,
+  // whose focus went elsewhere.
   let dialogDone = 0
   // When the page last asked it a service on a click of the user (a card of the assistant
   // starting a ticket in the Kanban's background frame): the dialogs of that work are the user's.
@@ -408,7 +408,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         return
       case 'openModal':
         void (async () => {
-          if (!(await userInSoon(frame))) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
+          if (!(await userAct())) return reply(m.id, { error: t('A dialog opens only while you use the plugin') })
           const size: SandboxModalSize = m.size === 'small' || m.size === 'large' ? m.size : 'medium'
           // A modal view of another plugin: one providing a capability this one requires.
           const other = typeof m.plugin === 'string' && m.plugin !== host.plugin ? m.plugin : ''
@@ -539,7 +539,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     }
   }
   const send = (m: PageMessage) => {
-    if ('status' in m) dialogDone = Date.now()
+    if ('status' in m || 'toolMenu' in m) dialogDone = Date.now()
     port?.postMessage(m)
   }
   // The theme, and the room of the buttons over its corner (headInset), last sent.

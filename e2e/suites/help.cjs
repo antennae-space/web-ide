@@ -83,7 +83,7 @@ run(async ({ page }) => {
   await shown('docs/guide.md#agents-claude-code-opencode-pi')
   const a = await top('agents-claude-code-opencode-pi')
   assert(a >= 0 && a < 60, 'the Agents "?" scrolls to its heading (top ' + a + ')')
-  await page.click('.rail-left .rail-btn[title="Kanban"]')
+  await page.click('.rail-left .rail-btn[title^="Kanban"]')
   await kp.click('[data-testid=kanban-open-board]')
   await kp.waitForSelector('[data-testid=help-kanban]')
   await kp.click('[data-testid=help-kanban]')
