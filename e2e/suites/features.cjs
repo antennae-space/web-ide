@@ -212,7 +212,7 @@ run(async ({ ctx, page }) => {
   await page.mouse.move(20, 300, { steps: 3 })
   await page.hover('[data-zone=bottomRight]')
   await page.mouse.up()
-  assert((await group('bottomRight'))[0] === 'Console' && (await group('bottomLeft')).length === 0, 'Console moved to the empty bottom right zone')
+  assert((await group('bottomRight'))[0] === 'Console' && !(await group('bottomLeft')).includes('Console'), 'Console moved to the empty bottom right zone (Debug stays bottom left)')
   assert(await page.isVisible('.zone-bottomRight[data-tool=console] .xterm'), 'the console keeps its terminal')
   await page.waitForTimeout(600)
   await page.reload()
