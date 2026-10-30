@@ -97,6 +97,29 @@ type PackServer struct {
 	Needs    string         `json:"needs,omitempty"`
 }
 
+// PackDebugger is a debug adapter of a language pack (#188, docs/design/debug.md): the pack that
+// declares it and the debugger of its manifest.
+type PackDebugger struct {
+	Pack     string   `json:"pack"`
+	PackName string   `json:"packName"`
+	Debugger Debugger `json:"debugger"`
+}
+
+// PackDebuggerServer is an adapter of a pack on a project: Path where its program is ("" when
+// missing), its recipe, the command installing it, and Needs, the package manager lacking to run
+// that command ("" when it is there).
+type PackDebuggerServer struct {
+	Pack     string         `json:"pack"`
+	PackName string         `json:"packName"`
+	Type     string         `json:"type"`
+	Label    string         `json:"label"`
+	Program  string         `json:"program"`
+	Path     string         `json:"path,omitempty"`
+	Install  *ServerInstall `json:"install,omitempty"`
+	Command  string         `json:"command,omitempty"`
+	Needs    string         `json:"needs,omitempty"`
+}
+
 type Pod interface {
 	// PackLanguages are the languages of the packs the project of rt uses (all the installed
 	// ones for a nil rt).
@@ -110,6 +133,16 @@ type Pod interface {
 	// InstallServer installs a server of a pack in the pack's folder of tools, in a console of
 	// the project (on its host over SSH), and answers the console.
 	InstallServer(rt *runtime.Runtime, pack, program string) (string, error)
+	// PackDebuggers are the debug adapters of the packs the project of rt uses (#188).
+	PackDebuggers(rt *runtime.Runtime) []PackDebugger
+	// PackDebuggerServers are those adapters, found or missing, and how the IDE installs them.
+	PackDebuggerServers(rt *runtime.Runtime) []PackDebuggerServer
+	// DebuggerCommand is the command starting an adapter of a pack on the project of rt: not
+	// confined (the grant debugger:<type>), on the host of an SSH project through its runner.
+	DebuggerCommand(rt *runtime.Runtime, pack string, d Debugger) ([]string, error)
+	// InstallDebugger installs an adapter of a pack in the pack's folder of tools, in a console
+	// of the project, and answers the console.
+	InstallDebugger(rt *runtime.Runtime, pack, dtype string) (string, error)
 	// Runtime opens the runtime of a project (a preview of another project of the pod).
 	Runtime(project string) (*runtime.Runtime, error)
 	// OpenRuntime is the runtime of a project if a window has it open.

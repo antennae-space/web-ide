@@ -976,6 +976,7 @@
   "Read only": "Lecture seule",
   "The AI wants to run “{action}” of {name} on {target}.": "L’IA veut lancer « {action} » de {name} sur {target}.",
   "Run {program} (a language server, confined)": "Lancer {program} (un serveur de langage, confiné)",
+  "Debug with {program}: not confined, runs your program": "Déboguer avec {program} : sans confinement, lance votre programme",
   "Use the folder {name} of this machine": "Utiliser le dossier {name} de cette machine",
   "Use Docker: as much as root on this machine (or the host of an SSH project)": "Utiliser Docker : autant que root sur cette machine (ou l’hôte d’un projet SSH)",
   "Open terminals in the IDE": "Ouvrir des terminaux dans l’IDE",

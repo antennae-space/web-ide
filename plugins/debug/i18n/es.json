@@ -1,0 +1,19 @@
+{
+  "listening for debug connections comes with PHP (#192)": "escuchar conexiones de depuración llega con PHP (#192)",
+  "%s is not a debug request (launch or attach)": "%s no es una petición de depuración (launch o attach)",
+  "no debug configuration named %s": "no hay configuración de depuración llamada %s",
+  "a debug configuration names its type": "una configuración de depuración indica su tipo",
+  "no debug session %s": "no hay sesión de depuración %s",
+  "the call names its debug session": "la llamada indica su sesión de depuración",
+  "the breakpoints name their file": "los puntos de interrupción indican su archivo",
+  "evaluate needs an expression": "evaluar necesita una expresión",
+  "the debug session ended": "la sesión de depuración terminó",
+  "no pack gives a debugger for %s": "ningún pack ofrece un depurador para %s",
+  "%s could not start: %w": "%s no pudo iniciarse: %w",
+  "the adapter never said it was ready": "el adaptador nunca indicó que estaba listo",
+  "the adapter refused the configuration": "el adaptador rechazó la configuración",
+  "runInTerminal has no command": "runInTerminal no tiene comando",
+  "an adapter starting a debug session comes with JavaScript (#191)": "un adaptador que inicia una sesión de depuración llega con JavaScript (#191)",
+  "the host does not answer %s": "el host no responde a %s",
+  "the adapter never listened on %s: %w": "el adaptador nunca escuchó en %s: %w"
+}

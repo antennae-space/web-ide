@@ -82,6 +82,37 @@ type Contributions struct {
 	Actions []Action `json:"actions,omitempty"`
 	// Languages make the plugin a language pack (#145): what it gives the language host.
 	Languages []Language `json:"languages,omitempty"`
+	// Debuggers are the debug adapters of a pack (#188, docs/design/debug.md): the debug host
+	// runs them, unconfined, on the grant debugger:<type>.
+	Debuggers []Debugger `json:"debuggers,omitempty"`
+}
+
+// Debugger is a debug adapter a pack contributes: its type (the key the configurations name,
+// "go"), its program (a bare name found on the PATH, granted as debugger:<type>) and arguments
+// ({port} is the port the host picks for a tcp adapter); the folders of the host it needs (each
+// granted as path:<name>); the names of those added to its PATH; the transport it speaks
+// (stdio over its pipes, tcp on the port); its recipe, as a server's; and the templates filling
+// a new debug configuration.
+type Debugger struct {
+	Type      string             `json:"type"`
+	Label     string             `json:"label"`
+	Languages []string           `json:"languages,omitempty"`
+	Argv      []string           `json:"argv"`
+	Transport string             `json:"transport,omitempty"` // stdio (default) | tcp
+	Paths     []PathGrant        `json:"paths,omitempty"`
+	PathDirs  []string           `json:"pathDirs,omitempty"`
+	Env       map[string]string  `json:"env,omitempty"`
+	Install   *ServerInstall     `json:"install,omitempty"`
+	Templates []DebuggerTemplate `json:"templates,omitempty"`
+}
+
+// DebuggerTemplate is a way to start or reach a program under one adapter: the label of the
+// configuration, the request it makes (launch | attach | listen) and the fields of the adapter
+// (passed through to .ide/debug.json).
+type DebuggerTemplate struct {
+	Label   string          `json:"label"`
+	Request string          `json:"request"`
+	Config  json.RawMessage `json:"config,omitempty"`
 }
 
 // Language is a language a pack gives the language host: its files (extensions, the LSP
@@ -353,6 +384,9 @@ func (m Manifest) Check() error {
 	if err := m.checkLanguages(); err != nil {
 		return err
 	}
+	if err := m.checkDebuggers(); err != nil {
+		return err
+	}
 	tools := map[string]bool{}
 	for _, name := range m.Contributes.toolNames() {
 		tools[name] = true
@@ -389,43 +423,87 @@ func (m Manifest) checkLanguages() error {
 			return fmt.Errorf("plugin %s: language %s: the grammar is a file grammars/<name>.json of the pack", m.ID, l.ID)
 		}
 		for _, sv := range l.Servers {
-			if len(sv.Argv) == 0 || !programRe.MatchString(sv.Argv[0]) {
-				return fmt.Errorf("plugin %s: language %s: a server's program is a bare name (found on the PATH)", m.ID, l.ID)
+			if err := m.checkProgram("language "+l.ID, "its server", "program:"+sv.Argv[0], sv.Argv, sv.Paths, sv.PathDirs, sv.Env, sv.Install); err != nil {
+				return err
 			}
-			if !slices.Contains(m.Permissions, "program:"+sv.Argv[0]) {
-				return fmt.Errorf("plugin %s: language %s: its server %s needs the permission program:%s", m.ID, l.ID, sv.Argv[0], sv.Argv[0])
+		}
+	}
+	return nil
+}
+
+// checkDebuggers validates the debug adapters of a pack (#188): their type, program and folders
+// (each one asked in its permissions), the transport, and the request of each template.
+func (m Manifest) checkDebuggers() error {
+	seen := map[string]bool{}
+	for _, d := range m.Contributes.Debuggers {
+		if !idRe.MatchString(d.Type) || d.Label == "" || seen[d.Type] {
+			return fmt.Errorf("plugin %s: invalid or repeated debugger type %q", m.ID, d.Type)
+		}
+		seen[d.Type] = true
+		if d.Transport != "" && d.Transport != "stdio" && d.Transport != "tcp" {
+			return fmt.Errorf("plugin %s: debugger %s: its transport is stdio or tcp", m.ID, d.Type)
+		}
+		// {port} is the port the debug host picks: only an adapter listening on a port takes it.
+		if d.Transport != "tcp" && slices.Contains(d.Argv, "{port}") {
+			return fmt.Errorf("plugin %s: debugger %s: {port} needs the tcp transport", m.ID, d.Type)
+		}
+		if err := m.checkProgram("debugger "+d.Type, "its adapter", "debugger:"+d.Type, d.Argv, d.Paths, d.PathDirs, d.Env, d.Install); err != nil {
+			return err
+		}
+		for _, tp := range d.Templates {
+			if tp.Label == "" || !debugRequests[tp.Request] {
+				return fmt.Errorf("plugin %s: debugger %s: invalid template %q (request %q)", m.ID, d.Type, tp.Label, tp.Request)
 			}
-			if in := sv.Install; in != nil {
-				if !slices.Contains(InstallManagers, in.Manager) || len(in.Packages) == 0 || (in.Manager == "go" && len(in.Packages) != 1) {
-					return fmt.Errorf("plugin %s: language %s: invalid install of %s", m.ID, l.ID, sv.Argv[0])
-				}
-				for _, pk := range in.Packages {
-					if !packageRe.MatchString(pk) {
-						return fmt.Errorf("plugin %s: language %s: invalid package %q", m.ID, l.ID, pk)
-					}
-				}
+			if len(tp.Config) > 0 && !json.Valid(tp.Config) {
+				return fmt.Errorf("plugin %s: debugger %s: the config of the template %q is not JSON", m.ID, d.Type, tp.Label)
 			}
-			names := map[string]bool{}
-			for _, p := range sv.Paths {
-				if !pathNameRe.MatchString(p.Name) || len(p.Candidates) == 0 || (p.Access != "" && p.Access != "read" && p.Access != "write") {
-					return fmt.Errorf("plugin %s: language %s: invalid folder %q", m.ID, l.ID, p.Name)
-				}
-				if !slices.Contains(m.Permissions, "path:"+p.Name) {
-					return fmt.Errorf("plugin %s: language %s: the folder %s needs the permission path:%s", m.ID, l.ID, p.Name, p.Name)
-				}
-				names[p.Name] = true
+		}
+	}
+	return nil
+}
+
+// debugRequests are the ways a debug configuration reaches a program.
+var debugRequests = map[string]bool{"launch": true, "attach": true, "listen": true}
+
+// checkProgram validates one program a pack names: a bare name found on the PATH, asked by the
+// permission named by grant, with its recipe, the folders it needs (each granted), its variables
+// and the folders added to its PATH. what names it in the error (language go, debugger go).
+func (m Manifest) checkProgram(what, who, grant string, argv []string, paths []PathGrant, pathDirs []string, env map[string]string, in *ServerInstall) error {
+	if len(argv) == 0 || !programRe.MatchString(argv[0]) {
+		return fmt.Errorf("plugin %s: %s: its program is a bare name (found on the PATH)", m.ID, what)
+	}
+	if !slices.Contains(m.Permissions, grant) {
+		return fmt.Errorf("plugin %s: %s: %s %s needs the permission %s", m.ID, what, who, argv[0], grant)
+	}
+	if in != nil {
+		if !slices.Contains(InstallManagers, in.Manager) || len(in.Packages) == 0 || (in.Manager == "go" && len(in.Packages) != 1) {
+			return fmt.Errorf("plugin %s: %s: invalid install of %s", m.ID, what, argv[0])
+		}
+		for _, pk := range in.Packages {
+			if !packageRe.MatchString(pk) {
+				return fmt.Errorf("plugin %s: %s: invalid package %q", m.ID, what, pk)
 			}
-			for k := range sv.Env {
-				if !pathNameRe.MatchString(k) || k == "PATH" || k == "HOME" || k == "TMPDIR" || names[k] {
-					return fmt.Errorf("plugin %s: language %s: invalid variable %q", m.ID, l.ID, k)
-				}
-			}
-			for _, d := range sv.PathDirs {
-				name, _, _ := strings.Cut(d, "/")
-				if !names[name] || strings.Contains(d, "..") {
-					return fmt.Errorf("plugin %s: language %s: %q is not under a folder of the server", m.ID, l.ID, d)
-				}
-			}
+		}
+	}
+	names := map[string]bool{}
+	for _, p := range paths {
+		if !pathNameRe.MatchString(p.Name) || len(p.Candidates) == 0 || (p.Access != "" && p.Access != "read" && p.Access != "write") {
+			return fmt.Errorf("plugin %s: %s: invalid folder %q", m.ID, what, p.Name)
+		}
+		if !slices.Contains(m.Permissions, "path:"+p.Name) {
+			return fmt.Errorf("plugin %s: %s: the folder %s needs the permission path:%s", m.ID, what, p.Name, p.Name)
+		}
+		names[p.Name] = true
+	}
+	for k := range env {
+		if !pathNameRe.MatchString(k) || k == "PATH" || k == "HOME" || k == "TMPDIR" || names[k] {
+			return fmt.Errorf("plugin %s: %s: invalid variable %q", m.ID, what, k)
+		}
+	}
+	for _, d := range pathDirs {
+		name, _, _ := strings.Cut(d, "/")
+		if !names[name] || strings.Contains(d, "..") {
+			return fmt.Errorf("plugin %s: %s: %q is not under a folder of %s", m.ID, what, d, what)
 		}
 	}
 	return nil

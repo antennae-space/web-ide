@@ -1,0 +1,19 @@
+{
+  "listening for debug connections comes with PHP (#192)": "l’écoute des connexions de débogage arrive avec PHP (#192)",
+  "%s is not a debug request (launch or attach)": "%s n’est pas une demande de débogage (launch ou attach)",
+  "no debug configuration named %s": "aucune configuration de débogage nommée %s",
+  "a debug configuration names its type": "une configuration de débogage nomme son type",
+  "no debug session %s": "aucune session de débogage %s",
+  "the call names its debug session": "l’appel nomme sa session de débogage",
+  "the breakpoints name their file": "les points d’arrêt nomment leur fichier",
+  "evaluate needs an expression": "évaluer a besoin d’une expression",
+  "the debug session ended": "la session de débogage s’est terminée",
+  "no pack gives a debugger for %s": "aucun pack ne donne de débogueur pour %s",
+  "%s could not start: %w": "%s n’a pas pu se lancer : %w",
+  "the adapter never said it was ready": "l’adaptateur n’a jamais signalé qu’il était prêt",
+  "the adapter refused the configuration": "l’adaptateur a refusé la configuration",
+  "runInTerminal has no command": "runInTerminal n’a pas de commande",
+  "an adapter starting a debug session comes with JavaScript (#191)": "un adaptateur qui lance une session de débogage arrive avec JavaScript (#191)",
+  "the host does not answer %s": "l’hôte ne répond pas à %s",
+  "the adapter never listened on %s: %w": "l’adaptateur n’a jamais écouté sur %s : %w"
+}
