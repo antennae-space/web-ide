@@ -21,6 +21,9 @@ type Store struct {
 	data    map[string]json.RawMessage
 	pending map[string]*time.Timer
 	desks   map[string]*DeskList
+	// last: the desk last used of each project (last.go), read once.
+	lastMu sync.Mutex
+	last   map[string]int
 }
 
 func New(st *store.Store) *Store {

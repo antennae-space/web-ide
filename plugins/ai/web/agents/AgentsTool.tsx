@@ -9,6 +9,8 @@ import {
   catalog,
   closeAgent,
   createAgent,
+  hideAgent,
+  others,
   diffLines,
   followAgent,
   installAgent,
@@ -16,6 +18,7 @@ import {
   restartAgent,
   sessions,
   setActive,
+  shown,
   threads,
   projectOf,
   type AgentInfo,
@@ -36,7 +39,7 @@ const stateLabel = (s: AgentInfo['state']) =>
 export function AgentsTool() {
   const current = () => {
     const a = active()
-    return sessions().some((s) => s.id === a) ? a : (sessions()[0]?.id ?? null)
+    return shown().some((s) => s.id === a) ? a : (shown()[0]?.id ?? null)
   }
   // The questions of the session shown are in its thread: no modal for them.
   onCleanup(showsQuestions((q) => q.source === 'acp' && q.session === current()))
@@ -49,6 +52,9 @@ export function AgentsTool() {
       const items: MenuItem[] = c.agents.map((a) =>
         a.installed ? { label: a.name, hint: a.missing ? t('needs {command}', { command: a.missing }) : '', action: () => void open(a.id) } : { label: t('Install {name}…', { name: a.name }), action: () => void install(a) },
       )
+      // The sessions of the project not open on this desk: one opens here.
+      const rest = others()
+      if (rest.length) items.push({ separator: true, label: '' }, ...rest.map((s) => ({ label: t('Open “{title}”', { title: s.title }), hint: stateLabel(s.state), action: () => setActive(s.id) })))
       contextMenu(at, items)
     } catch (err) {
       errorToast(err)
@@ -57,7 +63,7 @@ export function AgentsTool() {
   return (
     <div class="panel ai-panel agents-panel">
       <div class="tabbar tool-tabbar agents-tabs" role="tablist">
-        <For each={sessions()}>
+        <For each={shown()}>
           {(s) => (
             <div
               class="tab"
@@ -68,13 +74,13 @@ export function AgentsTool() {
               classList={{ active: current() === s.id }}
               title={`${s.name} · ${stateLabel(s.state)}` + (s.stats ? '\n' + statsTitle(s.stats) : '')}
               onClick={() => setActive(s.id)}
-              onMouseDown={(e) => e.button === 1 && (e.preventDefault(), void close(s.id))}
+              onMouseDown={(e) => e.button === 1 && (e.preventDefault(), hideAgent(s.id))}
               onContextMenu={(e) => tabMenu(e, s)}
             >
               <span class={`agent-dot ${s.state}`} />
               <span class="tab-title">{s.title}</span>
               <WorktreeChip project={s.project} />
-              <button class="tab-close" title={t('Close')} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => (e.stopPropagation(), void close(s.id))}>
+              <button class="tab-close" title={t('Close the tab (the session goes on)')} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => (e.stopPropagation(), hideAgent(s.id))}>
                 <span class="x">✕</span>
               </button>
             </div>
@@ -393,6 +399,9 @@ function tabMenu(e: MouseEvent, s: AgentInfo) {
     { label: t('Its questions never open by themselves'), checked: s.autoOpen === false, action: () => set(false) },
     { separator: true, label: '' },
     { label: t('Follow the edits'), hint: t('open each file the agent edits'), checked: !!s.follow, action: () => void followAgent(s.id, !s.follow).catch(errorToast) },
+    { separator: true, label: '' },
+    { label: t('Close the tab'), hint: t('the session goes on'), action: () => hideAgent(s.id) },
+    { label: t('Stop the session'), danger: true, action: () => void close(s.id) },
   ])
 }
 

@@ -14,6 +14,7 @@ import { openLinks } from '../plugins/links'
 import { tileLauncher } from '../ui/tileLauncher'
 import { deskPath, navigate, route } from '../app/router'
 import { defaultPlacement, moveTool, normalizePlacement, showTool, shownIn, toggleTool, toolsIn, zoneOf, zones, type Zone } from '../state/zones'
+import { applyDeskFocus, holdDeskFocus } from '../state/deskFocus'
 import { focusEditor, focusPart, setFocusPart, trackFocus } from '../state/focus'
 import { focusEditorQuietly, isTyping, lockEditor, mobileView, phone, revealCaret, setMobileView } from '../state/mobile'
 import { settings, updateSettings } from '../state/settings'
@@ -651,6 +652,7 @@ export function ProjectPage(props: { id: string }) {
       // The URL names the desk shown (a removed desk of an old link opened desk 1).
       if (urlDesk() !== desk()) navigate(deskPath(props.id, desk()), true)
       setReady(true)
+      applyDeskFocus()
       window.name = `project-${props.id}` // see openWorktreeWindow
     } catch (e) {
       setError((e as Error).message)
@@ -661,7 +663,9 @@ export function ProjectPage(props: { id: string }) {
   createEffect(
     track(urlDesk, (n) => {
       if (!ready() || n === desk()) return
-      switchDesk(n).catch((e) => {
+      holdDeskFocus()
+      switchDesk(n).then(applyDeskFocus, (e) => {
+        applyDeskFocus()
         toast((e as Error).message, 'warn')
         navigate(deskPath(props.id, desk()), true)
       })

@@ -675,5 +675,9 @@
   "the agent stopped": "el agente se detuvo",
   "the installation failed: %s": "la instalación ha fallado: %s",
   "unknown agent: %s": "agente desconocido: %s",
-  "unknown answer: %s": "respuesta desconocida: %s"
+  "unknown answer: %s": "respuesta desconocida: %s",
+  "Open “{title}”": "Abrir «{title}»",
+  "Close the tab (the session goes on)": "Cerrar la pestaña (la sesión sigue)",
+  "the session goes on": "la sesión sigue",
+  "Stop the session": "Detener la sesión"
 }

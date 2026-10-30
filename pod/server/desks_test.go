@@ -42,6 +42,13 @@ func TestDesks(t *testing.T) {
 		t.Fatalf("session.changed on desk 2 = %v", ev)
 	}
 
+	// The desk last used, on any device: a desk that does not exist is not recorded.
+	c.call("desks.used", map[string]any{"desk": 2})
+	c.call("desks.used", map[string]any{"desk": 7})
+	if l := a.call("desks.last", nil)["result"].(map[string]any); l[id] != float64(2) {
+		t.Fatalf("desks.last = %v", l)
+	}
+
 	// Desk 1 kept its session; a reads desk 2 and writes it (a tab sent there).
 	if s := a.call("project.open", map[string]any{"id": id, "desk": 1})["result"].(map[string]any)["session"].(map[string]any); s["layout"] != "one" {
 		t.Fatalf("desk 1 = %v", s)

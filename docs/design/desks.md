@@ -22,6 +22,7 @@ Project (or worktree)
 
 - A resource belongs to the **desk**, not to whoever started it: a console the user opens in the desk of an agent belongs to that desk.
 - **Consoles** (#197): a console carries the desk of the window that opened it (`console.Info.Desk`, the desk key of that window's project: a console of a worktree attached to the window belongs to the window's desk), kept in its meta in the keeper so that it survives the restarts of the pod. A console started without a window (the assistant, the MCP, the debugger, a preview) has none and shows on desk 1, unless it replaces a console of a saved command, whose desk it takes. `console.move` gives a console to another desk. The keeper's `owner` stays the project: a cgroup per desk comes with Activity. The page (#198) lists the consoles of the desk shown, moves them (tab menu, shortcut, drop on a desk number), claims for a desk the consoles of before that sit in its tab order, and removing a desk ends its consoles after a confirmation that lists them.
+- **The view in focus** (#201) is part of the desk: opened on the phone, the desk shows what the PC was on, and the windows of a desk not in use follow it live. The home page opens the desk last used on any device.
 - The **buffers stay shared**: an agent editing a file open on a desk of the user shows live there, as today. Only the tabs belong to a desk.
 - The settings, Recent Files and the worktree list stay per project.
 
@@ -44,7 +45,7 @@ Full and Grid are done in #82, Scroll in #83 (see [spec.md](spec.md#9-desk-state
 Done in #81 (see [spec.md](spec.md#9-desk-state-and-persistence)):
 
 - Numbered `1 2 3 +` on the left of the status bar; a desk may get a name.
-- The URL carries the desk: `/project/:id/desk/2`, `/project/:id` being desk 1. A click switches the window; a middle click opens it in a new tab (a plain `<a href>`). Two windows on the same desk mirror each other, as today. The home page opens the last desk of the device.
+- The URL carries the desk: `/project/:id/desk/2`, `/project/:id` being desk 1. A click switches the window; a middle click opens it in a new tab (a plain `<a href>`). Two windows on the same desk mirror each other, as today. The home page opens the desk last used on any device (#201).
 - `Ctrl+Alt+1…9` goes to desk N, `Ctrl+Alt+Shift+N` sends the active tab or tile there (Super is not caught by a browser). A tab dragged on a desk number moves there; the tab menu has *Move to desk N*.
 - Maybe: *Open on screen 2* through the Window Management API (`getScreenDetails`, Chromium), full screen on the chosen screen.
 
@@ -66,6 +67,7 @@ Done in #81 (see [spec.md](spec.md#9-desk-state-and-persistence)):
 ### Conversation as a view
 
 - A conversation is a view that any desk may show, as a tab or a tile (a mirror of the one in its own desk): the user shows the conversations they want in their desks or in the Agents tool.
+- **Done for user desks** (#199): the conversations of the assistant and the sessions of the agents stay in the pod with the project; each desk keeps in its state (`api.desk`) the conversation the assistant shows and the agent sessions open as tabs, with the one shown. A new desk starts on a new conversation and no agent tab; a conversation started on a desk is kept there, a reload or another machine finds it; two windows on the same desk follow each other, a detached assistant window starts on the conversation of its desk and then goes its own way. Closing the tab of a session hides it on the desk (it goes on), *Stop the session* in its menu ends it; the + of the Agents tool lists the sessions not open on the desk, to open one there. Migration: the conversation kept by the browser (`localStorage`) goes to the first desk that shows the assistant, the sessions running before to desk 1.
 - The Orchestrator opens the child conversations in its desk this way; the Scroll mode suits it: one column per child, a new child pushes a column.
 
 ## Activity

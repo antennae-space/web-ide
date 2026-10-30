@@ -7,7 +7,7 @@ import { createStore } from 'solid-js/store'
 import { on as onPod, request } from '../pod/rpc'
 import { traceBoot } from '../pod/transport'
 import { deskPath, navigate } from '../app/router'
-import { lastDesk } from '../state/desks'
+import { lastDesk, loadLastDesks } from '../state/desks'
 import { contextMenu, Modal } from '../ui/overlay'
 import { errorToast, toast } from '../ui/toast'
 import { copyText } from '../ui/clipboard'
@@ -50,6 +50,8 @@ export function Home() {
   onMount(() => {
     document.title = `${t('Projects')} · Web IDE`
     setFavicon(null)
+    // A project opens on the desk last used, on any device.
+    void loadLastDesks()
   })
   createEffect(() => {
     const list = projects()

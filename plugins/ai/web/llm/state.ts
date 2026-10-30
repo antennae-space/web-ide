@@ -3,7 +3,7 @@
 import { createSignal } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import type { DoodleDoc } from './doodle/model'
-import { on, request } from '../plugin'
+import { api, detached, on, request } from '../plugin'
 import type { PreviewSpec, Question } from '../plugin'
 
 export interface ServerView {
@@ -553,9 +553,16 @@ export function leaveChat(next?: string) {
   chatTrail.forward.length = 0
 }
 
+/**
+ * The conversation the desk shows (docs/design/desks.md, Conversation as a view): its id, null for
+ * a new one, '' while the desk never showed one.
+ */
+export const deskChat = () => api.desk<{ chat: string | null }>({ chat: '' })
+
 /** The window shows a new conversation (nothing in the pod until its first message). */
 export function resetChat() {
   leaveChat()
+  if (!detached() && deskChat().get().chat) deskChat().set((s) => (s.chat = null))
   setChat(reconcile(emptyChat()))
   setShells([])
   setApproval(null)

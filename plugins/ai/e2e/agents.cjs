@@ -2,7 +2,8 @@
 // the launcher, a prompt streams thought, plan, message and an edit with its diff; a
 // permission card; the follow mode opens the file of an edit; the composer (/ and @ completion, image and file as blocks, history, queue);
 // a config option; Stop; the agent killed is restarted and its session
-// loaded; closing the tab ends the session. Work time and cost: on the tab, the project, and
+// loaded; the tabs are those of the desk (#199): closing one hides the session, another desk
+// shows none, Other sessions opens it again, Stop ends it. Work time and cost: on the tab, the project, and
 // the ticket of a session run in its worktree.
 const { execSync } = require('child_process')
 const { run, openProject, assert, mcp, OUT, WS, installOfficial, inFrames } = require('../../../e2e/common.cjs')
@@ -198,10 +199,33 @@ run(async ({ page }) => {
   if (!(await page.isVisible('[data-testid=agent-session]'))) await page.click('.rail-btn[data-id=agents]')
   await page.waitForSelector('[data-testid=agent-user]:has-text("hello again")')
 
-  // Closing the tab ends the session.
+  // Closing the tab hides the session on the desk; the + menu opens it again.
   await page.click(`${tab} .tab-close`)
   await page.waitForSelector('[data-testid=agents-launcher]')
-  assert((await page.$$(tab)).length === 0, 'session closed')
+  assert((await page.$$(tab)).length === 0, 'the tab is closed')
+  await page.click('[data-testid=agent-new]')
+  await page.click('.ctx-menu >> text=Open “Fake session”')
+  await page.waitForSelector(`${tab}[data-state=ready]`)
+  assert(true, 'a hidden session goes on and opens again from the + menu')
+
+  // Another desk shows none of the sessions of desk 1, and lists them in its + menu.
+  await page.click('[data-testid=desk-add]')
+  await page.waitForFunction(() => location.pathname.endsWith('/desk/2'))
+  if (!(await page.isVisible('.agents-panel'))) await page.click('.rail-btn[data-id=agents]')
+  await page.waitForSelector('[data-testid=agents-launcher]')
+  assert((await page.$$(tab)).length === 0, 'desk 2 has no tab of the sessions of desk 1')
+  await page.click('[data-testid=agent-new]')
+  await page.waitForSelector('.ctx-menu >> text=Open “Fake session”')
+  await page.keyboard.press('Escape')
+  await page.click('[data-testid=desk-1]')
+  await page.waitForFunction(() => !location.pathname.includes('/desk/'))
+  await page.waitForSelector(tab)
+
+  // Stop ends the session.
+  await page.click(tab, { button: 'right' })
+  await page.click('.ctx-menu >> text=Stop the session')
+  await page.waitForSelector('[data-testid=agents-launcher]')
+  assert((await page.$$(tab)).length === 0, 'session stopped')
 
   // The turns stay counted for the project once the session is closed.
   await page.waitForFunction(() => /\$0\.\d+/.test(document.querySelector('[data-testid=project-agent-stats-value]')?.textContent ?? ''))

@@ -4,7 +4,7 @@ import { createEffect, createRoot, createSignal, on } from 'solid-js'
 import { createStore, produce, reconcile } from 'solid-js/store'
 import type { DiffLine } from '../llm/state'
 import type { Totals } from './stats'
-import { attachedIds, home, lineHunks, onPod, openFile, requestIn } from '../plugin'
+import { api, attachedIds, home, lineHunks, onPod, openFile, requestIn } from '../plugin'
 import type { FormSchema } from '../plugin'
 
 export interface ConfigOption {
@@ -85,8 +85,49 @@ export interface CatalogAgent {
 
 const [sessions, setSessions] = createSignal<AgentInfo[]>([])
 export { sessions }
-const [active, setActive] = createSignal<string | null>(null)
-export { active, setActive }
+// The sessions stay in the pod, with the project; each desk shows the ones it opened, as tabs
+// (docs/design/desks.md, Conversation as a view): a tab closed hides the session, Stop ends it.
+interface AgentsDesk extends Record<string, unknown> {
+  open: string[]
+  active: string | null
+  /** The sessions of before were given to desk 1 once. */
+  seeded: boolean
+}
+const deskOf = () => api.desk<AgentsDesk>({ open: [], active: null, seeded: false })
+
+/** The session shown on the desk. */
+export const active = () => deskOf().get().active
+
+/** Shows a session on the desk, opening its tab there. */
+export function setActive(id: string | null) {
+  deskOf().set((s) => {
+    s.active = id
+    if (id && !s.open.includes(id)) s.open.push(id)
+  })
+}
+
+/** Closes the tab of a session on the desk: it goes on running, listed in Other sessions. */
+export function hideAgent(id: string) {
+  deskOf().set((s) => {
+    s.open = s.open.filter((x) => x !== id)
+    if (s.active === id) s.active = s.open.find((x) => sessions().some((y) => y.id === x)) ?? null
+  })
+}
+
+/** The sessions open on the desk, in the order of their tabs; the others of the project. */
+export const shown = () => deskOf().get().open.flatMap((id) => sessions().filter((s) => s.id === id))
+export const others = () => sessions().filter((s) => !deskOf().get().open.includes(s.id))
+
+// The sessions running before the desks had them open on desk 1 (once the sessions are listed).
+let listed = false
+function seed() {
+  if (deskOf().get().seeded) return
+  const all = api.desks.current() === 1 ? sessions().map((s) => s.id) : []
+  deskOf().set((s) => {
+    s.seeded = true
+    for (const id of all) if (!s.open.includes(id)) s.open.push(id)
+  })
+}
 
 /** Threads of the sessions loaded, by id. */
 const [threads, setThreads] = createStore<Record<string, { seq: number; entries: Entry[] }>>({})
@@ -108,6 +149,10 @@ function upsert(info: AgentInfo, project?: string) {
 /** Sessions of a worktree of the window (its project by default). */
 function setList(list: AgentInfo[], pid = home()?.id) {
   setSessions((l) => [...l.filter((s) => s.project !== pid), ...list.map((s) => ({ ...s, project: pid }))])
+  if (pid === home()?.id) {
+    listed = true
+    seed()
+  }
 }
 
 export async function refreshAgents() {
@@ -117,6 +162,8 @@ export async function refreshAgents() {
 
 /** Follows the worktrees attached to the window: their sessions join the list (once, at the activation). */
 export function watchAgents() {
+  // Another desk shown: its sessions of before, if any (desk 1).
+  createRoot(() => createEffect(on(() => api.desks.current(), () => listed && seed(), { defer: true })))
   createRoot(() =>
     createEffect(
       on(
@@ -141,7 +188,7 @@ onPod('agents.changed', (info: AgentInfo, from) => upsert(info, from ?? home()?.
 onPod('agents.closed', (e: { id: string }) => {
   setSessions((l) => l.filter((s) => s.id !== e.id))
   setThreads(produce((t) => delete t[e.id]))
-  if (active() === e.id) setActive(null)
+  if (deskOf().get().open.includes(e.id)) hideAgent(e.id)
 })
 // An event older than the thread loaded is already in it.
 onPod('agents.entry', (e: { id: string; seq: number; index: number; entry: Entry }) => {
