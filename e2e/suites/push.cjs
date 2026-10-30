@@ -103,7 +103,7 @@ run(
     await app.click('.settings-nav button:has-text("Notifications")')
     await app.click('[data-testid=push-enable]')
     await app.waitForSelector('[data-testid=push-kind-finished]', { timeout: 20000 })
-    assert((await app.locator('[data-testid=notifications] input[type=checkbox]:checked').count()) === 4, 'four kinds, all on')
+    assert((await app.locator('[data-testid=notifications] input[type=checkbox]:checked').count()) === 5, 'five kinds, all on (the debug stop of #189 too)')
     await app.click('[data-testid=push-test]')
     const test = await waitFor(() => received[0])
     assert(test && test.path.startsWith('/push/') && test.vapid && test.encoding === 'aes128gcm', 'the relay POSTs to the endpoint, signed with its VAPID key')

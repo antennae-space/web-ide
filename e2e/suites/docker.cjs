@@ -93,7 +93,8 @@ const answer = async (page, ok = true) => {
   await page.waitForSelector('.modal-backdrop .modal .confirm-text')
   const text = await page.textContent('.modal .confirm-text')
   const title = await page.textContent('.modal .modal-head h2')
-  if (!title.startsWith('Docker · ')) throw new Error('a confirm titled with the plugin: ' + title)
+  // Its own title after the plugin's name, or the name alone when it gives none (#158).
+  if (title !== 'Docker' && !title.startsWith('Docker · ')) throw new Error('a confirm titled with the plugin: ' + title)
   await page.click(ok ? '[data-testid=confirm-ok]' : '.modal-foot button:has-text("Cancel")')
   return text
 }

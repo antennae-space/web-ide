@@ -4,9 +4,28 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ## [Unreleased]
 
+## [1.25.0] - 2026-10-30
+
+### Added
+
+- **Everything on its desk.** A console belongs to the desk it was opened on: each desk lists its own consoles, after a reload and from another machine too. *Move to desk N* (the menu of a console tab, Ctrl+Alt+Shift+N with the Console focused, or a console tab dropped on the number of a desk) sends it to another desk, where it keeps running. Removing a desk lists what ends with it (*Console “…”*) before you confirm, then ends it. The consoles of before go to the desk that had them in its tabs, else to desk 1, as do the consoles started by the assistant or the MCP.
+- **Conversations as views of a desk**: the assistant shows the conversation of its desk (a new desk starts on a new one), and the Agents tool the sessions open on the desk as tabs. Closing the tab of a session hides it (it goes on, the `+` opens it again here or on another desk); *Stop the session*, in the menu of its tab, ends it. A detached assistant window starts on the conversation of its desk and then goes its own way.
+- **The view in focus kept in the desk**: the tool you were on (a conversation, Git, a console…) or the editor and its active tab. Opened elsewhere — the phone through the relay — the desk shows it: the view on a phone, a highlight on a computer, never the keyboard. The windows of a desk follow it live while they are not in use; the window you are using is never moved. The home page opens the **desk last used on any device**.
+- **External plugins keep a state in the desk** (`ide.desk`, `ide.setDesk`, `ide.onDesk`, `useDesk` of the SDK 1.17.0). The **Database explorer 1.3.0** keeps its tree there: the nodes expanded and the row selected, per desk; a connection that would ask a password folds quietly when restored.
+- **Debug**: a click in the gutter of a Go file (or Ctrl+F8) sets a line breakpoint, kept per worktree in `.ide/breakpoints.json` and moved with the edits; a breakpoint the debugger could not set is crossed out with its reason. *Run › Debug…* (Shift+F9) picks a configuration of `.ide/debug.json`, or offers the templates of the language packs. On a stop the **Debug** tool opens with the frames of the paused thread, the variables as a lazy tree and a console evaluating in the frame; the PhpStorm keys step (F8, F7, Shift+F8, F9, Ctrl+F2), and a hidden window gets a notification. The language pack gives the debugger: `dlv` for Go (lang-go 1.2.0, grant `debugger:go`).
+- **Plugin API: decorate the editor** (`editorDecorations`): a lane in the gutter, line classes, widgets at the end of a line, hovers, items of the editor's menu, marks that follow the edits.
+- **Assistant: a bar over the message box** on every conversation: its generation time, the consoles it started that still run, its parent and children, its ticket and its role on it.
+
 ### Changed
 
+- **The Kanban is an official external plugin** (plugin-kanban 1.0.0): installed and used by default like the Database explorer and Docker, its views in sandboxed frames; the AI reaches it through its methods.
 - **Assistant: a simple conversation list.** The history side bar drops its *Orchestrator* group: an Orchestrator conversation is a conversation like the others (its small mode icon stays). It lists the active ones (running, waiting for you, failed, or with a child still working — an older parent comes back to *Active* with its working child under it), then the rest by sliding period: *Today*, *Yesterday*, *Last week*, *Last month*, *Last year*, *Older*. A child is nested only under an active conversation; anywhere else it is a plain line of the history, at the date of its last activity, marked with a *↳*. Shift+Tab now cycles Orchestrator → Briefing → Plan → Build (Orchestrator stays the default of a new conversation).
+- In the default placement of the tools, the Console comes before the Debug tool in the bottom left zone.
+
+### Fixed
+
+- Consoles: output arriving after a gap waits for the gap (a reconnection lost the lines between its live output and its scrollback).
+- Editor: the selection comes back in its place when the editor gets the focus again.
 
 ## [1.24.1] - 2026-10-29
 

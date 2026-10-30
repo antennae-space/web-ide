@@ -223,6 +223,7 @@ func (s *Server) registerWorktrees() {
 			s.mu.Lock()
 			if c.project == child {
 				c.project = ""
+				c.home = ""
 			}
 			s.mu.Unlock()
 			s.closeRuntime(child)

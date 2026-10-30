@@ -60,6 +60,10 @@ func TestWorktrees(t *testing.T) {
 		t.Fatal("another project attached")
 	}
 	a.callIn(child, "fs.write", map[string]any{"path": filepath.Join(first["path"].(string), "a.txt"), "content": "in the worktree"})
+	// A console of the worktree opened from the main window belongs to the main window's desk.
+	if c := a.callIn(child, "console.create", map[string]any{"kind": "terminal"})["result"].(map[string]any); c["desk"] != id {
+		t.Fatalf("console of an attached worktree: desk %v, want %v", c["desk"], id)
+	}
 	if got, _ := os.ReadFile(filepath.Join(wt, "a.txt")); string(got) != "in the worktree" {
 		t.Fatal("write in the worktree")
 	}

@@ -309,14 +309,21 @@ func (w clientWindow) Release(id string) {
 	}
 }
 
-// Desk is the desk key of the window (desk.switch changes it, under the lock of the server).
+func (w clientWindow) Home() string {
+	w.c.srv.mu.Lock()
+	defer w.c.srv.mu.Unlock()
+	return w.c.home
+}
+
+// Desk is the desk key of the window, on the window's own project even for a call into one of
+// its worktrees (desk.switch changes it, under the lock of the server).
 func (w clientWindow) Desk() string {
 	w.c.srv.mu.Lock()
 	defer w.c.srv.mu.Unlock()
-	if w.c.project == "" {
+	if w.c.home == "" {
 		return ""
 	}
-	return desks.Key(w.c.project, w.c.desk)
+	return desks.Key(w.c.home, w.c.desk)
 }
 
 // pluginName is the name of a plugin of the project of rt, built-in or external (its id if

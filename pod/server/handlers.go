@@ -249,6 +249,7 @@ func (s *Server) closeRuntime(id string) {
 		if c.sees(id) {
 			if c.project == id {
 				c.project = ""
+				c.home = ""
 			}
 			delete(c.attached, id)
 			go c.push("project.closed", map[string]string{"id": id})
@@ -351,6 +352,7 @@ func (s *Server) registerProject() {
 		held := c.attached[a.ID] // already counted as an attached worktree
 		delete(c.attached, a.ID)
 		c.project = a.ID
+		c.home = a.ID
 		// A desk removed meanwhile (an old link): the window opens desk 1.
 		desk := a.Desk
 		if !s.Desks.HasDesk(a.ID, desk) {

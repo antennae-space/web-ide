@@ -98,7 +98,7 @@ func (p *Plugin) Register(h plugins.Host) {
 		ID   string
 		Desk int
 	}) (any, error) {
-		key := desks.Key(c.Window.Project(), a.Desk)
+		key := desks.Key(c.Window.Home(), a.Desk)
 		err := c.Runtime.Consoles.Move(a.ID, key)
 		if err == nil {
 			c.Emit("console.moved", map[string]string{"id": a.ID, "desk": key})
