@@ -314,7 +314,8 @@ func templatesOf(rt *runtime.Runtime) []map[string]any {
 				cfg = map[string]any{}
 			}
 			cfg["name"], cfg["type"], cfg["request"] = tp.Label, d.Debugger.Type, tp.Request
-			out = append(out, cfg)
+			out = append(out, map[string]any{"label": tp.Label, "pack": d.Pack, "packName": d.PackName,
+				"type": d.Debugger.Type, "request": tp.Request, "config": cfg})
 		}
 	}
 	return out

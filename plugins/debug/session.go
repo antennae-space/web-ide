@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"path"
 	"strings"
@@ -198,6 +199,12 @@ func (m *Manager) startSession(cfg Config, file string) (*Session, error) {
 
 	s := &Session{ID: newID(), Name: cfg.Name, Type: cfg.Type, Pack: pack, Request: cfg.Request,
 		State: stateStarting, Config: fields, mgr: m, ready: make(chan struct{}), proc: proc}
+	if d.Transport == "tcp" {
+		// The adapter speaks DAP on the port: what it prints is its error output.
+		go followOutput(proc.Stdout(), func(text string) {
+			m.rt.Emit("debug.output", map[string]any{"session": s.ID, "category": "stderr", "output": text})
+		})
+	}
 	c, err := adapterConn(m.rt, d, port, proc)
 	if err != nil {
 		_ = proc.Kill()
@@ -350,13 +357,15 @@ func (m *Manager) event(s *Session, e dap.Event) {
 		}
 	case "stopped":
 		file, line := stopPlace(body)
+		thread := num("threadId")
 		s.mu.Lock()
 		s.State = stateStopped
-		s.Thread = num("threadId")
-		s.File, s.Line = file, line
+		s.Thread = thread
 		s.mu.Unlock()
-		m.rt.Emit("debug.stopped", map[string]any{"session": s.ID, "thread": num("threadId"),
-			"reason": str("reason"), "file": file, "line": line, "allThreadsStopped": body["allThreadsStopped"]})
+		// The place of the stop comes with the event for some adapters; dlv only names the
+		// thread: the host reads its top frame. The reader waits for no answer, so the request
+		// runs on its own.
+		go m.announceStop(s, thread, str("reason"), body["allThreadsStopped"], file, line)
 	case "continued", "resumed":
 		s.mu.Lock()
 		if s.State == stateStopped {
@@ -378,6 +387,34 @@ func (m *Manager) event(s *Session, e dap.Event) {
 	default:
 		m.rt.Emit("debug.event", map[string]any{"session": s.ID, "event": e.Event, "body": e.Body})
 	}
+}
+
+// announceStop tells the windows where the program stopped: the place the event carried, or the
+// top frame of the thread when the adapter did not send it.
+func (m *Manager) announceStop(s *Session, thread int, reason string, allThreads any, file string, line int) {
+	if file == "" {
+		raw, err := s.request(10, "stackTrace", map[string]any{"threadId": thread, "startFrame": 0, "levels": 1})
+		if err == nil {
+			var out struct {
+				StackFrames []struct {
+					Line   int `json:"line"`
+					Source struct {
+						Path string `json:"path"`
+					} `json:"source"`
+				} `json:"stackFrames"`
+			}
+			if json.Unmarshal(raw, &out) == nil && len(out.StackFrames) > 0 {
+				file, line = out.StackFrames[0].Source.Path, out.StackFrames[0].Line
+			}
+		}
+	}
+	s.mu.Lock()
+	if s.State == stateStopped {
+		s.File, s.Line = file, line
+	}
+	s.mu.Unlock()
+	m.rt.Emit("debug.stopped", map[string]any{"session": s.ID, "thread": thread, "reason": reason,
+		"file": file, "line": line, "allThreadsStopped": allThreads})
 }
 
 // stopPlace is where a stop happened: the source and line of the top frame when the event
@@ -565,6 +602,20 @@ func freePort(rt *runtime.Runtime) (int, error) {
 	b := make([]byte, 2)
 	_, _ = rand.Read(b)
 	return 20000 + int(b[0])<<8 | int(b[1]), nil
+}
+
+// followOutput reads what an adapter prints and hands each chunk to the windows.
+func followOutput(r io.Reader, emit func(string)) {
+	buf := make([]byte, 8<<10)
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			emit(string(buf[:n]))
+		}
+		if err != nil {
+			return
+		}
+	}
 }
 
 // newID is the id of a session.

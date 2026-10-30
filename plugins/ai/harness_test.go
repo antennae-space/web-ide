@@ -56,6 +56,14 @@ func (p *fakePod) PackCommand(*runtime.Runtime, string, plugins.LanguageServer) 
 	return nil, nil
 }
 func (p *fakePod) PackServers(*runtime.Runtime) []plugins.PackServer { return nil }
+func (p *fakePod) PackDebuggers(*runtime.Runtime) []plugins.PackDebugger { return nil }
+func (p *fakePod) PackDebuggerServers(*runtime.Runtime) []plugins.PackDebuggerServer { return nil }
+func (p *fakePod) DebuggerCommand(*runtime.Runtime, string, plugins.Debugger) ([]string, error) {
+	return nil, nil
+}
+func (p *fakePod) InstallDebugger(*runtime.Runtime, string, string) (string, error) {
+	return "", nil
+}
 func (p *fakePod) InstallServer(*runtime.Runtime, string, string) (string, error) {
 	return "", nil
 }

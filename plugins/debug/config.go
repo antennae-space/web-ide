@@ -36,6 +36,17 @@ func (c Config) field(name string) string {
 	return ""
 }
 
+// MarshalJSON writes a configuration as the file holds it: name, type, request, then the
+// fields of the adapter.
+func (c Config) MarshalJSON() ([]byte, error) {
+	out := map[string]any{}
+	for k, v := range c.Fields {
+		out[k] = v
+	}
+	out["name"], out["type"], out["request"] = c.Name, c.Type, c.Request
+	return json.Marshal(out)
+}
+
 // readConfigs reads .ide/debug.json of the main project (an empty file when there is none).
 func readConfigs(rt *runtime.Runtime) ([]Config, error) {
 	p := path.Join(rt.IdeDir, "debug.json")

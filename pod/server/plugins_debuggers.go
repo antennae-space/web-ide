@@ -119,11 +119,8 @@ func (s *Server) debuggerCommand(rt *runtime.Runtime, pack string, d plugins.Deb
 			}
 		}
 	} else {
-		// On the host of the project: the pack's folder of tools, and the folders by the
-		// variables the pack names (nothing resolves them there).
-		for _, pd := range d.PathDirs {
-			dirs = append(dirs, pd)
-		}
+		// On the host of the project: the pack's folder of tools comes first on its PATH
+		// (remotePath), and a folder the pack names stays a variable of the host's environment.
 		for _, g := range d.Paths {
 			if g.Env {
 				env[g.Name] = "$" + g.Name
@@ -140,19 +137,32 @@ func (s *Server) debuggerCommand(rt *runtime.Runtime, pack string, d plugins.Deb
 	}
 	// A shell sets the environment and execs the adapter: the user's own environment stays
 	// there (an adapter runs the user's program, it needs their PATH, their HOME, their keys).
-	var set []string
-	for _, k := range sortedKeys(env) {
-		set = append(set, k+"="+execx.Quote(env[k]))
+	var parts []string
+	if len(dirs) > 0 {
+		// The folders first, then the PATH of the machine: quoted, but $PATH left to the shell.
+		parts = append(parts, `PATH=`+execx.Quote(strings.Join(dirs, ":")+`:`)+`$PATH`)
 	}
-	path := `PATH=` + execx.Quote(strings.Join(dirs, ":")+`:$PATH`)
-	line := path
-	if len(set) > 0 {
-		line += " " + strings.Join(set, " ")
+	for _, k := range sortedKeys(env) {
+		v := env[k]
+		if strings.HasPrefix(v, "$") {
+			parts = append(parts, k+"="+v) // a variable of the host, expanded there
+		} else {
+			parts = append(parts, k+"="+execx.Quote(v))
+		}
+	}
+	line := strings.Join(parts, " ")
+	if line != "" {
+		line += " "
+	}
+	if d.Transport == "tcp" {
+		// The adapter speaks DAP on the port: its error output goes with its standard one, so
+		// the host can show why it did not start.
+		line += `exec 2>&1; `
 	}
 	if !rt.Local {
 		line = remotePath(pack) + line
 	}
-	return append([]string{"sh", "-c", line + ` exec "$0" "$@"`}, d.Argv...), nil
+	return append([]string{"sh", "-c", line + `exec "$0" "$@"`}, d.Argv...), nil
 }
 
 // sortedKeys are the keys of a map, in order (a command shown to the user stays the same).

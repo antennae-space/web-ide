@@ -43,7 +43,7 @@ func TestDebuggerCommand(t *testing.T) {
 		t.Fatal(err)
 	}
 	joined := strings.Join(argv, " ")
-	for _, want := range []string{"sh -c", "PATH='" + filepath.Join(root, "bin") + ":$PATH'", "TOYROOT=" + root, "GOTOOLCHAIN=local", `exec "$0" "$@"`, "dlv dap --listen"} {
+	for _, want := range []string{"sh -c", "PATH=" + filepath.Join(root, "bin") + ":$PATH", "TOYROOT=" + root, "GOTOOLCHAIN=local", `exec "$0" "$@"`, "dlv dap --listen"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("missing %q in %s", want, joined)
 		}
