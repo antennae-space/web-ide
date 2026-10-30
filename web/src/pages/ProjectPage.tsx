@@ -128,7 +128,7 @@ export function useProjectActions() {
     registerAction('menu.open', () => {
       setMenusShown(true)
       // The nav is mounted by the signal: the click comes right after it.
-      queueMicrotask(() => document.querySelector<HTMLElement>('.menubar .menu-btn')?.click())
+      queueMicrotask(() => barMenuBtns()[0]?.click())
     }),
     registerAction('view.nextTab', () => cycleTab(1)),
     registerAction('view.prevTab', () => cycleTab(-1)),
@@ -263,10 +263,16 @@ const menuChecks: Record<string, () => boolean> = {
  */
 const [menusShown, setMenusShown] = createSignal(false)
 
+/** The bar and its phone counterpart (the floating menus): what belongs to the menus mode. */
+const inMenusBar = (at: Element | null | undefined) => at?.closest?.('.menubar, .phone-overlays')
+
+/** The menu buttons of the bar — on a phone they are in the floating row, not in the bar itself. */
+const barMenuBtns = () => [...document.querySelectorAll<HTMLElement>('.menubar .menu-btn, .phone-overlays .menu-btn')]
+
 /** A menu of the bar closed: the compact bar comes back unless another one of the bar took its place. */
 function menuClosed(target?: Node) {
   const at = target instanceof Element ? target : target?.parentElement
-  if (at?.closest('.menubar')) return
+  if (inMenusBar(at)) return
   setMenusShown(false)
 }
 
@@ -285,7 +291,7 @@ function openMenu(e: MouseEvent, ids: string[]) {
           hint: shortcutOf(id),
           checked: menuChecks[id]?.(),
           action: () => {
-            if (prev && prev !== document.body && prev.isConnected && !prev.closest('.menubar')) prev.focus()
+            if (prev && prev !== document.body && prev.isConnected && !inMenusBar(prev)) prev.focus()
             else focusEditor()
             requestAnimationFrame(() => runAction(id) || toast(t('Action not available here'), 'info'))
           },
@@ -293,11 +299,22 @@ function openMenu(e: MouseEvent, ids: string[]) {
   )
   // Left and Right open the menu beside.
   const onSide = (dir: -1 | 1) => {
-    const all = [...document.querySelectorAll<HTMLElement>('.menubar .menu-btn')]
+    const all = barMenuBtns()
     all[(all.indexOf(btn) + dir + all.length) % all.length]?.click()
   }
   contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.bottom + 2 }), items, { onSide, onClose: menuClosed })
 }
+
+/** The menus of the bar: in the bar itself, or in the floating row of a phone. */
+const menuButtons = () => (
+  <For each={shownMenus()}>
+    {([label, ids]) => (
+      <button class="menu-btn" onMouseDown={(e) => e.preventDefault()} onClick={(e) => openMenu(e, ids)}>
+        {t(label)}
+      </button>
+    )}
+  </For>
+)
 
 export function PodStatus(props: { compact?: boolean }) {
   return (
@@ -357,15 +374,6 @@ function MenuBar() {
       )}
     </>
   )
-  const menuButtons = () => (
-    <For each={shownMenus()}>
-      {([label, ids]) => (
-        <button class="menu-btn" onMouseDown={(e) => e.preventDefault()} onClick={(e) => openMenu(e, ids)}>
-          {t(label)}
-        </button>
-      )}
-    </For>
-  )
   // The menus are behind this button: pressed while they are shown, and it stays there on a phone
   // while the mode is open, so that one tap brings the compact bar back.
   const menusToggle = () => {
@@ -390,7 +398,7 @@ function MenuBar() {
       if (!shown) return
       const down = (e: MouseEvent) => {
         const at = e.target as Element | null
-        if (at?.closest?.('.menubar, .ctx-menu')) return
+        if (inMenusBar(at) || at?.closest?.('.ctx-menu')) return
         setMenusShown(false)
       }
       const key = (e: KeyboardEvent) => {
@@ -418,17 +426,6 @@ function MenuBar() {
             <span class="grow" />
             {tail(true)}
           </div>
-          {/* The mode: the menus, the two rails and the desks float over the view, under the bar. */}
-          <Show when={menusShown()}>
-            <div class="phone-overlays" data-testid="phone-overlays">
-              <nav class="menus">{menuButtons()}</nav>
-              <Rail side="left" />
-              <Rail side="right" />
-              <div class="phone-desks">
-                <DeskSwitcher />
-              </div>
-            </div>
-          </Show>
         </header>
       }
     >
@@ -442,6 +439,24 @@ function MenuBar() {
       {tail(false)}
     </header>
     </Show>
+  )
+}
+
+/**
+ * Phone, menus mode: the menus, the two rails and the desks float over the view. They are mounted
+ * **inside** the body of the view (not in the bar, not on the viewport): they stay glued to it
+ * whatever the device — a safe area, a scrolled page — instead of being placed by a computed top.
+ */
+function PhoneOverlays() {
+  return (
+    <div class="phone-overlays" data-testid="phone-overlays">
+      <nav class="menus">{menuButtons()}</nav>
+      <Rail side="left" />
+      <Rail side="right" />
+      <div class="phone-desks">
+        <DeskSwitcher />
+      </div>
+    </div>
   )
 }
 
@@ -841,6 +856,10 @@ export function ProjectPage(props: { id: string }) {
               <EditorArea statusBar />
             </main>
             <Show when={mobileView() !== 'editor' && zoneOf(session, mobileView())}>{(z) => <ZonePanel zone={z()} />}</Show>
+            {/* The mode: the menus, the two rails and the desks float over the view, glued to it. */}
+            <Show when={menusShown()}>
+              <PhoneOverlays />
+            </Show>
           </div>
         </Show>
         <Show when={!phone() && tileMode()}>

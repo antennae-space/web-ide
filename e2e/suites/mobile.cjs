@@ -92,6 +92,35 @@ run(
       return { menusTop: m.top, leftTop: l.top, rightTop: r.top, menusRight: m.right, rightLeft: r.left, w: innerWidth }
     })
     assert(boxes.leftTop >= boxes.menusTop && boxes.rightTop >= boxes.menusTop && boxes.menusRight > boxes.rightLeft, 'the rails start under the menus row: ' + JSON.stringify(boxes))
+    // The overlays are anchored to the body of the view, not to the viewport: no view shows
+    // through between the bar and the menus row, even when the page moves (a safe area, a scroll).
+    const glued = () =>
+      page.evaluate(() => {
+        const bar = document.querySelector('[data-testid=phone-bar]').getBoundingClientRect()
+        const body = document.querySelector('.phone-body').getBoundingClientRect()
+        const m = document.querySelector('[data-testid=phone-overlays] .menus').getBoundingClientRect()
+        const d = document.querySelector('.phone-overlays .phone-desks').getBoundingClientRect()
+        return { gap: Math.round(m.top - bar.bottom), body: Math.round(m.top - body.top), desksAboveBody: Math.round(body.bottom - d.bottom), y: Math.round(scrollY) }
+      })
+    const g0 = await glued()
+    assert(g0.gap === 0 && g0.body === 0 && g0.desksAboveBody === 0, 'the menus row is glued under the bar, the desks bar at the bottom: ' + JSON.stringify(g0))
+    // A page that scrolls (what a safe area or the keyboard does to the bar): the bar and the
+    // overlays move together.
+    await page.evaluate(() => {
+      const d = document.createElement('div')
+      d.id = 'e2e-scroll-spacer'
+      d.style.cssText = 'height:400px'
+      document.body.appendChild(d)
+      window.scrollTo(0, 120)
+    })
+    await page.waitForTimeout(200)
+    const g1 = await glued('scrolled')
+    assert(g1.y > 60 && g1.gap === 0 && g1.body === 0, 'scrolled, the menus row stays glued under the bar: ' + JSON.stringify(g1))
+    await page.evaluate(() => {
+      window.scrollTo(0, 0)
+      document.getElementById('e2e-scroll-spacer')?.remove()
+    })
+    await page.waitForTimeout(200)
     await page.screenshot({ path: OUT + '/mobile-mode.png' })
     // The gear: the settings open, the mode stays open.
     await page.tap('[data-testid=home-btn]')

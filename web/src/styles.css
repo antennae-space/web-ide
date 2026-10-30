@@ -746,22 +746,26 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .tool-full { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 /* phone: one row of bar (home, project, status, grid button), one view full screen */
-.app.phone { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
-.menubar.phone { --phone-bar-h: 36px; --phone-desks-h: 26px; --phone-menus-h: 32px; flex-direction: column; align-items: stretch; height: auto; padding: 0; gap: 0; }
-.menubar-row { display: flex; align-items: center; gap: 4px; height: var(--phone-bar-h); padding: 0 6px; min-width: 0; }
+.app.phone { --phone-desks-h: 26px; --phone-menus-h: 32px; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+.menubar.phone { flex-direction: column; align-items: stretch; height: auto; padding: 0; gap: 0; }
+.menubar-row { display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 6px; min-width: 0; }
 .menubar.phone .mb-project { margin: 0 4px; }
 /* The menus mode: the menus, the two rails of the computer layout and the desks float over the
-   view, under the bar. The menus take the whole width, the rails come under them. The layer
-   itself takes no touch: a tap between the overlays goes to the view and closes the mode. */
-.phone-overlays { position: fixed; left: 0; right: 0; top: calc(var(--phone-bar-h) + env(safe-area-inset-top)); bottom: 0; z-index: 40; pointer-events: none; }
+   view. They are anchored to the body of the view (.phone-body), not to the viewport: the menus
+   row starts exactly under the bar whatever the device (a safe area, a scrolled page), and the
+   desks bar follows the height left by the keyboard. The menus take the whole width, the rails
+   come under them. The layer itself takes no touch: a tap between the overlays goes to the view
+   and closes the mode. */
+.phone-overlays { position: absolute; inset: 0; z-index: 40; pointer-events: none; }
 .phone-overlays > * { pointer-events: auto; }
-.phone-overlays .menus { position: absolute; top: 0; left: 0; right: 0; height: var(--phone-menus-h); padding: 0 4px; display: flex; align-items: center; gap: 2px; background: var(--bg-2); border-bottom: 1px solid var(--line); box-shadow: 0 4px 14px rgb(0 0 0 / 0.3); }
+.phone-overlays .menus { position: absolute; top: 0; left: 0; right: 0; height: var(--phone-menus-h); padding: 0 4px; display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; background: var(--bg-2); border-bottom: 1px solid var(--line); box-shadow: 0 4px 14px rgb(0 0 0 / 0.3); }
+.phone-overlays .menus::-webkit-scrollbar { display: none; }
 .phone-overlays .menu-btn { flex: none; }
 .phone-overlays .rail { position: absolute; top: var(--phone-menus-h); bottom: calc(var(--phone-desks-h) + env(safe-area-inset-bottom)); overflow-y: auto; scrollbar-width: none; box-shadow: 0 0 18px rgb(0 0 0 / 0.35); }
 .phone-overlays .rail::-webkit-scrollbar { display: none; }
 .phone-overlays .rail-left { left: 0; }
 .phone-overlays .rail-right { right: 0; }
-.phone-desks { position: absolute; left: 0; right: 0; bottom: 0; min-height: var(--phone-desks-h); padding: 0 6px env(safe-area-inset-bottom); display: flex; align-items: center; background: var(--bg-2); border-top: 1px solid var(--line); box-shadow: 0 -4px 14px rgb(0 0 0 / 0.3); }
+.phone-desks { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--phone-desks-h) + env(safe-area-inset-bottom)); padding: 0 6px; display: flex; align-items: center; background: var(--bg-2); border-top: 1px solid var(--line); box-shadow: 0 -4px 14px rgb(0 0 0 / 0.3); }
 .phone-body { position: relative; }
 .phone-body > .center { flex: 1; min-width: 0; }
 .phone-body > .center.hidden { display: none; }
