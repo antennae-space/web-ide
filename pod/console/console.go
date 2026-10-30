@@ -29,6 +29,10 @@ type Info struct {
 	Started int64    `json:"started"`
 	// CommandID: the saved command the task runs (package commands), one console each.
 	CommandID string `json:"commandId,omitempty"`
+	// Desk: the desk the console belongs to, as desks.Key of the project of the window that
+	// opened it (a worktree attached to a window belongs to that window's desk); "" is desk 1
+	// (the consoles of the assistant, the MCP, those before desks had consoles).
+	Desk string `json:"desk,omitempty"`
 }
 
 // term is where a console runs: a local PTY, or a process of the keeper.
@@ -95,22 +99,28 @@ type meta struct {
 	Kind    string   `json:"kind"`
 	Command []string `json:"command,omitempty"`
 	Started int64    `json:"started"`
-	// CommandID: see Info.
+	// CommandID, Desk: see Info.
 	CommandID string `json:"commandId,omitempty"`
+	Desk      string `json:"desk,omitempty"`
 }
 
 func (c *Console) meta() json.RawMessage {
-	data, _ := json.Marshal(meta{Console: c.ID, Title: c.Title, Kind: c.Kind, Command: c.Command, Started: c.Started, CommandID: c.CommandID})
+	data, _ := json.Marshal(meta{Console: c.ID, Title: c.Title, Kind: c.Kind, Command: c.Command, Started: c.Started, CommandID: c.CommandID, Desk: c.Desk})
 	return data
 }
 
+// Create starts a console of no desk (desk 1); CreateOn, one of desk.
 func (m *Manager) Create(kind, title string, command []string, cwd string, cols, rows int) (Info, error) {
-	return m.create(kind, title, command, cwd, cols, rows, "")
+	return m.create(kind, title, command, cwd, cols, rows, "", "")
 }
 
-// RunCommand starts the task of a saved command.
-func (m *Manager) RunCommand(id, title string, command []string, cwd string) (Info, error) {
-	return m.create("task", title, command, cwd, 160, 40, id)
+func (m *Manager) CreateOn(desk, kind, title string, command []string, cwd string, cols, rows int) (Info, error) {
+	return m.create(kind, title, command, cwd, cols, rows, "", desk)
+}
+
+// RunCommand starts the task of a saved command on a desk.
+func (m *Manager) RunCommand(id, title string, command []string, cwd, desk string) (Info, error) {
+	return m.create("task", title, command, cwd, 160, 40, id, desk)
 }
 
 // OfCommand returns the consoles of a saved command, running or ended.
@@ -124,7 +134,7 @@ func (m *Manager) OfCommand(id string) []Info {
 	return out
 }
 
-func (m *Manager) create(kind, title string, command []string, cwd string, cols, rows int, commandID string) (Info, error) {
+func (m *Manager) create(kind, title string, command []string, cwd string, cols, rows int, commandID, desk string) (Info, error) {
 	if cwd == "" {
 		cwd = m.root
 	}
@@ -140,7 +150,7 @@ func (m *Manager) create(kind, title string, command []string, cwd string, cols,
 			title = execx.Join(command)
 		}
 	}
-	c := &Console{Info: Info{ID: newID(), Title: title, Kind: kind, Command: command, Started: time.Now().UnixMilli(), CommandID: commandID}}
+	c := &Console{Info: Info{ID: newID(), Title: title, Kind: kind, Command: command, Started: time.Now().UnixMilli(), CommandID: commandID, Desk: desk}}
 	m.mu.Lock()
 	k := m.keeper
 	m.mu.Unlock()
@@ -255,7 +265,7 @@ func (m *Manager) adopt() {
 		if known {
 			continue
 		}
-		c := &Console{Info: Info{ID: mt.Console, Title: mt.Title, Kind: mt.Kind, Command: mt.Command, Started: mt.Started, CommandID: mt.CommandID}, term: &keeperTerm{c: m.keeper, id: p.ID}}
+		c := &Console{Info: Info{ID: mt.Console, Title: mt.Title, Kind: mt.Kind, Command: mt.Command, Started: mt.Started, CommandID: mt.CommandID, Desk: mt.Desk}, term: &keeperTerm{c: m.keeper, id: p.ID}}
 		c.end = p.Base
 		m.add(c)
 		if err := m.follow(c, p.ID, p.Base); err != nil {
@@ -310,12 +320,22 @@ func (m *Manager) Snapshot(id string) (Info, []byte, int64, error) {
 }
 
 func (m *Manager) Rename(id, title string) error {
+	return m.change(id, func(c *Console) { c.Title = title })
+}
+
+// Move gives a console to another desk; it keeps running.
+func (m *Manager) Move(id, desk string) error {
+	return m.change(id, func(c *Console) { c.Desk = desk })
+}
+
+// change changes the info of a console, and its meta in the keeper.
+func (m *Manager) change(id string, f func(c *Console)) error {
 	c, err := m.get(id)
 	if err != nil {
 		return err
 	}
 	c.mu.Lock()
-	c.Title = title
+	f(c)
 	kt, _ := c.term.(*keeperTerm)
 	data := c.meta()
 	c.mu.Unlock()

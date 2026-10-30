@@ -14,6 +14,7 @@ import { t, tn } from '../i18n'
 import { normalizePlacement, setPluginZones, type Zone } from './zones'
 import { deviceId, layoutFor } from './device'
 import { settings } from './settings'
+import { capability } from '../plugins/capabilities'
 import { closeDesks, desk, loadDesks, showDesk, touchRecent, type DeskList } from './desks'
 
 /** plugin:<plugin>/<view>: a tab view of a plugin (plugins/registry.tsx). */
@@ -1169,6 +1170,8 @@ export async function switchDesk(n: number) {
 export async function moveTabToDesk(paneId: string, tabId: string, n: number) {
   const tab = session.tabs[tabId]
   if (!tab || n === desk()) return
+  // A console goes with its tab: it belongs to one desk.
+  if (tab.kind === 'console' && tab.console) await capability('terminal')?.move(tab.console, n)
   const target = normalize(await request('session.get', { desk: n }))
   const pane = findLeaf(target.layout, target.activePane) ?? firstLeaf(target.layout)
   const same = Object.values(target.tabs).find((x) => x.kind === tab.kind && x.path && x.path === tab.path && !x.staged && !x.head && !x.rev && !tab.staged && !tab.head && !tab.rev)

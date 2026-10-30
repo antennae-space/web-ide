@@ -1,6 +1,6 @@
 // Console tool: terminals and tasks run by the pod (they survive reloads), one xterm instance
 // per console, kept while the page lives. It is the terminal capability of the Exec plugin.
-import { createEffect, createRoot, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js'
+import { createEffect, createMemo, createRoot, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -14,8 +14,15 @@ import { Launcher } from './Launcher'
 
 export type { ConsoleInfo }
 
-const [consoles, setConsoles] = createSignal<ConsoleInfo[]>([])
-export { consoles, setConsoles }
+// Every console of the worktrees of the window, whatever their desk; the Console shows those of
+// the desk shown (docs/design/desks.md): a console carries the key of its desk, none is desk 1.
+const [allConsoles, setConsoles] = createSignal<ConsoleInfo[]>([])
+export { allConsoles, setConsoles }
+
+const onDesk = (c: ConsoleInfo, n = api.desks.current()) => (c.desk ? c.desk === api.desks.key(n) : n === 1)
+let deskConsoles: () => ConsoleInfo[] = () => allConsoles().filter((c) => onDesk(c))
+/** The consoles of the desk shown. */
+export const consoles = () => deskConsoles()
 
 /** The Console never has zero tab: the least it holds is a **new tab**, which shows the launcher.
  *  Picking a tile converts it into the console of that command (same place in the tabs). */
@@ -53,7 +60,7 @@ export function setConsoleList(list: ConsoleInfo[], pid = api.project.id()) {
   setConsoles((l) => [...l.filter((c) => c.project !== pid), ...mine])
   if (pid === api.project.id()) setListed(true)
   // Forget the terminals that do not exist in the pod anymore.
-  for (const id of terms.keys()) if (!consoles().some((c) => c.id === id)) disposeTerm(id)
+  for (const id of terms.keys()) if (!allConsoles().some((c) => c.id === id)) disposeTerm(id)
 }
 
 /** Lists the consoles of every worktree attached to the window again (after a reconnection),
@@ -63,8 +70,49 @@ export async function refreshConsoles() {
   for (const [id, entry] of terms) attachTerm(id, entry, entry.next)
 }
 
+/** Gives a console to desk n; it keeps running. */
+export async function moveToDesk(id: string, n: number) {
+  const c = allConsoles().find((x) => x.id === id)
+  if (!c || onDesk(c, n)) return
+  try {
+    await api.rpcIn(c.project, 'console.move', { id, desk: n })
+    setConsoles((l) => l.map((x) => (x.id === id ? { ...x, desk: api.desks.key(n) } : x)))
+  } catch (e) {
+    errorToast(e)
+  }
+}
+
+/** Sends the console shown in the Console tool to desk n (Ctrl+Alt+Shift+N). */
+export function activeToDesk(n: number) {
+  const id = desk.get().active
+  if (!id || !consoles().some((c) => c.id === id)) return false
+  void moveToDesk(id, n)
+  return true
+}
+
 /** Starts following the consoles: the events of the pod, the worktrees attached, the look. */
 export function watchConsoles() {
+  createRoot(() => {
+    deskConsoles = createMemo(() => allConsoles().filter((c) => onDesk(c)))
+    // The consoles of before (no desk) in the tabs of another desk go to that desk.
+    createEffect(() => {
+      const n = api.desks.current()
+      if (n === 1) return
+      const order = desk.get().order
+      for (const c of allConsoles()) if (!c.desk && order.includes(c.id)) void moveToDesk(c.id, n)
+    })
+  })
+  // The consoles of a removed desk end with it (listed in the confirmation).
+  api.desks.onRemove((n) => {
+    const key = api.desks.key(n)
+    const mine = allConsoles().filter((c) => c.desk === key)
+    return {
+      items: mine.map((c) => (c.exited ? t('Console “{title}” (ended)', { title: c.title }) : t('Console “{title}”', { title: c.title }))),
+      end: async () => {
+        for (const c of mine) await api.rpcIn(c.project, 'console.close', { id: c.id }).catch(() => {})
+      },
+    }
+  })
   // The consoles of a worktree come with it and go with it.
   createRoot(() =>
     createEffect(
@@ -84,6 +132,7 @@ export function watchConsoles() {
     disposeTerm(e.id)
   })
   api.on('console.renamed', (e: { id: string; title: string }) => setConsoles((l) => l.map((c) => (c.id === e.id ? { ...c, title: e.title } : c))))
+  api.on('console.moved', (e: { id: string; desk: string }) => setConsoles((l) => l.map((c) => (c.id === e.id ? { ...c, desk: e.desk } : c))))
   api.on('console.exit', (e: { id: string; code: number }) => {
     setConsoles((l) => l.map((c) => (c.id === e.id ? { ...c, exited: true, code: e.code } : c)))
     const entry = terms.get(e.id)
@@ -122,7 +171,7 @@ export function watchConsoles() {
   watchTrail()
 }
 
-const projectOf = (id: string) => consoles().find((c) => c.id === id)?.project
+const projectOf = (id: string) => allConsoles().find((c) => c.id === id)?.project
 
 
 function b64(s: string) {
@@ -368,6 +417,14 @@ export function consoleMenu(): MenuItem[] {
 
 let dragged: string | null = null
 
+/** Items of the menu of a console tab sending it to another desk, or to a new one. */
+function deskItems(id: string): MenuItem[] {
+  return [
+    ...api.desks.list().filter((d) => d.n !== api.desks.current()).map((d) => ({ label: t('Move to desk {name}', { name: d.name || String(d.n) }), hint: api.keys.shortcut(`desk.send.${d.n}`), action: () => void moveToDesk(id, d.n) })),
+    { label: t('Move to a new desk'), action: () => void api.desks.add().then((n) => moveToDesk(id, n)) },
+  ]
+}
+
 export function ConsoleTool() {
   // A console that no longer exists (pod restarted) falls back to the first one, or to the new tab.
   const active = () => {
@@ -425,8 +482,8 @@ export function ConsoleTool() {
               aria-selected={active() === c.id}
               classList={{ active: active() === c.id, exited: c.exited, ...api.ui.tabDrop.dropClasses('consoles', i(), consoles().length) }}
               draggable="true"
-              onDragStart={() => (dragged = c.id)}
-              onDragEnd={() => ((dragged = null), api.ui.tabDrop.setDropAt(null))}
+              onDragStart={() => ((dragged = c.id), api.desks.drag((n) => void moveToDesk(c.id, n)))}
+              onDragEnd={() => ((dragged = null), api.desks.drag(null), api.ui.tabDrop.setDropAt(null))}
               onDragOver={(e) => {
                 if (!dragged) return
                 e.preventDefault()
@@ -452,6 +509,7 @@ export function ConsoleTool() {
                     [
                       ...(api.tiles.active() ? [{ label: t('Open in a new tile'), action: () => api.tiles.open({ kind: 'console', console: c.id }) }] : []),
                       { label: t('Rename…'), action: () => void renameConsole(c) },
+                      ...deskItems(c.id),
                       ...(adHocCommand(c) ? [{ label: t('Save “{command}” as a command…', { command: adHocCommand(c)!.length > 40 ? adHocCommand(c)!.slice(0, 40) + '…' : adHocCommand(c)! }), action: () => openCommands({ draft: { name: c.command![2].split('\n')[0].slice(0, 40), command: c.command![2] } }) }] : []),
                     ],
                     { label: t('Close'), action: () => void closeConsole(c.id) },

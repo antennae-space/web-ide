@@ -92,7 +92,7 @@ export function DetachedTool(props: { id: string; toolId: string }) {
 export function DetachedConsole(props: { id: string; consoleId: string }) {
   const s = useProject(props.id, () => t('Console'))
   const term = () => capability('terminal')
-  const info = () => term()?.consoles().find((c) => c.id === props.consoleId)
+  const info = () => term()?.all().find((c) => c.id === props.consoleId)
   createEffect(() => {
     if (info()) document.title = `${info()!.title} · ${project()?.name ?? ''}`
   })

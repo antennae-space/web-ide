@@ -1001,5 +1001,7 @@
   "Read the saved commands and open their editor": "Leer las órdenes guardadas y abrir su editor",
   "{name} is not a worktree of this project": "{name} no es un worktree de este proyecto",
   "menu|Run": "Ejecutar",
-  "A debug session stopped (a breakpoint, a step)": "Una sesión de depuración se detuvo (un punto de interrupción, un paso)"
+  "A debug session stopped (a breakpoint, a step)": "Una sesión de depuración se detuvo (un punto de interrupción, un paso)",
+  "These end with it:": "Esto termina con él:",
+  "Remove and end them": "Eliminar y terminarlos"
 }

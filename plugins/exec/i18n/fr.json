@@ -30,5 +30,7 @@
   "Open “{name}” in a preview": "Ouvrir « {name} » en aperçu",
   "Shown in another place: click to bring it here": "Affichée ailleurs : cliquer pour l'amener ici",
   "In {folder}": "Dans {folder}",
-  "Edit the saved commands…": "Modifier les commandes enregistrées…"
+  "Edit the saved commands…": "Modifier les commandes enregistrées…",
+  "Console “{title}”": "Console « {title} »",
+  "Console “{title}” (ended)": "Console « {title} » (terminée)"
 }

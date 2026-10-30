@@ -15,6 +15,7 @@ import (
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/lib/tunnel"
 	"antennae.space/ide/pod/assistant"
+	"antennae.space/ide/pod/desks"
 	"antennae.space/ide/pod/plugins"
 	"antennae.space/ide/pod/plugins/builtin"
 	"antennae.space/ide/pod/plugins/install"
@@ -306,6 +307,16 @@ func (w clientWindow) Release(id string) {
 	if stop, ok := w.c.streams.LoadAndDelete(id); ok {
 		stop.(func())()
 	}
+}
+
+// Desk is the desk key of the window (desk.switch changes it, under the lock of the server).
+func (w clientWindow) Desk() string {
+	w.c.srv.mu.Lock()
+	defer w.c.srv.mu.Unlock()
+	if w.c.project == "" {
+		return ""
+	}
+	return desks.Key(w.c.project, w.c.desk)
 }
 
 // pluginName is the name of a plugin of the project of rt, built-in or external (its id if

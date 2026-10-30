@@ -18,14 +18,21 @@ export interface ConsoleInfo {
   project?: string
   /** Saved command the task runs. */
   commandId?: string
+  /** Desk key of the desk it belongs to (state/desks deskKey); none: desk 1. */
+  desk?: string
 }
 
 /** terminal (the Exec plugin): the consoles of the window. */
 export interface TerminalService {
+  /** The consoles of the desk shown; all, those of every desk (a detached window, a console named by the assistant). */
   consoles: () => ConsoleInfo[]
+  all: () => ConsoleInfo[]
+  /** Gives a console to desk n (it keeps running); toDesk, the console shown in the Console tool. */
+  move(id: string, n: number): Promise<void>
+  toDesk(n: number): boolean
   /** Starts a console; it shows in the Console tool unless show is false (a tile takes it). */
   open(o?: { cwd?: string; command?: string[]; title?: string; kind?: 'terminal' | 'task'; show?: boolean }): Promise<ConsoleInfo | undefined>
-  /** Shows a console in the Console tool. */
+  /** Shows a console in the Console tool (a console of another desk comes to this one). */
   show(id: string): void
   /** A console in a container element (a tile, a tab, a detached window). */
   TermView: (props: { id: string; focus?: boolean }) => JSX.Element

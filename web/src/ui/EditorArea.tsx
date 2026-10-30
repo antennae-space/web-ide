@@ -117,7 +117,7 @@ function deskItems(pane: string, tab: string): MenuItem[] {
 function tabTitle(tab: TabState) {
   if (tab.kind === 'file') return basename(tab.path ?? '')
   if (tab.kind === 'tool') return tileTools[tab.tool!] ? t(tileTools[tab.tool!].label) : tab.tool!
-  if (tab.kind === 'console') return capability('terminal')?.consoles().find((c) => c.id === tab.console)?.title ?? t('Console')
+  if (tab.kind === 'console') return capability('terminal')?.all().find((c) => c.id === tab.console)?.title ?? t('Console')
   if (tab.kind === 'doc') return tab.title ?? t('Documentation')
   if (tab.kind.startsWith('plugin:')) return pluginViewTitle(tab) ?? tab.title ?? t(pluginViewLabel(tab.kind) ?? tab.kind)
   return tab.title ?? tab.kind
@@ -325,7 +325,7 @@ function Pane(props: { id: string }) {
                 </Show>
               </Match>
               <Match when={tab.kind === 'console'}>
-                <Show when={capability('terminal')?.consoles().some((c) => c.id === tab.console)} fallback={gone(tab, capability('terminal') ? t('This console is closed') : t('The plugin of this tab is disabled'))}>
+                <Show when={capability('terminal')?.all().some((c) => c.id === tab.console)} fallback={gone(tab, capability('terminal') ? t('This console is closed') : t('The plugin of this tab is disabled'))}>
                   <div class="tile-console">
                     <Show when={bare()}>{corner(tab)}</Show>
                     <Dynamic component={capability('terminal')!.TermView} id={tab.console!} focus={isActivePane()} />

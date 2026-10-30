@@ -676,6 +676,10 @@ export function ProjectPage(props: { id: string }) {
     navigate(deskPath(props.id, n))
   }
   const sendToDesk = (n: number) => {
+    if (n === desk() || !desks.desks.some((d) => d.n === n)) return false
+    // The Console has the focus: its console shown goes, not the tab of the editor.
+    const part = focusPart()
+    if (part !== 'editor' && shownIn(session, part) === 'console') return capability('terminal')?.toDesk(n) ?? false
     const l = activeLeaf()
     if (!l?.active || n === desk() || !desks.desks.some((d) => d.n === n)) return false
     void moveTabToDesk(l.id, l.active, n).catch((e) => toast((e as Error).message, 'warn'))

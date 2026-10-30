@@ -120,7 +120,7 @@ _Avoid_: branch, clone
 **Desk**
 One arrangement of a project's window: its layout mode, tabs, consoles and previews. A project has one or more.
 _Avoid_: workspace, session
-The pod stores the state of a desk in `desks/` (it was `sessions/`, read and moved on first use); on the wire it is still called `session` (`session.update`, `session.changed`), so that a page and a pod of different releases keep talking.
+The pod stores the state of a desk in `desks/` (it was `sessions/`, read and moved on first use); on the wire it is still called `session` (`session.update`, `session.changed`), so that a page and a pod of different releases keep talking. Its **desk key** is the project id for desk 1, `<project>@<n>` for the others (`desks.Key`): the desk a console belongs to.
 
 **Tool**
 A part of the window shown from a rail icon: Explorer, Git, Kanban, Console…

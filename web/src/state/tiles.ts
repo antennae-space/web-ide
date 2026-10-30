@@ -285,7 +285,7 @@ export const toolTab = (id: string): TabState => ({ id: '', kind: 'tool', tool: 
 export function tabUrl(tab: TabState): string | null {
   if (tab.kind === 'tool' && tab.tool) return podPath(`/project/${project()!.id}/tool/${tab.tool}`)
   if (tab.kind === 'console' && tab.console) {
-    const owner = capability('terminal')?.consoles().find((c) => c.id === tab.console)?.project ?? project()!.id
+    const owner = capability('terminal')?.all().find((c) => c.id === tab.console)?.project ?? project()!.id
     return podPath(`/project/${owner}/console/${tab.console}`)
   }
   return null

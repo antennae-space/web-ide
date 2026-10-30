@@ -285,6 +285,8 @@ type Window interface {
 	Release(id string)
 	// Project is the project the window shows ("" on the home page); ID tells windows apart.
 	Project() string
+	// Desk is the desk the window shows, as desks.Key of its project ("" on the home page).
+	Desk() string
 	ID() string
 	// Watch records the conversation of the assistant the window shows (the tools of the
 	// interface run in that window first).

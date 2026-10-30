@@ -16,11 +16,12 @@ Project (or worktree)
  └─ Desk ── held by the user, or by an agent session (ACP agent, assistant conversation)
      ├─ layout mode (Full / Scroll / Grid) and its tree of tiles
      ├─ open tabs (views: the documents and their buffers stay shared in the core)
-     ├─ consoles and commands     (owner = the desk, in the keeper)
+     ├─ consoles and commands     (each carries its desk, kept in the keeper)
      └─ previews and port forwards opened from it
 ```
 
 - A resource belongs to the **desk**, not to whoever started it: a console the user opens in the desk of an agent belongs to that desk.
+- **Consoles** (#197): a console carries the desk of the window that opened it (`console.Info.Desk`, the desk key of that window's project: a console of a worktree attached to the window belongs to the window's desk), kept in its meta in the keeper so that it survives the restarts of the pod. A console started without a window (the assistant, the MCP, the debugger, a preview) has none and shows on desk 1, unless it replaces a console of a saved command, whose desk it takes. `console.move` gives a console to another desk. The keeper's `owner` stays the project: a cgroup per desk comes with Activity. The page (#198) lists the consoles of the desk shown, moves them (tab menu, shortcut, drop on a desk number), claims for a desk the consoles of before that sit in its tab order, and removing a desk ends its consoles after a confirmation that lists them.
 - The **buffers stay shared**: an agent editing a file open on a desk of the user shows live there, as today. Only the tabs belong to a desk.
 - The settings, Recent Files and the worktree list stay per project.
 

@@ -61,6 +61,34 @@ export function closeDesks() {
 
 export const deskLabel = (d: Desk) => d.name || String(d.n)
 
+/** The key of desk n of a project (pod/desks Key): the project id for desk 1, `<id>@<n>` else. */
+export const deskKey = (project: string, n: number) => (n <= 1 ? project : `${project}@${n}`)
+
+// ---------- what lives on a desk ----------
+
+/** What a plugin ends with a desk removed: the items listed in the confirmation, and the end. */
+export interface DeskEnd {
+  items: string[]
+  end: () => Promise<void>
+}
+
+const enders = new Set<(n: number) => DeskEnd | null>()
+
+/** Registers what a plugin has on the desks (its consoles…), asked before a desk is removed. */
+export function onDeskRemove(f: (n: number) => DeskEnd | null) {
+  enders.add(f)
+  return () => enders.delete(f)
+}
+
+/** What ends with desk n, from every plugin. */
+export function deskEnds(n: number): DeskEnd[] {
+  return [...enders].map((f) => f(n)).filter((e): e is DeskEnd => !!e && e.items.length > 0)
+}
+
+/** Something of a plugin dragged (a console tab): a desk of the bar takes it and moves it there. */
+const [deskDrag, setDeskDrag] = createSignal<((n: number) => void) | null>(null)
+export { deskDrag, setDeskDrag }
+
 let pushTimer: number | undefined
 
 function changeDesks(fn: (d: DeskList) => void, now = false) {

@@ -30,7 +30,7 @@ import { decoratePath } from './decorations'
 import { explorerItems, editorDecorations, fileDecorations, pluginAssistantOptions, pluginStates } from './registry'
 import { pluginSettingValues } from './settings'
 import { folderMark, inExcluded, loadFolderMarks, markFolder, markOf } from '../state/folders'
-import { desks } from '../state/desks'
+import { addDesk, desk as deskShown, deskKey, desks, onDeskRemove, setDeskDrag } from '../state/desks'
 import { setDynamicActions } from '../keys/bindings'
 import { inTunnel } from '../pod/transport'
 import { EmptyState } from '../ui/EmptyState'
@@ -157,6 +157,19 @@ export function makeApi(id: string) {
     activePath: () => activeTab()?.path,
     /** The files opened lately on the desks of the project, the last first. */
     recentFiles: () => desks.recent,
+    /**
+     * The desks of the project: the one shown, the key of a desk (what a console carries), the list,
+     * a new one; onRemove tells what of the plugin ends with a desk removed (listed in the
+     * confirmation); drag, something of the plugin dragged that a desk of the bar takes.
+     */
+    desks: {
+      current: deskShown,
+      key: (n = deskShown()) => deskKey(home()?.id ?? '', n),
+      list: () => desks.desks,
+      add: addDesk,
+      onRemove: onDeskRemove,
+      drag: (f: ((n: number) => void) | null) => setDeskDrag(() => f),
+    },
     /** The marks of the folders of the project (source, tests, excluded), kept by the pod. */
     folders: { mark: folderMark, markOf, inExcluded, setMark: markFolder, load: loadFolderMarks },
     /** What the other plugins give the Explorer, and what every tree asks: menu items, decorations

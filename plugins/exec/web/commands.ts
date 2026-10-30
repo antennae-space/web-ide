@@ -3,7 +3,7 @@
 import { createEffect, createRoot, createSignal } from 'solid-js'
 import type { SavedCommand } from '@ide/capabilities'
 import { api, desk, errorToast, t } from './plugin'
-import { consoles, converting, ordered, setConsoles, setNewTab, type ConsoleInfo } from './consoles'
+import { allConsoles, consoles, converting, moveToDesk, ordered, setConsoles, setNewTab, type ConsoleInfo } from './consoles'
 
 export type Command = SavedCommand
 
@@ -78,7 +78,8 @@ export function groupByFlag(list: Command[] = commands()): FlagGroup[] {
 /** The console of a command in the worktree shown, while it is listed: the one running, else the
  *  last one that ended (its exit code). */
 export function consoleOfCommand(id: string) {
-  const mine = consoles().filter((c) => c.commandId === id && c.project === api.project.current())
+  // Every desk: one console per command, a click on its tile brings it to the desk shown.
+  const mine = allConsoles().filter((c) => c.commandId === id && c.project === api.project.current())
   return mine.find((c) => !c.exited) ?? mine[mine.length - 1]
 }
 
@@ -124,14 +125,16 @@ export async function openApp(cmd: Command) {
     if (!previews) return
     const pv = await previews.open({ project: p, title: cmd.name, command: cmd.command, cwd: cmd.cwd, port: cmd.port ?? 0, commandId: cmd.id })
     // The console the pod just created may not be listed here yet.
-    for (let i = 0; i < 20 && pv.console && !consoles().some((c) => c.id === pv.console); i++) await new Promise((r) => setTimeout(r, 100))
-    if (consoles().some((c) => c.id === pv.console)) show(pv.console)
+    for (let i = 0; i < 20 && pv.console && !allConsoles().some((c) => c.id === pv.console); i++) await new Promise((r) => setTimeout(r, 100))
+    if (allConsoles().some((c) => c.id === pv.console)) show(pv.console)
   } catch (e) {
     errorToast(e)
   }
 }
 
+/** Shows a console in the Console tool; one of another desk comes to this one. */
 export function show(id: string) {
+  void moveToDesk(id, api.desks.current())
   api.showTool('console')
   if (converting()) setNewTab(false)
   desk.set((s) => (s.active = id))
