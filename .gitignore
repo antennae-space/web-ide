@@ -16,3 +16,6 @@
 
 # The archives of the official plugins, fetched for a release build (scripts/official.sh)
 /pod/plugins/official/archives/current/*.tar.gz
+
+# The binary dlv builds at the root of a debugged package (docs/design/debug.md).
+__debug_bin*
