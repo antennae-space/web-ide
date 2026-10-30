@@ -6,7 +6,7 @@
 // with the file. Skipped when dlv is not installed.
 const fs = require('fs')
 const path = require('path')
-const { run, openProject, open, assert, WS, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, open, assert, WS, OUT, openMenu } = require('../../../e2e/common.cjs')
 const { hasDlv, installLangGo } = require('./lib/langgo.cjs')
 
 if (!hasDlv()) {
@@ -73,7 +73,7 @@ run(async ({ page }) => {
   await page.waitForSelector(`.pane.active .ed-deco[data-deco="debug:bp${NO_CODE_LINE}"]`)
 
   // Run › Debug… with no configuration: the templates of the pack.
-  await page.click('.menubar .menu-btn:has-text("Run")')
+  await openMenu(page, 'Run')
   await page.click('.ctx-item:has-text("Debug…")')
   await page.waitForSelector('.pick .pick-item')
   const offered = await page.$$eval('.pick .pick-item', (l) => l.map((e) => e.textContent))

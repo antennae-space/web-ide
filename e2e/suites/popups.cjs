@@ -1,7 +1,7 @@
 // Popups: Search Everywhere (tabs over files, symbols, actions and text), Recent Files and
 // the switcher, the clipboard history.
 const { execSync } = require('child_process')
-const { run, openProject, open, assert, OUT, WS } = require('../common.cjs')
+const { run, openProject, open, assert, OUT, WS, openMenu } = require('../common.cjs')
 
 run(async ({ page }) => {
   await openProject(page)
@@ -48,7 +48,7 @@ run(async ({ page }) => {
   assert(!(await page.$('.pick.se')), 'Escape closes the popup')
 
   // Navigate menu: the entry with its double Shift hint.
-  await page.click('.menubar .menu-btn:has-text("Navigate")')
+  await openMenu(page, 'Navigate')
   assert(await page.isVisible('.ctx-item:has-text("Search everywhere") kbd:has-text("Double Shift")'), 'Navigate menu: Search everywhere, double Shift')
   await page.keyboard.press('Escape')
   // Shift+letter while typing does not open it.

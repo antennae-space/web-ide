@@ -138,6 +138,10 @@ _Avoid_: toolbar, header buttons
 The **⋮** of a tool's zone or of its tile (and the menu of a tab, and a right click on either): the core items (*Open in a tab*, *Open in a window*, *Close*), then the items of the tab, then the items the tool's plugin contributes (`toolMenu`).
 _Avoid_: context menu, kebab menu
 
+**Menus button**
+The 2×2 grid of the menu bar: it replaces the project block with the File, Edit… menus, and the compact bar comes back on its own. Not a setting.
+_Avoid_: hamburger menu, app launcher
+
 **Console**
 A tab of the Console tool: a **terminal** (an interactive shell) or a **task** (one command running).
 

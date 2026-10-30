@@ -120,6 +120,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .app { display: flex; flex-direction: column; height: var(--app-h, 100%); }
 .menubar { display: flex; align-items: center; gap: 4px; height: 34px; padding: 0 8px; background: var(--bg-2); border-bottom: 1px solid var(--line); flex: none; }
 .menus { display: flex; gap: 2px; margin-left: 4px; }
+/* The menus of the bar (behind the grid button): a narrow window scrolls them instead of
+   pushing the right side of the bar out. */
+.menubar .menus { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.menubar .menus::-webkit-scrollbar { display: none; }
+.menus-toggle { flex: none; }
 .menu-btn { border: 0; background: transparent; padding: 3px 9px; border-radius: 4px; cursor: pointer; color: var(--fg); }
 .menu-btn:hover { background: var(--bg-hover); }
 .mb-project { display: flex; align-items: center; gap: 6px; margin: 0 6px 0 4px; min-width: 0; }

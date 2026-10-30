@@ -36,6 +36,7 @@ const paths: Record<string, string> = {
   marker: 'M9 14l-4 4v2h4l1-1M9 14l8.5-9.5a2 2 0 0 1 2.9 2.8L11 16zM13 21h8',
   eraser: 'M9 20h11M4.5 15.5l9.6-10.6a2 2 0 0 1 2.8-.1l3 2.8a2 2 0 0 1 .1 2.8L12 18.5a2 2 0 0 1-1.5.5H8a2 2 0 0 1-1.4-.6l-2-2a1 1 0 0 1-.1-1.2zM9 11l5 5',
   grid: 'M4 4h16v16H4zM4 10h16M4 16h16M10 4v16M16 4v16',
+  apps: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
   cursor: 'M6 3l13 7.5-5.5 1.5L11 18z',
   rect: 'M4 6h16v12H4z',
   ellipse: 'M12 5c4.4 0 8 3.1 8 7s-3.6 7-8 7-8-3.1-8-7 3.6-7 8-7z',

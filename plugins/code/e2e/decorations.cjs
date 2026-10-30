@@ -3,7 +3,7 @@
 // at the end of a line, a hover, a click and menu items. The marks follow the edits, and a file
 // no plugin decorates keeps its gutter.
 const fs = require('fs')
-const { run, openProject, open, assert, WS, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, open, assert, WS, OUT, openMenu } = require('../../../e2e/common.cjs')
 
 run(async ({ page }) => {
   fs.writeFileSync(WS + '/demo/deco.txt', 'one\ntwo\nthree\nfour\nfive\n')
@@ -131,7 +131,7 @@ run(async ({ page }) => {
   await page.keyboard.press('Control+Home')
   await page.keyboard.type('long ' + 'x'.repeat(300))
   await page.waitForTimeout(200)
-  await page.click('.menu-btn:has-text("View")')
+  await openMenu(page, 'View')
   await page.click('.ctx-menu .ctx-item:has-text("Wrap the long lines")')
   await page.waitForFunction(() => document.querySelector('.pane.active .ed').classList.contains('wrap'))
   await page.waitForTimeout(400)

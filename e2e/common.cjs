@@ -53,6 +53,19 @@ exports.openProject = async (page) => {
   await page.waitForTimeout(400)
 }
 
+/** Shows the menus of the menu bar (they are behind the grid button) and waits for them. */
+exports.showMenus = async (page) => {
+  if (!(await page.$('.menubar .menus'))) await page.click('[data-testid=menus-toggle]')
+  await page.waitForSelector('.menubar .menus')
+}
+
+/** Opens one menu of the menu bar, showing the menus first. */
+exports.openMenu = async (page, label) => {
+  await exports.showMenus(page)
+  await page.click(`.menubar .menu-btn:has-text("${label}")`)
+  await page.waitForSelector('.ctx-menu')
+}
+
 /** Opens a file with "go to file". */
 /** Text of the message box of the assistant (an editor: its last block ends with a newline). */
 exports.composerText = (page, scope = '') => page.$eval((scope + ' .ai-composer .ed-content').trim(), (e) => e.textContent.replace(/\n$/, ''))

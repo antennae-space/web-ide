@@ -124,7 +124,13 @@ export function useProjectActions() {
       ;[...l.tabs].forEach((x) => closeTab(l.id, x))
     }),
     // New file or folder: beside the active file, else at the root.
-    registerAction('menu.open', () => document.querySelector<HTMLElement>('.menubar .menu-btn')?.click()),
+    // F10: the menus of the bar, then the first one opened.
+    registerAction('menu.open', () => {
+      if (phone()) return void document.querySelector<HTMLElement>('.menubar .menu-btn')?.click()
+      setMenusShown(true)
+      // The nav is mounted by the signal: the click comes right after it.
+      queueMicrotask(() => document.querySelector<HTMLElement>('.menubar .menu-btn')?.click())
+    }),
     registerAction('view.nextTab', () => cycleTab(1)),
     registerAction('view.prevTab', () => cycleTab(-1)),
     registerAction('nav.back', () => navHistory(-1)),
@@ -251,6 +257,20 @@ const menuChecks: Record<string, () => boolean> = {
   'view.whitespace': () => settings.editor.showWhitespace,
 }
 
+/**
+ * Whether the menu bar shows its menus instead of the project block. Not a setting: the menus
+ * come with a click on the grid button and go back on their own (a second click, a click
+ * outside the bar, `Escape`, or a menu entry run).
+ */
+const [menusShown, setMenusShown] = createSignal(false)
+
+/** A menu of the bar closed: the compact bar comes back unless another one of the bar took its place. */
+function menuClosed(target?: Node) {
+  const at = target instanceof Element ? target : target?.parentElement
+  if (at?.closest('.menubar')) return
+  setMenusShown(false)
+}
+
 function openMenu(e: MouseEvent, ids: string[]) {
   const btn = e.currentTarget as HTMLElement
   const r = btn.getBoundingClientRect()
@@ -277,7 +297,7 @@ function openMenu(e: MouseEvent, ids: string[]) {
     const all = [...document.querySelectorAll<HTMLElement>('.menubar .menu-btn')]
     all[(all.indexOf(btn) + dir + all.length) % all.length]?.click()
   }
-  contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.bottom + 2 }), items, { onSide })
+  contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.bottom + 2 }), items, { onSide, onClose: menuClosed })
 }
 
 export function PodStatus() {
@@ -294,20 +314,23 @@ function MenuBar() {
   const conflicts = () => (docsVersion(), conflictedDocs().length)
   // A middle click on ⌂ opens the projects page of the entry pod in a new tab of the browser.
   const openHomeTab = async () => window.open((await homeBase()) + '/', '_blank')
+  const homeButton = () => (
+    <button
+      class="icon-btn"
+      title={[t('Projects'), t('Middle click opens the projects in a new tab')].join(' · ')}
+      onClick={() => void goHome()}
+      onMouseDown={(e) => {
+        if (e.button !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+        e.preventDefault()
+        void openHomeTab()
+      }}>
+      <Icon name="home" />
+    </button>
+  )
   // Phone: three rows, the project and the status, the menus, the icons of the views.
   const head = () => (
     <>
-      <button
-        class="icon-btn"
-        title={[t('Projects'), t('Middle click opens the projects in a new tab')].join(' · ')}
-        onClick={() => void goHome()}
-        onMouseDown={(e) => {
-          if (e.button !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
-          e.preventDefault()
-          void openHomeTab()
-        }}>
-        <Icon name="home" />
-      </button>
+      {homeButton()}
       <ProjectBar />
     </>
   )
@@ -333,6 +356,42 @@ function MenuBar() {
       )}
     </For>
   )
+  // The menus are behind this button: pressed while they are shown.
+  const menusToggle = () => (
+    <button
+      class="icon-btn menus-toggle"
+      classList={{ on: menusShown() }}
+      aria-pressed={menusShown()}
+      title={shortcutOf('menu.open') ? `${t('Menus')} (${shortcutOf('menu.open')})` : t('Menus')}
+      data-testid="menus-toggle"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => setMenusShown((v) => !v)}
+    >
+      <Icon name="apps" />
+    </button>
+  )
+  // The menus shown with no menu open: a click outside the bar or `Escape` brings the compact bar back.
+  createEffect(
+    track(menusShown, (shown) => {
+      if (!shown) return
+      const down = (e: MouseEvent) => {
+        const at = e.target as Element | null
+        if (at?.closest?.('.menubar, .ctx-menu')) return
+        setMenusShown(false)
+      }
+      const key = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setMenusShown(false)
+      }
+      document.addEventListener('mousedown', down, true)
+      document.addEventListener('keydown', key, true)
+      onCleanup(() => {
+        document.removeEventListener('mousedown', down, true)
+        document.removeEventListener('keydown', key, true)
+      })
+    }),
+  )
+  // Another desk shown: the compact bar.
+  createEffect(track(desk, () => setMenusShown(false)))
   return (
     <Show
       when={!phone()}
@@ -351,16 +410,11 @@ function MenuBar() {
       }
     >
     <header class="menubar">
-      {head()}
-      <nav class="menus">
-        <For each={shownMenus()}>
-          {([label, ids]) => (
-            <button class="menu-btn" onMouseDown={(e) => e.preventDefault()} onClick={(e) => openMenu(e, ids)}>
-              {t(label)}
-            </button>
-          )}
-        </For>
-      </nav>
+      {homeButton()}
+      {menusToggle()}
+      <Show when={menusShown()} fallback={<ProjectBar />}>
+        <nav class="menus">{menuButtons()}</nav>
+      </Show>
       <span class="grow" />
       {tail()}
     </header>

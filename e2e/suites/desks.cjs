@@ -72,6 +72,15 @@ run(async ({ ctx, page }) => {
   await page.waitForFunction(() => location.pathname.endsWith('/desk/2') && document.querySelectorAll('.pane .tab').length === 1, null, { timeout: 5000 }).catch(() => {})
   assert((await tabs(page))[0] === 'app.php', 'Ctrl+Alt+2 shows desk 2: ' + path(page) + ' ' + (await tabs(page)))
 
+  // The menus shown in the bar go back to the compact bar on another desk (#202).
+  await page.click('[data-testid=menus-toggle]')
+  await page.waitForSelector('.menubar .menus')
+  await page.click('[data-testid=desk-1]')
+  await page.waitForFunction((p) => location.pathname === p, base)
+  assert(!(await page.$('.menubar .menu-btn')) && (await page.isVisible('.mb-project')), 'another desk: the compact bar')
+  await page.click('[data-testid=desk-2]')
+  await page.waitForFunction(() => location.pathname.endsWith('/desk/2'))
+
   // The tab menu sends a tab to desk 1: it leaves here and shows there at once.
   await page.click('.pane .tab:has-text("app.php")', { button: 'right' })
   await page.click('.ctx-menu >> text=Move to desk 1')
