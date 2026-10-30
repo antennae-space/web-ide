@@ -229,7 +229,8 @@ run(async ({ page }) => {
     await page.waitForSelector('[data-testid=ai-summary]:has-text("fake-small")', { timeout: 10000 })
     assert(summaries.length === 1 && summaries[0].model === 'fake-small' && text(summaries[0].messages[1]).includes('And you?') && text(summaries[0].messages[1]).includes('Try the tools'), 'summary asked to the compaction model (all but the last 10 steps)')
     assert((await page.isVisible('.ai-compacted-toggle')) && !(await page.isVisible('.ai-msg.user')) && !(await page.isVisible('.ai-retry')), 'after the compaction: the card and the last steps, no retry')
-    assert(await page.isVisible('[data-testid=ai-summary][open] .md:has-text("SUMMARY-1")'), 'the summary written by the model shown in the card')
+    // Its Markdown is drawn a moment after the card (slow runners).
+    assert(await page.waitForSelector('[data-testid=ai-summary][open] .md:has-text("SUMMARY-1")', { timeout: 5000 }).then(() => true, () => false), 'the summary written by the model shown in the card')
     await ask(page, 'Again', 'Answer of fake-other.')
     const r3 = requests[requests.length - 1]
     const kept = r3.messages.filter((m) => m.role === 'assistant')
