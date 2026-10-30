@@ -76,6 +76,11 @@ run(
     assert(await visible(page, '[data-testid=phone-overlays] .rail-left .rail-btn'), 'the left rail on the left edge')
     assert(await visible(page, '[data-testid=phone-overlays] .rail-right .rail-btn'), 'the right rail on the right edge')
     assert(await visible(page, '[data-testid=phone-overlays] [data-testid=desks]'), 'the desks in the floating bar below')
+    const scrim = await page.$eval('[data-testid=phone-scrim]', (e) => {
+      const s = getComputedStyle(e)
+      return { filter: s.backdropFilter || s.webkitBackdropFilter, events: s.pointerEvents }
+    })
+    assert(scrim.filter.includes('grayscale') && scrim.events === 'none', 'the view under the mode is dimmed and grey, a tap still reaches it: ' + JSON.stringify(scrim))
     const mode = await page.$eval('[data-testid=phone-bar]', (e) => ({
         pressed: e.querySelector('[data-testid=menus-toggle]').getAttribute('aria-pressed'),
         gridTitle: e.querySelector('[data-testid=menus-toggle]').title,

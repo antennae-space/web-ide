@@ -758,6 +758,9 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
    and closes the mode. */
 .phone-overlays { position: absolute; inset: 0; z-index: 40; pointer-events: none; }
 .phone-overlays > * { pointer-events: auto; }
+/* The view under the mode, dimmed and in grey: the overlays read as a layer above it, not as a
+   broken layout. The scrim takes no touch either, so a tap on the view still closes the mode. */
+.phone-overlays > .phone-scrim { position: absolute; inset: 0; pointer-events: none; background: rgb(0 0 0 / 0.35); backdrop-filter: grayscale(1) brightness(0.75); }
 /* No margin-left: the row takes the whole width of the view, from edge to edge. */
 .phone-overlays .menus { position: absolute; top: 0; left: 0; right: 0; height: var(--phone-menus-h); margin-left: 0; padding: 0 4px; display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; background: var(--bg-2); border-bottom: 1px solid var(--line); box-shadow: 0 4px 14px rgb(0 0 0 / 0.3); }
 .phone-overlays .menus::-webkit-scrollbar { display: none; }
