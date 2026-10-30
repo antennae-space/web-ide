@@ -179,6 +179,15 @@ export interface SandboxAPI {
   closeView(): void
   /** Shows one of its tools. */
   showTool(id: string): void
+  /**
+   * Its state in the desk shown (choices, folders expanded…), saved with the desk: each desk keeps
+   * its own, a reload or another machine finds it. null while it set none.
+   */
+  readonly desk: unknown
+  /** Replaces its state in the desk (plain JSON, 64 KB at most). */
+  setDesk(state: unknown): void
+  /** Its state in the desk changed from elsewhere: another desk shown, another window on the same desk. */
+  onDesk(f: (state: unknown) => void): void
 }
 
 /** The project of the window, as a frame knows it, and the address of the IDE (origin: a frame's own is opaque). */
@@ -219,10 +228,11 @@ export type FrameCall =
   | { call: 'closeView' }
   | { call: 'showTool'; id: string }
   | { call: 'closeModal'; result?: unknown }
+  | { call: 'setDesk'; state: unknown }
 
 /** What the page sends the frame. */
 export type PageMessage =
-  | { init: { view: SandboxView; lang: string; catalog: Record<string, string>; theme: SandboxTheme; editor?: SandboxEditorState; settings?: Record<string, unknown>; modal?: boolean; project?: SandboxProject } }
+  | { init: { view: SandboxView; lang: string; catalog: Record<string, string>; theme: SandboxTheme; editor?: SandboxEditorState; settings?: Record<string, unknown>; modal?: boolean; project?: SandboxProject; desk?: unknown } }
   | { project: SandboxProject }
   | { reply: number; result?: unknown; error?: string; code?: string; data?: Record<string, string> }
   | { theme: SandboxTheme }
@@ -238,3 +248,4 @@ export type PageMessage =
   | { serviceEvent: { capability: string; event: string; data: unknown } }
   | { status: { item: string; choice: string } }
   | { toolMenu: { item: string } }
+  | { desk: { state: unknown } }

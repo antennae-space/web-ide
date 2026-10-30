@@ -1001,5 +1001,6 @@
   "Read the saved commands and open their editor": "Lire les commandes enregistrées et ouvrir leur éditeur",
   "{name} is not a worktree of this project": "{name} n’est pas un worktree de ce projet",
   "menu|Run": "Exécuter",
-  "A debug session stopped (a breakpoint, a step)": "Une session de débogage s'est arrêtée (un point d'arrêt, un pas)"
+  "A debug session stopped (a breakpoint, a step)": "Une session de débogage s'est arrêtée (un point d'arrêt, un pas)",
+  "{name} keeps too much in the desk": "{name} garde trop de choses dans le bureau"
 }

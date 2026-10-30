@@ -2,8 +2,9 @@
 // run in an <iframe sandbox="allow-scripts"> (an opaque origin) whose CSP forbids the network;
 // one MessageChannel per frame carries what they may ask. The page is the boundary: a method of
 // the core needs its grant, an event must be of the plugin's namespace.
+import { createEffect, createRoot } from 'solid-js'
 import { on, request } from '../pod/rpc'
-import { closeTab, home, isLocal, leaves, openFile, openTab, mutate, project, root, showWorktree, type TabState } from '../state/project'
+import { closeTab, home, isLocal, leaves, openFile, openTab, mutate, project, root, session, showWorktree, type TabState } from '../state/project'
 import { showTool } from '../state/zones'
 import { toast } from '../ui/toast'
 import { confirmModal, pick, prompt } from '../ui/overlay'
@@ -21,7 +22,7 @@ export const frameCSP = "default-src 'none'; script-src 'unsafe-inline'; style-s
 
 /**
  * The bootstrap run in the frame before the plugin's module: `ide`, the API the module calls
- * (register, rpc, on, openFile, openView, setViewState, t, tn, toast, theme, editor, settings, use, publish, emit), over the port the
+ * (register, rpc, on, openFile, openView, setViewState, t, tn, toast, theme, editor, settings, desk, use, publish, emit), over the port the
  * page sends once. Plain ES2020, no import.
  */
 export const bootstrap = `(() => {
@@ -33,7 +34,7 @@ export const bootstrap = `(() => {
   // The editor of the tab: its state pushed by the page, and the listeners of the view.
   let ed = null
   const edFns = { change: [], selection: [], keys: {} }
-  const settingsFns = [], statusFns = [], toolMenuFns = []
+  const settingsFns = [], statusFns = [], toolMenuFns = [], deskFns = []
   let next = 1
   // What the module sends before the page gives the channel (a call at load) waits for it.
   const queue = []
@@ -97,6 +98,9 @@ export const bootstrap = `(() => {
     get modal() { return !!(info && info.modal) },
     get settings() { return (info && info.settings) || {} },
     onSettings: (f) => settingsFns.push(f),
+    get desk() { return info && info.desk !== undefined ? info.desk : null },
+    setDesk(state) { const v = plain(state); if (info) info.desk = v; send({ call: 'setDesk', state: v }) },
+    onDesk: (f) => deskFns.push(f),
     get editor() {
       if (!ed) return null
       return {
@@ -144,6 +148,7 @@ export const bootstrap = `(() => {
     if (m.status) statusFns.forEach((f) => f(m.status))
     if (m.toolMenu) toolMenuFns.forEach((f) => f(m.toolMenu))
     if (m.project && info) info.project = m.project
+    if (m.desk && info) { info.desk = m.desk.state; deskFns.forEach((f) => f(m.desk.state)) }
     // A method of a capability it provides, asked by the page for another plugin.
     if (m.serviceRequest) {
       const id = m.serviceRequest, f = services[m.capability] && services[m.capability][m.method]
@@ -285,6 +290,8 @@ export function projectInfo(): SandboxProject | undefined {
 
 /** The largest text of an editor pushed to a frame. */
 const maxEditorText = 1 << 20
+/** The largest state a frame keeps in the desk (JSON). */
+const maxDeskState = 64 << 10
 
 /**
  * Serves a frame: sends it its port once loaded, then answers what it asks within its grants.
@@ -306,6 +313,19 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   const asked = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>()
   let nextAsk = 1
   const catalog = () => host.catalogs[lang()] ?? {}
+  // Its state in the desk, as JSON: what the frame has, so that only a change from elsewhere (a
+  // desk switched, another window) is pushed to it.
+  const deskJSON = () => JSON.stringify(session.plugins?.[host.plugin] ?? null)
+  let lastDesk = deskJSON()
+  const disposeDesk = createRoot((dispose) => {
+    createEffect(() => {
+      const json = deskJSON()
+      if (json === lastDesk) return
+      lastDesk = json
+      send({ desk: { state: JSON.parse(json) } })
+    })
+    return dispose
+  })
   const handle = (port: MessagePort) => (e: MessageEvent) => {
     const reply = (id: number, r: { result?: unknown; error?: string; code?: string; data?: Record<string, string> }) => port.postMessage({ reply: id, ...r } satisfies PageMessage)
     // Typed as the API says, checked as untrusted: the frame may send anything.
@@ -341,6 +361,22 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         if (typeof m.view === 'string')
           openTab({ kind: `plugin:${host.plugin}/${m.view}`, title: typeof m.title === 'string' ? m.title : undefined, state: m.state, key: typeof m.key === 'string' ? m.key.slice(0, 200) : undefined } as Omit<TabState, 'id'>)
         return
+      case 'setDesk': {
+        // Plain JSON of a bounded size: it is saved with the desk.
+        let json: string
+        try {
+          json = JSON.stringify(m.state ?? null)
+        } catch {
+          return
+        }
+        if (json.length > maxDeskState) return void toast(t('{name} keeps too much in the desk', { name: host.name }), 'warn')
+        lastDesk = json
+        mutate((s) => {
+          s.plugins ??= {}
+          s.plugins[host.plugin] = JSON.parse(json)
+        })
+        return
+      }
       case 'setViewState': {
         const tab = host.tab
         if (tab)
@@ -566,7 +602,8 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     // The state of the tab is a proxy of the store: a plain copy crosses the channel.
     const st = host.tab ? host.tab.state : host.state
     const state = st === undefined ? undefined : JSON.parse(JSON.stringify(st))
-    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme(), editor: editorState(), settings: host.settings?.(), modal: !!host.closeModal, project: projectInfo() } })
+    lastDesk = deskJSON()
+    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme(), editor: editorState(), settings: host.settings?.(), modal: !!host.closeModal, project: projectInfo(), desk: JSON.parse(lastDesk) } })
   }
   frame.addEventListener('load', start)
   // The theme and the language follow the page.
@@ -602,6 +639,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
       asked.forEach((a) => a.reject(new Error(t('{name} is not ready', { name: host.name }))))
       asked.clear()
       frame.removeEventListener('load', start)
+      disposeDesk()
       observer.disconnect()
       resized.disconnect()
       unsubscribe()
