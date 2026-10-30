@@ -32,7 +32,13 @@ ide.register({
       try { void parent.document.title; out.parent = 'open' } catch { out.parent = 'blocked' }
       try { await ide.rpc('fs.list', { path: '' }); out.rpc = 'answered' } catch (e) { out.rpc = 'refused: ' + e.message }
       el.innerHTML = '<p id="hello">' + ide.t('Hello from the frame') + '</p><pre id="checks">' + JSON.stringify(out) + '</pre><button id="open">open</button><button id="view">view</button>'
-      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><button id="targets">targets</button><button id="settings">settings</button><button id="console">console</button><button id="docker">docker</button><button id="terminal">terminal</button><button id="size">size</button><button id="confirm">confirm</button><button id="prompt">prompt</button><button id="pick">pick</button><button id="later">later</button><button id="modal">modal</button><pre id="answer"></pre><pre id="event"></pre><pre id="menu-choice"></pre>'
+      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><button id="targets">targets</button><button id="settings">settings</button><button id="console">console</button><button id="docker">docker</button><button id="terminal">terminal</button><button id="size">size</button><button id="confirm">confirm</button><button id="prompt">prompt</button><button id="pick">pick</button><button id="later">later</button><button id="modal">modal</button><pre id="answer"></pre><pre id="event"></pre><pre id="menu-choice"></pre><button id="bump">bump</button><pre id="desk"></pre>'
+      // A count kept in the desk (#200): each desk its own, followed when another desk is shown.
+      const count = () => ((ide.desk && ide.desk.n) || 0)
+      const showDesk = () => (el.querySelector('#desk').textContent = 'n=' + count())
+      showDesk()
+      ide.onDesk(showDesk)
+      el.querySelector('#bump').onclick = () => (ide.setDesk({ n: count() + 1 }), showDesk())
       // The items this frame adds to the ⋮ menu of its tool (#175), and the choice it gets back.
       ide.setToolMenu([{ id: 'louder', label: ide.t('Greet from the menu'), hint: 'Ctrl+G' }, { id: 'quiet', label: ide.t('Quietly'), checked: true }])
       ide.onToolMenu((e) => (el.querySelector('#menu-choice').textContent = e.item))
@@ -228,6 +234,25 @@ run(async ({ page, errors }) => {
   await frame(page, 'note').locator('#note:has-text("kept")').waitFor()
   await page.reload()
   await frame(page, 'note').locator('#note:has-text("kept")').waitFor()
+
+  // Its state in the desk: kept by desk, back when the desk is shown again, after a reload too.
+  await showGreet()
+  await frame(page, 'greet').locator('#bump').click()
+  await frame(page, 'greet').locator('#bump').click()
+  await frame(page, 'greet').locator('#desk:text-is("n=2")').waitFor()
+  await page.click('[data-testid=desk-add]')
+  await page.waitForFunction(() => location.pathname.endsWith('/desk/2'))
+  await showGreet()
+  await frame(page, 'greet').locator('#desk:text-is("n=0")').waitFor()
+  await page.click('[data-testid=desk-1]')
+  await page.waitForFunction(() => !location.pathname.includes('/desk/'))
+  await showGreet()
+  await frame(page, 'greet').locator('#desk:text-is("n=2")').waitFor()
+  await page.waitForTimeout(600)
+  await page.reload()
+  await showGreet()
+  await frame(page, 'greet').locator('#desk:text-is("n=2")').waitFor()
+  assert(true, 'the state of an external plugin in the desk: its own per desk, kept after a reload')
 
   // The shortcuts of the IDE from the frame: Search Everywhere, then its command.
   await showGreet()

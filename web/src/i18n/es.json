@@ -1003,5 +1003,6 @@
   "menu|Run": "Ejecutar",
   "A debug session stopped (a breakpoint, a step)": "Una sesión de depuración se detuvo (un punto de interrupción, un paso)",
   "These end with it:": "Esto termina con él:",
-  "Remove and end them": "Eliminar y terminarlos"
+  "Remove and end them": "Eliminar y terminarlos",
+  "{name} keeps too much in the desk": "{name} guarda demasiado en el escritorio"
 }

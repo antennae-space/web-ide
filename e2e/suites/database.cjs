@@ -45,6 +45,29 @@ run(async ({ page }) => {
   assert(true, 'the migrated connection, its tables, columns and indexes')
   assert(fs.existsSync(path.join(DATA, 'plugin-data', 'database', 'connections', `${demo.id}.json`)), 'its connections in its data folder')
 
+  // The tree is kept in the desk (#200): a new desk shows it folded, desk 1 finds it as it was
+  // left, after a reload too.
+  const showTool = async () => {
+    const shown = await page.waitForSelector('iframe.plugin-frame[data-view=database]', { state: 'visible', timeout: 3000 }).then(() => true, () => false)
+    if (!shown) await page.click('.rail-btn[data-id=database]')
+    await frame(page, 'database').locator('.conn-row:has-text("Legacy")').waitFor()
+  }
+  await page.waitForTimeout(600)
+  await page.click('[data-testid=desk-add]')
+  await page.waitForFunction(() => location.pathname.endsWith('/desk/2'))
+  await showTool()
+  await page.waitForTimeout(500)
+  assert(!(await frame(page, 'database').locator('.tree-row:has-text("users_email")').count()), 'a new desk shows the tree folded')
+  await page.click('[data-testid=desk-1]')
+  await page.waitForFunction(() => !location.pathname.includes('/desk/'))
+  await showTool()
+  await frame(page, 'database').locator('.tree-row:has-text("users_email")').waitFor()
+  await page.reload()
+  await page.waitForSelector('.rail-btn[data-id=database]')
+  await showTool()
+  await frame(page, 'database').locator('.tree-row:has-text("users_email")').waitFor()
+  assert(true, 'desk 1 finds its tree as it was left, after a reload too')
+
   // The connections in a modal of the IDE (#154), centered, titled with the plugin.
   await tool.locator('button[title="Edit the connections"]').click()
   await page.waitForSelector('.modal-plugin iframe.plugin-frame[data-view=connections]')
