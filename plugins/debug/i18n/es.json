@@ -57,5 +57,7 @@
   "No configuration yet: start from a template": "Ninguna configuración: partir de una plantilla",
   "Starting": "Iniciando",
   "Paused": "En pausa",
-  "Ended": "Terminada"
+  "Ended": "Terminada",
+  "The debugger could not set this breakpoint: {reason}": "El depurador no pudo poner este punto de interrupción: {reason}",
+  "no code at this line in the program": "no hay código en esta línea del programa"
 }

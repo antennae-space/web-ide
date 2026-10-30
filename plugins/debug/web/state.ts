@@ -6,6 +6,7 @@
 import { batch } from 'solid-js'
 import { createStore, produce } from 'solid-js/store'
 import { api, errorToast, relOf, t } from './plugin'
+import { onEnd } from './focus'
 
 export interface Session {
   id: string
@@ -83,10 +84,15 @@ const ensureView = (id: string) => {
   if (!debug.views[id]) setDebug('views', id, emptyView())
 }
 
+/** The sessions the pod said ended: an answer of start arriving after the end does not bring one back. */
+const ended = new Set<string>()
+
 /** Puts a session in the list, or ends it there. */
 export function upsertSession(s: Session) {
+  if (s.state !== 'ended' && ended.has(s.id)) return
   batch(() => {
     if (s.state === 'ended') {
+      ended.add(s.id)
       setDebug('sessions', (l) => l.filter((x) => x.id !== s.id))
       if (debug.selected === s.id) setDebug('selected', debug.sessions[debug.sessions.length - 1]?.id)
       setDebug('views', produce((v) => void delete v[s.id]))
@@ -219,7 +225,12 @@ export async function act(method: 'continue' | 'next' | 'stepIn' | 'stepOut' | '
       setDebug('selected', r.id)
     }
   } catch (e) {
-    errorToast(e)
+    // The pod no longer has it (it ended while the window missed it): the tab goes.
+    const gone = !(await api.rpc<Session[]>('sessions').catch(() => [] as Session[])).some((x) => x.id === s.id)
+    if (gone) {
+      upsertSession({ ...s, state: 'ended' })
+      onEnd()
+    } else errorToast(e)
   }
 }
 

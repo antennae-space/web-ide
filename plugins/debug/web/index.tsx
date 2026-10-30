@@ -6,7 +6,7 @@ import { createEffect, createRoot, on } from 'solid-js'
 import type { PluginModule } from '@ide/types'
 import { bindApi, relOf } from './plugin'
 import { act, addOutput, debug, loadStop, refreshSessions, setDebug, upsertSession, type Session } from './state'
-import { decorations, refreshBreakpoints, setBreakpoints, toggleBreakpoint, watchSaves, type Breakpoint } from './gutter'
+import { decorations, refreshBreakpoints, setBreakpoints, setFileVerified, toggleBreakpoint, watchSaves, type Breakpoint } from './gutter'
 import { onEnd, onStop, watchVisibility } from './focus'
 import { DebugTool, debugCorner } from './DebugTool'
 import { editConfigurations, runDebug } from './run'
@@ -21,6 +21,13 @@ export const debug_: PluginModule = {
       if (!shown(from)) return
       upsertSession(s)
       if (s.state === 'ended') onEnd()
+    })
+    // An adapter that sets a breakpoint later (a package loaded) tells which.
+    api.on('debug.breakpoint', (e: { body: { breakpoint?: { verified?: boolean; line?: number; message?: string; source?: { path?: string } } } }, from) => {
+      const b = e.body?.breakpoint
+      if (!shown(from) || !b?.source?.path || !b.line) return
+      const file = relOf(b.source.path)
+      if (file) setFileVerified(file, [{ line: b.line, verified: !!b.verified, message: b.message }], true)
     })
     api.on('debug.stopped', (e: { session: string; thread: number; file: string; line: number }, from) => {
       if (!shown(from)) return
@@ -39,6 +46,7 @@ export const debug_: PluginModule = {
       const s = debug.sessions.find((x) => x.id === e.session)
       if (s?.state === 'stopped') void loadStop(s.id, s.thread)
     })
+    api.on('debug.verified', (e: { file: string; breakpoints: { line: number; verified: boolean; message?: string }[] }, from) => shown(from) && setFileVerified(e.file, e.breakpoints))
     api.on('debug.breakpoints', (e: { file: string; breakpoints: Breakpoint[] }, from) => shown(from) && setBreakpoints(e.file, e.breakpoints.length ? e.breakpoints : undefined!))
     watchSaves()
     watchVisibility()

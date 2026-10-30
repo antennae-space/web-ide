@@ -309,7 +309,26 @@ func (m *Manager) sendBreakpointsFor(s *Session, file string, list []Breakpoint)
 		Breakpoints []map[string]any `json:"breakpoints"`
 	}
 	_ = json.Unmarshal(body, &res)
+	m.rt.Emit("debug.verified", map[string]any{"session": s.ID, "file": file, "breakpoints": verified(enabled, res.Breakpoints)})
 	return res.Breakpoints, nil
+}
+
+// verified pairs the breakpoints sent with the answer of the adapter (in the same order): which
+// ones it set, and why not the others (a line with no code, a file not in the program).
+func verified(sent []Breakpoint, got []map[string]any) []map[string]any {
+	out := make([]map[string]any, 0, len(sent))
+	for i, b := range sent {
+		v := map[string]any{"line": b.Line, "verified": false}
+		if i < len(got) {
+			ok, _ := got[i]["verified"].(bool)
+			v["verified"] = ok
+			if msg, _ := got[i]["message"].(string); msg != "" {
+				v["message"] = msg
+			}
+		}
+		out = append(out, v)
+	}
+	return out
 }
 
 // dapBreakpoints are the breakpoints as DAP takes them.

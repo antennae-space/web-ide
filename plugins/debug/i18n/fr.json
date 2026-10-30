@@ -57,5 +57,7 @@
   "No configuration yet: start from a template": "Aucune configuration : partir d'un modèle",
   "Starting": "Démarrage",
   "Paused": "En pause",
-  "Ended": "Terminée"
+  "Ended": "Terminée",
+  "The debugger could not set this breakpoint: {reason}": "Le débogueur n'a pas pu poser ce point d'arrêt : {reason}",
+  "no code at this line in the program": "aucun code à cette ligne dans le programme"
 }

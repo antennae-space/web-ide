@@ -149,3 +149,15 @@ func TestFillPort(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 }
+
+// The answer of the adapter to setBreakpoints, paired with the breakpoints sent.
+func TestVerified(t *testing.T) {
+	got := verified([]Breakpoint{{Line: 4, Enabled: true}, {Line: 9, Enabled: true}, {Line: 12, Enabled: true}},
+		[]map[string]any{{"verified": true, "line": float64(4)}, {"verified": false, "message": "could not find file"}})
+	if len(got) != 3 || got[0]["verified"] != true || got[1]["verified"] != false || got[1]["message"] != "could not find file" {
+		t.Fatalf("verified: %+v", got)
+	}
+	if got[2]["line"] != 12 || got[2]["verified"] != false {
+		t.Fatalf("a breakpoint the adapter did not answer is not set: %+v", got[2])
+	}
+}

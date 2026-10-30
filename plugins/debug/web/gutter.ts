@@ -19,6 +19,21 @@ export interface Breakpoint {
 
 /** The breakpoints of the worktree shown, by file relative to it. */
 export const [breakpoints, setBreakpoints] = createStore<Record<string, Breakpoint[]>>({})
+/**
+ * What the adapter of the latest session answered for each breakpoint, by file then line: a
+ * breakpoint it could not set (a line with no code, a file not in the program) is crossed out,
+ * with its reason in its title.
+ */
+export const [verified, setVerified] = createStore<Record<string, Record<number, { ok: boolean; message?: string }>>>({})
+
+/** Keeps the answer of the adapter for a file's breakpoints (merge: for some of them only). */
+export function setFileVerified(file: string, list: { line: number; verified: boolean; message?: string }[], merge = false) {
+  const rel = relOf(file) ?? file
+  const byLine: Record<number, { ok: boolean; message?: string }> = merge ? { ...verified[rel] } : {}
+  for (const b of list) byLine[b.line] = { ok: b.verified, message: b.message }
+  setVerified(rel, byLine)
+}
+
 /** Lines moved by an edit and not saved yet, by file: sent to the pod when the file is saved. */
 const pending = new Set<string>()
 
@@ -94,12 +109,20 @@ export const decorations: EditorDecorations = {
   gutter: (path) => {
     const file = relOf(path)
     if (!file || (!debuggable(path) && !breakpoints[file])) return undefined
-    const marks = (breakpoints[file] ?? []).map((b) => ({
-      id: `bp${b.line}`,
-      line: b.line - 1,
-      class: b.enabled ? 'dbg-bp' : 'dbg-bp dbg-bp-off',
-      title: b.condition ? t('Breakpoint: {condition}', { condition: b.condition }) : t('Line breakpoint'),
-    }))
+    const marks = (breakpoints[file] ?? []).map((b) => {
+      const v = verified[file]?.[b.line]
+      const bad = b.enabled && v && !v.ok
+      return {
+        id: `bp${b.line}`,
+        line: b.line - 1,
+        class: !b.enabled ? 'dbg-bp dbg-bp-off' : bad ? 'dbg-bp dbg-bp-bad' : 'dbg-bp',
+        title: bad
+          ? t('The debugger could not set this breakpoint: {reason}', { reason: v.message || t('no code at this line in the program') })
+          : b.condition
+            ? t('Breakpoint: {condition}', { condition: b.condition })
+            : t('Line breakpoint'),
+      }
+    })
     const s = debug.sessions.find((x) => x.id === debug.selected)
     const top = s && viewOf(s.id)?.frames[0]
     const execFile = top?.source?.path ?? s?.file

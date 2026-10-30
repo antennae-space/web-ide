@@ -4,6 +4,8 @@
 .dbg-bp { display: grid; place-items: center; }
 .dbg-bp::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
 .dbg-bp-off::before { background: transparent; border: 1.5px solid var(--danger); }
+.dbg-bp-bad::before { background: color-mix(in srgb, var(--danger) 35%, transparent); }
+.dbg-bp-bad::after { content: ''; position: absolute; width: 12px; height: 1.5px; background: var(--fg); transform: rotate(-45deg); }
 .dbg-exec { display: grid; place-items: center; z-index: 1; }
 .dbg-exec::after { content: ''; width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 11px solid var(--info); filter: drop-shadow(0 0 1px var(--bg)); }
 .dbg-exec-line { background: color-mix(in srgb, var(--info) 22%, transparent); }

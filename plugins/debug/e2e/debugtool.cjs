@@ -35,6 +35,7 @@ func main() {
 }
 `
 const BREAK_LINE = 12 // greeting := …, p is set
+const NO_CODE_LINE = 2 // a blank line
 const FILE = 'debug/dbgmain.go'
 
 run(async ({ page }) => {
@@ -66,6 +67,10 @@ run(async ({ page }) => {
   const readBps = () => (fs.existsSync(bpFile) ? JSON.parse(fs.readFileSync(bpFile, 'utf8')).files[FILE] ?? [] : [])
   for (let i = 0; i < 20 && !readBps().length; i++) await page.waitForTimeout(100)
   assert(readBps()[0]?.line === BREAK_LINE, 'a click in the gutter sets a breakpoint, saved in .ide/breakpoints.json: ' + JSON.stringify(readBps()))
+
+  // A breakpoint on a line with no code: the adapter will not set it.
+  await page.mouse.click(g.x, g.top + (NO_CODE_LINE - 1) * g.lh + g.lh / 2)
+  await page.waitForSelector(`.pane.active .ed-deco[data-deco="debug:bp${NO_CODE_LINE}"]`)
 
   // Run › Debug… with no configuration: the templates of the pack.
   await page.click('.menubar .menu-btn:has-text("Run")')
@@ -100,6 +105,14 @@ run(async ({ page }) => {
   assert((await execAt()) === BREAK_LINE, `the execution line is highlighted at ${BREAK_LINE}: ${await execAt()}`)
   assert((await page.textContent('.pane.active .tab.active')).includes('dbgmain.go'), 'the editor shows the file of the stop')
   await page.screenshot({ path: OUT + '/debugtool-stopped.png' })
+
+  // The breakpoint the adapter could not set is crossed out, with its reason; then taken back.
+  const bad = await page.$(`.pane.active .ed-deco.dbg-bp-bad[data-deco="debug:bp${NO_CODE_LINE}"]`)
+  assert(!!bad && /could not set/.test((await bad.getAttribute('title')) || ''), 'a breakpoint the debugger could not set is crossed out: ' + (bad && (await bad.getAttribute('title'))))
+  assert(!(await page.$(`.pane.active .ed-deco.dbg-bp-bad[data-deco="debug:bp${BREAK_LINE}"]`)), 'the breakpoint it set is not')
+  const g2 = await lines()
+  await page.mouse.click(g2.x, g2.top + (NO_CODE_LINE - 1) * g2.lh + g2.lh / 2)
+  await page.waitForSelector(`.pane.active .ed-deco[data-deco="debug:bp${NO_CODE_LINE}"]`, { state: 'detached' })
 
   // The frames: the top one is greet; a click on main opens its line in another tint.
   const frames = await page.$$eval('[data-testid="debug-frame"]', (l) => l.map((e) => e.textContent))
