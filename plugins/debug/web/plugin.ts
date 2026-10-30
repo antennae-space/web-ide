@@ -12,6 +12,7 @@ export function bindApi(a: PluginApi) {
 export const t: PluginApi['t'] = (...a) => api.t(...a)
 export const Icon = (p: Parameters<PluginApi['ui']['Icon']>[0]): JSX.Element => api.ui.Icon(p)
 export const EmptyState = (p: Parameters<PluginApi['ui']['EmptyState']>[0]): JSX.Element => api.ui.EmptyState(p)
+export const WorktreeChip = (p: Parameters<PluginApi['ui']['WorktreeChip']>[0]): JSX.Element => api.ui.WorktreeChip(p)
 export const toast: PluginApi['ui']['toast'] = (...a) => api.ui.toast(...a)
 export const errorToast: PluginApi['ui']['errorToast'] = (...a) => api.ui.errorToast(...a)
 

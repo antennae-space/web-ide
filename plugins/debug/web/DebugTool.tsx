@@ -1,7 +1,7 @@
 // The Debug tool (docs/design/debug.md#the-debug-tool): one tab per session, then its two views,
 // Threads & Variables and Console. Its run buttons are in the corner of its zone (toolCorner).
 import { For, Show, type JSX } from 'solid-js'
-import { EmptyState, Icon, t } from './plugin'
+import { api, EmptyState, Icon, t, WorktreeChip } from './plugin'
 import { act, debug, setDebug, stateLabel, current, type Session } from './state'
 import { ThreadsAndVariables } from './frames'
 import { DebugConsole } from './console'
@@ -21,6 +21,8 @@ export function DebugTool() {
               <div class="tab" role="tab" data-testid="debug-session-tab" aria-selected={x.id === debug.selected} classList={{ active: x.id === debug.selected }} title={stateLabel(x)} onClick={() => setDebug('selected', x.id)}>
                 <span class={`dbg-state dbg-state-${x.state}`} />
                 <span class="tab-title">{x.name}</span>
+                {/* The sessions are the worktree's shown: its chip, as on the consoles. */}
+                <WorktreeChip project={api.project.current()} />
                 <button class="tab-close" title={t('Stop')} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => (e.stopPropagation(), setDebug('selected', x.id), void act('stop'))}>
                   <span class="x">✕</span>
                 </button>
