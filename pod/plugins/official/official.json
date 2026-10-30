@@ -3,10 +3,10 @@
     "id": "database",
     "url": "https://github.com/antennae-space/plugin-database",
     "constraint": "^1",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "sha256": {
-      "linux-amd64": "e2a2cd2fc9041aa980df950c03fbcc32324d1bf55674c04cc05cbe8f5439952c",
-      "linux-arm64": "9dbfc34d65402a73dd6a4c2925b75fba2f8bee2cce29fc06dbc3815e2c1ab354"
+      "linux-amd64": "869e65601c91fc5c33050b75f75d5f06ad6c17113e4f66963f533f5cb587f7a9",
+      "linux-arm64": "4c48d944dfc023f9f444feb7b0a69fe32fb8ca1ed03b792afa30f3f336e3b80d"
     }
   },
   {
