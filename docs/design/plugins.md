@@ -345,7 +345,7 @@ Done in #142:
 
 ### Language packs
 
-A **language pack** is an external plugin that contributes to the language host instead of a tool: per language, its grammar (data, as `web/src/editor/grammars/index.ts` already is), its language servers (the command, the languages, the settings: one `Spec` of today), its test patterns, later its debug adapter and its **project templates**. The host starts the servers of a pack **as the pack's confined backend**, never as its own process: a server declared by a pack gets the grants of the pack, not the trust of the host.
+A **language pack** is an external plugin that contributes to the language host instead of a tool: per language, its grammar (data, as `web/src/editor/grammars/index.ts` already is), its language servers (the command, the languages, the settings: one `Spec` of today), its test patterns, its debug adapter (below), later its **project templates**. The host starts the servers of a pack **as the pack's confined backend**, never as its own process: a server declared by a pack gets the grants of the pack, not the trust of the host.
 
 What a server needs outside the project (the Go module cache, the toolchain, a cache of its own) is a **path grant**, decided on 2026-10-24: the pack names a folder and its candidates, the pod resolves it on the host to the first that exists, the grant shows the real path. A folder covers what it holds (Landlock grants a hierarchy), so there is no pattern; read only unless the grant says write; a path covering the whole home, `~/.web-ide` or `~/.ssh` is always refused. The server's program is named by the pack, found by the pod on the host's `PATH`, and granted to read and run that file only.
 
