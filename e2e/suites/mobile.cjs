@@ -80,7 +80,7 @@ run(
       const s = getComputedStyle(e)
       return { filter: s.backdropFilter || s.webkitBackdropFilter, events: s.pointerEvents }
     })
-    assert(scrim.filter.includes('grayscale') && scrim.events === 'none', 'the view under the mode is dimmed and grey, a tap still reaches it: ' + JSON.stringify(scrim))
+    assert(scrim.filter.includes('grayscale') && scrim.events !== 'none', 'the view under the mode is dimmed and grey, under a scrim that takes the taps: ' + JSON.stringify(scrim))
     const mode = await page.$eval('[data-testid=phone-bar]', (e) => ({
         pressed: e.querySelector('[data-testid=menus-toggle]').getAttribute('aria-pressed'),
         gridTitle: e.querySelector('[data-testid=menus-toggle]').title,
@@ -141,12 +141,18 @@ run(
     await page.tap('[data-testid=menus-toggle]')
     await page.waitForSelector('[data-testid=phone-overlays]', { state: 'detached' })
     assert(true, 'a second tap on the grid button closes the mode')
-    // A tap on the view, between the overlays, closes the mode.
+    // A tap on the scrim, between the overlays, closes the mode; the view under it gets nothing.
     await page.tap('[data-testid=menus-toggle]')
     await page.waitForSelector('[data-testid=phone-overlays]')
-    await page.tap('.phone-body > .center')
+    const at = await page.evaluate(() => {
+      const b = document.querySelector('.phone-body').getBoundingClientRect()
+      const x = b.left + b.width / 2, y = b.top + b.height / 2
+      return { x, y, hit: document.elementFromPoint(x, y)?.dataset?.testid }
+    })
+    assert(at.hit === 'phone-scrim', 'the middle of the view is under the scrim: ' + JSON.stringify(at))
+    await page.touchscreen.tap(at.x, at.y)
     await page.waitForSelector('[data-testid=phone-overlays]', { state: 'detached' })
-    assert(true, 'a tap outside the overlays closes the mode')
+    assert(true, 'a tap on the scrim closes the mode')
 
     // The menus open from the floating row and fit the screen.
     await openMode(page)

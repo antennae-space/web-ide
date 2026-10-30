@@ -450,7 +450,14 @@ function MenuBar() {
 function PhoneOverlays() {
   return (
     <div class="phone-overlays" data-testid="phone-overlays">
-      <div class="phone-scrim" data-testid="phone-scrim" />
+      <div
+        class="phone-scrim"
+        data-testid="phone-scrim"
+        onPointerDown={(e) => {
+          e.preventDefault()
+          setMenusShown(false)
+        }}
+      />
       <nav class="menus">{menuButtons()}</nav>
       <Rail side="left" />
       <Rail side="right" />
