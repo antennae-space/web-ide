@@ -128,6 +128,7 @@ Exec (#116) is the first plugin the rest of the IDE *uses*: a dozen parts of the
 - **Explorer contributions**: `explorerItems(entry)` (Exec: *Open a terminal here*) and `fileDecorations` (`ignored(paths)`, `decorate(path, dir)`: Git's colors and status letters, `state(path, dir)` deprecated since #179); the Explorer asks no other plugin. The **files** service: `reveal`, `createIn`.
 - `api.buffers` (`load`, `error`, `save`, `cursor`, `saveCursor`, `target`), `api.conflicts.open`, `api.keys.actionOf` / `run`, `api.folders` (the marks of the folders), `api.explorer`, `api.recentFiles`, `api.activePath`, `api.project.name`. The folders expanded and the options of the Explorer moved to the desk state of Files (migrated).
 - `api.desk().set` changes the state in place, created once from a copy of the defaults: an array pushed (the folders expanded) is seen, and the defaults are never shared.
+- `api.desks` (#198): the desk shown (`current`), the key of a desk (`key(n)`, what a console carries), `list`, `add`, `onRemove(f)` (what of the plugin ends with a desk removed: the items listed in the confirmation and the end; Exec gives its consoles) and `drag(f)` (something of the plugin dragged, taken by a desk number of the bar). The `terminal` capability adds `all` (the consoles of every desk; `consoles` is the desk shown), `move(id, n)` and `toDesk(n)`.
 
 ## What Kanban added to the API
 

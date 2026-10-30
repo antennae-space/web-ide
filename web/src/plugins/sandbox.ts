@@ -363,7 +363,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
           const until = Date.now() + 3000
           const tryShow = () => {
             const term = capability('terminal')
-            if (term?.consoles().some((c) => c.id === id)) term.show(id)
+            if (term?.all().some((c) => c.id === id)) term.show(id)
             else if (Date.now() < until) setTimeout(tryShow, 100)
           }
           tryShow()

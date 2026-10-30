@@ -5,13 +5,13 @@ import { createSignal, For, Show } from 'solid-js'
 import { podPath } from '../app/base'
 import { deskPath, navigate } from '../app/router'
 import { home, moveTabToDesk, switchDesk } from '../state/project'
-import { addDesk, desk, deskLabel, desks, removeDesk, renameDesk, type Desk } from '../state/desks'
+import { addDesk, desk, deskDrag, deskEnds, deskLabel, desks, removeDesk, renameDesk, setDeskDrag, type Desk } from '../state/desks'
 import { changeMode, tileMode, nextSplit, resizing, toggleSplit } from '../state/tiles'
 import { tileLauncher } from './tileLauncher'
 import { Icon } from './icons'
 import { draggedTab } from './EditorArea'
 import { shortcutOf } from '../keys/bindings'
-import { contextMenu, prompt } from './overlay'
+import { confirmModal, contextMenu, prompt } from './overlay'
 import { toast } from './toast'
 import { t } from '../i18n'
 
@@ -41,7 +41,14 @@ export function DeskSwitcher() {
       { label: t('Remove the desk'), disabled: d.n === 1, title: d.n === 1 ? t('Desk 1 stays') : undefined, danger: true, action: () => remove(d) },
     ])
   const remove = async (d: Desk) => {
-    if (!confirm(t('Remove the desk {name}? Its tabs close, the files stay open on the other desks.', { name: deskLabel(d) }))) return
+    // What runs on the desk (its consoles…) is listed: it ends with the desk.
+    const ends = deskEnds(d.n)
+    const text = t('Remove the desk {name}? Its tabs close, the files stay open on the other desks.', { name: deskLabel(d) })
+    const items = ends.flatMap((e) => e.items)
+    if (!items.length) {
+      if (!confirm(text)) return
+    } else if (!(await confirmModal({ title: t('Remove the desk'), text: `${text}\n\n${t('These end with it:')}\n${items.map((i) => `• ${i}`).join('\n')}`, ok: t('Remove and end them'), danger: true }))) return
+    await Promise.all(ends.map((e) => e.end().catch(() => {})))
     // Leave it first: its last changes must not write it back once removed.
     if (d.n === desk()) {
       await switchDesk(1)
@@ -58,10 +65,15 @@ export function DeskSwitcher() {
   }
   const drop = (e: DragEvent, n: number) => {
     const d = draggedTab()
+    const other = deskDrag()
     setOver(0)
-    if (!d || n === desk()) return
+    if ((!d && !other) || n === desk()) return
     e.preventDefault()
-    void moveTabToDesk(d.pane, d.tab, n).catch((err) => toast((err as Error).message, 'warn'))
+    if (other) {
+      setDeskDrag(null)
+      return other(n)
+    }
+    void moveTabToDesk(d!.pane, d!.tab, n).catch((err) => toast((err as Error).message, 'warn'))
   }
   return (
     <nav class="sb-desks" aria-label={t('Desks')} data-testid="desks">
@@ -77,7 +89,7 @@ export function DeskSwitcher() {
             onClick={(e) => go(e, d.n)}
             onContextMenu={(e) => menu(e, d)}
             onDragOver={(e) => {
-              if (!draggedTab() || d.n === desk()) return
+              if ((!draggedTab() && !deskDrag()) || d.n === desk()) return
               e.preventDefault()
               setOver(d.n)
             }}
