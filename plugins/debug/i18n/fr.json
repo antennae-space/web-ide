@@ -15,6 +15,5 @@
   "runInTerminal has no command": "runInTerminal n’a pas de commande",
   "an adapter starting a debug session comes with JavaScript (#191)": "un adaptateur qui lance une session de débogage arrive avec JavaScript (#191)",
   "the host does not answer %s": "l’hôte ne répond pas à %s",
-  "the adapter never listened on %s: %w": "l’adaptateur n’a jamais écouté sur %s : %w",
-  "%s has no adapter": "%s n’a pas d’adaptateur"
+  "the adapter never listened on %s: %w": "l’adaptateur n’a jamais écouté sur %s : %w"
 }

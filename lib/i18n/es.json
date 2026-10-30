@@ -252,6 +252,7 @@
   "%s is outside the project": "%s está fuera del proyecto",
   "%s is needed to install %s": "se necesita %s para instalar %s",
   "%s has no install recipe in %s": "%s no tiene receta de instalación en %s",
+  "%s has no adapter": "%s no tiene adaptador",
   "%s does not require %s": "%s no requiere %s",
   "nothing provides %s on this project": "nada proporciona %s en este proyecto",
   "%s is provided by %s, which an external plugin cannot call": "%s lo proporciona %s, al que un plugin externo no puede llamar",

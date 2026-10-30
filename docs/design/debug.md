@@ -1,6 +1,6 @@
 # Debug
 
-Debugging in the IDE, as close as it can be to PhpStorm: breakpoints (simple and conditional), the threads and the stack, the variables shown as a tree with their types, watches, a console that evaluates in the paused frame. One host for every language, fed by the language packs. Decided on 2026-10-29; no development yet.
+Debugging in the IDE, as close as it can be to PhpStorm: breakpoints (simple and conditional), the threads and the stack, the variables shown as a tree with their types, watches, a console that evaluates in the paused frame. One host for every language, fed by the language packs. Decided on 2026-10-29; the debug host and Go are done in #188, the Debug tool and the editor come with #189.
 
 ## Choices
 
@@ -25,6 +25,15 @@ A pack declares its adapters beside its servers: `contributes.debuggers: [{type,
 - `install` is a recipe, as a server's: the IDE installs the adapter into the pack's folder of tools.
 - **Not confined.** An adapter traces a process (ptrace), opens sockets and runs the user's program: the confinement of a pack's backend forbids all three. The **core** runs it, on the grant `debugger:<type>` (its program and folders shown as for a server), with the trust of a saved command run in a console: it is the user's program. An official pack gets the grant without asking, as for its servers.
 - **SSH project**: the adapter runs on the host of the project through its runner, as the servers do.
+
+Done in #188: the host (`plugins/debug`) and Go ([lang-go](https://github.com/antennae-space/lang-go) 1.2.0, `dlv dap`).
+
+- **The manifest** (`pod/plugins/manifest.go`): `contributes.debuggers`, checked as a server is — a bare program, the grant `debugger:<type>`, `request` of `launch | attach | listen`, `{port}` in `argv` only for `tcp`, a recipe of `install` shared with the servers.
+- **The core runs it** (`server/plugins_debuggers.go`): the program found in the pack's folder of tools then on the `PATH`, the pack's `env` and `pathDirs` applied, `sh -c '… exec "$0" "$@"'` (the user's own environment stays there: an adapter runs their program), the same through the runner on an SSH project. Not confined, never through `plugin-exec`.
+- **The client** (`plugins/debug/internal/dap`): the framing, the sequences, the requests with their context, the events, and the reverse requests — `runInTerminal` opens a console of the Console tool. `stdio` pipes the adapter; `tcp` picks a free port, puts it in `{port}` and dials until the adapter answers.
+- **The sessions** are a part of the runtime (`rt.Part("debug")`): one worktree, one set of sessions, stopped with the project, kept while it is open. A start is `initialize` → `launch` / `attach` → `initialized` → the breakpoints of the file → `configurationDone`.
+- **The methods** `debug.*` and the **events** `debug.session`, `debug.stopped`, `debug.output`, `debug.breakpoint`, `debug.thread`: the threads, the frames, the scopes and the variables stay lazy (nothing crosses the relay but what a row opens); `debug.stopped` names the file and the line, read from the top frame when the adapter does not send them.
+- Tested by the e2e suite `debug`: `dlv dap` starts a Go program, it stops on a line breakpoint with its condition, and the stack, the scopes and a local variable come back through the methods.
 
 ## Configurations
 

@@ -15,6 +15,5 @@
   "runInTerminal has no command": "runInTerminal no tiene comando",
   "an adapter starting a debug session comes with JavaScript (#191)": "un adaptador que inicia una sesión de depuración llega con JavaScript (#191)",
   "the host does not answer %s": "el host no responde a %s",
-  "the adapter never listened on %s: %w": "el adaptador nunca escuchó en %s: %w",
-  "%s has no adapter": "%s no tiene adaptador"
+  "the adapter never listened on %s: %w": "el adaptador nunca escuchó en %s: %w"
 }
