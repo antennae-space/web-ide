@@ -13,10 +13,10 @@
     "id": "lang-go",
     "url": "https://github.com/antennae-space/lang-go",
     "constraint": "^1",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "sha256": {
-      "linux-amd64": "92cc7417a7e186f9ba247d035bf301cc4f8f910bf1800bd3ba7dd9dc02e29d6e",
-      "linux-arm64": "92cc7417a7e186f9ba247d035bf301cc4f8f910bf1800bd3ba7dd9dc02e29d6e"
+      "linux-amd64": "2130a924b9de6c5415b75602df73746e28afd833f792153c7db4062dcd7ae3b7",
+      "linux-arm64": "2130a924b9de6c5415b75602df73746e28afd833f792153c7db4062dcd7ae3b7"
     }
   },
   {
