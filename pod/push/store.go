@@ -13,10 +13,11 @@ const (
 	Asks     = "asks"     // the assistant waits for the user (a change, a command, a question)
 	Tests    = "tests"    // a saved command flagged test failed
 	Feedback = "feedback" // the assistant or Claude Code added feedback to a ticket
+	Debug    = "debug"    // a debug session stopped (a breakpoint, a step)
 )
 
 // Kinds are all the kinds, in the order of the settings.
-var Kinds = []string{Finished, Asks, Tests, Feedback}
+var Kinds = []string{Finished, Asks, Tests, Feedback, Debug}
 
 // Device is the subscription of one browser (its device key) and its choices: the id the relay
 // gave its endpoint, the keys the payload is encrypted for, the language of its texts.

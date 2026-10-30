@@ -77,6 +77,14 @@ func TestConfigs(t *testing.T) {
 	if err != nil || len(again) != 1 || again[0].Name != "One" {
 		t.Fatalf("saved: %+v %v", again, err)
 	}
+	// A template added keeps the others and gets a name of its own.
+	added, err := addConfig(rt, map[string]any{"name": "One", "type": "go", "request": "launch", "program": "${workspaceFolder}"})
+	if err != nil || added["name"] != "One 2" {
+		t.Fatalf("added: %+v %v", added, err)
+	}
+	if again, _ := readConfigs(rt); len(again) != 2 || again[1].Fields["program"] != "${workspaceFolder}" {
+		t.Fatalf("after the add: %+v", again)
+	}
 	// No file at all: no configuration, no error.
 	empty := testRuntime(t)
 	if list, err := readConfigs(empty); err != nil || len(list) != 0 {

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"path"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"antennae.space/ide/plugins/debug/internal/dap"
 	"antennae.space/ide/pod/execx"
 	"antennae.space/ide/pod/plugins"
+	"antennae.space/ide/pod/push"
 	"antennae.space/ide/pod/runtime"
 )
 
@@ -415,6 +417,24 @@ func (m *Manager) announceStop(s *Session, thread int, reason string, allThreads
 	s.mu.Unlock()
 	m.rt.Emit("debug.stopped", map[string]any{"session": s.ID, "thread": thread, "reason": reason,
 		"file": file, "line": line, "allThreadsStopped": allThreads})
+	m.notifyStop(s, file, line)
+}
+
+// notifyStop sends the push notification of a stop to the devices that show no window of the
+// pod (docs/design/debug.md#focus-on-a-stop): a visible window brings the Debug tool up itself.
+func (m *Manager) notifyStop(s *Session, file string, line int) {
+	if pod == nil {
+		return
+	}
+	where := path.Base(file)
+	if line > 0 {
+		where = fmt.Sprintf("%s:%d", where, line)
+	}
+	name := m.rt.P.Name()
+	pod.Notify(plugins.Note{Kind: push.Debug, Path: "/project/" + url.PathEscape(m.rt.P.ID), Tag: "debug-" + s.ID, Urgency: "high",
+		Text: func(lang string) (string, string) {
+			return i18n.T(lang, "The program stopped"), i18n.T(lang, "Stopped at %s", where) + " · " + name + " · " + s.Name
+		}})
 }
 
 // stopPlace is where a stop happened: the source and line of the top frame when the event
@@ -505,6 +525,29 @@ func (s *Session) end() {
 	}
 	s.mgr.drop(s)
 	s.mgr.rt.Emit("debug.session", s.view())
+}
+
+// resume runs the program again (continue, or a step) on a thread. The session is running from
+// the request on: the stop that ends a step may come before its answer, so the state is set first
+// and put back when the adapter refuses.
+func (s *Session) resume(command string, thread int) (json.RawMessage, error) {
+	s.mu.Lock()
+	was := s.State
+	if s.State == stateStopped {
+		s.State, s.File, s.Line = stateRunning, "", 0
+	}
+	s.mu.Unlock()
+	s.mgr.rt.Emit("debug.session", s.view())
+	res, err := s.request(10, command, map[string]any{"threadId": thread})
+	if err != nil {
+		s.mu.Lock()
+		if s.State == stateRunning {
+			s.State = was
+		}
+		s.mu.Unlock()
+		s.mgr.rt.Emit("debug.session", s.view())
+	}
+	return res, err
 }
 
 // request runs a DAP request on a live session.

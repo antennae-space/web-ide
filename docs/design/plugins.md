@@ -207,6 +207,11 @@ The file view is Code's (`fileView`); another plugin could not mark it. The **`e
 - **They follow the edits**: like the change markers, the marks move with the lines (a line inserted above pushes them down), and one whose line lost its content is dropped; `moved` reports the new lines (or the removal) to the plugin, which keeps its own list. Ids are scoped per plugin by Code (`<plugin>:<id>`), lines are 0-based.
 - **A plugin styles its own classes** (its own CSS, as Previews does for xterm); the core gives the lane, the rows and the widget their place, and a muted italic look.
 - `editorDecorations` is a **built-in** contribution, like `fileDecorations`: an external plugin gets a sandbox bridge for it later. The fixture is the test plugin Hello on `deco.txt` (suite `decorations`).
+- The rows of the plugins are drawn over the current line (#189): the execution line shows on the caret's line.
+
+## What the Debug tool added to the API
+
+The page of the Debug plugin (#189, [debug.md](debug.md#the-debug-tool)) needed three points of the `api`, open to every plugin: `api.settings.values()` (the values of its own settings, `contributes.settings`, with their defaults), `api.hideTool(tool)` (closes the zone of one of its tools when it shows it: the tool closed at the end of a session) and `api.toolShown(tool)`. The menu bar has a **Run** menu for the commands `debug.*`, hidden while no action of it exists (a menu shows only when one of its actions does).
 
 ## API v1
 

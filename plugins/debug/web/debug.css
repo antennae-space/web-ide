@@ -1,0 +1,57 @@
+/* The Debug tool and its marks in the editor (#189). */
+
+/* ---------- editor: breakpoints, the execution line ---------- */
+.dbg-bp { display: grid; place-items: center; }
+.dbg-bp::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: var(--danger); }
+.dbg-bp-off::before { background: transparent; border: 1.5px solid var(--danger); }
+.dbg-exec { display: grid; place-items: center; z-index: 1; }
+.dbg-exec::after { content: ''; width: 0; height: 0; border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 11px solid var(--info); filter: drop-shadow(0 0 1px var(--bg)); }
+.dbg-exec-line { background: color-mix(in srgb, var(--info) 22%, transparent); }
+.dbg-frame-line { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+
+/* ---------- the tool ---------- */
+.dbg { outline: none; }
+.dbg-state { width: 7px; height: 7px; border-radius: 50%; background: var(--fg-faint); flex: none; }
+.dbg-state-running { background: var(--ok); }
+.dbg-state-stopped { background: var(--warn); }
+.dbg-views { display: flex; align-items: center; gap: 2px; padding: 2px 6px; border-bottom: 1px solid var(--line); }
+.dbg-view { border: 0; background: transparent; color: var(--fg-muted); padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+.dbg-view.active { background: var(--bg-active, var(--bg-3)); color: var(--fg); }
+.dbg-status { margin-left: auto; color: var(--fg-muted); font-size: 12px; }
+.dbg-body { display: flex; flex-direction: column; min-height: 0; }
+.dbg-muted { color: var(--fg-muted); }
+
+.dbg-split { display: flex; flex: 1; min-height: 0; }
+.dbg-frames { width: 38%; min-width: 180px; border-right: 1px solid var(--line); overflow: auto; }
+.dbg-vars { flex: 1; overflow: auto; font-family: var(--font-code); font-size: 12px; }
+.dbg-threads { margin: 4px 6px; max-width: calc(100% - 12px); }
+.dbg-frame { display: flex; gap: 8px; padding: 2px 8px; cursor: pointer; white-space: nowrap; font-size: 12px; }
+.dbg-frame:hover { background: var(--bg-hover, var(--bg-3)); }
+.dbg-frame.active { background: var(--sel-bg); color: var(--fg); }
+.dbg-frame.library { color: var(--fg-faint); }
+.dbg-frame-name { overflow: hidden; text-overflow: ellipsis; }
+.dbg-frame-place { color: var(--fg-muted); margin-left: auto; }
+.dbg-libs { border: 0; background: transparent; color: var(--fg-muted); padding: 2px 8px; font-size: 12px; cursor: pointer; }
+.dbg-libs:hover { color: var(--fg); }
+
+.dbg-var { display: flex; align-items: center; gap: 0; padding-right: 8px; white-space: nowrap; line-height: 20px; cursor: default; }
+.dbg-var:hover { background: var(--bg-hover, var(--bg-3)); }
+.dbg-var.scope { font-family: var(--font-ui, inherit); color: var(--fg-muted); }
+.dbg-twisty { width: 14px; display: inline-flex; justify-content: center; flex: none; color: var(--fg-muted); }
+.dbg-kind { width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; flex: none; background: var(--fg-faint); }
+.dbg-kind-primitive { background: var(--info); border-radius: 50%; }
+.dbg-kind-object { background: var(--warn); }
+.dbg-kind-array { background: var(--ok); }
+.dbg-kind-method, .dbg-kind-class, .dbg-kind-interface { background: var(--accent); }
+.hint-private .dbg-kind, .hint-protected .dbg-kind { opacity: 0.55; }
+.dbg-var-name { color: var(--fg); }
+.dbg-eq { color: var(--fg-muted); white-space: pre; }
+.dbg-var-type { color: var(--fg-muted); white-space: pre; }
+.dbg-var-value { color: var(--accent); overflow: hidden; text-overflow: ellipsis; }
+
+.dbg-console { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.dbg-output { flex: 1; overflow: auto; padding: 4px 8px; font-family: var(--font-code); font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+.dbg-out-stderr { color: var(--danger); }
+.dbg-out-input { color: var(--fg-muted); }
+.dbg-out-result { color: var(--accent); }
+.dbg-repl { border: 0; border-top: 1px solid var(--line); background: var(--bg-2); color: var(--fg); padding: 4px 8px; font-family: var(--font-code); font-size: 12px; outline: none; }

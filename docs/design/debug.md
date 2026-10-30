@@ -1,6 +1,6 @@
 # Debug
 
-Debugging in the IDE, as close as it can be to PhpStorm: breakpoints (simple and conditional), the threads and the stack, the variables shown as a tree with their types, watches, a console that evaluates in the paused frame. One host for every language, fed by the language packs. Decided on 2026-10-29; the debug host and Go are done in #188, the Debug tool and the editor come with #189.
+Debugging in the IDE, as close as it can be to PhpStorm: breakpoints (simple and conditional), the threads and the stack, the variables shown as a tree with their types, watches, a console that evaluates in the paused frame. One host for every language, fed by the language packs. Decided on 2026-10-29; the debug host and Go are done in #188, the Debug tool, the line breakpoints and the focus on a stop in #189; the advanced breakpoints, the watches, the inline values and the hover come with #190.
 
 ## Choices
 
@@ -54,9 +54,19 @@ A tool of the bottom zone, one tab per session (its configuration's name and its
   - On a variable: *Set value* (F2), *Copy value*, *Copy name*, *Add to watches*, *View as…* (text or JSON, in a popup for a long value).
 - **Console**: the output of the program and a REPL that evaluates in the selected frame, with completion when the adapter has it. A program the adapter starts in a terminal (`runInTerminal`) runs in a console of the Console tool instead, linked from the tab.
 
+Done in #189 (`plugins/debug/web`, the page of the plugin):
+
+- **The tool**: one tab per session (a dot for its state, ✕ stops it), the run buttons in the corner of its zone (rerun, stop, resume, pause, step over, step into, force step into, step out), enabled by the state of the session; *Threads & Variables* and *Console*. The commands and their PhpStorm keys are in the keymap and in the **Run** menu of the menu bar (shown while the Debug plugin is on): *Debug…* (Shift+F9), *Edit configurations…*, resume (F9), pause, step over (F8), step into (F7), force step into (Alt+Shift+F7, a plain step into for the adapters that have no other), step out (Shift+F8), rerun (Ctrl+F5), stop (Ctrl+F2), toggle the breakpoint of the caret's line (Ctrl+F8). A key with no session to act on goes on to the others.
+- **Threads & Variables**: the thread picker when there are several, the frames (`function`, `file:line`; a frame outside the worktree is a library frame, dimmed and folded under *N library frames*), the scopes of the selected frame with the first cheap one open, the rows `name = {type} value` with a mark per kind (primitive, object, array, method); children asked when a row opens, all dropped when the program runs again. *Copy value*, *Copy name* on a row.
+- **Console**: the output of the session (the adapter's error output in red) and a line that evaluates in the selected frame (↑ ↓ for its history).
+- **Run › Debug…**: the configurations of `.ide/debug.json`; an empty file offers the templates of the packs, the one chosen is written into the file (`debug.addConfiguration`, its name made unique) then started. *Edit configurations…* opens the file.
+- **The pod**: a step or a continue puts the session in `running` from its request on (the stop that ends a step may come before its answer); `debug.setBreakpoints` sends `debug.breakpoints` to the other windows; a stop sends the push notification of the kind `debug`.
+
 ## In the editor
 
-The file view is the Code plugin's: the debug host decorates it through a contribution of the plugin API (`editorDecorations`: gutter marks, line classes, widgets at the end of a line, hovers, items of the context menu), which the Debug plugin is the first to use. The contribution exists since #187 (fixture: the Hello plugin on `deco.txt`, suite `decorations`); the debug host does not use it yet.
+The file view is the Code plugin's: the debug host decorates it through a contribution of the plugin API (`editorDecorations`: gutter marks, line classes, widgets at the end of a line, hovers, items of the context menu), which the Debug plugin is the first to use. The contribution exists since #187 (fixture: the Hello plugin on `deco.txt`, suite `decorations`); the debug host uses it since #189 for the line breakpoints and the execution line.
+
+- Done in #189: the lane shows in the files of a language an adapter of the packs debugs (`languages` of `contributes.debuggers`), or a file that already has breakpoints; a click toggles a line breakpoint, the gutter menu adds or removes it, Ctrl+F8 toggles the caret's line. A line moved by an edit is kept in the page and saved (sent to the live sessions) when the file is saved. The execution line has a blue arrow over its breakpoint and a blue row, drawn over the current line; the line of a frame selected below the top one is tinted ochre.
 
 - **The gutter**: a click toggles a breakpoint; its context menu (or Ctrl+Shift+F8 on the line) edits its condition, its hit count, its log message, and enables or disables it. A disabled breakpoint is hollow, a muted one grey, one the adapter could not set crossed.
 - The breakpoints follow the edits of the buffer (its line moves with the text) and are sent again when the file is saved.
@@ -73,8 +83,8 @@ The file view is the Code plugin's: the debug host decorates it through a contri
 
 ## Focus on a stop
 
-1. **The Debug tool opens on the first stop** of a session and takes the focus, even when it was closed; the editor shows the file and the line where the program stopped. At the end of the session the tool closes, unless the setting *Keep the Debug tool open at the end* is on. Both are settings, on by default, as in PhpStorm.
-2. **Focus of the application**: a page cannot raise its window, so when the window of the IDE is hidden (`document.hidden`) on a stop, the IDE sends a notification (*Stopped at `index.php:42`*, a click brings the tab back), marks the title and the icon of its tab, and the phone gets the notification through the relay as for an agent.
+1. **The Debug tool opens on the first stop** of a session and takes the focus, even when it was closed; the editor shows the file and the line where the program stopped. At the end of the session the tool closes, unless the setting *Keep the Debug tool open at the end* is on. Both are settings of the plugin (*Settings › Plugins › Debug*: *Show the Debug tool on a stop*, on; *Keep the Debug tool open at the end*, off), as in PhpStorm.
+2. **Focus of the application**: a page cannot raise its window, so when the window of the IDE is hidden (`document.hidden`) on a stop, the IDE sends a notification (*Stopped at `index.php:42`*, a click brings the tab back), marks the title and the icon of its tab, and the phone gets the notification through the relay as for an agent (the kind *A debug session stopped* of *Settings › Notifications*). The browser asks for the permission of the notifications at the first *Debug…*. Done in #189, apart from the mark on the icon of the tab (its title only).
 
 ## PHP and Xdebug
 

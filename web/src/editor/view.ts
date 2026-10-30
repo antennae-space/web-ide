@@ -267,7 +267,8 @@ export class EditorView {
     EditorView.all.add(this)
     this.tooltip = document.createElement('div')
     this.tooltip.className = 'ed-tooltip'
-    main.append(this.decoLines, this.curLine, this.guides, this.boxes, this.hint, this.content, this.ws, this.caretLayer, this.placeholders, this.decoWidgets)
+    // The lines of the plugins over the current line: the execution line shows on the caret's line.
+    main.append(this.curLine, this.decoLines, this.guides, this.boxes, this.hint, this.content, this.ws, this.caretLayer, this.placeholders, this.decoWidgets)
     inner.append(this.gutter, main)
     this.scroller.append(inner)
     this.root.append(this.scroller, this.tooltip)

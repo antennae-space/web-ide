@@ -13,6 +13,7 @@ const kindLabels: Record<string, string> = {
   asks: 'The assistant asks for an approval or an answer',
   tests: 'Tests failed (a saved command flagged test)',
   feedback: 'Feedback on a ticket from the assistant or Claude Code',
+  debug: 'A debug session stopped (a breakpoint, a step)',
 }
 
 export function Notifications() {
