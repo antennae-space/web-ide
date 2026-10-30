@@ -85,6 +85,8 @@ export interface SessionData {
   sizes: Record<string, PanelSizes>
   /** Side where a new tile opens: right of the focused one (row) or below it (col). */
   split?: 'row' | 'col'
+  /** The view in focus: a tool id, or `editor` (state/deskFocus.ts). */
+  focus?: string
 }
 
 export interface PanelSizes {

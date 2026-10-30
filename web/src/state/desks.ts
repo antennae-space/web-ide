@@ -5,6 +5,7 @@
 import { createSignal } from 'solid-js'
 import { createStore, produce, reconcile, unwrap } from 'solid-js/store'
 import { notify, on, request } from '../pod/rpc'
+import { route } from '../app/router'
 
 export interface Desk {
   n: number
@@ -37,6 +38,7 @@ export function loadDesks(project: string, list: DeskList | null | undefined, sh
 /** Records the desk the window shows. */
 export function showDesk(n: number) {
   setDesk(n)
+  usedDesk()
   try {
     localStorage.setItem(`desk:${owner}`, String(n))
   } catch {
@@ -44,8 +46,25 @@ export function showDesk(n: number) {
   }
 }
 
-/** The desk last shown on this device for a project (1 when none). */
+/**
+ * Tells the pod the desk of the window is the one in use (shown, or the window back in front): the
+ * home page of any device opens it. Not from a detached window, which shows desk 1 for a tool.
+ */
+export function usedDesk() {
+  if (owner && route().name === 'project') notify('desks.used', { desk: desk() })
+}
+window.addEventListener('focus', usedDesk)
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && usedDesk())
+
+/** The desk last used of each project, on any device (desks.last of the pod, loaded by the home page). */
+const [lastUsed, setLastUsed] = createSignal<Record<string, number>>({})
+export async function loadLastDesks() {
+  setLastUsed(await request<Record<string, number>>('desks.last').catch(() => ({})))
+}
+
+/** The desk the home page opens for a project: the last used on any device, else the last shown on this one (1 when none). */
 export function lastDesk(project: string): number {
+  if (lastUsed()[project]) return lastUsed()[project]
   try {
     return Number(localStorage.getItem(`desk:${project}`)) || 1
   } catch {

@@ -41,6 +41,22 @@ func (s *Server) registerDesks() {
 		s.emitProject(c.project, "desks.changed", d, c.id)
 		return d, nil
 	})
+	// desks.used records the desk the window shows as the one last used of its project (a window
+	// in use: opened, switched, back in front); desks.last answers them for the home page.
+	s.handle("desks.used", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
+		a, err := bind[struct{ Desk int }](p)
+		if err != nil {
+			return nil, err
+		}
+		if c.project == "" || !s.Desks.HasDesk(c.project, a.Desk) {
+			return nil, nil
+		}
+		s.Desks.SetLast(c.project, a.Desk)
+		return nil, nil
+	})
+	s.handle("desks.last", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
+		return s.Desks.Lasts(), nil
+	})
 	// session.get and session.put (wire names of the desk state) read and write another desk of the project (a tab sent there).
 	s.handle("session.get", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
 		a, err := bind[struct{ Desk int }](p)

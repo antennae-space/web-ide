@@ -124,3 +124,23 @@ func TestMigrateSessions(t *testing.T) {
 		t.Fatal("delete left files")
 	}
 }
+
+// The desk last used of each project survives a restart of the pod.
+func TestLast(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(st)
+	if len(s.Lasts()) != 0 {
+		t.Fatalf("none at first: %v", s.Lasts())
+	}
+	s.SetLast("p", 2)
+	s.SetLast("q", 1)
+	s.SetLast("p", 3)
+	st2, _ := store.Open(dir)
+	if l := New(st2).Lasts(); l["p"] != 3 || l["q"] != 1 || len(l) != 2 {
+		t.Fatalf("after a restart: %v", l)
+	}
+}
