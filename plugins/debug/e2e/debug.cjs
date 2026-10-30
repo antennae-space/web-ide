@@ -1,14 +1,12 @@
-// The debug host (#188) with Go: the pack lang-go declares dlv as its adapter (the suite builds
-// that pack, or takes E2E_PLUGIN_LANG_GO), the pod runs it on its grant debugger:go, a Go program
-// stops on a line breakpoint, and the stack and a local variable are read through the debug.*
-// methods. Skipped when dlv is not installed.
+// The debug host (#188) with Go: the official pack lang-go declares dlv as its adapter (its
+// release archive, or E2E_PLUGIN_LANG_GO for a local build), the pod runs it on its grant
+// debugger:go, a Go program stops on a line breakpoint, and the stack and a local variable are
+// read through the debug.* methods. Skipped when dlv is not installed.
 const fs = require('fs')
-const os = require('os')
 const path = require('path')
 const { execFileSync } = require('child_process')
 const { run, openProject, assert, installOfficial, WS } = require('../../../e2e/common.cjs')
 
-const goBin = [process.env.GO, path.join(os.homedir(), 'sdk/go/bin/go'), 'go'].find((g) => g && (g === 'go' || fs.existsSync(g)))
 try {
   execFileSync('sh', ['-c', 'command -v dlv'], { env: { ...process.env, PATH: `${process.env.HOME}/go/bin:${process.env.PATH}` }, stdio: 'ignore' })
 } catch {
@@ -33,38 +31,7 @@ func main() {
 const BREAK_LINE = 7 // return greeting
 
 run(async ({ page }) => {
-  // The pack, with its debuggers: a local build (E2E_PLUGIN_LANG_GO) or the one this suite writes.
-  if (!process.env.E2E_PLUGIN_LANG_GO) {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-lang-go-'))
-    const manifest = JSON.stringify(
-      {
-        id: 'lang-go', name: 'Go', version: '1.2.0', apiVersion: 1, ide: '*',
-        permissions: ['program:gopls', 'debugger:go'],
-        contributes: {
-          languages: [{ id: 'go', name: 'Go', extensions: ['.go'], markers: ['go.mod'] }],
-          debuggers: [
-            {
-              type: 'go', label: 'Go (Delve)', languages: ['go'],
-              argv: ['dlv', 'dap', '--listen', '127.0.0.1:{port}'], transport: 'tcp',
-              install: { manager: 'go', packages: ['github.com/go-delve/delve/cmd/dlv@latest'] },
-              templates: [
-                { label: 'Launch the package', request: 'launch', config: { program: '${workspaceFolder}' } },
-                { label: 'Attach to a process', request: 'attach', config: { processId: '${env:PID}' } },
-              ],
-            },
-          ],
-        },
-      },
-      null,
-      2,
-    )
-    fs.writeFileSync(path.join(dir, 'plugin.json'), manifest)
-    const arch = 'linux-' + (os.arch() === 'arm64' ? 'arm64' : 'amd64')
-    // The archive lives outside the folder it packs (tar would read itself).
-    const tar = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-lang-go-out-')), `lang-go-${arch}.tar.gz`)
-    execFileSync('tar', ['czf', tar, '-C', dir, '.'])
-    process.env.E2E_PLUGIN_LANG_GO = tar
-  }
+  // The pack, with its debuggers: the release archive of official.json, or a local build.
   const lock = await installOfficial('lang-go')
   assert(lock?.grants.includes('debugger:go'), 'lang-go installed with its adapter granted: ' + JSON.stringify(lock?.grants))
 
@@ -182,5 +149,4 @@ run(async ({ page }) => {
   const after = await call('debug.sessions')
   assert(!after.some((s) => s.id === session.id), 'debug.stop ends the session: ' + JSON.stringify(after))
   assert(fs.existsSync(path.join(demo, '.ide', 'debug.json')), '.ide/debug.json is still there')
-  void goBin
 })
