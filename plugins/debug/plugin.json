@@ -4,5 +4,26 @@
   "version": "1.0.0",
   "apiVersion": 1,
   "provides": ["debug"],
-  "contributes": {}
+  "contributes": {
+    "tools": [{ "id": "debug", "label": "Debug", "icon": "bug", "zone": "bottomLeft" }],
+    "commands": [
+      { "id": "debug.run", "label": "Debug…", "category": "Run", "keys": ["Shift+F9"] },
+      { "id": "debug.editConfigurations", "label": "Edit configurations…", "category": "Run" },
+      { "id": "debug.rerun", "label": "Rerun", "category": "Run", "keys": ["Ctrl+F5"] },
+      { "id": "debug.stop", "label": "Stop", "category": "Run", "keys": ["Ctrl+F2"] },
+      { "id": "debug.resume", "label": "Resume program", "category": "Run", "keys": ["F9"] },
+      { "id": "debug.pause", "label": "Pause program", "category": "Run" },
+      { "id": "debug.stepOver", "label": "Step over", "category": "Run", "keys": ["F8"] },
+      { "id": "debug.stepInto", "label": "Step into", "category": "Run", "keys": ["F7"] },
+      { "id": "debug.forceStepInto", "label": "Force step into", "category": "Run", "keys": ["Alt+Shift+F7"] },
+      { "id": "debug.stepOut", "label": "Step out", "category": "Run", "keys": ["Shift+F8"] },
+      { "id": "debug.toggleBreakpoint", "label": "Toggle line breakpoint", "category": "Run", "keys": ["Ctrl+F8"] }
+    ],
+    "settings": {
+      "properties": {
+        "show_on_stop": { "type": "boolean", "title": "Show the Debug tool on a stop", "description": "The tool opens and takes the focus on the first stop of a session.", "default": true },
+        "keep_open_at_end": { "type": "boolean", "title": "Keep the Debug tool open at the end", "description": "Unchecked, the tool closes when its last session ends.", "default": false }
+      }
+    }
+  }
 }

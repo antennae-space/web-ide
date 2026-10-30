@@ -100,6 +100,12 @@ export function showTool(s: SessionData, id: string) {
   if (z) setShown(s, z, id)
 }
 
+/** Closes the zone of a tool when it shows that tool (to call inside mutate). */
+export function hideTool(s: SessionData, id: string) {
+  const z = zoneOf(s, id)
+  if (z && shownIn(s, z) === id) setShown(s, z, null)
+}
+
 /** Shows a tool, or closes its zone when it is already shown. */
 export function toggleTool(s: SessionData, id: string) {
   const z = zoneOf(s, id)

@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"antennae.space/ide/plugins/debug/internal/dap"
+	"antennae.space/ide/pod/plugins"
 	"antennae.space/ide/pod/projects"
+	"antennae.space/ide/pod/push"
 	"antennae.space/ide/pod/runtime"
 	"antennae.space/ide/pod/sshx"
 	"antennae.space/ide/pod/store"
@@ -204,4 +206,70 @@ func TestBreakpointsSentToLiveSessions(t *testing.T) {
 		t.Fatalf("debug.stopped: %+v", stop)
 	}
 	s.end()
+}
+
+// notePod is a pod that keeps the push notifications.
+type notePod struct {
+	plugins.Pod
+	mu    sync.Mutex
+	notes []plugins.Note
+}
+
+func (p *notePod) Notify(n plugins.Note) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.notes = append(p.notes, n)
+}
+
+func (p *notePod) sent() []plugins.Note {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]plugins.Note{}, p.notes...)
+}
+
+func TestStopNotifiesAndStepResumes(t *testing.T) {
+	np := &notePod{}
+	old := pod
+	pod = np
+	t.Cleanup(func() { pod = old })
+	var events []map[string]any
+	rt := openRuntime(t, &events)
+	m := newManager(rt)
+	host, adapter := net.Pipe()
+	f := &fakeHost{rw: adapter}
+	go f.serve()
+	s := &Session{ID: "s2", Name: "Launch the package", Type: "go", State: stateRunning, mgr: m,
+		ready: make(chan struct{})}
+	s.client = dap.New(host, host, dap.Options{Event: func(e dap.Event) { m.event(s, e) }}, func() { _ = host.Close() })
+	m.list = append(m.list, s)
+	t.Cleanup(s.end)
+
+	// A stop sends a notification of the kind debug, naming the place.
+	f.send("stopped", map[string]any{"reason": "breakpoint", "threadId": 1,
+		"stackFrames": []any{map[string]any{"id": 1, "line": 7, "source": map[string]any{"path": filepath.Join(rt.Root, "main.go")}}}})
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) && len(np.sent()) == 0 {
+		time.Sleep(20 * time.Millisecond)
+	}
+	notes := np.sent()
+	if len(notes) != 1 || notes[0].Kind != push.Debug || notes[0].Path != "/project/p-dbg" {
+		t.Fatalf("notes: %+v", notes)
+	}
+	if title, body := notes[0].Text("en"); title != "The program stopped" || !strings.Contains(body, "main.go:7") {
+		t.Fatalf("text: %q %q", title, body)
+	}
+	if v := s.view(); v.State != stateStopped || v.Line != 7 {
+		t.Fatalf("after the stop: %s %d", v.State, v.Line)
+	}
+
+	// A step runs the program again from its request on: the place of the stop is gone.
+	if _, err := s.resume("next", 1); err != nil {
+		t.Fatal(err)
+	}
+	if v := s.view(); v.State != stateRunning || v.File != "" || v.Line != 0 {
+		t.Fatalf("after a step: %s %q %d", v.State, v.File, v.Line)
+	}
+	if args := f.last("next"); args == nil || args["threadId"] != float64(1) {
+		t.Fatalf("next: %v", f.commands())
+	}
 }

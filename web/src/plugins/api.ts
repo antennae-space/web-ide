@@ -17,7 +17,7 @@ import { HelpLink } from '../help/HelpLink'
 import { FileIcon } from '../ui/fileIcons'
 import { FileRow } from '../ui/FileRow'
 import { activeTab, attached, basename, closeTab, docError, leaves, showWorktree, docsVersion, fileUri, loadDoc, reveal, saveCursor, saveDoc, findLeaf, getDoc, home, onBufferClose, onBufferOpen, onBufferSave, openBuffers, pathFromUri, isLocal, mutate, openFile, openTab, openTextTab, project, relPath, root, session, setActivePane, type TabState } from '../state/project'
-import { showTool } from '../state/zones'
+import { hideTool, showTool, shownIn, zoneOf } from '../state/zones'
 import { detachTab, openInBrowserTab, openTile, tileMode } from '../state/tiles'
 import { phone } from '../state/mobile'
 import { fontFor, settings } from '../state/settings'
@@ -27,7 +27,8 @@ import { dropClasses, dropIndex, moveItem, setDropAt } from '../ui/tabDrop'
 import { EditorView } from '../editor/view'
 import { capability, provide, type Capabilities } from './capabilities'
 import { decoratePath } from './decorations'
-import { explorerItems, editorDecorations, fileDecorations, pluginAssistantOptions } from './registry'
+import { explorerItems, editorDecorations, fileDecorations, pluginAssistantOptions, pluginStates } from './registry'
+import { pluginSettingValues } from './settings'
 import { folderMark, inExcluded, loadFolderMarks, markFolder, markOf } from '../state/folders'
 import { desks } from '../state/desks'
 import { setDynamicActions } from '../keys/bindings'
@@ -113,6 +114,13 @@ export function makeApi(id: string) {
     use: capability,
     /** Shows one of the plugin's tools in its zone. */
     showTool: (tool: string) => mutate((s) => showTool(s, tool)),
+    /** Closes the zone of one of the plugin's tools when it shows it (the Debug tool at the end of a session). */
+    hideTool: (tool: string) => mutate((s) => hideTool(s, tool)),
+    /** Whether one of the plugin's tools is shown in its zone. */
+    toolShown: (tool: string) => {
+      const z = zoneOf(session, tool)
+      return !!z && shownIn(session, z) === tool
+    },
     /** Tiles of the Grid and Scroll modes, tools and consoles opened on their own. */
     tiles: { active: tileMode, phone, open: openTile, detach: detachTab, openInTab: openInBrowserTab },
     /** The look of the IDE for what draws itself (a terminal): its font and colors. */
@@ -247,8 +255,17 @@ export function makeApi(id: string) {
     /** The keymap: a handler of an action while the view is shown, and the shortcut of an action. */
     /** The window: a detached window shows one tool alone (/project/<id>/tool/<tool>). */
     window: { detached: () => route().name === 'tool' },
-    /** The Settings of the IDE, on a section (themes by default). */
-    settings: { open: openSettings },
+    /**
+     * The Settings of the IDE, on a section (themes by default), and the values of the plugin's own
+     * settings (contributes.settings, the defaults where the user set none).
+     */
+    settings: {
+      open: openSettings,
+      values: (): Record<string, unknown> => {
+        const m = pluginStates().find((p) => p.manifest.id === id)?.manifest
+        return m ? pluginSettingValues(m) : {}
+      },
+    },
     /** The other plugins: their options of a conversation of the assistant, by plugin id. */
     plugins: { assistantOptions: pluginAssistantOptions },
     /** The questions to the user: the card of ask_user, the form of an agent, which ones a view shows already. */

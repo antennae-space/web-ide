@@ -234,9 +234,13 @@ const menus: [string, string[]][] = [
   ['menu|Navigate', ['search.everywhere', 'nav.recentFiles', '-', 'nav.back', 'nav.forward', '-', 'nav.gotoLine', 'nav.gotoSymbol', 'nav.fileStructure', '-', 'nav.related', 'nav.test']],
   ['menu|Code', ['lsp.definition', 'lsp.implementation', 'lsp.typeDefinition', 'lsp.superMethod', 'lsp.references', 'lsp.hover', '-', 'lsp.rename', 'lsp.format', '-', 'edit.fold', 'edit.unfold', 'edit.foldAll', 'edit.unfoldAll']],
   ['menu|View', ['view.splitRight', 'view.splitDown', '-', 'view.toggleLeft', 'view.toggleRight', 'view.toggleBottom', 'view.resetTools', '-', 'view.visualFocus', 'view.focusOutline', 'view.focusDim', '-', 'view.whitespace', 'view.wordWrap', 'view.markdown', '-', 'console.new', 'palette.open']],
+  ['menu|Run', ['debug.run', 'debug.editConfigurations', '-', 'debug.resume', 'debug.pause', 'debug.stepOver', 'debug.stepInto', 'debug.forceStepInto', 'debug.stepOut', '-', 'debug.rerun', 'debug.stop', '-', 'debug.toggleBreakpoint']],
   ['menu|Tools', ['tool.questions', 'tool.conflicts', 'tool.info', '-', '@tools']],
   ['menu|Help', ['help.docs', 'help.guide', 'help.glossary', '-', 'help.shortcuts']],
 ]
+
+/** The menus with an action available (Run comes with the Debug plugin). */
+const shownMenus = () => menus.filter(([, ids]) => ids.some((id) => id === '@tools' || (id !== '-' && actionOf(id))))
 
 // Menu entries switching a setting, shown with a check box.
 const menuChecks: Record<string, () => boolean> = {
@@ -320,7 +324,7 @@ function MenuBar() {
     </>
   )
   const menuButtons = () => (
-    <For each={menus}>
+    <For each={shownMenus()}>
       {([label, ids]) => (
         <button class="menu-btn" onMouseDown={(e) => e.preventDefault()} onClick={(e) => openMenu(e, ids)}>
           {t(label)}
@@ -348,7 +352,7 @@ function MenuBar() {
     <header class="menubar">
       {head()}
       <nav class="menus">
-        <For each={menus}>
+        <For each={shownMenus()}>
           {([label, ids]) => (
             <button class="menu-btn" onMouseDown={(e) => e.preventDefault()} onClick={(e) => openMenu(e, ids)}>
               {t(label)}

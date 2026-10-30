@@ -1,15 +1,13 @@
 // The debug host (#188) with Go: the official pack lang-go declares dlv as its adapter (its
-// release archive, or E2E_PLUGIN_LANG_GO for a local build), the pod runs it on its grant
-// debugger:go, a Go program stops on a line breakpoint, and the stack and a local variable are
-// read through the debug.* methods. Skipped when dlv is not installed.
+// release archive, or E2E_PLUGIN_LANG_GO for a local build: lib/langgo.cjs), the pod runs it on
+// its grant debugger:go, a Go program stops on a line breakpoint, and the stack and a local
+// variable are read through the debug.* methods. Skipped when dlv is not installed.
 const fs = require('fs')
 const path = require('path')
-const { execFileSync } = require('child_process')
-const { run, openProject, assert, installOfficial, WS } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, WS } = require('../../../e2e/common.cjs')
+const { hasDlv, installLangGo } = require('./lib/langgo.cjs')
 
-try {
-  execFileSync('sh', ['-c', 'command -v dlv'], { env: { ...process.env, PATH: `${process.env.HOME}/go/bin:${process.env.PATH}` }, stdio: 'ignore' })
-} catch {
+if (!hasDlv()) {
   console.log('  (dlv not installed: suite skipped)')
   process.exit(0)
 }
@@ -31,8 +29,7 @@ func main() {
 const BREAK_LINE = 7 // return greeting
 
 run(async ({ page }) => {
-  // The pack, with its debuggers: the release archive of official.json, or a local build.
-  const lock = await installOfficial('lang-go')
+  const lock = await installLangGo()
   assert(lock?.grants.includes('debugger:go'), 'lang-go installed with its adapter granted: ' + JSON.stringify(lock?.grants))
 
   // The project: a Go package of its own, its configuration in .ide/debug.json.

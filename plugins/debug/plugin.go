@@ -47,7 +47,23 @@ func (p *Plugin) Register(h plugins.Host) {
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"configurations": cfgs, "templates": templatesOf(c.Runtime)}, nil
+		return map[string]any{"configurations": cfgs, "templates": templatesOf(c.Runtime), "file": configPath(c.Runtime)}, nil
+	})
+	// debug.addConfiguration writes a configuration into .ide/debug.json (a template chosen).
+	h.Handle("debug.addConfiguration", func(ctx context.Context, c plugins.Call) (any, error) {
+		var p struct {
+			Config map[string]any `json:"config"`
+		}
+		if err := json.Unmarshal(c.Params, &p); err != nil {
+			return nil, err
+		}
+		if p.Config == nil {
+			return nil, i18n.New("a debug configuration names its type")
+		}
+		if t, _ := p.Config["type"].(string); t == "" {
+			return nil, i18n.New("a debug configuration names its type")
+		}
+		return addConfig(c.Runtime, p.Config)
 	})
 	h.Handle("debug.templates", func(ctx context.Context, c plugins.Call) (any, error) {
 		return templatesOf(c.Runtime), nil
@@ -182,11 +198,7 @@ func (p *Plugin) Register(h plugins.Host) {
 		if err != nil {
 			return nil, err
 		}
-		res, err := s.request(10, "continue", map[string]any{"threadId": t})
-		if err == nil {
-			s.setState(stateRunning)
-		}
-		return res, err
+		return s.resume("continue", t)
 	})
 	sessionCall(h, "debug.pause", func(s *Session, params json.RawMessage) (any, error) {
 		t, err := threadParam(s, params)
@@ -204,7 +216,7 @@ func (p *Plugin) Register(h plugins.Host) {
 			if err != nil {
 				return nil, err
 			}
-			return s.request(10, command, map[string]any{"threadId": t})
+			return s.resume(command, t)
 		})
 	}
 
@@ -236,6 +248,8 @@ func (p *Plugin) Register(h plugins.Host) {
 			}
 			sent[s.ID] = kept
 		}
+		// The other windows of the worktree show them too.
+		c.Runtime.Emit("debug.breakpoints", map[string]any{"file": p.File, "breakpoints": list})
 		return map[string]any{"file": p.File, "breakpoints": list, "sent": sent}, nil
 	})
 	// debug.install runs the recipe of an adapter missing from the machine, in a console.

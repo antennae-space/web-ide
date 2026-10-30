@@ -81,6 +81,15 @@ const paths: Record<string, string> = {
   eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6z',
   power: 'M12 3v9M7.1 6.3a7 7 0 1 0 9.8 0',
   target: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM12 7.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zM12 11.5v1',
+  // The Debug tool (#189).
+  bug: 'M9 7a3 3 0 0 1 6 0M7 10h10v5a5 5 0 0 1-10 0zM12 10v10M4 13h3M17 13h3M5 8l2.5 2M19 8l-2.5 2M5 19l2.5-2M19 19l-2.5-2',
+  pause: 'M8 5v14M16 5v14',
+  resume: 'M5 5v14M10 5v14l10-7z',
+  stepOver: 'M4 14a8 8 0 0 1 15-4M19 4v6h-6M11 19.5v.5',
+  stepInto: 'M12 3v11M7 9l5 5 5-5M12 19.5v.5',
+  stepOut: 'M12 14V3M7 8l5-5 5 5M12 19.5v.5',
+  forceStepInto: 'M12 3v11M7 9l5 5 5-5M5 3h14M12 19.5v.5',
+  mute: 'M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zM5.6 5.6l12.8 12.8',
 }
 
 export function Icon(props: { name: keyof typeof paths | string; size?: number; title?: string } & JSX.SvgSVGAttributes<SVGSVGElement>) {

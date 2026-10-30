@@ -77,6 +77,14 @@ func TestConfigs(t *testing.T) {
 	if err != nil || len(again) != 1 || again[0].Name != "One" {
 		t.Fatalf("saved: %+v %v", again, err)
 	}
+	// A template added keeps the others and gets a name of its own.
+	added, err := addConfig(rt, map[string]any{"name": "One", "type": "go", "request": "launch", "program": "${workspaceFolder}"})
+	if err != nil || added["name"] != "One 2" {
+		t.Fatalf("added: %+v %v", added, err)
+	}
+	if again, _ := readConfigs(rt); len(again) != 2 || again[1].Fields["program"] != "${workspaceFolder}" {
+		t.Fatalf("after the add: %+v", again)
+	}
 	// No file at all: no configuration, no error.
 	empty := testRuntime(t)
 	if list, err := readConfigs(empty); err != nil || len(list) != 0 {
@@ -139,5 +147,17 @@ func TestFillPort(t *testing.T) {
 	got := fillPort([]string{"dlv", "dap", "--listen", "127.0.0.1:{port}"}, 4321)
 	if got[3] != "127.0.0.1:4321" || got[0] != "dlv" {
 		t.Fatalf("%v", got)
+	}
+}
+
+// The answer of the adapter to setBreakpoints, paired with the breakpoints sent.
+func TestVerified(t *testing.T) {
+	got := verified([]Breakpoint{{Line: 4, Enabled: true}, {Line: 9, Enabled: true}, {Line: 12, Enabled: true}},
+		[]map[string]any{{"verified": true, "line": float64(4)}, {"verified": false, "message": "could not find file"}})
+	if len(got) != 3 || got[0]["verified"] != true || got[1]["verified"] != false || got[1]["message"] != "could not find file" {
+		t.Fatalf("verified: %+v", got)
+	}
+	if got[2]["line"] != 12 || got[2]["verified"] != false {
+		t.Fatalf("a breakpoint the adapter did not answer is not set: %+v", got[2])
 	}
 }

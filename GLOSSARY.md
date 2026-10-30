@@ -214,6 +214,9 @@ One run of a debug configuration, a tab of the Debug tool, from its start to its
 **Breakpoint** / **Logpoint** ([debug](docs/design/debug.md#the-breakpoints))
 A line where a debug session stops, optionally on a condition or a hit count; a logpoint writes a message to the console instead of stopping.
 
+**Execution line** / **Library frame** ([debug](docs/design/debug.md#in-the-editor))
+The line where a paused program is, its top frame: a blue arrow in the gutter and a blue row in the editor. A library frame is a frame whose file is outside the worktree (the Go module cache, GOROOT): dimmed, and folded in the Debug tool.
+
 **Glyph family** ([plugins](docs/design/plugins.md#language-packs))
 The group a symbol kind belongs to, which gives its color: *type*, *function*, *variable*, *value*, *other*. `plugins/languages/web/kinds.json` is the one table of the kinds (name, glyph, family) the Structure tool, the Symbols tab, the file structure list and the assistant's `lsp_*` tools read; a theme colors each family (`--sym-type`…) and the detail of a symbol (`--sym-detail`).
 

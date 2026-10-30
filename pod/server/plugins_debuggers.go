@@ -48,7 +48,7 @@ func (p podLend) PackDebuggerServers(rt *runtime.Runtime) []plugins.PackDebugger
 		if e, ok := p.s.Plugins.External(d.Pack); ok {
 			packName = e.Manifest.Name
 		}
-		ps := plugins.PackDebuggerServer{Pack: d.Pack, PackName: packName, Type: d.Debugger.Type, Label: d.Debugger.Label, Program: programOf(d.Debugger.Argv)}
+		ps := plugins.PackDebuggerServer{Pack: d.Pack, PackName: packName, Type: d.Debugger.Type, Label: d.Debugger.Label, Languages: d.Debugger.Languages, Program: programOf(d.Debugger.Argv)}
 		ps.Path = p.s.findProgram(context.Background(), rt, d.Pack, ps.Program)
 		if d.Debugger.Install != nil {
 			ps.Install = d.Debugger.Install

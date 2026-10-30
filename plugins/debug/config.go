@@ -2,6 +2,7 @@ package debug
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path"
 	"strings"
@@ -49,8 +50,7 @@ func (c Config) MarshalJSON() ([]byte, error) {
 
 // readConfigs reads .ide/debug.json of the main project (an empty file when there is none).
 func readConfigs(rt *runtime.Runtime) ([]Config, error) {
-	p := path.Join(rt.IdeDir, "debug.json")
-	data, err := rt.FS.Read(p)
+	data, err := rt.FS.Read(configPath(rt))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
@@ -82,12 +82,48 @@ func saveConfigs(rt *runtime.Runtime, list []map[string]any) error {
 	if err != nil {
 		return err
 	}
-	dir := path.Join(rt.IdeDir, "debug.json")
 	if err := rt.FS.Mkdir(rt.IdeDir); err != nil && !os.IsExist(err) {
 		return err
 	}
-	return rt.FS.Write(dir, append(data, '\n'))
+	return rt.FS.Write(configPath(rt), append(data, '\n'))
 }
+
+// addConfig appends a configuration to .ide/debug.json (a template chosen in Run › Debug…), its
+// name made unique, and answers it as the file now holds it.
+func addConfig(rt *runtime.Runtime, cfg map[string]any) (map[string]any, error) {
+	var list []map[string]any
+	if data, err := rt.FS.Read(configPath(rt)); err == nil {
+		var f ConfigFile
+		if err := json.Unmarshal(data, &f); err != nil {
+			return nil, err
+		}
+		list = f.Configurations
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+	base, _ := cfg["name"].(string)
+	if base == "" {
+		base = "Debug"
+	}
+	taken := map[string]bool{}
+	for _, c := range list {
+		if n, ok := c["name"].(string); ok {
+			taken[n] = true
+		}
+	}
+	name := base
+	for i := 2; taken[name]; i++ {
+		name = fmt.Sprintf("%s %d", base, i)
+	}
+	cfg["name"] = name
+	if err := saveConfigs(rt, append(list, cfg)); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+// configPath is .ide/debug.json of the main project.
+func configPath(rt *runtime.Runtime) string { return path.Join(rt.IdeDir, "debug.json") }
 
 // substitute replaces the variables of a configuration. A value of a map that is one variable
 // keeps its type (a port stays a number); the items of a list stay strings.

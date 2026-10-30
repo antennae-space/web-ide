@@ -109,15 +109,17 @@ type PackDebugger struct {
 // missing), its recipe, the command installing it, and Needs, the package manager lacking to run
 // that command ("" when it is there).
 type PackDebuggerServer struct {
-	Pack     string         `json:"pack"`
-	PackName string         `json:"packName"`
-	Type     string         `json:"type"`
-	Label    string         `json:"label"`
-	Program  string         `json:"program"`
-	Path     string         `json:"path,omitempty"`
-	Install  *ServerInstall `json:"install,omitempty"`
-	Command  string         `json:"command,omitempty"`
-	Needs    string         `json:"needs,omitempty"`
+	Pack     string `json:"pack"`
+	PackName string `json:"packName"`
+	Type     string `json:"type"`
+	Label    string `json:"label"`
+	// Languages are the languages it debugs: the files where the gutter takes breakpoints.
+	Languages []string       `json:"languages,omitempty"`
+	Program   string         `json:"program"`
+	Path      string         `json:"path,omitempty"`
+	Install   *ServerInstall `json:"install,omitempty"`
+	Command   string         `json:"command,omitempty"`
+	Needs     string         `json:"needs,omitempty"`
 }
 
 type Pod interface {
