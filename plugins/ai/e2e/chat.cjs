@@ -2,7 +2,8 @@
 // messages (after an answer and between tool steps), message edited in place (attachments
 // kept), scroll at the end after a reload, reload during an answer (the page attaches to
 // the completion still running in the pod) and during a tool (the pod runs the agent: the
-// tool goes on), windows following the same conversation.
+// tool goes on), windows following the same conversation; each desk shows its own conversation
+// (#199), after a reload too.
 const http = require('http')
 const { run, openProject, assert, OUT, composerText } = require('../../../e2e/common.cjs')
 
@@ -233,6 +234,26 @@ run(async ({ page, ctx }) => {
     await page.waitForTimeout(800)
     const gap = await atEnd(page)
     assert(gap < 40, `after a reload, the conversation is shown down to the end (gap ${Math.round(gap)} px)`)
+
+    // Each desk shows its own conversation: desk 2 starts on a new one, keeps it, and desk 1
+    // finds its own again, after a reload too.
+    await page.click('[data-testid=desk-add]')
+    await page.waitForFunction(() => location.pathname.endsWith('/desk/2'))
+    if (!(await page.isVisible('.ai-composer'))) await page.click('.rail-right .rail-btn[title^="Assistant"]')
+    await page.waitForSelector('.ai-composer')
+    await page.waitForTimeout(500)
+    assert(!(await page.$('.ai-msg.assistant .md:has-text("Last line.")')), 'a new desk shows no conversation of desk 1')
+    await ask(page, 'desk two', 'Answer to desk two')
+    await page.click('[data-testid=desk-1]')
+    await page.waitForSelector('.ai-msg.assistant .md:has-text("Last line.")', { timeout: 10000 })
+    assert(!(await page.$('.ai-msg.assistant .md:has-text("Answer to desk two")')), 'desk 1 shows its own conversation again')
+    await page.click('[data-testid=desk-2]')
+    await page.waitForSelector('.ai-msg.assistant .md:has-text("Answer to desk two")', { timeout: 10000 })
+    await page.reload()
+    await page.waitForSelector('.ai-msg.assistant .md:has-text("Answer to desk two")', { timeout: 10000 })
+    assert(!(await page.$('.ai-msg.assistant .md:has-text("Last line.")')), 'desk 2 keeps its conversation after a reload')
+    await page.click('[data-testid=desk-1]')
+    await page.waitForSelector('.ai-msg.assistant .md:has-text("Last line.")', { timeout: 10000 })
 
     // Reload during an answer: the page attaches to the completion running in the pod.
     await page.waitForSelector('[data-testid=send]')

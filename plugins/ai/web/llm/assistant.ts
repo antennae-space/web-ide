@@ -3,9 +3,9 @@
 // (assistant.update) and streams the answer being written (llm.delta, followed with llm.attach);
 // a conversation goes on when the window closes, and any window can follow or stop it.
 import { produce, reconcile } from 'solid-js/store'
-import { createSignal } from 'solid-js'
-import { approval, chat, chatTrail, config, emptyChat, leaveChat, live, loadModels, newId, prefs, refreshChats, setApproval, setChat, setIncomingDraft, setLive, setShells, type Chat, type ChatMessage, type Mode, type Part, type Shell } from './state'
-import { activeFile, answerStrings, home, on, pluginAssistantOptions, relPath, request, t, toast } from '../plugin'
+import { createEffect, createRoot, createSignal, on as track } from 'solid-js'
+import { approval, chat, chatTrail, config, deskChat, emptyChat, leaveChat, resetChat, live, loadModels, newId, prefs, refreshChats, setApproval, setChat, setIncomingDraft, setLive, setShells, type Chat, type ChatMessage, type Mode, type Part, type Shell } from './state'
+import { activeFile, answerStrings, detached, home, on, pluginAssistantOptions, relPath, request, t, toast } from '../plugin'
 import type { AnswerEntry } from '../plugin'
 
 interface DeltaEvent {
@@ -225,14 +225,12 @@ export async function loadStates() {
 
 // ---------- the conversation shown ----------
 
+// Where the conversation shown was kept before the desks had it (read once, then removed).
 const activeKey = () => `webide.llm.active.${home()?.id ?? ''}`
 
+/** The desk keeps the conversation shown, once it has a message (not from a detached window: a view of its own). */
 function rememberActive() {
-  try {
-    if (chat.messages.length) localStorage.setItem(activeKey(), chat.id)
-  } catch {
-    /* private mode */
-  }
+  if (!detached() && chat.messages.length && deskChat().get().chat !== chat.id) deskChat().set((s) => (s.chat = chat.id))
 }
 
 /** Shows a conversation: its messages and its state, then follows it. */
@@ -272,13 +270,15 @@ export async function navigateChats(dir: -1 | 1) {
 let chatProject = ''
 
 /**
- * Shows the conversation of the open project: the one last active in this browser, or a
- * new one. Called when the panel opens; nothing changes when the project is the same.
+ * Shows the conversation of the desk: the one it showed last, or a new one. Called when the panel
+ * opens; then follows the desk (another desk shown, another window on the same desk). A detached
+ * window starts on it and then goes its own way.
  */
 export async function restoreActive() {
   const pid = home()?.id ?? ''
   if (!pid || pid === chatProject) return
   const changed = chatProject !== ''
+  const first = !changed
   chatProject = pid
   if (changed) {
     setChat(reconcile(emptyChat()))
@@ -287,13 +287,24 @@ export async function restoreActive() {
     chatTrail.forward = []
   }
   loadStates()
-  let id: string | null = null
-  try {
-    id = localStorage.getItem(activeKey())
-  } catch {
-    /* private mode */
+  if (first && !detached()) createRoot(() => createEffect(track(() => deskChat().get().chat, () => void showDeskChat(), { defer: true })))
+  await showDeskChat()
+}
+
+async function showDeskChat() {
+  let id = deskChat().get().chat
+  if (id === '') {
+    // A desk that never showed one: the conversation of before the desks, once.
+    try {
+      id = localStorage.getItem(activeKey())
+      localStorage.removeItem(activeKey())
+    } catch {
+      /* private mode */
+    }
+    if (id && !detached()) deskChat().set((s) => (s.chat = id))
   }
-  if (id && !chat.messages.length) await openChat(id).catch(() => {})
+  if (id && id !== chat.id) await openChat(id).catch(() => {})
+  else if (!id && chat.messages.length) resetChat()
 }
 
 // ---------- what the user does ----------

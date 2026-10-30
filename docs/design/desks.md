@@ -66,6 +66,7 @@ Done in #81 (see [spec.md](spec.md#9-desk-state-and-persistence)):
 ### Conversation as a view
 
 - A conversation is a view that any desk may show, as a tab or a tile (a mirror of the one in its own desk): the user shows the conversations they want in their desks or in the Agents tool.
+- **Done for user desks** (#199): the conversations of the assistant and the sessions of the agents stay in the pod with the project; each desk keeps in its state (`api.desk`) the conversation the assistant shows and the agent sessions open as tabs, with the one shown. A new desk starts on a new conversation and no agent tab; a conversation started on a desk is kept there, a reload or another machine finds it; two windows on the same desk follow each other, a detached assistant window starts on the conversation of its desk and then goes its own way. Closing the tab of a session hides it on the desk (it goes on), *Stop the session* in its menu ends it; the + of the Agents tool lists the sessions not open on the desk, to open one there. Migration: the conversation kept by the browser (`localStorage`) goes to the first desk that shows the assistant, the sessions running before to desk 1.
 - The Orchestrator opens the child conversations in its desk this way; the Scroll mode suits it: one column per child, a new child pushes a column.
 
 ## Activity
