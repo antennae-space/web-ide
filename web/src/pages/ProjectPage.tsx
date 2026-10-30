@@ -124,7 +124,12 @@ export function useProjectActions() {
       ;[...l.tabs].forEach((x) => closeTab(l.id, x))
     }),
     // New file or folder: beside the active file, else at the root.
-    registerAction('menu.open', () => document.querySelector<HTMLElement>('.menubar .menu-btn')?.click()),
+    // F10: the menus of the bar, then the first one opened.
+    registerAction('menu.open', () => {
+      setMenusShown(true)
+      // The nav is mounted by the signal: the click comes right after it.
+      queueMicrotask(() => barMenuBtns()[0]?.click())
+    }),
     registerAction('view.nextTab', () => cycleTab(1)),
     registerAction('view.prevTab', () => cycleTab(-1)),
     registerAction('nav.back', () => navHistory(-1)),
@@ -251,6 +256,26 @@ const menuChecks: Record<string, () => boolean> = {
   'view.whitespace': () => settings.editor.showWhitespace,
 }
 
+/**
+ * Whether the menu bar shows its menus instead of the project block. Not a setting: the menus
+ * come with a click on the grid button and go back on their own (a second click, a click
+ * outside the bar, `Escape`, or a menu entry run).
+ */
+const [menusShown, setMenusShown] = createSignal(false)
+
+/** The bar and its phone counterpart (the floating menus): what belongs to the menus mode. */
+const inMenusBar = (at: Element | null | undefined) => at?.closest?.('.menubar, .phone-overlays')
+
+/** The menu buttons of the bar — on a phone they are in the floating row, not in the bar itself. */
+const barMenuBtns = () => [...document.querySelectorAll<HTMLElement>('.menubar .menu-btn, .phone-overlays .menu-btn')]
+
+/** A menu of the bar closed: the compact bar comes back unless another one of the bar took its place. */
+function menuClosed(target?: Node) {
+  const at = target instanceof Element ? target : target?.parentElement
+  if (inMenusBar(at)) return
+  setMenusShown(false)
+}
+
 function openMenu(e: MouseEvent, ids: string[]) {
   const btn = e.currentTarget as HTMLElement
   const r = btn.getBoundingClientRect()
@@ -266,7 +291,7 @@ function openMenu(e: MouseEvent, ids: string[]) {
           hint: shortcutOf(id),
           checked: menuChecks[id]?.(),
           action: () => {
-            if (prev && prev !== document.body && prev.isConnected && !prev.closest('.menubar')) prev.focus()
+            if (prev && prev !== document.body && prev.isConnected && !inMenusBar(prev)) prev.focus()
             else focusEditor()
             requestAnimationFrame(() => runAction(id) || toast(t('Action not available here'), 'info'))
           },
@@ -274,18 +299,31 @@ function openMenu(e: MouseEvent, ids: string[]) {
   )
   // Left and Right open the menu beside.
   const onSide = (dir: -1 | 1) => {
-    const all = [...document.querySelectorAll<HTMLElement>('.menubar .menu-btn')]
+    const all = barMenuBtns()
     all[(all.indexOf(btn) + dir + all.length) % all.length]?.click()
   }
-  contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.bottom + 2 }), items, { onSide })
+  contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.bottom + 2 }), items, { onSide, onClose: menuClosed })
 }
 
-export function PodStatus() {
+/** The menus of the bar: in the bar itself, or in the floating row of a phone. */
+const menuButtons = () => (
+  <For each={shownMenus()}>
+    {([label, ids]) => (
+      <button class="menu-btn" onMouseDown={(e) => e.preventDefault()} onClick={(e) => openMenu(e, ids)}>
+        {t(label)}
+      </button>
+    )}
+  </For>
+)
+
+export function PodStatus(props: { compact?: boolean }) {
   return (
     <div class="pod-status" title={`Pod: ${t(podState())}`}>
       <span class={`dot dot-${podState()}`} />
-      <span class="rate" title={t('Download rate (pod → page)')}>↓ {formatRate(podRates().down)}</span>
-      <span class="rate" title={t('Upload rate (page → pod)')}>↑ {formatRate(podRates().up)}</span>
+      <Show when={!props.compact}>
+        <span class="rate" title={t('Download rate (pod → page)')}>↓ {formatRate(podRates().down)}</span>
+        <span class="rate" title={t('Upload rate (page → pod)')}>↑ {formatRate(podRates().up)}</span>
+      </Show>
     </div>
   )
 }
@@ -294,121 +332,151 @@ function MenuBar() {
   const conflicts = () => (docsVersion(), conflictedDocs().length)
   // A middle click on ⌂ opens the projects page of the entry pod in a new tab of the browser.
   const openHomeTab = async () => window.open((await homeBase()) + '/', '_blank')
-  // Phone: three rows, the project and the status, the menus, the icons of the views.
-  const head = () => (
-    <>
+  // ⌂ opens the projects page. On a phone, while the menus mode is open, that place holds the
+  // settings button instead (the mode stays open) and the grid button closes the mode.
+  const homeButton = (asSettings = false) => {
+    const title = () =>
+      asSettings
+        ? shortcutOf('settings.open')
+          ? `${t('Settings')} (${shortcutOf('settings.open')})`
+          : t('Settings')
+        : [t('Projects'), t('Middle click opens the projects in a new tab')].join(' · ')
+    return (
       <button
         class="icon-btn"
-        title={[t('Projects'), t('Middle click opens the projects in a new tab')].join(' · ')}
-        onClick={() => void goHome()}
+        title={title()}
+        data-testid="home-btn"
+        onClick={() => (asSettings ? openSettings() : void goHome())}
         onMouseDown={(e) => {
           if (e.button !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
           e.preventDefault()
           void openHomeTab()
         }}>
-        <Icon name="home" />
+        <Icon name={asSettings ? 'gear' : 'home'} />
       </button>
-      <ProjectBar />
-    </>
-  )
-  const tail = () => (
+    )
+  }
+  // Phone: the tail of the bar, the pod state without its rates and the grid button.
+  const tail = (compact: boolean) => (
     <>
       <Show when={conflicts()}>
         <button class="badge warn" onClick={() => mutate((s) => (s.right.panel = 'conflicts'))}>
           {tn(conflicts(), '{n} conflict', '{n} conflicts')}
         </button>
       </Show>
-      <PodStatus />
-      <button class="icon-btn" title={`${t('Settings')} (${shortcutOf('settings.open')})`} onClick={() => openSettings()}>
-        <Icon name="gear" />
-      </button>
-    </>
-  )
-  const menuButtons = () => (
-    <For each={shownMenus()}>
-      {([label, ids]) => (
-        <button class="menu-btn" onMouseDown={(e) => e.preventDefault()} onClick={(e) => openMenu(e, ids)}>
-          {t(label)}
+      <PodStatus compact={compact} />
+      {compact ? (
+        menusToggle()
+      ) : (
+        <button class="icon-btn" title={`${t('Settings')} (${shortcutOf('settings.open')})`} onClick={() => openSettings()}>
+          <Icon name="gear" />
         </button>
       )}
-    </For>
+    </>
   )
+  // The menus are behind this button: pressed while they are shown, and it stays there on a phone
+  // while the mode is open, so that one tap brings the compact bar back.
+  const menusToggle = () => {
+    const key = () => shortcutOf('menu.open')
+    return (
+      <button
+        class="icon-btn menus-toggle"
+        classList={{ on: menusShown() }}
+        aria-pressed={menusShown()}
+        title={key() ? `${t('Menus')} (${key()})` : t('Menus')}
+        data-testid="menus-toggle"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setMenusShown((v) => !v)}
+      >
+        <Icon name="apps" />
+      </button>
+    )
+  }
+  // The menus shown with no menu open: a click outside the bar or `Escape` brings the compact bar back.
+  createEffect(
+    track(menusShown, (shown) => {
+      if (!shown) return
+      const down = (e: MouseEvent) => {
+        const at = e.target as Element | null
+        if (inMenusBar(at) || at?.closest?.('.ctx-menu')) return
+        setMenusShown(false)
+      }
+      const key = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setMenusShown(false)
+      }
+      document.addEventListener('mousedown', down, true)
+      document.addEventListener('keydown', key, true)
+      onCleanup(() => {
+        document.removeEventListener('mousedown', down, true)
+        document.removeEventListener('keydown', key, true)
+      })
+    }),
+  )
+  // Another desk shown: the compact bar.
+  createEffect(track(desk, () => setMenusShown(false)))
   return (
     <Show
       when={!phone()}
       fallback={
         <header class="menubar phone" data-testid="phone-bar">
           <div class="menubar-row">
-            {head()}
-            {/* The phone keeps the desks in its bar: its status bar belongs to the editor pane. */}
-            <DeskSwitcher />
+            {homeButton(menusShown())}
             <span class="grow" />
-            {tail()}
+            <ProjectBar part={menusShown() ? 'branch' : 'title'} />
+            <span class="grow" />
+            {tail(true)}
           </div>
-          <nav class="menus">{menuButtons()}</nav>
-          <MobileRail />
         </header>
       }
     >
     <header class="menubar">
-      {head()}
-      <nav class="menus">
-        <For each={shownMenus()}>
-          {([label, ids]) => (
-            <button class="menu-btn" onMouseDown={(e) => e.preventDefault()} onClick={(e) => openMenu(e, ids)}>
-              {t(label)}
-            </button>
-          )}
-        </For>
-      </nav>
+      {homeButton()}
+      {menusToggle()}
+      <Show when={menusShown()} fallback={<ProjectBar />}>
+        <nav class="menus">{menuButtons()}</nav>
+      </Show>
       <span class="grow" />
-      {tail()}
+      {tail(false)}
     </header>
     </Show>
   )
 }
 
-/** Phone: the editor and every tool in one row of icons; the view shown is highlighted. */
-function MobileRail() {
-  let el!: HTMLDivElement
-  const tools = () => (['left', 'right', 'bottomLeft', 'bottomRight'] as Zone[]).flatMap((z) => toolsIn(session, z)).filter((id) => toolPanels[id])
-  // The view shown gets the focus: the editor without the keyboard (a double tap opens it).
-  const show = (id: string) => {
-    setMobileView(id)
-    if (id === 'editor') {
-      setFocusPart('editor')
-      requestAnimationFrame(focusEditorQuietly)
-      return
-    }
-    mutate((s) => showTool(s, id))
-    const z = zoneOf(session, id)
-    if (z) {
-      setFocusPart(z)
-      requestAnimationFrame(() => focusZone(z))
-    }
-  }
-  createEffect(() => {
-    const id = mobileView()
-    queueMicrotask(() => el?.querySelector<HTMLElement>(`[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }))
-  })
+/**
+ * Phone, menus mode: the menus, the two rails and the desks float over the view. They are mounted
+ * **inside** the body of the view (not in the bar, not on the viewport): they stay glued to it
+ * whatever the device — a safe area, a scrolled page — instead of being placed by a computed top.
+ */
+function PhoneOverlays() {
   return (
-    <div class="mobile-rail" ref={el} role="toolbar" aria-label={t('Views')} data-testid="mobile-rail">
-      <button class="rail-btn" classList={{ active: mobileView() === 'editor' }} data-id="editor" title={t('Editor')} aria-pressed={mobileView() === 'editor'} onClick={() => show('editor')}>
-        <Icon name="file" size={18} />
-      </button>
-      <span class="mobile-rail-sep" />
-      <For each={tools()}>
-        {(id) => (
-          <button class="rail-btn" classList={{ active: mobileView() === id }} data-id={id} title={t(toolPanels[id].label)} aria-pressed={mobileView() === id} onClick={() => show(id)}>
-            <Icon name={toolPanels[id].icon} size={18} />
-            <Show when={toolPanels[id].badge?.()}>
-              <span class="rail-badge" />
-            </Show>
-          </button>
-        )}
-      </For>
+    <div class="phone-overlays" data-testid="phone-overlays">
+      <nav class="menus">{menuButtons()}</nav>
+      <Rail side="left" />
+      <Rail side="right" />
+      <div class="phone-desks">
+        <DeskSwitcher />
+      </div>
     </div>
   )
+}
+
+/**
+ * Phone: shows a view full screen — the editor, or a tool brought to the front — and gives it
+ * the focus (the editor without the keyboard: a double tap opens it).
+ */
+function showView(id: string) {
+  setMobileView(id)
+  if (id === 'editor') {
+    setFocusPart('editor')
+    requestAnimationFrame(focusEditorQuietly)
+    return
+  }
+  mutate((s) => showTool(s, id))
+  const z = zoneOf(session, id)
+  if (z) {
+    setFocusPart(z)
+    requestAnimationFrame(() => focusZone(z))
+  }
 }
 
 /**
@@ -455,9 +523,16 @@ function MobileSync() {
 // ---------- rails & side panels ----------
 
 function Rail(props: { side: 'left' | 'right' }) {
+  let el!: HTMLElement
   const bottom: Zone = props.side === 'left' ? 'bottomLeft' : 'bottomRight'
+  // On a phone the rail floats over the view and can overflow: the view shown stays in sight.
+  createEffect(() => {
+    if (!phone()) return
+    const id = mobileView()
+    queueMicrotask(() => el?.querySelector<HTMLElement>(`[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest' }))
+  })
   return (
-    <nav class={`rail rail-${props.side}`} classList={{ 'rail-dragging': !!dragged() }} aria-label={props.side === 'left' ? t('Panels') : t('Tools')}>
+    <nav class={`rail rail-${props.side}`} ref={el} classList={{ 'rail-dragging': !!dragged() }} aria-label={props.side === 'left' ? t('Panels') : t('Tools')}>
       <RailGroup zone={props.side} />
       <span class="grow" />
       <RailGroup zone={bottom} />
@@ -472,6 +547,10 @@ const [dropAt, setDropAt] = createSignal<{ zone: Zone; index: number } | null>(n
 function RailGroup(props: { zone: Zone }) {
   const current = () => shownIn(session, props.zone)
   const list = () => toolsIn(session, props.zone).filter((id) => toolPanels[id])
+  // On a phone the rails are the floating overlays: no drag nor middle click, a tap shows the
+  // tool full screen (and closes the menus mode), a tap on the tool shown brings the editor back.
+  const onPhone = () => phone()
+  const pressed = () => (onPhone() ? mobileView() : current())
   // Insertion index among the icons of the group, the dragged one left out.
   const indexAt = (el: HTMLElement, y: number) => {
     const btns = [...el.querySelectorAll<HTMLElement>('.rail-btn')].filter((b) => b.dataset.id !== dragged())
@@ -507,18 +586,28 @@ function RailGroup(props: { zone: Zone }) {
         {(id) => (
           <button
             class="rail-btn"
-            classList={{ active: current() === id, focused: current() === id && focusPart() === props.zone, 'drop-before': marker(id), dragging: dragged() === id }}
+            classList={{
+              active: pressed() === id,
+              focused: !onPhone() && current() === id && focusPart() === props.zone,
+              'drop-before': marker(id),
+              dragging: dragged() === id,
+            }}
             data-id={id}
-            draggable="true"
-            title={[t(toolPanels[id].label), t('Middle click opens it in a window')].join(' · ')}
-            aria-pressed={current() === id}
+            draggable={onPhone() ? undefined : 'true'}
+            title={onPhone() ? t(toolPanels[id].label) : [t(toolPanels[id].label), t('Middle click opens it in a window')].join(' · ')}
+            aria-pressed={pressed() === id}
             // A middle click opens the tool in a window of its own, leaving this layout as it was.
             onMouseDown={(e) => {
-              if (e.button !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || dragged()) return
+              if (e.button !== 1 || onPhone() || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || dragged()) return
               e.preventDefault() // no autoscroll
               detachTool(id)
             }}
             onClick={() => {
+              if (onPhone()) {
+                setMenusShown(false)
+                showView(mobileView() === id ? 'editor' : id)
+                return
+              }
               mutate((s) => toggleTool(s, id))
               if (current() === id) setFocusPart(props.zone)
             }}
@@ -762,11 +851,15 @@ export function ProjectPage(props: { id: string }) {
         <DiagramViewer />
         <Show when={phone()}>
           {/* One view at a time, full screen: the editor stays mounted under the tools. */}
-          <div class="workbench phone-body" onPointerDown={trackFocus} onFocusIn={trackFocus}>
+          <div class="workbench phone-body" data-view={mobileView()} onPointerDown={trackFocus} onFocusIn={trackFocus}>
             <main class="center" data-focus="editor" classList={{ hidden: mobileView() !== 'editor' }} onFocusIn={() => setTimeout(revealCaret, 300)}>
               <EditorArea statusBar />
             </main>
             <Show when={mobileView() !== 'editor' && zoneOf(session, mobileView())}>{(z) => <ZonePanel zone={z()} />}</Show>
+            {/* The mode: the menus, the two rails and the desks float over the view, glued to it. */}
+            <Show when={menusShown()}>
+              <PhoneOverlays />
+            </Show>
           </div>
         </Show>
         <Show when={!phone() && tileMode()}>
@@ -803,7 +896,7 @@ export function ProjectPage(props: { id: string }) {
         </Show>
         {/* The status bar is the last row of the window: full width, under the bottom strip and
             the icon rails, the desks on its left. The phone keeps it inside the editor pane,
-            hidden with it, and its desks in the bar of the window. */}
+            hidden with it, and shows the desks in the floating bar of its menus mode. */}
         <Show when={!phone()}>
           <StatusBar desks />
         </Show>

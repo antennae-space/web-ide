@@ -120,6 +120,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .app { display: flex; flex-direction: column; height: var(--app-h, 100%); }
 .menubar { display: flex; align-items: center; gap: 4px; height: 34px; padding: 0 8px; background: var(--bg-2); border-bottom: 1px solid var(--line); flex: none; }
 .menus { display: flex; gap: 2px; margin-left: 4px; }
+/* The menus of the bar (behind the grid button): a narrow window scrolls them instead of
+   pushing the right side of the bar out. */
+.menubar .menus { min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.menubar .menus::-webkit-scrollbar { display: none; }
+.menus-toggle { flex: none; }
 .menu-btn { border: 0; background: transparent; padding: 3px 9px; border-radius: 4px; cursor: pointer; color: var(--fg); }
 .menu-btn:hover { background: var(--bg-hover); }
 .mb-project { display: flex; align-items: center; gap: 6px; margin: 0 6px 0 4px; min-width: 0; }
@@ -740,16 +745,28 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .detached-body { flex: 1; min-height: 0; display: flex; flex-direction: column; position: relative; }
 .tool-full { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
-/* phone: one bar of three rows (project and status, menus, views), one view full screen */
-.app.phone { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+/* phone: one row of bar (home, project, status, grid button), one view full screen */
+.app.phone { --phone-desks-h: 26px; --phone-menus-h: 32px; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
 .menubar.phone { flex-direction: column; align-items: stretch; height: auto; padding: 0; gap: 0; }
 .menubar-row { display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 6px; min-width: 0; }
-.menubar.phone .menus { display: flex; height: 32px; padding: 0 4px; overflow-x: auto; scrollbar-width: none; border-top: 1px solid var(--line); }
-.menubar.phone .menu-btn { flex: none; }
-.menubar.phone .pod-status .rate { display: none; }
-.mobile-rail { display: flex; align-items: center; gap: 2px; padding: 2px 4px; overflow-x: auto; scrollbar-width: none; border-top: 1px solid var(--line); }
-.mobile-rail .rail-btn { flex: none; width: 42px; height: 38px; }
-.mobile-rail-sep { flex: none; width: 1px; height: 22px; margin: 0 4px; background: var(--line); }
+.menubar.phone .mb-project { margin: 0 4px; }
+/* The menus mode: the menus, the two rails of the computer layout and the desks float over the
+   view. They are anchored to the body of the view (.phone-body), not to the viewport: the menus
+   row starts exactly under the bar whatever the device (a safe area, a scrolled page), and the
+   desks bar follows the height left by the keyboard. The menus take the whole width, the rails
+   come under them. The layer itself takes no touch: a tap between the overlays goes to the view
+   and closes the mode. */
+.phone-overlays { position: absolute; inset: 0; z-index: 40; pointer-events: none; }
+.phone-overlays > * { pointer-events: auto; }
+/* No margin-left: the row takes the whole width of the view, from edge to edge. */
+.phone-overlays .menus { position: absolute; top: 0; left: 0; right: 0; height: var(--phone-menus-h); margin-left: 0; padding: 0 4px; display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none; background: var(--bg-2); border-bottom: 1px solid var(--line); box-shadow: 0 4px 14px rgb(0 0 0 / 0.3); }
+.phone-overlays .menus::-webkit-scrollbar { display: none; }
+.phone-overlays .menu-btn { flex: none; }
+.phone-overlays .rail { position: absolute; top: var(--phone-menus-h); bottom: calc(var(--phone-desks-h) + env(safe-area-inset-bottom)); overflow-y: auto; scrollbar-width: none; box-shadow: 0 0 18px rgb(0 0 0 / 0.35); }
+.phone-overlays .rail::-webkit-scrollbar { display: none; }
+.phone-overlays .rail-left { left: 0; }
+.phone-overlays .rail-right { right: 0; }
+.phone-desks { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--phone-desks-h) + env(safe-area-inset-bottom)); padding: 0 6px; display: flex; align-items: center; background: var(--bg-2); border-top: 1px solid var(--line); box-shadow: 0 -4px 14px rgb(0 0 0 / 0.3); }
 .phone-body { position: relative; }
 .phone-body > .center { flex: 1; min-width: 0; }
 .phone-body > .center.hidden { display: none; }

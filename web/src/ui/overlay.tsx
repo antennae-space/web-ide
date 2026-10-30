@@ -346,6 +346,8 @@ interface MenuState {
   items: MenuItem[]
   /** Left / Right arrows: the menu bar opens the menu beside. */
   onSide?: (dir: -1 | 1) => void
+  /** The menu closed, by the node clicked if any: the menu bar of a project tells whether it keeps its menus shown. */
+  onClose?: (target?: Node) => void
   /** Focused before the menu opened, focused again when it closes. */
   prev: HTMLElement | null
 }
@@ -367,20 +369,22 @@ export function focusBeforeMenus(): HTMLElement | null {
   return a?.closest('.ctx-menu') ? (menu()?.prev ?? null) : a
 }
 
-export function contextMenu(e: MouseEvent, items: MenuItem[], opts: { onSide?: (dir: -1 | 1) => void } = {}) {
+export function contextMenu(e: MouseEvent, items: MenuItem[], opts: { onSide?: (dir: -1 | 1) => void; onClose?: (target?: Node) => void } = {}) {
   e.preventDefault()
   e.stopPropagation()
-  setMenu({ x: e.clientX, y: e.clientY, items, onSide: opts.onSide, prev: focusBeforeMenus() })
+  setMenu({ x: e.clientX, y: e.clientY, items, onSide: opts.onSide, onClose: opts.onClose, prev: focusBeforeMenus() })
 }
 
 function MenuHost() {
   let el!: HTMLDivElement
   let subEl: HTMLDivElement | undefined
-  const close = () => {
+  const close = (target?: Node) => {
     const prev = menu()?.prev
+    const done = menu()?.onClose
     setSub(null)
     setMenu(null)
     if (prev && prev !== document.body && prev.isConnected) prev.focus()
+    done?.(target)
   }
   // The keyboard moves between the items: arrows, Home / End, Tab closes.
   const entries = (inEl?: HTMLElement) => [...(inEl ?? el).querySelectorAll<HTMLButtonElement>('.ctx-item:not(:disabled)')]
@@ -446,7 +450,7 @@ function MenuHost() {
   onMount(() => {
     const down = (e: MouseEvent) => {
       const at = e.target as Node
-      if (menu() && !el?.contains(at) && !subEl?.contains(at)) close()
+      if (menu() && !el?.contains(at) && !subEl?.contains(at)) close(at)
     }
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && menu()) {
@@ -456,13 +460,14 @@ function MenuHost() {
         else close()
       }
     }
+    const blur = () => close()
     window.addEventListener('mousedown', down, true)
     window.addEventListener('keydown', key, true)
-    window.addEventListener('blur', close)
+    window.addEventListener('blur', blur)
     onCleanup(() => {
       window.removeEventListener('mousedown', down, true)
       window.removeEventListener('keydown', key, true)
-      window.removeEventListener('blur', close)
+      window.removeEventListener('blur', blur)
     })
   })
   const item = (it: MenuItem, idx: number, inSub: boolean) =>

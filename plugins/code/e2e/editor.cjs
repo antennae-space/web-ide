@@ -3,7 +3,7 @@
 // lang-go (#146), installed first.
 const fs = require('fs')
 const { execSync } = require('child_process')
-const { run, openProject, open, assert, text, installOfficial, WS, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, open, assert, text, installOfficial, WS, OUT, openMenu } = require('../../../e2e/common.cjs')
 
 const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 'e2e', GIT_AUTHOR_EMAIL: 'e2e@x', GIT_COMMITTER_NAME: 'e2e', GIT_COMMITTER_EMAIL: 'e2e@x' }
 const git = (cmd) => execSync(`git ${cmd}`, { cwd: WS + '/demo', env: gitEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
@@ -109,7 +109,7 @@ run(async ({ page }) => {
 
   // Whitespace (View menu): dots for spaces, arrows for tabs, a mark at each line end.
   const whitespace = async () => {
-    await page.click('.menu-btn:has-text("View")')
+    await openMenu(page, 'View')
     await page.click('.ctx-menu .ctx-item:has-text("Show whitespace")')
   }
   await whitespace()
@@ -468,7 +468,7 @@ run(async ({ page }) => {
   await page.waitForFunction(() => !document.querySelector('.pane.active .ed').classList.contains('wrap'))
   g = await geo()
   assert(g.overflow > 100 && g.longRows === 1, 'Alt+Z unwraps the lines')
-  await page.click('.menu-btn:has-text("View")')
+  await openMenu(page, 'View')
   await page.click('.ctx-menu .ctx-item:has-text("Wrap the long lines")')
   await page.waitForFunction(() => document.querySelector('.pane.active .ed').classList.contains('wrap'))
   assert(true, 'the View menu wraps them again')

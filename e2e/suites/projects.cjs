@@ -57,9 +57,20 @@ run(async ({ page, ctx }) => {
   await page.waitForFunction(() => decodeURIComponent(document.querySelector('link[rel="icon"]').href).includes('linearGradient'), null, { timeout: 5000 }).catch(() => {})
   assert((await favicon(page)).includes('linearGradient'), 'favicon follows the icon')
 
-  // Menu bar: home, project (icon, title, branch), menus … pod status, settings.
+  // Menu bar: home, the grid button, project (icon, title, branch), pod status, settings — no menu button.
   const order = await page.$$eval('.menubar > *', (els) => els.map((e) => e.className.split(' ')[0] + (e.title ? ':' + e.title.split(' ')[0] : '')))
-  assert(order[0] === 'icon-btn:Projects' && order[1] === 'mb-project' && order[2] === 'menus' && order[order.length - 2].startsWith('pod-status') && order[order.length - 1] === 'icon-btn:Settings', 'menu bar order: ' + order.join(', '))
+  assert(
+    order[0] === 'icon-btn:Projects' && order[1] === 'icon-btn:Menus' && order[2] === 'mb-project' && order[order.length - 2].startsWith('pod-status') && order[order.length - 1] === 'icon-btn:Settings',
+    'menu bar order: ' + order.join(', '),
+  )
+  assert(!(await page.$('.menubar .menu-btn')) && (await page.isVisible('[data-testid=menus-toggle]')), 'the menus are behind the grid button')
+  await page.click('[data-testid=menus-toggle]')
+  await page.waitForSelector('.menubar .menus')
+  assert((await page.getAttribute('[data-testid=menus-toggle]', 'aria-pressed')) === 'true' && !(await page.$('.mb-project')), 'the menus replace the project block')
+  assert((await page.$eval('.menubar > *', (e) => e.className)) === 'icon-btn', 'the home button stays')
+  await page.click('[data-testid=menus-toggle]')
+  await page.waitForSelector('.menubar .menus', { state: 'detached' })
+  assert(await page.isVisible('.mb-project'), 'a second click brings the compact bar back')
   assert((await page.textContent('.mb-title')).includes('demo') && (await page.isVisible('[data-testid=menubar-icon] img')), 'icon and title of the project')
   // The new project is a repository: commit it, add a branch, leave a change uncommitted.
   git('add -A')
@@ -149,9 +160,12 @@ run(async ({ page, ctx }) => {
   await page.click('.pick-item:has-text("feature")')
   await page.waitForFunction(() => document.querySelector('[data-testid=branch-selector]')?.textContent.includes('feature'), null, { timeout: 5000 })
   await page.waitForTimeout(600) // the session is saved after 400 ms
+  await page.click('[data-testid=menus-toggle]')
+  await page.waitForSelector('.menubar .menus')
   await page.reload()
   await page.waitForFunction(() => document.querySelector('[data-testid=branch-selector]')?.textContent.includes('feature'), null, { timeout: 8000 }).catch(() => {})
   assert((await page.textContent('[data-testid=branch-selector]')).includes('feature'), 'worktree shown again after a reload')
+  assert(!(await page.$('.menubar .menu-btn')) && (await page.isVisible('.mb-project')), 'a reload shows the compact bar')
   await page.waitForSelector('.tab:has-text("feature.txt") [data-testid=worktree-chip]', { timeout: 5000 })
   assert(await page.isVisible('.tab:has-text("main.txt")'), 'tabs of both worktrees restored')
 

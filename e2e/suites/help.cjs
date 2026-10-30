@@ -1,6 +1,6 @@
 // Help: the documentation embedded in the pod opens read only in a tab, from the Help menu, the
 // palette and the "?" of the interface; relative links, Back, anchors and pictures stay inside the docs.
-const { run, openProject, assert, OUT, installOfficial, inFrames } = require('../common.cjs')
+const { run, openProject, assert, OUT, installOfficial, inFrames, openMenu } = require('../common.cjs')
 
 run(async ({ page }) => {
   // The Kanban is an external official plugin (#158).
@@ -13,7 +13,7 @@ run(async ({ page }) => {
   const top = (id) => page.$eval(`[data-testid=doc-view] [id="${id}"]`, (e) => Math.round(e.getBoundingClientRect().top - document.querySelector('.doc-scroll').getBoundingClientRect().top))
 
   // Help > Documentation: the index in a tab, titled by its first heading.
-  await page.click('.menubar .menu-btn:has-text("Help")')
+  await openMenu(page, 'Help')
   await page.click('.ctx-item:has-text("Documentation")')
   await shown('docs/README.md')
   assert((await title()) === 'Documentation', 'the tab is titled by the page: ' + (await title()))
@@ -76,7 +76,7 @@ run(async ({ page }) => {
   assert((await title()) === 'Pods on the local network', 'Local network "?": ' + (await title()))
 
   // The kanban and the Agents tool have theirs.
-  await page.click('.menubar .menu-btn:has-text("Tools")')
+  await openMenu(page, 'Tools')
   await page.click('.ctx-item:has-text("Agents")')
   await page.waitForSelector('[data-testid=help-agents]')
   await page.click('[data-testid=help-agents]')

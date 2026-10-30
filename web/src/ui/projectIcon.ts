@@ -151,8 +151,15 @@ export function setFavicon(svg: string | null) {
  * Keeps the favicon of a project window on the icon of the project (with a dot for a
  * worktree); returns the owner of the icon (with its name and description).
  */
-export function useProjectIcon(project: () => { id: string; parent?: string } | null) {
-  const [owner, setOwner] = createSignal<IconOwner | null>(null)
+export function useProjectIcon(project: () => { id: string; name?: string; parent?: string } | null) {
+  // The icon is known already (the home page, or an earlier mount of the bar): the part of the
+  // bar shown again does not wait for the pod.
+  const seed = () => {
+    const p = project()
+    const svg = p ? iconOf(p.id) : ''
+    return p && svg ? { owner: p.id, name: p.name ?? '', spec: null } : null
+  }
+  const [owner, setOwner] = createSignal<IconOwner | null>(seed())
   const load = () => {
     const p = project()
     if (p) loadIcon(p.id).then(setOwner, () => {})
