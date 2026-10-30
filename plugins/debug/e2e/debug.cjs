@@ -1,7 +1,7 @@
-// The debug host (#188) with Go: the pack lang-go declares dlv as its adapter (lib/langgo.cjs
-// writes that pack, or takes E2E_PLUGIN_LANG_GO), the pod runs it on its grant debugger:go, a Go program
-// stops on a line breakpoint, and the stack and a local variable are read through the debug.*
-// methods. Skipped when dlv is not installed.
+// The debug host (#188) with Go: the official pack lang-go declares dlv as its adapter (its
+// release archive, or E2E_PLUGIN_LANG_GO for a local build: lib/langgo.cjs), the pod runs it on
+// its grant debugger:go, a Go program stops on a line breakpoint, and the stack and a local
+// variable are read through the debug.* methods. Skipped when dlv is not installed.
 const fs = require('fs')
 const path = require('path')
 const { run, openProject, assert, WS } = require('../../../e2e/common.cjs')

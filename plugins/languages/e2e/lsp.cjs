@@ -12,7 +12,7 @@ try {
 }
 run(async ({ page }) => {
   const lock = await installOfficial('lang-go')
-  assert(lock?.grants.join() === 'program:gopls,path:GOROOT,path:GOMODCACHE', 'lang-go installed with its grants: ' + JSON.stringify(lock))
+  assert(lock?.grants.join() === 'program:gopls,path:GOROOT,path:GOMODCACHE,debugger:go', 'lang-go installed with its grants: ' + JSON.stringify(lock))
   // A file with one private and one exported function (the lock of Structure, #170), and a third
   // one the suite never opens in an editor (the package view reads it through the server, #172).
   fs.writeFileSync(path.join(WS, 'demo/src/priv.go'), 'package main\n\nfunc maxFrame() int { return 1024 }\n\nfunc Transport() string { return "tcp" }\n')
