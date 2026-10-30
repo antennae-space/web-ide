@@ -26,6 +26,8 @@ var (
 	// A program run on the host of an SSH project (#152): exec:sqlite3.
 	execGrant = regexp.MustCompile(`^exec:[A-Za-z0-9][A-Za-z0-9._+-]*$`)
 	pathGrant = regexp.MustCompile(`^path:[A-Z][A-Z0-9_]*$`)
+	// The debug adapter of a pack (#188), run unconfined by the core: debugger:go.
+	debuggerGrant = regexp.MustCompile(`^debugger:[a-z][a-z0-9-]*$`)
 )
 
 // ValidGrant tells whether a permission is a grant name.
@@ -35,7 +37,7 @@ func ValidGrant(p string) bool {
 			return true
 		}
 	}
-	return coreMethod.MatchString(p) || programGrant.MatchString(p) || execGrant.MatchString(p) || pathGrant.MatchString(p)
+	return coreMethod.MatchString(p) || programGrant.MatchString(p) || execGrant.MatchString(p) || pathGrant.MatchString(p) || debuggerGrant.MatchString(p)
 }
 
 // CheckExternal validates the manifest of an external plugin, beyond Manifest.Check: its
