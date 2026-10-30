@@ -89,8 +89,9 @@ run(
       const m = document.querySelector('[data-testid=phone-overlays] .menus').getBoundingClientRect()
       const l = document.querySelector('[data-testid=phone-overlays] .rail-left').getBoundingClientRect()
       const r = document.querySelector('[data-testid=phone-overlays] .rail-right').getBoundingClientRect()
-      return { menusTop: m.top, leftTop: l.top, rightTop: r.top, menusRight: m.right, rightLeft: r.left, w: innerWidth }
+      return { menusLeft: m.left, menusTop: m.top, leftTop: l.top, rightTop: r.top, menusRight: m.right, rightLeft: r.left, w: innerWidth }
     })
+    assert(boxes.menusLeft === 0 && boxes.menusRight === boxes.w, 'the menus row spans the whole width, edge to edge: ' + JSON.stringify(boxes))
     assert(boxes.leftTop >= boxes.menusTop && boxes.rightTop >= boxes.menusTop && boxes.menusRight > boxes.rightLeft, 'the rails start under the menus row: ' + JSON.stringify(boxes))
     // The overlays are anchored to the body of the view, not to the viewport: no view shows
     // through between the bar and the menus row, even when the page moves (a safe area, a scroll).
