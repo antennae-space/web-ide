@@ -4,6 +4,13 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ## [Unreleased]
 
+## [1.26.0] - 2026-10-30
+
+### Changed
+
+- **The menus behind a grid button.** The bar is compact by default: the home button, the grid button and the project. A click on the grid shows the *File* … *Help* menus in place of the project; a second click, a click outside the bar, `Escape` or a menu entry run brings the compact bar back. `F10` shows them and opens *File*. A reload or another desk shows the compact bar.
+- **Phone: one row of bar.** The home button, the project in the middle, the pod and the grid button. Pressed, the grid opens the **menus mode**: the gear takes the place of the home button, the worktree selector the place of the project, and the menus (scrolled sideways), the two icon rails of the computer and the desks float over the view, which goes dim and grey. A rail icon, a menu entry, `Escape`, the grid button again or a tap on the dimmed view closes it; that tap goes no further. The desks leave the bar of the editor for the floating bar of the mode.
+
 ## [1.25.0] - 2026-10-30
 
 ### Added
