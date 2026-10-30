@@ -139,7 +139,7 @@ The **⋮** of a tool's zone or of its tile (and the menu of a tab, and a right 
 _Avoid_: context menu, kebab menu
 
 **Menus button**
-The 2×2 grid of the menu bar: it replaces the project block with the File, Edit… menus, and the compact bar comes back on its own. Not a setting.
+The 2×2 grid of the menu bar: it replaces the project block with the File, Edit… menus, and the compact bar comes back on its own. Not a setting. On a phone it sits at the right end of the bar and shows the gear while the menus mode is open (a click there opens the settings).
 _Avoid_: hamburger menu, app launcher
 
 **Console**

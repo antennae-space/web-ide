@@ -1,6 +1,7 @@
 // Desks of the project, on the left of the status bar (docs/design/desks.md): 1 2 3 +. A desk is a
 // link: a click switches the window, a middle click opens it in a new tab. A tab dropped on a desk
-// moves there. On a phone it stays in the bar of the window (pages/ProjectPage.tsx).
+// moves there. On a phone it is the whole content of the floating bar at the bottom of the menus
+// mode (pages/ProjectPage.tsx).
 import { createSignal, For, Show } from 'solid-js'
 import { podPath } from '../app/base'
 import { deskPath, navigate } from '../app/router'

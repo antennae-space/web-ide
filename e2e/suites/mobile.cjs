@@ -1,9 +1,10 @@
-// Phone layout (375×812, touch): one bar of three rows (project and status, the menus, the
-// icons of the views), no side rails; one view at a time, full screen: a tool shown from its
-// icon or from the Tools menu, the editor back when a file is opened; the line of the caret
-// stays visible when the keyboard shrinks the visible area; the page does not zoom.
+// Phone layout (375×812, touch): one row of bar (home, project, pod state, grid button); the
+// menus, the two icon rails and the desks float over the view while the grid button is pressed;
+// one view at a time, full screen: a tool shown from its icon or from the Tools menu, the editor
+// back when a file is opened or when the icon of the tool shown is tapped again; the line of the
+// caret stays visible when the keyboard shrinks the visible area; the page does not zoom.
 const fs = require('fs')
-const { run, openProject, assert, pinchRefused, OUT, WS } = require('../common.cjs')
+const { run, openProject, assert, pinchRefused, phoneShow, phoneView, OUT, WS } = require('../common.cjs')
 
 fs.writeFileSync(WS + '/demo/long.txt', Array.from({ length: 200 }, (_, i) => `line ${i + 1}`).join('\n') + '\n')
 
@@ -13,7 +14,13 @@ const view = (page) =>
     const shown = [...document.querySelectorAll('.phone-body > .center, .phone-body > .zone')].filter((e) => e.offsetWidth > 0)
     return shown.map((e) => (e.classList.contains('center') ? 'editor' : e.getAttribute('data-tool'))).join(',')
   })
-const active = (page) => page.getAttribute('[data-testid=mobile-rail] .rail-btn.active', 'data-id')
+const active = (page) => phoneView(page)
+// The menus mode open: the floating overlays.
+const overlays = (page) => visible(page, '[data-testid=phone-overlays]')
+const openMode = async (page) => {
+  if (!(await overlays(page))) await page.tap('[data-testid=menus-toggle]')
+  await page.waitForSelector('[data-testid=phone-overlays]')
+}
 
 run(
   async ({ page }) => {
@@ -36,20 +43,64 @@ run(
       return { before, after }
     })
     assert(zoom.after !== zoom.before && zoom.after.includes('maximum-scale=1'), 'a zoom put by the system is undone: ' + zoom.after)
-    assert(await visible(page, '[data-testid=phone-bar] .menubar-row'), 'row 1: project and status')
-    assert(await visible(page, '[data-testid=phone-bar] .menus .menu-btn'), 'row 2: the menus')
-    assert(await visible(page, '[data-testid=mobile-rail]'), 'row 3: the icons of the views')
+    assert(await visible(page, '[data-testid=phone-bar] .menubar-row'), 'one row: home, project, pod state, grid button')
+    assert(!(await visible(page, '[data-testid=phone-bar] .menus')), 'no menus row while the mode is closed')
+    assert(!(await page.$('[data-testid=mobile-rail]')), 'no row of view icons any more')
+    const bar = await page.$eval('[data-testid=phone-bar]', (e) => {
+      const row = e.querySelector('.menubar-row').getBoundingClientRect()
+      const block = e.querySelector('.mb-project').getBoundingClientRect()
+      return {
+        rows: [...e.children].filter((c) => c.offsetHeight > 0).length,
+        centred: Math.abs((block.left + block.right) / 2 - (row.left + row.right) / 2) < 40,
+        icon: !!e.querySelector('[data-testid=menubar-icon]') && !!e.querySelector('.mb-title'),
+        branch: !!e.querySelector('[data-testid=branch-selector]'),
+        dot: !!e.querySelector('.pod-status .dot') && !e.querySelector('.pod-status .rate'),
+        grid: !!e.querySelector('[data-testid=menus-toggle]'),
+      }
+    })
+    assert(bar.rows === 1 && bar.centred && bar.icon && bar.grid && bar.dot && !bar.branch, 'one row, the project centred, the pod dot only: ' + JSON.stringify(bar))
     assert(!(await page.$('.rail')) && !(await page.$('.resizer')), 'no side rails nor resizers')
     const width = await page.evaluate(() => document.documentElement.scrollWidth)
     assert(width <= 375, 'nothing wider than the screen: ' + width)
     assert((await view(page)) === 'editor' && (await active(page)) === 'editor', 'the editor first')
-    // The bar stays under the editor pane (not a row of the window, as on the desktop).
+    // The bar stays under the editor pane (not a row of the window, as on the desktop), without the desks.
     assert(await visible(page, '.phone-body > .center [data-testid=status-bar]'), 'the status bar stays under the editor pane')
+    assert(!(await page.$('[data-testid=status-bar] [data-testid=desks]')), 'the desks are not in the bar of the editor')
     assert(!(await page.$('.app > [data-testid=status-bar]')), 'no window-level bar on a phone')
     await page.screenshot({ path: OUT + '/mobile-editor.png' })
 
-    // The menus open from row 2 and fit the screen.
-    await page.click('.menubar .menu-btn:has-text("File")')
+    // The grid button: the menus, the two rails and the desks float over the view.
+    await page.tap('[data-testid=menus-toggle]')
+    await page.waitForSelector('[data-testid=phone-overlays]')
+    assert(await visible(page, '[data-testid=phone-overlays] .menus .menu-btn'), 'the menus float over the view')
+    assert(await visible(page, '[data-testid=phone-overlays] .rail-left .rail-btn'), 'the left rail on the left edge')
+    assert(await visible(page, '[data-testid=phone-overlays] .rail-right .rail-btn'), 'the right rail on the right edge')
+    assert(await visible(page, '[data-testid=phone-overlays] [data-testid=desks]'), 'the desks in the floating bar below')
+    const mode = await page.$eval('[data-testid=phone-bar]', (e) => ({
+        pressed: e.querySelector('[data-testid=menus-toggle]').getAttribute('aria-pressed'),
+        title: e.querySelector('[data-testid=menus-toggle]').title,
+        branch: !!e.querySelector('[data-testid=branch-selector]'),
+        project: !!e.querySelector('.mb-title'),
+      }))
+    assert(mode.pressed === 'true' && mode.title.startsWith('Settings') && mode.branch && !mode.project, 'the grid shows the gear, the worktree selector replaces the project: ' + JSON.stringify(mode))
+    await page.screenshot({ path: OUT + '/mobile-mode.png' })
+    // The gear: the settings open, the mode stays open; Escape ends both.
+    await page.tap('[data-testid=menus-toggle]')
+    await page.waitForSelector('.modal-settings')
+    assert(await overlays(page), 'the settings open with the mode kept')
+    await page.tap('.modal-settings .modal-head button')
+    await page.waitForSelector('.modal-settings', { state: 'detached' })
+    assert(!(await overlays(page)), 'a tap on the settings, outside the overlays, closes the mode too')
+    // A tap on the view, between the overlays, closes the mode.
+    await page.tap('[data-testid=menus-toggle]')
+    await page.waitForSelector('[data-testid=phone-overlays]')
+    await page.tap('.phone-body > .center')
+    await page.waitForSelector('[data-testid=phone-overlays]', { state: 'detached' })
+    assert(true, 'a tap outside the overlays closes the mode')
+
+    // The menus open from the floating row and fit the screen.
+    await openMode(page)
+    await page.click('[data-testid=phone-overlays] .menu-btn:has-text("File")')
     await page.waitForSelector('.ctx-menu')
     const box = await page.$eval('.ctx-menu', (e) => e.getBoundingClientRect().right)
     assert(box <= 375, 'the File menu opens and fits the screen')
@@ -57,11 +108,13 @@ run(
     assert(!(await page.$eval('.ctx-menu', (e) => !!e.closest('.app'))), 'the menu is a portal outside .app')
     assert((await pinchRefused(page, '.ctx-menu')) === true, 'a pinch started on a portal is refused')
     await page.keyboard.press('Escape')
+    await page.waitForFunction(() => !document.querySelector('.ctx-menu, [data-testid=phone-overlays]'))
+    assert(true, 'Escape closes the menu and the mode')
 
     // A tool full screen; a file opened brings the editor back.
-    await page.click('[data-testid=mobile-rail] [data-id=explorer]')
+    await phoneShow(page, 'explorer')
     await page.waitForSelector('.phone-body > .zone[data-tool=explorer]')
-    assert((await view(page)) === 'explorer' && (await active(page)) === 'explorer', 'the explorer full screen, alone')
+    assert((await view(page)) === 'explorer' && (await active(page)) === 'explorer', 'the explorer full screen, alone, the mode closed')
     assert(!(await visible(page, '[data-testid=status-bar]')), 'the bar is hidden with the editor when a tool view is shown')
     await page.screenshot({ path: OUT + '/mobile-explorer.png' })
     await page.click('.tree-row:has-text("long.txt")')
@@ -76,12 +129,14 @@ run(
     })
     assert(sizes.code >= 16 && sizes.gutter === sizes.code, 'the editor text is 16 px or more, gutter aligned: ' + JSON.stringify(sizes))
 
-    // The Tools menu shows a tool the same way; the icon of the view follows.
-    await page.click('.menubar .menu-btn:has-text("Tools")')
+    // The Tools menu shows a tool the same way and closes the mode.
+    await openMode(page)
+    await page.click('[data-testid=phone-overlays] .menu-btn:has-text("Tools")')
     await page.click('.ctx-menu .ctx-item:has-text("Console")')
     await page.waitForSelector('.phone-body > .zone[data-tool=console]')
     assert((await view(page)) === 'console' && (await active(page)) === 'console', 'a tool shown from the menu is full screen')
-    await page.click('[data-testid=mobile-rail] [data-id=assistant]')
+    assert(!(await overlays(page)), 'the menu entry closes the mode')
+    await phoneShow(page, 'assistant')
     await page.waitForSelector('.phone-body > .zone[data-tool=assistant]')
     assert((await view(page)) === 'assistant', 'the assistant full screen')
     const composer = await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('.ai-composer .ed-content')).fontSize))
@@ -90,13 +145,13 @@ run(
 
     // No field takes the focus by itself (the keyboard would open): the user touches it.
     const typing = () => page.evaluate(() => !!document.activeElement?.matches('input, textarea, .ai-editor .ed-content'))
-    await page.tap('[data-testid=mobile-rail] [data-id=search]')
+    await phoneShow(page, 'search')
     await page.waitForSelector('.phone-body > .zone[data-tool=search]')
     await page.waitForTimeout(300)
     assert(!(await typing()), 'the search tool opens without focusing its field')
     await page.tap('.zone[data-tool=search] input')
     assert(await typing(), 'a touch on the search field focuses it')
-    await page.tap('[data-testid=mobile-rail] [data-id=assistant]')
+    await phoneShow(page, 'assistant')
     await page.waitForSelector('.phone-body > .zone[data-tool=assistant] .ai-composer .ed-content')
     await page.waitForTimeout(300)
     assert(!(await typing()), 'the assistant opens without focusing its message box')
@@ -104,7 +159,7 @@ run(
     assert(await typing(), 'a touch on the message box focuses it')
 
     // An agent session: its message box (the one of the assistant) in full screen, not focused.
-    await page.tap('[data-testid=mobile-rail] [data-id=agents]')
+    await phoneShow(page, 'agents')
     await page.tap('[data-testid=agent-card-claude] button:has-text("Open")')
     await page.waitForSelector('.phone-body > .zone[data-tool=agents] [data-testid=agent-tab][data-state=ready]')
     await page.waitForTimeout(300)
@@ -118,14 +173,15 @@ run(
     await page.tap('[data-testid=agent-tab] .tab-close')
     await page.waitForSelector('[data-testid=agents-launcher]')
 
-    // The icon of a view gives it the focus; the editor without the keyboard.
-    await page.tap('[data-testid=mobile-rail] [data-id=explorer]')
+    // The icon of a view gives it the focus; the icon of the tool shown brings the editor back.
+    await phoneShow(page, 'explorer')
     await page.waitForFunction(() => document.activeElement?.closest('.zone[data-tool=explorer]'))
     assert(true, 'the icon of a tool gives it the focus')
-    await page.tap('[data-testid=mobile-rail] [data-id=editor]')
+    await phoneShow(page, 'explorer')
     await page.waitForFunction(() => document.activeElement?.classList.contains('ed-content'))
     const editable = () => page.$eval('.pane.active .ed-content', (e) => e.contentEditable !== 'false')
-    assert(!(await editable()), 'the editor icon gives the focus to the editor, locked (no keyboard)')
+    assert((await active(page)) === 'editor', 'the tool shown tapped again brings the editor back')
+    assert(!(await editable()), 'the editor comes back without the keyboard (locked)')
     // Locked: a tap shows the hint; a double tap unlocks with the caret under the finger.
     await page.tap('.pane.active .ed-content')
     await page.waitForSelector('[data-testid=ed-lock-hint]')
@@ -148,8 +204,8 @@ run(
     await page.touchscreen.tap(line.x, line.y)
     await page.touchscreen.tap(line.x, line.y)
     await page.waitForSelector('[data-testid=ed-lock]')
-    await page.tap('[data-testid=mobile-rail] [data-id=explorer]')
-    await page.tap('[data-testid=mobile-rail] [data-id=editor]')
+    await phoneShow(page, 'explorer')
+    await phoneShow(page, 'explorer')
     assert(!(await editable()), 'another view locks the editor again')
 
     // The keyboard shrinks the visible area: the line of the caret stays in sight.

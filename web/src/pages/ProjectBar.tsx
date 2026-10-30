@@ -35,7 +35,11 @@ function openWorktreeWindow(projectId: string) {
 
 type Choice = { kind: 'remove' } | { kind: 'window' } | { kind: 'open-ticket'; id: number } | { kind: 'project'; id: string } | { kind: 'ticket'; id: number } | { kind: 'worktree'; path: string } | { kind: 'branch' }
 
-export function ProjectBar() {
+/**
+ * `part`: the whole block on a computer; on a phone, the icon and the title alone
+ * (`'title'`), or the worktree selector alone while the menus mode is open (`'branch'`).
+ */
+export function ProjectBar(props: { part?: 'title' | 'branch' }) {
   const owner = useProjectIcon(project)
   const [editing, setEditing] = createSignal(false)
   const svg = () => {
@@ -170,40 +174,44 @@ export function ProjectBar() {
 
   return (
     <div class="mb-project">
-      <button class="mb-icon" title={t('Change the icon')} onClick={() => setEditing(true)} data-testid="menubar-icon">
-        <Show when={svg()}>
-          <img src={iconURL(svg())} width="20" height="20" alt="" />
-        </Show>
-      </button>
-      <span class="mb-title" title={project()?.path}>
-        {owner()?.name ?? project()?.name}
-        <Show when={project()?.type === 'ssh'}>
-          <span class="badge">ssh</span>
-        </Show>
-      </span>
-      <button class="mb-branch" classList={{ wt: !!ticket() }} title={t('Worktrees and branches')} onClick={open} data-testid="branch-selector">
-        <Show
-          when={ticket()}
-          fallback={
-            <>
-              <Icon name="branch" size={12} />
-              <span class="ellipsis">{branch() || t('no git')}</span>
-            </>
-          }
-        >
-          {(n) => {
-            capability('tickets')?.ensure()
-            const tk = () => capability('tickets')?.summary(n())
-            return (
-              <span class="mb-ticket" data-testid="worktree-banner" title={tk() ? `#${n()} ${tk()!.title} · ${capability('tickets')!.statusLabel(tk()!.status)}` : undefined}>
-                <Icon name="kanban" size={12} />
-                <span class="ellipsis">{t('Ticket #{id}', { id: n() })}</span>
-              </span>
-            )
-          }}
-        </Show>
-        <Icon name="chevron" size={10} />
-      </button>
+      <Show when={props.part !== 'branch'}>
+        <button class="mb-icon" title={t('Change the icon')} onClick={() => setEditing(true)} data-testid="menubar-icon">
+          <Show when={svg()}>
+            <img src={iconURL(svg())} width="20" height="20" alt="" />
+          </Show>
+        </button>
+        <span class="mb-title" title={project()?.path}>
+          {owner()?.name ?? project()?.name}
+          <Show when={project()?.type === 'ssh'}>
+            <span class="badge">ssh</span>
+          </Show>
+        </span>
+      </Show>
+      <Show when={props.part !== 'title'}>
+        <button class="mb-branch" classList={{ wt: !!ticket() }} title={t('Worktrees and branches')} onClick={open} data-testid="branch-selector">
+          <Show
+            when={ticket()}
+            fallback={
+              <>
+                <Icon name="branch" size={12} />
+                <span class="ellipsis">{branch() || t('no git')}</span>
+              </>
+            }
+          >
+            {(n) => {
+              capability('tickets')?.ensure()
+              const tk = () => capability('tickets')?.summary(n())
+              return (
+                <span class="mb-ticket" data-testid="worktree-banner" title={tk() ? `#${n()} ${tk()!.title} · ${capability('tickets')!.statusLabel(tk()!.status)}` : undefined}>
+                  <Icon name="kanban" size={12} />
+                  <span class="ellipsis">{t('Ticket #{id}', { id: n() })}</span>
+                </span>
+              )
+            }}
+          </Show>
+          <Icon name="chevron" size={10} />
+        </button>
+      </Show>
       <Show when={editing() && owner()}>
         <IconEditor id={owner()!.owner} name={owner()!.name} spec={owner()!.spec} onClose={() => setEditing(false)} />
       </Show>

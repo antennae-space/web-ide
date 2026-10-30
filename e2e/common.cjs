@@ -59,6 +59,17 @@ exports.showMenus = async (page) => {
   await page.waitForSelector('.menubar .menus')
 }
 
+/** Phone: the view shown full screen ('editor' or the id of a tool), kept on the body. */
+exports.phoneView = (page) => page.getAttribute('.phone-body', 'data-view')
+
+/** Phone: shows a tool full screen from the floating rail (the menus mode); the tap closes the mode. */
+exports.phoneShow = async (page, id) => {
+  if (!(await page.$('[data-testid=phone-overlays]'))) await page.tap('[data-testid=menus-toggle]')
+  await page.waitForSelector('[data-testid=phone-overlays] .rail')
+  await page.tap(`[data-testid=phone-overlays] .rail .rail-btn[data-id=${id}]`)
+  await page.waitForSelector('[data-testid=phone-overlays]', { state: 'detached' })
+}
+
 /** Opens one menu of the menu bar, showing the menus first. */
 exports.openMenu = async (page, label) => {
   await exports.showMenus(page)

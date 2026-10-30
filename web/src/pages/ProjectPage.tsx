@@ -126,7 +126,6 @@ export function useProjectActions() {
     // New file or folder: beside the active file, else at the root.
     // F10: the menus of the bar, then the first one opened.
     registerAction('menu.open', () => {
-      if (phone()) return void document.querySelector<HTMLElement>('.menubar .menu-btn')?.click()
       setMenusShown(true)
       // The nav is mounted by the signal: the click comes right after it.
       queueMicrotask(() => document.querySelector<HTMLElement>('.menubar .menu-btn')?.click())
@@ -300,12 +299,14 @@ function openMenu(e: MouseEvent, ids: string[]) {
   contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.bottom + 2 }), items, { onSide, onClose: menuClosed })
 }
 
-export function PodStatus() {
+export function PodStatus(props: { compact?: boolean }) {
   return (
     <div class="pod-status" title={`Pod: ${t(podState())}`}>
       <span class={`dot dot-${podState()}`} />
-      <span class="rate" title={t('Download rate (pod → page)')}>↓ {formatRate(podRates().down)}</span>
-      <span class="rate" title={t('Upload rate (page → pod)')}>↑ {formatRate(podRates().up)}</span>
+      <Show when={!props.compact}>
+        <span class="rate" title={t('Download rate (pod → page)')}>↓ {formatRate(podRates().down)}</span>
+        <span class="rate" title={t('Upload rate (page → pod)')}>↑ {formatRate(podRates().up)}</span>
+      </Show>
     </div>
   )
 }
@@ -327,24 +328,22 @@ function MenuBar() {
       <Icon name="home" />
     </button>
   )
-  // Phone: three rows, the project and the status, the menus, the icons of the views.
-  const head = () => (
-    <>
-      {homeButton()}
-      <ProjectBar />
-    </>
-  )
-  const tail = () => (
+  // Phone: the tail of the bar, the pod state without its rates and the grid button.
+  const tail = (compact: boolean) => (
     <>
       <Show when={conflicts()}>
         <button class="badge warn" onClick={() => mutate((s) => (s.right.panel = 'conflicts'))}>
           {tn(conflicts(), '{n} conflict', '{n} conflicts')}
         </button>
       </Show>
-      <PodStatus />
-      <button class="icon-btn" title={`${t('Settings')} (${shortcutOf('settings.open')})`} onClick={() => openSettings()}>
-        <Icon name="gear" />
-      </button>
+      <PodStatus compact={compact} />
+      {compact ? (
+        menusToggle()
+      ) : (
+        <button class="icon-btn" title={`${t('Settings')} (${shortcutOf('settings.open')})`} onClick={() => openSettings()}>
+          <Icon name="gear" />
+        </button>
+      )}
     </>
   )
   const menuButtons = () => (
@@ -356,20 +355,26 @@ function MenuBar() {
       )}
     </For>
   )
-  // The menus are behind this button: pressed while they are shown.
-  const menusToggle = () => (
-    <button
-      class="icon-btn menus-toggle"
-      classList={{ on: menusShown() }}
-      aria-pressed={menusShown()}
-      title={shortcutOf('menu.open') ? `${t('Menus')} (${shortcutOf('menu.open')})` : t('Menus')}
-      data-testid="menus-toggle"
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={() => setMenusShown((v) => !v)}
-    >
-      <Icon name="apps" />
-    </button>
-  )
+  // The menus are behind this button: pressed while they are shown. On a phone it becomes the
+  // settings button while the mode is open (the mode stays open).
+  const menusToggle = () => {
+    const asSettings = () => phone() && menusShown()
+    const label = () => (asSettings() ? t('Settings') : t('Menus'))
+    const key = () => shortcutOf(asSettings() ? 'settings.open' : 'menu.open')
+    return (
+      <button
+        class="icon-btn menus-toggle"
+        classList={{ on: menusShown() }}
+        aria-pressed={menusShown()}
+        title={key() ? `${label()} (${key()})` : label()}
+        data-testid="menus-toggle"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => (asSettings() ? openSettings() : setMenusShown((v) => !v))}
+      >
+        <Icon name={asSettings() ? 'gear' : 'apps'} />
+      </button>
+    )
+  }
   // The menus shown with no menu open: a click outside the bar or `Escape` brings the compact bar back.
   createEffect(
     track(menusShown, (shown) => {
@@ -398,14 +403,23 @@ function MenuBar() {
       fallback={
         <header class="menubar phone" data-testid="phone-bar">
           <div class="menubar-row">
-            {head()}
-            {/* The phone keeps the desks in its bar: its status bar belongs to the editor pane. */}
-            <DeskSwitcher />
+            {homeButton()}
             <span class="grow" />
-            {tail()}
+            <ProjectBar part={menusShown() ? 'branch' : 'title'} />
+            <span class="grow" />
+            {tail(true)}
           </div>
-          <nav class="menus">{menuButtons()}</nav>
-          <MobileRail />
+          {/* The mode: the menus, the two rails and the desks float over the view, under the bar. */}
+          <Show when={menusShown()}>
+            <div class="phone-overlays" data-testid="phone-overlays">
+              <nav class="menus">{menuButtons()}</nav>
+              <Rail side="left" />
+              <Rail side="right" />
+              <div class="phone-desks">
+                <DeskSwitcher />
+              </div>
+            </div>
+          </Show>
         </header>
       }
     >
@@ -416,53 +430,29 @@ function MenuBar() {
         <nav class="menus">{menuButtons()}</nav>
       </Show>
       <span class="grow" />
-      {tail()}
+      {tail(false)}
     </header>
     </Show>
   )
 }
 
-/** Phone: the editor and every tool in one row of icons; the view shown is highlighted. */
-function MobileRail() {
-  let el!: HTMLDivElement
-  const tools = () => (['left', 'right', 'bottomLeft', 'bottomRight'] as Zone[]).flatMap((z) => toolsIn(session, z)).filter((id) => toolPanels[id])
-  // The view shown gets the focus: the editor without the keyboard (a double tap opens it).
-  const show = (id: string) => {
-    setMobileView(id)
-    if (id === 'editor') {
-      setFocusPart('editor')
-      requestAnimationFrame(focusEditorQuietly)
-      return
-    }
-    mutate((s) => showTool(s, id))
-    const z = zoneOf(session, id)
-    if (z) {
-      setFocusPart(z)
-      requestAnimationFrame(() => focusZone(z))
-    }
+/**
+ * Phone: shows a view full screen — the editor, or a tool brought to the front — and gives it
+ * the focus (the editor without the keyboard: a double tap opens it).
+ */
+function showView(id: string) {
+  setMobileView(id)
+  if (id === 'editor') {
+    setFocusPart('editor')
+    requestAnimationFrame(focusEditorQuietly)
+    return
   }
-  createEffect(() => {
-    const id = mobileView()
-    queueMicrotask(() => el?.querySelector<HTMLElement>(`[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }))
-  })
-  return (
-    <div class="mobile-rail" ref={el} role="toolbar" aria-label={t('Views')} data-testid="mobile-rail">
-      <button class="rail-btn" classList={{ active: mobileView() === 'editor' }} data-id="editor" title={t('Editor')} aria-pressed={mobileView() === 'editor'} onClick={() => show('editor')}>
-        <Icon name="file" size={18} />
-      </button>
-      <span class="mobile-rail-sep" />
-      <For each={tools()}>
-        {(id) => (
-          <button class="rail-btn" classList={{ active: mobileView() === id }} data-id={id} title={t(toolPanels[id].label)} aria-pressed={mobileView() === id} onClick={() => show(id)}>
-            <Icon name={toolPanels[id].icon} size={18} />
-            <Show when={toolPanels[id].badge?.()}>
-              <span class="rail-badge" />
-            </Show>
-          </button>
-        )}
-      </For>
-    </div>
-  )
+  mutate((s) => showTool(s, id))
+  const z = zoneOf(session, id)
+  if (z) {
+    setFocusPart(z)
+    requestAnimationFrame(() => focusZone(z))
+  }
 }
 
 /**
@@ -509,9 +499,16 @@ function MobileSync() {
 // ---------- rails & side panels ----------
 
 function Rail(props: { side: 'left' | 'right' }) {
+  let el!: HTMLElement
   const bottom: Zone = props.side === 'left' ? 'bottomLeft' : 'bottomRight'
+  // On a phone the rail floats over the view and can overflow: the view shown stays in sight.
+  createEffect(() => {
+    if (!phone()) return
+    const id = mobileView()
+    queueMicrotask(() => el?.querySelector<HTMLElement>(`[data-id="${id}"]`)?.scrollIntoView({ block: 'nearest' }))
+  })
   return (
-    <nav class={`rail rail-${props.side}`} classList={{ 'rail-dragging': !!dragged() }} aria-label={props.side === 'left' ? t('Panels') : t('Tools')}>
+    <nav class={`rail rail-${props.side}`} ref={el} classList={{ 'rail-dragging': !!dragged() }} aria-label={props.side === 'left' ? t('Panels') : t('Tools')}>
       <RailGroup zone={props.side} />
       <span class="grow" />
       <RailGroup zone={bottom} />
@@ -526,6 +523,10 @@ const [dropAt, setDropAt] = createSignal<{ zone: Zone; index: number } | null>(n
 function RailGroup(props: { zone: Zone }) {
   const current = () => shownIn(session, props.zone)
   const list = () => toolsIn(session, props.zone).filter((id) => toolPanels[id])
+  // On a phone the rails are the floating overlays: no drag nor middle click, a tap shows the
+  // tool full screen (and closes the menus mode), a tap on the tool shown brings the editor back.
+  const onPhone = () => phone()
+  const pressed = () => (onPhone() ? mobileView() : current())
   // Insertion index among the icons of the group, the dragged one left out.
   const indexAt = (el: HTMLElement, y: number) => {
     const btns = [...el.querySelectorAll<HTMLElement>('.rail-btn')].filter((b) => b.dataset.id !== dragged())
@@ -561,18 +562,28 @@ function RailGroup(props: { zone: Zone }) {
         {(id) => (
           <button
             class="rail-btn"
-            classList={{ active: current() === id, focused: current() === id && focusPart() === props.zone, 'drop-before': marker(id), dragging: dragged() === id }}
+            classList={{
+              active: pressed() === id,
+              focused: !onPhone() && current() === id && focusPart() === props.zone,
+              'drop-before': marker(id),
+              dragging: dragged() === id,
+            }}
             data-id={id}
-            draggable="true"
-            title={[t(toolPanels[id].label), t('Middle click opens it in a window')].join(' · ')}
-            aria-pressed={current() === id}
+            draggable={onPhone() ? undefined : 'true'}
+            title={onPhone() ? t(toolPanels[id].label) : [t(toolPanels[id].label), t('Middle click opens it in a window')].join(' · ')}
+            aria-pressed={pressed() === id}
             // A middle click opens the tool in a window of its own, leaving this layout as it was.
             onMouseDown={(e) => {
-              if (e.button !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || dragged()) return
+              if (e.button !== 1 || onPhone() || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey || dragged()) return
               e.preventDefault() // no autoscroll
               detachTool(id)
             }}
             onClick={() => {
+              if (onPhone()) {
+                setMenusShown(false)
+                showView(mobileView() === id ? 'editor' : id)
+                return
+              }
               mutate((s) => toggleTool(s, id))
               if (current() === id) setFocusPart(props.zone)
             }}
@@ -816,7 +827,7 @@ export function ProjectPage(props: { id: string }) {
         <DiagramViewer />
         <Show when={phone()}>
           {/* One view at a time, full screen: the editor stays mounted under the tools. */}
-          <div class="workbench phone-body" onPointerDown={trackFocus} onFocusIn={trackFocus}>
+          <div class="workbench phone-body" data-view={mobileView()} onPointerDown={trackFocus} onFocusIn={trackFocus}>
             <main class="center" data-focus="editor" classList={{ hidden: mobileView() !== 'editor' }} onFocusIn={() => setTimeout(revealCaret, 300)}>
               <EditorArea statusBar />
             </main>
@@ -857,7 +868,7 @@ export function ProjectPage(props: { id: string }) {
         </Show>
         {/* The status bar is the last row of the window: full width, under the bottom strip and
             the icon rails, the desks on its left. The phone keeps it inside the editor pane,
-            hidden with it, and its desks in the bar of the window. */}
+            hidden with it, and shows the desks in the floating bar of its menus mode. */}
         <Show when={!phone()}>
           <StatusBar desks />
         </Show>
