@@ -61,3 +61,34 @@ func TestDesks(t *testing.T) {
 		t.Fatalf("removed desk still readable: %v", r)
 	}
 }
+
+// A console belongs to the desk of the window that opened it; console.move gives it to another
+// desk and tells every window of the project.
+func TestConsoleDesk(t *testing.T) {
+	_, ts := newServer(t)
+	a, err := dial(t, ts, "secret-token-0123456789abcdef0123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := dial(t, ts, "secret-token-0123456789abcdef0123")
+	id := a.call("projects.create", map[string]any{"type": "local", "path": t.TempDir()})["result"].(map[string]any)["id"].(string)
+	a.call("project.open", map[string]any{"id": id})
+	a.call("desks.update", map[string]any{"desks": map[string]any{"desks": []any{map[string]any{"n": 1}, map[string]any{"n": 2}}}})
+	a.call("desk.switch", map[string]any{"desk": 2})
+	b.call("project.open", map[string]any{"id": id})
+
+	c := a.call("console.create", map[string]any{"kind": "terminal", "command": []string{"cat"}})["result"].(map[string]any)
+	if c["desk"] != id+"@2" {
+		t.Fatalf("console of desk 2: %v", c)
+	}
+	if ev := b.waitEvent("console.created", nil); ev["desk"] != id+"@2" {
+		t.Fatalf("console.created = %v", ev)
+	}
+	a.call("console.move", map[string]any{"id": c["id"], "desk": 1})
+	if ev := b.waitEvent("console.moved", nil); ev["id"] != c["id"] || ev["desk"] != id {
+		t.Fatalf("console.moved = %v", ev)
+	}
+	if l := b.call("console.list", nil)["result"].([]any); l[0].(map[string]any)["desk"] != id {
+		t.Fatalf("console.list after the move = %v", l)
+	}
+}

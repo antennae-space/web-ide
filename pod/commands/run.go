@@ -18,11 +18,11 @@ type Run struct {
 // adds the console itself).
 type Emit func(event string, data any, except string)
 
-// RunSaved runs a saved command in the consoles of a project rooted at root. A console of the
-// command still running is answered as running unless restart; it is closed (ended or
-// restarted) and replaced. The saved commands of the Exec plugin, the assistant and the
-// previews run through it.
-func RunSaved(cons *console.Manager, root string, cmd Command, restart bool, emit Emit, except string) (Run, error) {
+// RunSaved runs a saved command in the consoles of a project rooted at root, on desk. A console
+// of the command still running is answered as running unless restart; it is closed (ended or
+// restarted) and replaced, on its desk when desk is "" (a run without a window: the assistant,
+// the MCP). The saved commands of the Exec plugin, the assistant and the previews run through it.
+func RunSaved(cons *console.Manager, root string, cmd Command, restart bool, desk string, emit Emit, except string) (Run, error) {
 	olds := cons.OfCommand(cmd.ID)
 	for _, o := range olds {
 		if !o.Exited && !restart {
@@ -32,6 +32,9 @@ func RunSaved(cons *console.Manager, root string, cmd Command, restart bool, emi
 	var out Run
 	for _, o := range olds {
 		if cons.Close(o.ID) == nil {
+			if desk == "" {
+				desk = o.Desk
+			}
 			emit("console.closed", map[string]string{"id": o.ID}, "")
 			out.Replaced = o.ID
 		}
@@ -40,7 +43,7 @@ func RunSaved(cons *console.Manager, root string, cmd Command, restart bool, emi
 	if cmd.Cwd != "" {
 		cwd = path.Join(root, cmd.Cwd)
 	}
-	info, err := cons.RunCommand(cmd.ID, cmd.Name, Argv(cmd), cwd)
+	info, err := cons.RunCommand(cmd.ID, cmd.Name, Argv(cmd), cwd, desk)
 	if err != nil {
 		return Run{}, err
 	}

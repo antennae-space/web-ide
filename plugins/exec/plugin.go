@@ -12,6 +12,7 @@ import (
 
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/pod/commands"
+	"antennae.space/ide/pod/desks"
 	"antennae.space/ide/pod/plugins"
 )
 
@@ -54,7 +55,7 @@ func (p *Plugin) Register(h plugins.Host) {
 		Command          []string
 		Cols, Rows       int
 	}) (any, error) {
-		info, err := c.Runtime.Consoles.Create(a.Kind, a.Title, a.Command, a.Cwd, a.Cols, a.Rows)
+		info, err := c.Runtime.Consoles.CreateOn(c.Window.Desk(), a.Kind, a.Title, a.Command, a.Cwd, a.Cols, a.Rows)
 		if err == nil {
 			c.EmitOthers("console.created", info)
 		}
@@ -89,6 +90,18 @@ func (p *Plugin) Register(h plugins.Host) {
 		err := c.Runtime.Consoles.Rename(a.ID, a.Title)
 		if err == nil {
 			c.Emit("console.renamed", map[string]string{"id": a.ID, "title": a.Title})
+		}
+		return nil, err
+	})
+	// console.move gives a console to desk n of the project of the window; it keeps running.
+	handle(h, "console.move", func(ctx context.Context, c plugins.Call, a struct {
+		ID   string
+		Desk int
+	}) (any, error) {
+		key := desks.Key(c.Window.Project(), a.Desk)
+		err := c.Runtime.Consoles.Move(a.ID, key)
+		if err == nil {
+			c.Emit("console.moved", map[string]string{"id": a.ID, "desk": key})
 		}
 		return nil, err
 	})
@@ -137,6 +150,6 @@ func (p *Plugin) Register(h plugins.Host) {
 				c.Emit(event, data)
 			}
 		}
-		return commands.RunSaved(c.Runtime.Consoles, c.Runtime.Root, cmd, a.Restart, emit, "self")
+		return commands.RunSaved(c.Runtime.Consoles, c.Runtime.Root, cmd, a.Restart, c.Window.Desk(), emit, "self")
 	})
 }

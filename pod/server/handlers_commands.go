@@ -55,7 +55,8 @@ func (s *Server) findCommand(rt *runtime.Runtime, id string) (commands.Command, 
 	return cmd, nil
 }
 
-// runSaved runs a saved command in rt (commands.RunSaved), its events to the windows of rt.
+// runSaved runs a saved command in rt (commands.RunSaved) without a window (no desk: desk 1, or
+// the desk of the console it replaces), its events to the windows of rt.
 func (s *Server) runSaved(rt *runtime.Runtime, cmd commands.Command, restart bool, except string) (commands.Run, error) {
-	return commands.RunSaved(rt.Consoles, rt.Root, cmd, restart, commands.Emit(s.emitter(rt.P.ID)), except)
+	return commands.RunSaved(rt.Consoles, rt.Root, cmd, restart, "", commands.Emit(s.emitter(rt.P.ID)), except)
 }

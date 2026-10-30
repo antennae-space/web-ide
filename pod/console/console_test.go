@@ -75,7 +75,7 @@ func ticks(t *testing.T, text string, first int) int {
 }
 
 // A console of the keeper survives the restart of the pod: the new manager adopts it with its
-// title and scrollback, and its output goes on without gap or duplicate.
+// title, desk and scrollback, and its output goes on without gap or duplicate.
 func TestKeeperConsole(t *testing.T) {
 	dir, _ := os.MkdirTemp("", "kc")
 	defer os.RemoveAll(dir)
@@ -99,11 +99,14 @@ func TestKeeperConsole(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := m1.Create("terminal", "", nil, "", 80, 20); err != nil {
+	if _, err := m1.CreateOn("p1@2", "terminal", "", nil, "", 80, 20); err != nil {
 		t.Fatal(err)
 	}
 	waitFor(t, "ticks", func() bool { return strings.Contains(e1.text(info.ID), "tick 5\r\n") })
 	if err := m1.Rename(info.ID, "Renamed"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m1.Move(info.ID, "p1@3"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -121,7 +124,8 @@ func TestKeeperConsole(t *testing.T) {
 	m2 := NewManager(execx.Local{}, dir, ev2)
 	m2.UseKeeper(c2, "p1", "")
 	list := m2.List()
-	if len(list) != 2 || list[0].ID != info.ID || list[0].Title != "Renamed" || list[0].Kind != "task" || list[1].Kind != "terminal" {
+	if len(list) != 2 || list[0].ID != info.ID || list[0].Title != "Renamed" || list[0].Kind != "task" || list[1].Kind != "terminal" ||
+		list[0].Desk != "p1@3" || list[1].Desk != "p1@2" {
 		t.Fatalf("adopted: %+v", list)
 	}
 	_, scroll, end, _ := m2.Snapshot(info.ID)

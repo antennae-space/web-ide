@@ -100,7 +100,7 @@ func open(ctx context.Context, pod plugins.Pod, pv *preview.Manager, sp preview.
 	emit := func(event string, data any, except string) { pod.Emit(rt.P.ID, event, data) }
 	var info console.Info
 	if saved != nil {
-		r, err := commands.RunSaved(rt.Consoles, rt.Root, *saved, false, emit, "")
+		r, err := commands.RunSaved(rt.Consoles, rt.Root, *saved, false, "", emit, "")
 		if err != nil {
 			return preview.State{}, err
 		}
