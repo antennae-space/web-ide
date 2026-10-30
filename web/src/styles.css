@@ -747,17 +747,17 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 
 /* phone: one row of bar (home, project, status, grid button), one view full screen */
 .app.phone { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
-.menubar.phone { --phone-bar-h: 36px; --phone-desks-h: 26px; --phone-rail-w: 40px; flex-direction: column; align-items: stretch; height: auto; padding: 0; gap: 0; }
+.menubar.phone { --phone-bar-h: 36px; --phone-desks-h: 26px; --phone-menus-h: 32px; flex-direction: column; align-items: stretch; height: auto; padding: 0; gap: 0; }
 .menubar-row { display: flex; align-items: center; gap: 4px; height: var(--phone-bar-h); padding: 0 6px; min-width: 0; }
 .menubar.phone .mb-project { margin: 0 4px; }
 /* The menus mode: the menus, the two rails of the computer layout and the desks float over the
-   view, under the bar. The layer itself takes no touch: a tap between the overlays goes to the
-   view and closes the mode. */
+   view, under the bar. The menus take the whole width, the rails come under them. The layer
+   itself takes no touch: a tap between the overlays goes to the view and closes the mode. */
 .phone-overlays { position: fixed; left: 0; right: 0; top: calc(var(--phone-bar-h) + env(safe-area-inset-top)); bottom: 0; z-index: 40; pointer-events: none; }
 .phone-overlays > * { pointer-events: auto; }
-.phone-overlays .menus { position: absolute; top: 0; left: var(--phone-rail-w); right: var(--phone-rail-w); height: 32px; padding: 0 4px; display: flex; align-items: center; gap: 2px; background: var(--bg-2); border-bottom: 1px solid var(--line); box-shadow: 0 4px 14px rgb(0 0 0 / 0.3); }
+.phone-overlays .menus { position: absolute; top: 0; left: 0; right: 0; height: var(--phone-menus-h); padding: 0 4px; display: flex; align-items: center; gap: 2px; background: var(--bg-2); border-bottom: 1px solid var(--line); box-shadow: 0 4px 14px rgb(0 0 0 / 0.3); }
 .phone-overlays .menu-btn { flex: none; }
-.phone-overlays .rail { position: absolute; top: 0; bottom: calc(var(--phone-desks-h) + env(safe-area-inset-bottom)); overflow-y: auto; scrollbar-width: none; box-shadow: 0 0 18px rgb(0 0 0 / 0.35); }
+.phone-overlays .rail { position: absolute; top: var(--phone-menus-h); bottom: calc(var(--phone-desks-h) + env(safe-area-inset-bottom)); overflow-y: auto; scrollbar-width: none; box-shadow: 0 0 18px rgb(0 0 0 / 0.35); }
 .phone-overlays .rail::-webkit-scrollbar { display: none; }
 .phone-overlays .rail-left { left: 0; }
 .phone-overlays .rail-right { right: 0; }

@@ -315,19 +315,30 @@ function MenuBar() {
   const conflicts = () => (docsVersion(), conflictedDocs().length)
   // A middle click on ⌂ opens the projects page of the entry pod in a new tab of the browser.
   const openHomeTab = async () => window.open((await homeBase()) + '/', '_blank')
-  const homeButton = () => (
-    <button
-      class="icon-btn"
-      title={[t('Projects'), t('Middle click opens the projects in a new tab')].join(' · ')}
-      onClick={() => void goHome()}
-      onMouseDown={(e) => {
-        if (e.button !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
-        e.preventDefault()
-        void openHomeTab()
-      }}>
-      <Icon name="home" />
-    </button>
-  )
+  // ⌂ opens the projects page. On a phone, while the menus mode is open, that place holds the
+  // settings button instead (the mode stays open) and the grid button closes the mode.
+  const homeButton = (asSettings = false) => {
+    const title = () =>
+      asSettings
+        ? shortcutOf('settings.open')
+          ? `${t('Settings')} (${shortcutOf('settings.open')})`
+          : t('Settings')
+        : [t('Projects'), t('Middle click opens the projects in a new tab')].join(' · ')
+    return (
+      <button
+        class="icon-btn"
+        title={title()}
+        data-testid="home-btn"
+        onClick={() => (asSettings ? openSettings() : void goHome())}
+        onMouseDown={(e) => {
+          if (e.button !== 1 || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+          e.preventDefault()
+          void openHomeTab()
+        }}>
+        <Icon name={asSettings ? 'gear' : 'home'} />
+      </button>
+    )
+  }
   // Phone: the tail of the bar, the pod state without its rates and the grid button.
   const tail = (compact: boolean) => (
     <>
@@ -355,23 +366,21 @@ function MenuBar() {
       )}
     </For>
   )
-  // The menus are behind this button: pressed while they are shown. On a phone it becomes the
-  // settings button while the mode is open (the mode stays open).
+  // The menus are behind this button: pressed while they are shown, and it stays there on a phone
+  // while the mode is open, so that one tap brings the compact bar back.
   const menusToggle = () => {
-    const asSettings = () => phone() && menusShown()
-    const label = () => (asSettings() ? t('Settings') : t('Menus'))
-    const key = () => shortcutOf(asSettings() ? 'settings.open' : 'menu.open')
+    const key = () => shortcutOf('menu.open')
     return (
       <button
         class="icon-btn menus-toggle"
         classList={{ on: menusShown() }}
         aria-pressed={menusShown()}
-        title={key() ? `${label()} (${key()})` : label()}
+        title={key() ? `${t('Menus')} (${key()})` : t('Menus')}
         data-testid="menus-toggle"
         onMouseDown={(e) => e.preventDefault()}
-        onClick={() => (asSettings() ? openSettings() : setMenusShown((v) => !v))}
+        onClick={() => setMenusShown((v) => !v)}
       >
-        <Icon name={asSettings() ? 'gear' : 'apps'} />
+        <Icon name="apps" />
       </button>
     )
   }
@@ -403,7 +412,7 @@ function MenuBar() {
       fallback={
         <header class="menubar phone" data-testid="phone-bar">
           <div class="menubar-row">
-            {homeButton()}
+            {homeButton(menusShown())}
             <span class="grow" />
             <ProjectBar part={menusShown() ? 'branch' : 'title'} />
             <span class="grow" />

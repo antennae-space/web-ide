@@ -78,19 +78,34 @@ run(
     assert(await visible(page, '[data-testid=phone-overlays] [data-testid=desks]'), 'the desks in the floating bar below')
     const mode = await page.$eval('[data-testid=phone-bar]', (e) => ({
         pressed: e.querySelector('[data-testid=menus-toggle]').getAttribute('aria-pressed'),
-        title: e.querySelector('[data-testid=menus-toggle]').title,
+        gridTitle: e.querySelector('[data-testid=menus-toggle]').title,
+        gear: e.querySelector('[data-testid=home-btn]').title,
         branch: !!e.querySelector('[data-testid=branch-selector]'),
         project: !!e.querySelector('.mb-title'),
       }))
-    assert(mode.pressed === 'true' && mode.title.startsWith('Settings') && mode.branch && !mode.project, 'the grid shows the gear, the worktree selector replaces the project: ' + JSON.stringify(mode))
+    assert(mode.pressed === 'true' && mode.gridTitle.startsWith('Menus') && mode.gear.startsWith('Settings') && mode.branch && !mode.project, 'the gear takes the place of the home button, the grid stays pressed, the worktree selector replaces the project: ' + JSON.stringify(mode))
+    // The rails come under the menus row, they do not cover it.
+    const boxes = await page.evaluate(() => {
+      const m = document.querySelector('[data-testid=phone-overlays] .menus').getBoundingClientRect()
+      const l = document.querySelector('[data-testid=phone-overlays] .rail-left').getBoundingClientRect()
+      const r = document.querySelector('[data-testid=phone-overlays] .rail-right').getBoundingClientRect()
+      return { menusTop: m.top, leftTop: l.top, rightTop: r.top, menusRight: m.right, rightLeft: r.left, w: innerWidth }
+    })
+    assert(boxes.leftTop >= boxes.menusTop && boxes.rightTop >= boxes.menusTop && boxes.menusRight > boxes.rightLeft, 'the rails start under the menus row: ' + JSON.stringify(boxes))
     await page.screenshot({ path: OUT + '/mobile-mode.png' })
-    // The gear: the settings open, the mode stays open; Escape ends both.
-    await page.tap('[data-testid=menus-toggle]')
+    // The gear: the settings open, the mode stays open.
+    await page.tap('[data-testid=home-btn]')
     await page.waitForSelector('.modal-settings')
     assert(await overlays(page), 'the settings open with the mode kept')
     await page.tap('.modal-settings .modal-head button')
     await page.waitForSelector('.modal-settings', { state: 'detached' })
     assert(!(await overlays(page)), 'a tap on the settings, outside the overlays, closes the mode too')
+    // The grid button again: back to the compact bar.
+    await page.tap('[data-testid=menus-toggle]')
+    await page.waitForSelector('[data-testid=phone-overlays]')
+    await page.tap('[data-testid=menus-toggle]')
+    await page.waitForSelector('[data-testid=phone-overlays]', { state: 'detached' })
+    assert(true, 'a second tap on the grid button closes the mode')
     // A tap on the view, between the overlays, closes the mode.
     await page.tap('[data-testid=menus-toggle]')
     await page.waitForSelector('[data-testid=phone-overlays]')
