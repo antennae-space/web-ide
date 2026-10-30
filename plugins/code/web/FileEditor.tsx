@@ -2,10 +2,11 @@
 // editor, its find bar, rendered Markdown, the change markers against HEAD or the last saved
 // content (clickable, with the popup of their hunk), the completion, the context menu and the
 // editing actions while it is the active one.
-import { createEffect, createResource, createSignal, on, onCleanup, onMount, Show, untrack } from 'solid-js'
+import { createEffect, createResource, createSignal, on, onCleanup, onMount, Show, untrack, type JSX } from 'solid-js'
 import type { Diagnostic, Doc, EditorView, Hunk, LspDiagnostic, MarkdownViewApi, TabState, WordSpan } from '@ide/api'
+import type { GutterMark, LineClass, LineWidget, MovedMark } from '@ide/types'
 import {
-  actionOf, api, basename, capability, contextMenu, copyText, docError, docsVersion, FindBar, getDoc, Icon, isMarkdownPath, languageName,
+  actionOf, api, basename, capability, contextMenu, copyText, docError, docsVersion, editorDecorations, FindBar, getDoc, Icon, isMarkdownPath, languageName,
   lineHunks, loadDoc, marksOfHunks, MarkdownView, openConflict, openDiffTab, openFile, pick, prompt, registerAction, relPath, request, reveal,
   runAction, saveCursor, saveDoc, setActivePane, setCursorInfo, shortcutOf, showRaw, shownRaw, t, toast, toggleWrap, useCompletion, useEditorView,
   wordHunks,
@@ -87,7 +88,19 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
     onCtrlClick: (v, off) => capability('language')?.gotoDeclaration(v.doc, off),
     onFocus: () => setActivePane(props.paneId),
     onMarkClick: (_, line) => openHunk(line),
-    onScroll: (v) => followHunk(v),
+    onDecoClick: (_, line, e) => {
+      for (const p of editorDecorations()) p.decorations.gutterClick?.(path, line, e)
+    },
+    onDecoMenu: (_, line, e) => {
+      const items = editorDecorations().flatMap((p) => p.decorations.gutterMenu?.(path, line) ?? [])
+      if (items.length) contextMenu(e, items)
+    },
+    onHoverAt: (_, off, x, y) => void askHover(off, x, y),
+    onDecosMoved: (_, moved) => decosMoved(moved),
+    onScroll: (v) => {
+      followHunk(v)
+      closeHover()
+    },
   })
   // Cursor, folds and chosen indentation of the file, kept in the session.
   function save(v: EditorView) {
@@ -147,6 +160,82 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
     d.changed()
     v.setDiagnostics(toDiagnostics(d, capability('language')?.diagnostics(path) ?? []))
   })
+
+  // ---------- decorations given by the other plugins (editorDecorations, #187) ----------
+  /** The marks, line classes and widgets of the enabled plugins for this file, ids scoped per plugin. */
+  function collectDecos() {
+    const gutter: GutterMark[] = []
+    const lines: LineClass[] = []
+    const widgets: LineWidget[] = []
+    let lane = false
+    for (const p of editorDecorations()) {
+      const g = p.decorations.gutter?.(path)
+      if (g) {
+        lane = true
+        for (const m of g) gutter.push({ ...m, id: `${p.id}:${m.id}` })
+      }
+      for (const m of p.decorations.lines?.(path) ?? []) lines.push({ ...m, id: `${p.id}:${m.id}` })
+      for (const m of p.decorations.widgets?.(path) ?? []) widgets.push({ ...m, id: `${p.id}:${m.id}` })
+    }
+    return { gutter, lines, widgets, lane }
+  }
+
+  createEffect(() => {
+    const v = view()
+    if (!v) return
+    const d = collectDecos()
+    v.setGutterDecos(d.gutter, d.lane)
+    v.setLineClasses(d.lines)
+    v.setLineWidgets(d.widgets)
+  })
+
+  /** An edit moved or removed a plugin's marks: the plugin is told, with its own ids back. */
+  function decosMoved(moved: MovedMark[]) {
+    for (const p of editorDecorations()) {
+      const pre = `${p.id}:`
+      const own = moved.filter((m) => m.id.startsWith(pre)).map((m) => ({ ...m, id: m.id.slice(pre.length) }))
+      if (own.length) p.decorations.moved?.(path, own)
+    }
+  }
+
+  // The hover a plugin asks for: a popup at the mouse, closed by a move, a scroll or Escape.
+  const [hover, setHover] = createSignal<{ x: number; y: number; text?: string; content?: () => JSX.Element } | null>(null)
+  let hoverSeq = 0
+  let hoverOff: (() => void) | undefined
+
+  function closeHover() {
+    hoverSeq++
+    if (hover() === null) return
+    setHover(null)
+    hoverOff?.()
+    hoverOff = undefined
+  }
+
+  async function askHover(off: number, x: number, y: number) {
+    const seq = ++hoverSeq
+    for (const p of editorDecorations()) {
+      const h = await p.decorations.hover?.(path, off)
+      if (seq !== hoverSeq) return
+      if (!h) continue
+      setHover({ x, y, text: h.text, content: h.content })
+      if (!hoverOff) {
+        const away = (e: MouseEvent) => {
+          if ((e.target as HTMLElement).closest('.ed-hover')) return
+          closeHover()
+        }
+        const keys = (e: KeyboardEvent) => e.key === 'Escape' && closeHover()
+        document.addEventListener('mousemove', away)
+        document.addEventListener('keydown', keys)
+        hoverOff = () => {
+          document.removeEventListener('mousemove', away)
+          document.removeEventListener('keydown', keys)
+        }
+      }
+      return
+    }
+    setHover(null)
+  }
+  onCleanup(() => hoverOff?.())
 
   // Change markers against HEAD or the last saved content, and the hunks behind them: a click on
   // a marker opens the popup of its hunk. Recomputed a moment after the edits.
@@ -466,11 +555,13 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
     if (text) copyText(text)
   }
 
-  // Context menu of the text: code navigation, clipboard, comment, file.
+  // Context menu of the text: code navigation, clipboard, comment, file, then the plugins.
   const editorMenu = (e: MouseEvent) => {
     const v = view()
     const d = doc()
     if (!v || !d || !(e.target as HTMLElement).closest('.ed')) return
+    const offset = v.offsetAt(e.clientX, e.clientY) ?? v.getSelection().head
+    const pluginItems = editorDecorations().flatMap((p) => p.decorations.menu?.(path, offset) ?? [])
     const content = host.querySelector<HTMLElement>('.ed-content')
     // An action of a plugin that is off (the language servers) is not offered.
     const item = (id: string, disabled = false) => {
@@ -508,6 +599,7 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
         },
       },
       { label: t('Copy the relative path'), action: () => copyText(relPath(path)) },
+      ...(pluginItems.length ? [sep, ...pluginItems] : []),
     ])
   }
   onCleanup(api.editor.register(() => (view() && doc() && isActive() ? { view: view()!, doc: doc()! } : null)))
@@ -679,6 +771,16 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
           <FindBar view={view()!} doc={doc()!} initial={findInitial()} focusSignal={findFocus()} onClose={() => setFindOpen(false)} />
         </Show>
         <comp.Popup />
+        <Show when={hover()}>
+          {(h) => (
+            <div class="ed-hover" data-testid="editor-hover" style={{ left: `${h().x + 10}px`, top: `${h().y + 18}px` }}>
+              {(() => {
+                const c = h().content
+                return c ? c() : h().text
+              })()}
+            </div>
+          )}
+        </Show>
         <Show when={popup() !== null}>
           <HunkPopup
             view={() => hunkData(popup()!)}

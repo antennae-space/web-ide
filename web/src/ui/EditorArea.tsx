@@ -6,6 +6,7 @@ import { activateTab, basename, closeTab, findLeaf, getDoc, moveTab, relPath, se
 import { distinctDirs } from './tabNames'
 import { EditorView } from '../editor/view'
 import type { LineMark } from '../editor/linediff'
+import type { MovedMark } from '../editor/view'
 import { hintAt, lockEditor, phone, unlocked } from '../state/mobile'
 import { Icon } from './icons'
 import { Doc } from '../editor/doc'
@@ -369,6 +370,14 @@ export interface UseViewOptions {
   onFolds?: (v: EditorView) => void
   /** A change marker of the gutter was clicked. */
   onMarkClick?: (v: EditorView, line: number, mark: LineMark) => void
+  /** A click in the decoration lane of the gutter (a plugin's marks, editorDecorations #187). */
+  onDecoClick?: (v: EditorView, line: number, e: MouseEvent) => void
+  /** A right click in the decoration lane. */
+  onDecoMenu?: (v: EditorView, line: number, e: MouseEvent) => void
+  /** A hover provider of a plugin is asked for the offset under the mouse. */
+  onHoverAt?: (v: EditorView, offset: number, x: number, y: number) => void
+  /** Decorations of the plugins moved or removed by an edit. */
+  onDecosMoved?: (v: EditorView, moved: MovedMark[]) => void
   /** The text was scrolled (a popup anchored at a line closes when the line leaves the view). */
   onScroll?: (v: EditorView, top: number) => void
 }
@@ -422,6 +431,10 @@ export function useEditorView(doc: () => Doc | null, host: () => HTMLElement | u
         onType: (t) => untrack(() => opts.onType?.(t)),
         onFolds: () => untrack(() => opts.onFolds?.(v)),
         onMarkClick: (line, mark) => untrack(() => opts.onMarkClick?.(v, line, mark)),
+        onDecoClick: (line, e) => untrack(() => opts.onDecoClick?.(v, line, e)),
+        onDecoMenu: (line, e) => untrack(() => opts.onDecoMenu?.(v, line, e)),
+        onHoverAt: (off, x, y) => untrack(() => opts.onHoverAt?.(v, off, x, y)),
+        onDecosMoved: (moved) => untrack(() => opts.onDecosMoved?.(v, moved)),
         onScroll: (top) => untrack(() => opts.onScroll?.(v, top)),
       })
       v.mount(h)

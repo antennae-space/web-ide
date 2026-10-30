@@ -24,6 +24,37 @@ export interface Diagnostic {
   source?: string
 }
 
+/** A plugin's mark in the decoration lane of the gutter (#187). */
+export interface GutterMark {
+  id: string
+  line: number
+  class: string
+  title?: string
+}
+
+/** A class put on a whole line: the execution line, the line of the selected frame. */
+export interface LineClass {
+  id: string
+  line: number
+  class: string
+}
+
+/** Text shown at the end of a line (an inline value). */
+export interface LineWidget {
+  id: string
+  line: number
+  text: string
+  class?: string
+  title?: string
+}
+
+/** A decoration whose line changed: `removed` when its line is gone. */
+export interface MovedMark {
+  id: string
+  line: number
+  removed?: boolean
+}
+
 export interface ViewOptions {
   tabSize: number
   insertSpaces: boolean
@@ -49,6 +80,14 @@ export interface ViewOptions {
   onFolds?: () => void
   /** A change marker of the gutter was clicked (line of the mark, kind of change). */
   onMarkClick?: (line: number, mark: LineMark) => void
+  /** A click in the decoration lane of the gutter (line under the mouse, mark there or not). */
+  onDecoClick?: (line: number, e: MouseEvent) => void
+  /** A right click in the decoration lane. */
+  onDecoMenu?: (line: number, e: MouseEvent) => void
+  /** A hover provider of a plugin: asked for the offset under the mouse (after the same delay). */
+  onHoverAt?: (offset: number, x: number, y: number) => void
+  /** Decorations of the plugins moved or removed by an edit (their ids, with their new line). */
+  onDecosMoved?: (moved: MovedMark[]) => void
 }
 
 const registry = () => (CSS as any).highlights as Map<string, any> | undefined
@@ -63,6 +102,11 @@ function highlight(name: string, priority = 0): any {
     reg.set(name, h)
   }
   return h
+}
+
+/** Text of a decoration, safe in an attribute or between tags. */
+function escAttr(s: string) {
+  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 }
 
 const commentPrefix: Record<string, string> = {
@@ -99,6 +143,8 @@ export class EditorView {
   private gutterNums: HTMLPreElement
   private gutterMarks: HTMLDivElement
   private gutterFolds: HTMLDivElement
+  /** Lane of the marks given by the plugins (editorDecorations, #187). */
+  private gutterDecos: HTMLDivElement
   private placeholders: HTMLDivElement
   /** Text shown while the document is empty (option placeholder). */
   private hint: HTMLDivElement
@@ -109,7 +155,17 @@ export class EditorView {
   private hidden: [number, number][] = []
   private foldable = { version: -1, lines: new Map<number, boolean>() }
   private marks = new Map<number, LineMark>()
+  /** Marks, line classes and end-of-line widgets given by the plugins (#187). */
+  private decos: GutterMark[] = []
+  /** A plugin decorates the gutter of this file: the lane exists and the gutter is wider. */
+  private decosLane = false
+  private lineClasses: LineClass[] = []
+  private widgets: LineWidget[] = []
   private curLine: HTMLDivElement
+  /** Full-width rows under the text (the execution line). */
+  private decoLines: HTMLDivElement
+  /** Widgets at the end of a line (inline values). */
+  private decoWidgets: HTMLDivElement
   private boxes: HTMLDivElement
   private guides: HTMLDivElement
   private ws: HTMLPreElement
@@ -173,7 +229,10 @@ export class EditorView {
     this.gutterMarks.className = 'ed-marks'
     this.gutterFolds = document.createElement('div')
     this.gutterFolds.className = 'ed-folds'
-    this.gutter.append(this.gutterNums, this.gutterMarks, this.gutterFolds)
+    this.gutterDecos = document.createElement('div')
+    this.gutterDecos.className = 'ed-decos'
+    this.gutterDecos.style.display = 'none'
+    this.gutter.append(this.gutterNums, this.gutterMarks, this.gutterFolds, this.gutterDecos)
     this.placeholders = document.createElement('div')
     this.placeholders.className = 'ed-placeholders'
     this.hint = document.createElement('div')
@@ -181,6 +240,11 @@ export class EditorView {
     this.hint.setAttribute('aria-hidden', 'true')
     const main = document.createElement('div')
     main.className = 'ed-main'
+    this.decoLines = document.createElement('div')
+    this.decoLines.className = 'ed-lineclasses'
+    this.decoWidgets = document.createElement('div')
+    this.decoWidgets.className = 'ed-widgets'
+    this.decoWidgets.setAttribute('aria-hidden', 'true')
     this.curLine = document.createElement('div')
     this.curLine.className = 'ed-curline'
     this.boxes = document.createElement('div')
@@ -203,7 +267,7 @@ export class EditorView {
     EditorView.all.add(this)
     this.tooltip = document.createElement('div')
     this.tooltip.className = 'ed-tooltip'
-    main.append(this.curLine, this.guides, this.boxes, this.hint, this.content, this.ws, this.caretLayer, this.placeholders)
+    main.append(this.decoLines, this.curLine, this.guides, this.boxes, this.hint, this.content, this.ws, this.caretLayer, this.placeholders, this.decoWidgets)
     inner.append(this.gutter, main)
     this.scroller.append(inner)
     this.root.append(this.scroller, this.tooltip)
@@ -266,6 +330,16 @@ export class EditorView {
       if (!el || e.button !== 0) return
       e.preventDefault()
       opts.onMarkClick?.(Number(el.dataset.mark), this.marks.get(Number(el.dataset.mark)) ?? 'mod')
+    })
+    // The decoration lane of the plugins: a click anywhere in it reaches the plugin, mark or not.
+    listen(this.gutterDecos, 'mousedown', (e) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      opts.onDecoClick?.(this.lineAtPoint(e.clientY), e)
+    })
+    listen(this.gutterDecos, 'contextmenu', (e) => {
+      e.preventDefault()
+      opts.onDecoMenu?.(this.lineAtPoint(e.clientY), e)
     })
     listen(this.content, 'mouseleave', () => (this.tooltip.style.display = 'none'))
     listen(document as any, 'selectionchange', () => this.onSelectionChange())
@@ -606,8 +680,37 @@ export class EditorView {
       for (const [l, m] of this.marks) next.set(l <= c.fromLine ? l : Math.max(c.fromLine, l + shift), m)
       this.marks = next
     }
+    if (this.decos.length || this.lineClasses.length || this.widgets.length) this.decosAfterChange(c)
     this.hl.edit(c.fromLine, c.oldLines, c.newLines)
     this.schedule()
+  }
+
+  /** Decorations of the plugins follow the lines; one whose line lost its content is reported removed. */
+  private decosAfterChange(c: Change) {
+    const shift = c.newLines - c.oldLines
+    const last = c.fromLine + c.oldLines - 1
+    // A line strictly inside the changed range lost its content; so does the first one when the
+    // change starts exactly at its start and reaches the line below.
+    const gone = (l: number) =>
+      (l > c.fromLine && l < last) || (l === c.fromLine && last > c.fromLine && c.from === this.doc.lineStart(c.fromLine))
+    const moved: MovedMark[] = []
+    const mapList = <T extends { id: string; line: number }>(list: T[]): T[] => {
+      const out: T[] = []
+      for (const d of list) {
+        if (gone(d.line)) {
+          moved.push({ id: d.id, line: d.line, removed: true })
+          continue
+        }
+        const line = d.line <= c.fromLine ? d.line : Math.max(c.fromLine, d.line + shift)
+        if (line !== d.line) moved.push({ id: d.id, line })
+        out.push(line === d.line ? d : { ...d, line })
+      }
+      return out
+    }
+    this.decos = mapList(this.decos)
+    this.lineClasses = mapList(this.lineClasses)
+    this.widgets = mapList(this.widgets)
+    if (moved.length) this.opts.onDecosMoved?.(moved)
   }
 
   private intact() {
@@ -1545,7 +1648,7 @@ export class EditorView {
     for (const l of vis) nums += l + 1 + '\n'.repeat(this.rowsOf(l))
     this.gutterNums.textContent = nums
     this.gutterNums.style.transform = `translateY(${this.lineTop(a)}px)`
-    const gw = `calc(${String(n).length}ch + 36px)`
+    const gw = `calc(${String(n).length}ch + ${this.decosLane ? 52 : 36}px)`
     if (gw !== this.gutterWidth) {
       // A wider gutter narrows the text: the wrapped rows move.
       this.gutterWidth = this.gutter.style.width = gw
@@ -1557,11 +1660,35 @@ export class EditorView {
     let marks = ''
     let folds = ''
     let holders = ''
+    let decos = ''
+    let classes = ''
+    let widgets = ''
     const lh = this.lineHeight
+    const byLine = <T extends { line: number }>(list: T[]) => {
+      const m = new Map<number, T[]>()
+      for (const x of list) {
+        const l = m.get(x.line)
+        if (l) l.push(x)
+        else m.set(x.line, [x])
+      }
+      return m
+    }
+    const decoMarks = byLine(this.decos)
+    const classRows = byLine(this.lineClasses)
+    const endWidgets = byLine(this.widgets)
     for (const l of vis) {
       const m = this.marks.get(l)
       const top = this.lineTop(l)
+      const rows = this.rowsOf(l)
       if (m) marks += `<div class="ed-mark mark-${m}" data-mark="${l}" style="top:${top}px;height:${lh * this.rowsOf(l)}px"></div>`
+      for (const d of decoMarks.get(l) ?? [])
+        decos += `<div class="ed-deco ${d.class}" data-deco="${d.id}" data-line="${l}" style="top:${top}px;height:${lh * rows}px"${d.title ? ` title="${escAttr(d.title)}"` : ''}></div>`
+      for (const d of classRows.get(l) ?? [])
+        classes += `<div class="ed-lineclass ${d.class}" data-lineclass="${d.id}" data-line="${l}" style="top:${top}px;height:${lh * rows}px"></div>`
+      for (const d of endWidgets.get(l) ?? [])
+        widgets +=
+          `<div class="ed-widget ${d.class ?? ''}" data-widget="${d.id}" data-line="${l}" style="left:${this.xAt(this.doc.lineEnd(l))}px;top:${this.rowTop(this.doc.lineEnd(l))}px;height:${lh}px;line-height:${lh}px"` +
+          `${d.title ? ` title="${escAttr(d.title)}"` : ''}>${escAttr(d.text)}</div>`
       const f = this.folds.find((x) => x.line === l)
       if (f) {
         folds += `<div class="ed-fold folded" data-fold="${l}" style="top:${top}px;height:${lh}px"></div>`
@@ -1575,6 +1702,9 @@ export class EditorView {
     this.gutterMarks.innerHTML = marks
     this.gutterFolds.innerHTML = folds
     this.placeholders.innerHTML = holders
+    this.gutterDecos.innerHTML = decos
+    this.decoLines.innerHTML = classes
+    this.decoWidgets.innerHTML = widgets
 
     this.clearOwn()
     if (registry()) {
@@ -1622,6 +1752,12 @@ export class EditorView {
   /** Line at a height in the content. */
   private lineAtY(y: number) {
     return this.lineOfRow(Math.floor((y - this.padTop) / this.lineHeight))
+  }
+
+  /** Line under a client Y (the gutter: no offset to read there). */
+  private lineAtPoint(clientY: number) {
+    const y = clientY - this.content.getBoundingClientRect().top
+    return Math.max(0, Math.min(this.doc.lineCount - 1, this.lineAtY(y)))
   }
 
   /** Screen row of a line: its number less the hidden lines above it (with wrap, its first row). */
@@ -1856,6 +1992,30 @@ export class EditorView {
     this.schedule()
   }
 
+  /**
+   * Marks of the decoration lane of the gutter (editorDecorations, #187). `lane` asks for the
+   * lane even when no mark is shown: a plugin that answers clicks in the gutter has one.
+   */
+  setGutterDecos(list: GutterMark[], lane = list.length > 0) {
+    this.decos = list
+    this.decosLane = lane
+    this.gutterDecos.style.display = lane ? 'block' : 'none'
+    this.gutterWidth = ''
+    this.schedule()
+  }
+
+  /** Full-width rows under the text (the execution line, the selected frame). */
+  setLineClasses(list: LineClass[]) {
+    this.lineClasses = list
+    this.schedule()
+  }
+
+  /** Text shown at the end of a line (an inline value). */
+  setLineWidgets(list: LineWidget[]) {
+    this.widgets = list
+    this.schedule()
+  }
+
   /** Highlighted spans (search results...), sorted by start; they follow the edits. */
   setLiveRanges(name: string, spans: [number, number][], priority = 1) {
     if (!spans.length) this.spans.delete(name)
@@ -1940,13 +2100,20 @@ export class EditorView {
   private onHover(e: MouseEvent) {
     clearTimeout(this.hoverTimer)
     this.tooltip.style.display = 'none'
-    if (!this.diagnostics.length) return
+    const ask = this.opts.onHoverAt
+    if (!this.diagnostics.length && !ask) return
+    const x = e.clientX
+    const y = e.clientY
     this.hoverTimer = window.setTimeout(() => {
-      const off = this.offsetAt(e.clientX, e.clientY)
+      const off = this.offsetAt(x, y)
       if (off == null) return
       const found = this.diagnostics.filter((d) => off >= d.from && off <= Math.max(d.to, d.from + 1))
-      if (!found.length) return
-      this.showTooltip(e.clientX, e.clientY, found.map((d) => `${d.source ? `[${d.source}] ` : ''}${d.message}`).join('\n\n'), found[0].severity)
+      if (found.length) {
+        this.showTooltip(x, y, found.map((d) => `${d.source ? `[${d.source}] ` : ''}${d.message}`).join('\n\n'), found[0].severity)
+        return
+      }
+      // No diagnostic there: a plugin may still answer for that offset (a variable under the mouse).
+      ask?.(off, x, y)
     }, 350)
   }
 

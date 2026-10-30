@@ -27,7 +27,7 @@ import { dropClasses, dropIndex, moveItem, setDropAt } from '../ui/tabDrop'
 import { EditorView } from '../editor/view'
 import { capability, provide, type Capabilities } from './capabilities'
 import { decoratePath } from './decorations'
-import { explorerItems, fileDecorations, pluginAssistantOptions } from './registry'
+import { explorerItems, editorDecorations, fileDecorations, pluginAssistantOptions } from './registry'
 import { folderMark, inExcluded, loadFolderMarks, markFolder, markOf } from '../state/folders'
 import { desks } from '../state/desks'
 import { setDynamicActions } from '../keys/bindings'
@@ -225,6 +225,9 @@ export function makeApi(id: string) {
       lineHunks,
       /** Gutter markers of hunks (the lines of the new text they touch). */
       marksOfHunks,
+      /** The editor decorations of the enabled plugins, each with the id that scopes its own ids
+       * (#187): read by the plugin giving `fileView` (Code) for each file tab. */
+      decorations: editorDecorations,
       /** Word-level diff of a pair of lines: the spans of each side, the changed ones marked. */
       wordHunks,
       /** Opens the diff tab of a file against HEAD (false when the Git plugin is off). */

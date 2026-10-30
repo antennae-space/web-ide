@@ -1,6 +1,9 @@
 // Types of the plugin system (docs/design/plugins.md): the manifest sent by the pod, the state
 // of a plugin on the project, and what a plugin's module gives the page.
 import type { JSX } from 'solid-js'
+import type { GutterMark, LineClass, LineWidget, MovedMark } from '../editor/view'
+
+export type { GutterMark, LineClass, LineWidget, MovedMark }
 import type { TabState } from '../state/project'
 import type { Zone } from '../state/zones'
 import type { MenuItem, PluginApi } from './api'
@@ -100,6 +103,12 @@ export interface PluginContributions {
   explorerItems?: (entry: ExplorerEntry) => MenuItem[]
   /** Decorations of the Explorer: the files left out, the state of a file (Git: modified…). */
   fileDecorations?: FileDecorations
+  /**
+   * Decorations of the file view of Code for this plugin (#187): marks in the gutter, classes on
+   * whole lines, text at the end of a line, hovers, items of the context menu. The debug host is
+   * the first user (docs/design/debug.md).
+   */
+  editorDecorations?: EditorDecorations
   /** Sources of the diff view (the sides of a diff tab whose source is its id). */
   diffSources?: DiffSource[]
   /** Kinds of results of Search Everywhere, each with its tab. */
@@ -176,3 +185,34 @@ export interface FileDecorations {
 
 /** A setting of a plugin. */
 export type PluginSetting = { type: 'string' | 'number' | 'boolean'; enum?: string[]; title: string; description?: string; default?: unknown }
+
+/**
+ * What a plugin puts in the file view of another plugin (Code), read for each file tab (#187).
+ * `path` is always the file of that view. Ids are scoped per plugin by Code (`<plugin>:<id>`), and
+ * lines are 0-based. A provider read in an effect: it may follow the plugin's state.
+ */
+export interface EditorDecorations {
+  /** Marks in the lane of the gutter. An empty array: the file is decorated but has no mark;
+   *  undefined: the plugin does not decorate it (the lane itself disappears). */
+  gutter?(path: string): GutterMark[] | undefined
+  /** Classes on whole lines (the execution line, the line of the selected frame). */
+  lines?(path: string): LineClass[] | undefined
+  /** Text shown at the end of a line (an inline value). */
+  widgets?(path: string): LineWidget[] | undefined
+  /** A click in the decoration lane, on a mark or on an empty line of it. */
+  gutterClick?(path: string, line: number, e: MouseEvent): void
+  /** Items added to the context menu opened in the decoration lane. */
+  gutterMenu?(path: string, line: number): MenuItem[]
+  /** Items added to the context menu of the text, at an offset. */
+  menu?(path: string, offset: number): MenuItem[]
+  /** A tooltip for an offset of the text (its content may hold a tree). */
+  hover?(path: string, offset: number): Promise<EditorHover | null> | EditorHover | null
+  /** An edit moved these marks (their new line) or removed them (their line is gone). */
+  moved?(path: string, marks: MovedMark[]): void
+}
+
+/** The answer of a hover provider: text, or content drawn by the plugin. */
+export interface EditorHover {
+  text?: string
+  content?: () => JSX.Element
+}

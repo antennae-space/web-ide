@@ -209,6 +209,13 @@ export const explorerItems = (entry: ExplorerEntry) => enabled().flatMap((s) => 
 /** The decorations of the Explorer of the enabled plugins. */
 export const fileDecorations = () => enabled().flatMap((s) => (active[s.manifest.id].fileDecorations ? [active[s.manifest.id].fileDecorations!] : []))
 
+/**
+ * The editor decorations of the enabled plugins, with the id that scopes their own ids: Code reads
+ * them for each file view (docs/design/plugins.md, editorDecorations #187).
+ */
+export const editorDecorations = () =>
+  enabled().flatMap((s) => (active[s.manifest.id].editorDecorations ? [{ id: s.manifest.id, decorations: active[s.manifest.id].editorDecorations! }] : []))
+
 // The merge of the channels lives in `decorations.ts`, which every tree of the window asks too.
 export { decorateEntry } from './decorations'
 

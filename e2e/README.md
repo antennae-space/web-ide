@@ -33,6 +33,7 @@ flowchart LR
 - `doodle` [ai]: Assistant, doodles: paperclip menu, modal with the conversation, pen, marker under the pen
 - `editing`: Editing: typing, undo, auto-indent, save, remote changes (merge, conflict), find bar, sub-words
 - `editor` [code]: Editor: text against the gutter, indentation guides, whitespace, multiple carets, folding, soft wrap
+- `decorations` [code]: Editor decorations given by a plugin (`editorDecorations` #187): mark in the gutter, class on a line, widget at the end of a line, click in the lane, marks following the edits (moved), hover, menu items, soft wrap
 - `explorer` [files]: File explorer: file type icons, click to select and double click to open, git colors (untracked, added, ignored), folder marks
 - `features`: Navigation, splits, global search, terminal (a paste into `cat` after `?2004h` shows no bracketed paste marker, a multi-line paste into bash waits for Enter), palette, settings, SQLite explorer and console
 - `git` [git]: Git tool: Commit tab (tree of changes with check boxes, diff, commit, commit and push), History tab
