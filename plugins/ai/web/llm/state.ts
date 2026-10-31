@@ -273,6 +273,8 @@ export interface Chat {
   consoles?: string[]
   /** Time spent generating its own answers (ms); the bar adds the one of its children. */
   genMs?: number
+  /** What its own answers cost, in dollars (0: a local model); the bar adds its children's. */
+  cost?: number
   /** Abandoned by the user after an error. */
   dismissed?: boolean
   /** First message prepared by the Orchestrator, for the message box. */

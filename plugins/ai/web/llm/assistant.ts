@@ -96,6 +96,7 @@ interface Update {
   children?: string[]
   dismissed?: boolean
   genMs?: number
+  cost?: number
   from: number
   count: number
   messages?: ChatMessage[]
@@ -148,6 +149,7 @@ on('assistant.update', (u: Update) => {
       c.children = u.children
       c.dismissed = u.dismissed
       if (u.genMs) c.genMs = u.genMs
+      if (u.cost) c.cost = u.cost
     }),
   )
   setApproval(u.approval ?? null)

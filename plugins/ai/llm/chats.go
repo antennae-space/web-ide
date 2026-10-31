@@ -28,9 +28,10 @@ type ChatInfo struct {
 	Updated int64  `json:"updated"`
 	Model   string `json:"model,omitempty"`
 	// Parent and Status of a sub-agent (agent.SubAgent).
-	Parent string  `json:"parent,omitempty"`
-	Status string  `json:"status,omitempty"`
-	Tokens int     `json:"tokens,omitempty"`
+	Parent string `json:"parent,omitempty"`
+	Status string `json:"status,omitempty"`
+	Tokens int    `json:"tokens,omitempty"`
+	// Cost of its answers (engine.Chat.Cost; a sub-agent of before: the one of its runs).
 	Cost   float64 `json:"cost,omitempty"`
 	Mode   string  `json:"mode,omitempty"`
 	Ticket int64   `json:"ticket,omitempty"`
@@ -131,7 +132,7 @@ func (m *Manager) ListChats(loc ChatLocation) ([]ChatInfo, error) {
 		return nil, err
 	}
 	rows, err := db.Query(`SELECT id, title, updated, model, coalesce(json_extract(extra, '$.parent'), ''), coalesce(json_extract(extra, '$.agent.status'), ''),
-		coalesce(json_extract(extra, '$.agent.tokens'), 0), coalesce(json_extract(extra, '$.agent.cost'), 0),
+		coalesce(json_extract(extra, '$.agent.tokens'), 0), coalesce(json_extract(extra, '$.cost'), json_extract(extra, '$.agent.cost'), 0),
 		coalesce(json_extract(extra, '$.mode'), ''), coalesce(json_extract(extra, '$.ticket.id'), 0), coalesce(json_extract(extra, '$.genMs'), 0),
 		json_extract(extra, '$.approval') IS NOT NULL OR EXISTS (SELECT 1 FROM messages m WHERE m.chat_id = chats.id AND m.role = 'tool'
 			AND m.seq > (SELECT coalesce(max(seq), -1) FROM messages WHERE chat_id = chats.id AND role != 'tool')

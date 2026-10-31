@@ -164,7 +164,8 @@ const fake = http.createServer(async (req, res) => {
       chunk(res, { content: '.' })
     }
   }
-  finish(res, 'stop', { prompt_tokens: 300, completion_tokens: 40, prompt_tokens_details: { cached_tokens: 100 } })
+  // The cost a provider tells (OpenRouter), shown in the bar.
+  finish(res, 'stop', { prompt_tokens: 300, completion_tokens: 40, prompt_tokens_details: { cached_tokens: 100 }, cost: 0.0042 })
 })
 
 run(async ({ page, ctx }) => {
@@ -305,6 +306,8 @@ run(async ({ page, ctx }) => {
     assert((await page.getAttribute('[data-testid=ai-stats-toggle]', 'aria-selected')) === 'true', 'the view chosen is kept after a reload')
     await page.click('[data-testid=ai-view-chat]')
     assert((await page.$$eval('.ai-usage', (e) => e[e.length - 1].textContent)).includes('42.5 tokens/s'), 'usage and speed shown')
+    await page.waitForSelector('[data-testid=ai-cost]', { timeout: 5000 })
+    assert(/^· \$0\.0\d{3}$/.test((await page.textContent('[data-testid=ai-cost]')).trim()) && /This conversation: .* · \$0\.0\d{3}/.test(await page.getAttribute('[data-testid=ai-gentime]', 'title')), 'the cost the provider told, next to the time: ' + (await page.textContent('[data-testid=ai-gentime]')))
     await page.screenshot({ path: OUT + '/llm-answer.png' })
 
     // Saved conversation: history, new chat, reopen.

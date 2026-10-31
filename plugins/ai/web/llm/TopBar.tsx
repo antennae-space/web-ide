@@ -7,6 +7,7 @@ import { chat, chatList, live, setChat, shells, type ChatInfo } from './state'
 import { loadShells, openChat, runStates } from './assistant'
 import { agentLabels, agentStatus } from './SubAgents'
 import { clock } from './Stats'
+import { fmtCost } from '../agents/stats'
 import { showSide } from './board/pages'
 import { capability, contextMenu, errorToast, Icon, pick, request, t } from '../plugin'
 import type { TicketRole, TicketsService } from '../plugin'
@@ -24,14 +25,35 @@ function TicketPart() {
   return <Show when={capability('tickets')}>{(k) => <TicketLink tickets={k()} />}</Show>
 }
 
+/** The role of a conversation or a session on a ticket, from the status of the ticket. */
+export const roleFor = (status: string): TicketRole => (status === 'new' ? 'briefing' : status === 'todo' ? 'plan' : status === 'to_test' ? 'correction' : 'dev')
+
+/** A ticket in a bar: its number and the dot of its status; a click opens it. */
+export function TicketButton(props: { tickets: TicketsService; id: number }) {
+  const k = props.tickets
+  const tk = () => k.summary(props.id)
+  // The status dot needs the ticket: the bar asks for the tickets of the project.
+  createEffect(() => k.ensure())
+  return (
+    <button class="ai-bar-item ai-bar-ticket" data-testid="ai-ticket" onClick={() => k.open(props.id)} title={[tk()?.title, tk() ? k.statusLabel(tk()!.status) : ''].filter(Boolean).join('\n')}>
+      <span class="ai-bar-icon">
+        <Icon name="kanban" size={13} />
+        <Show when={tk()}>{(s) => <span class={`ai-bar-dot st-${s().status}`} />}</Show>
+      </span>
+      <span class="mono">#{props.id}</span>
+    </button>
+  )
+}
+
+/** A role on a ticket, in a bar. */
+export const RoleBadge = (props: { tickets: TicketsService; role: TicketRole }) => (
+  <span class={`ai-tk-role r-${props.role}`} data-testid="ai-role">
+    {props.tickets.roleLabel(props.role)}
+  </span>
+)
+
 function TicketLink(props: { tickets: TicketsService }) {
   const k = props.tickets
-  const tk = () => (chat.ticket ? k.summary(chat.ticket.id) : undefined)
-  // The status dot needs the ticket: the bar asks for the tickets of the project.
-  createEffect(() => {
-    if (chat.ticket) k.ensure()
-  })
-  const roleFor = (status: string): TicketRole => (status === 'new' ? 'briefing' : status === 'todo' ? 'plan' : status === 'to_test' ? 'correction' : 'dev')
   const link = async () => {
     k.ensure()
     const id = await pick<number>({
@@ -58,18 +80,7 @@ function TicketLink(props: { tickets: TicketsService }) {
         </Show>
       }
     >
-      <button
-        class="ai-bar-item ai-bar-ticket"
-        data-testid="ai-ticket"
-        onClick={() => k.open(chat.ticket!.id)}
-        title={[tk()?.title, tk() ? k.statusLabel(tk()!.status) : ''].filter(Boolean).join('\n')}
-      >
-        <span class="ai-bar-icon">
-          <Icon name="kanban" size={13} />
-          <Show when={tk()}>{(s) => <span class={`ai-bar-dot st-${s().status}`} />}</Show>
-        </span>
-        <span class="mono">#{chat.ticket!.id}</span>
-      </button>
+      <TicketButton tickets={k} id={chat.ticket!.id} />
     </Show>
   )
 }
@@ -139,30 +150,30 @@ function ChildrenPart() {
 /** Role of the conversation on its ticket (nothing when it is not linked). */
 function RolePart() {
   return (
-    <Show when={chat.ticket && capability('tickets')}>
-      {(k) => (
-        <span class={`ai-tk-role r-${chat.ticket!.role}`} data-testid="ai-role">
-          {k().roleLabel(chat.ticket!.role)}
-        </span>
-      )}
-    </Show>
+    <Show when={chat.ticket && capability('tickets')}>{(k) => <RoleBadge tickets={k()} role={chat.ticket!.role} />}</Show>
   )
 }
 
-/** Time spent generating: this conversation and its children. */
+/** Time spent generating and cost: this conversation and its children; no cost when none (a local model). */
 function TimePart() {
   const under = (id: string): ChatInfo[] => {
     const direct = chatList().filter((c) => c.parent === id)
     return direct.flatMap((c) => [c, ...under(c.id)])
   }
-  const own = () => chat.genMs ?? 0
   const kids = () => under(chat.id)
-  const total = () => own() + kids().reduce((a, c) => a + (c.genMs ?? 0), 0)
-  const tip = () => [`${t('This conversation')}: ${clock(own())}`, ...kids().map((c) => `${c.title}: ${clock(c.genMs ?? 0)}`)].join('\n')
+  const total = () => (chat.genMs ?? 0) + kids().reduce((a, c) => a + (c.genMs ?? 0), 0)
+  const cost = () => (chat.cost ?? 0) + kids().reduce((a, c) => a + (c.cost ?? 0), 0)
+  const line = (title: string, ms = 0, c = 0) => `${title}: ${clock(ms)}` + (c ? ` · ${fmtCost(c)}` : '')
+  const tip = () => [line(t('This conversation'), chat.genMs, chat.cost), ...kids().map((c) => line(c.title, c.genMs, c.cost))].join('\n')
   return (
     <button class="ai-bar-item ai-bar-time" data-testid="ai-gentime" onClick={() => showSide('stats')} title={tip()}>
       <Icon name="clock" size={13} />
       <span class="mono">{clock(total())}</span>
+      <Show when={cost() > 0}>
+        <span class="mono" data-testid="ai-cost">
+          · {fmtCost(cost())}
+        </span>
+      </Show>
     </button>
   )
 }

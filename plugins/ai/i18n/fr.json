@@ -620,10 +620,6 @@
   "open each file the agent edits": "ouvre chaque fichier que l'agent modifie",
   "Agent options": "Options de l'agent",
   "Context: {used} / {size} tokens ({n} %)": "Contexte : {used} / {size} jetons ({n} %)",
-  "Work time": "Temps de travail",
-  "Turns": "Tours",
-  "Cost (API equivalent)": "Coût (équivalent API)",
-  "Cost": "Coût",
   "Follow the edits: open each file the agent edits": "Suivre les modifications : ouvrir chaque fichier que l'agent modifie",
   "Following the edits: each file the agent edits opens in the editor (click to stop)": "Suivi des modifications : chaque fichier que l'agent modifie s'ouvre dans l'éditeur (cliquer pour arrêter)",
   "The previews are off on this project (Settings > Plugins)": "Les aperçus sont désactivés sur ce projet (Réglages > Plugins)",
@@ -677,5 +673,7 @@
   "Close the tab (the session goes on)": "Fermer l'onglet (la session continue)",
   "the session goes on": "la session continue",
   "Stop the session": "Arrêter la session",
-  "Views of the conversation": "Vues de la conversation"
+  "Views of the conversation": "Vues de la conversation",
+  "No turn yet": "Aucun tour pour l’instant",
+  "Ticket #{id}: {stats}": "Ticket #{id} : {stats}"
 }
