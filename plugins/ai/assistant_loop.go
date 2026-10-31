@@ -94,16 +94,13 @@ const summaryPrefix = "Summary of the earlier conversation (automatic compaction
 // right after the tool results of its step, since servers often take only text in a tool
 // result.
 //
-// The reasoning goes back for the answers of the current turn (after the last user
-// message): models thinking between their tool calls need it, older turns drop it.
+// The history only grows: the request of a step starts with the messages of the request
+// before it, so that the server reads only the new ones (its prompt cache stays valid);
+// only a compaction rewrites it. So the reasoning of every answer goes back as it was
+// received (a chat template that does not want the older ones drops them on the server),
+// and the nudge after a stuck answer stays where it was sent, in place of that answer.
 func apiMessages(system string, msgs []*engine.Message, vision bool) []llm.Message {
 	out := []llm.Message{{Role: "system", Content: assistant.String(system)}}
-	turn := 0
-	for i, m := range msgs {
-		if m.Role == "user" {
-			turn = i
-		}
-	}
 	var images []*engine.Message
 	flush := func() {
 		if len(images) == 0 {
@@ -118,18 +115,22 @@ func apiMessages(system string, msgs []*engine.Message, vision bool) []llm.Messa
 		out = append(out, llm.Message{Role: "user", Content: data})
 		images = nil
 	}
-	for i, m := range msgs {
+	for _, m := range msgs {
 		if m.Role != "tool" {
 			flush()
 		}
 		if vision && m.Role == "tool" && !m.Compacted && m.Page != nil && m.Page.PNG != "" {
 			images = append(images, m)
 		}
+		if !m.Compacted && m.Stuck && m.Resumed {
+			out = append(out, llm.Message{Role: "user", Content: assistant.String(stuckNudge)})
+			continue
+		}
 		if m.Compacted || unsent(m) {
 			continue
 		}
 		msg := llm.Message{Role: m.Role, ToolCallID: m.ToolCallID, Name: m.Name}
-		if m.Role == "assistant" && i > turn {
+		if m.Role == "assistant" {
 			msg.Reasoning = m.Reasoning
 		}
 		switch {
@@ -149,9 +150,6 @@ func apiMessages(system string, msgs []*engine.Message, vision bool) []llm.Messa
 		out = append(out, msg)
 	}
 	flush()
-	if n := len(msgs); n > 0 && msgs[n-1].Stuck && msgs[n-1].Resumed {
-		out = append(out, llm.Message{Role: "user", Content: assistant.String(stuckNudge)})
-	}
 	return out
 }
 
@@ -178,7 +176,7 @@ func estimateTokens(m *engine.Message) int {
 	for _, c := range m.ToolCalls {
 		chars += len(c.Function.Name) + len(c.Function.Arguments)
 	}
-	// The reasoning goes back within the turn: counted, an older turn is overestimated.
+	// The reasoning goes back with its answer (apiMessages): counted.
 	chars += len(m.Reasoning)
 	return (chars*2+6)/7 + media*800 + 8
 }
@@ -700,7 +698,8 @@ func emptyAnswer(m *engine.Message) bool {
 	return strings.TrimSpace(assistant.ContentText(m.Content)) == "" && len(m.ToolCalls) == 0
 }
 
-// stuckNudge follows a stuck answer set aside, in the request asking again.
+// stuckNudge takes the place of a stuck answer set aside, in the history sent: the request
+// asking again ends with it, the next ones keep it.
 const stuckNudge = "Your previous answer was stopped: its reasoning went round in circles, or ended without text nor action. Do not start the analysis over: take the next concrete step now (call a tool, or answer), with a short reasoning."
 
 // lastStuck: the last message is an answer that got stuck.

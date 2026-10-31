@@ -302,7 +302,7 @@ run(async ({ page }) => {
     const shellsTip = await page.getAttribute('[data-testid=ai-shells]', 'title')
     assert(shellsTip.includes('Dev server'), 'the tooltip lists the running command: ' + shellsTip)
 
-    // Reasoning sent back within the turn; an answer without text nor call is an error.
+    // Reasoning sent back; an answer without text nor call is an error.
     await page.fill('.ai-composer .ed-content', 'Just think')
     await page.keyboard.press('Control+Enter')
     await page.waitForSelector('.ai-error:has-text("Answer ended in its reasoning") >> nth=1', { timeout: 20000 })
@@ -311,11 +311,13 @@ run(async ({ page }) => {
     const stuck = await page.$$eval('.ai-error:has-text("Answer ended in its reasoning")', (e) => e.map((x) => !!x.querySelector('.ai-resumed')))
     assert(stuck.length === 2 && stuck[0] && !stuck[1], 'an answer ended in its reasoning is asked again once, then the turn ends: ' + JSON.stringify(stuck))
     assert(think[think.length - 1].role === 'user' && text(think[think.length - 1]).startsWith('Your previous answer was stopped'), 'asked again with a nudge to act')
-    assert(think.some((m) => m.role === 'assistant' && m.reasoning_content === 'THINK-1 list first') && !think.some((m) => m.role === 'assistant' && m.reasoning_content && m.tool_calls === undefined), 'reasoning of the turn sent back, not the one of older turns')
+    assert(think.some((m) => m.role === 'assistant' && m.reasoning_content === 'THINK-1 list first') && !think.some((m) => m.role === 'assistant' && m.reasoning_content && m.tool_calls === undefined), 'reasoning of the answer with a call sent back, the stuck ones left out')
     await ask(page, 'After the thought', 'Answer of fake-other.')
     const after = requests[requests.length - 1].messages
-    assert(!after.some((m) => m.reasoning_content) && !after.some((m) => m.role === 'assistant' && text(m) === '' && !m.tool_calls), 'next turn: no reasoning, the empty answer left out: ' + JSON.stringify(after.filter((m) => m.role === 'assistant').map((m) => [m.content, m.reasoning_content, !!m.tool_calls])))
-    assert(!after.some((m) => text(m).startsWith('Your previous answer was stopped')), 'next turn: no nudge')
+    assert(after.some((m) => m.reasoning_content === 'THINK-1 list first') && !after.some((m) => m.role === 'assistant' && text(m) === '' && !m.tool_calls), 'next turn: the reasoning of the earlier turn kept, the empty answer left out: ' + JSON.stringify(after.filter((m) => m.role === 'assistant').map((m) => [m.content, m.reasoning_content, !!m.tool_calls])))
+    assert(after.filter((m) => text(m).startsWith('Your previous answer was stopped')).length === 1, 'next turn: the nudge kept where it was sent')
+    // The history only grows (the system prompt apart): the prompt cache of the server stays valid.
+    assert(JSON.stringify(after.slice(1, think.length)) === JSON.stringify(think.slice(1)), 'next turn: the request starts with the messages of the one before')
 
     // A reasoning going round in circles: stopped by the pod, asked again to act.
     await ask(page, 'Loop please', 'Acted after the loop.')

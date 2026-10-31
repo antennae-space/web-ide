@@ -8,7 +8,9 @@ import (
 	"antennae.space/ide/pod/assistant"
 )
 
-func TestReasoningOfTheTurn(t *testing.T) {
+// The reasoning of every answer goes back, older turns included: the prompt cache of the
+// server stays valid.
+func TestReasoningOfEveryAnswer(t *testing.T) {
 	msgs := []*engine.Message{
 		{Role: "user", Content: assistant.String("a")},
 		{Role: "assistant", Content: assistant.String("A"), Reasoning: "old"},
@@ -18,7 +20,7 @@ func TestReasoningOfTheTurn(t *testing.T) {
 		{Role: "assistant", Content: assistant.String(""), Reasoning: "stuck", Error: "Answer ended in its reasoning, without text or action."},
 	}
 	out := apiMessages("sys", msgs, false)
-	if len(out) != 6 || out[2].Reasoning != "" || out[4].Reasoning != "think" {
+	if len(out) != 6 || out[2].Reasoning != "old" || out[4].Reasoning != "think" {
 		t.Fatalf("%+v", out)
 	}
 }
@@ -109,7 +111,7 @@ func TestStuckNudge(t *testing.T) {
 		t.Fatalf("asked again with the nudge: %+v", out)
 	}
 	msgs = append(msgs, &engine.Message{Role: "assistant", Content: assistant.String("done")})
-	if out := apiMessages("sys", msgs, false); len(out) != 3 || out[2].Role != "assistant" {
-		t.Fatalf("the nudge only while it is the last: %+v", out)
+	if out := apiMessages("sys", msgs, false); len(out) != 4 || assistant.ContentText(out[2].Content) != stuckNudge || out[3].Role != "assistant" {
+		t.Fatalf("the nudge stays where it was sent: %+v", out)
 	}
 }
