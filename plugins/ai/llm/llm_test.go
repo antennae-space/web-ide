@@ -232,7 +232,7 @@ func TestModels(t *testing.T) {
 		case "/api/version?":
 			http.NotFound(w, r)
 		case "/v1/models?":
-			io.WriteString(w, `{"data":[{"id":"b","status":{"value":"unloaded","args":["--mmproj","x"]}},{"id":"a","status":{"value":"loaded"}}]}`)
+			io.WriteString(w, `{"data":[{"id":"b","status":{"value":"unloaded","args":["--mmproj","x"]}},{"id":"a","status":{"value":"loaded"}},{"id":"DeepSeek-V4.1","status":{"value":"unloaded"}}]}`)
 		case "/props?":
 			io.WriteString(w, `{"role":"router"}`)
 		case "/props?model=a":
@@ -247,7 +247,11 @@ func TestModels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, b := list.Models[0], list.Models[1]
+	a, b, d := list.Models[0], list.Models[1], list.Models[2]
+	// Local models; DeepSeek's template takes a system turn anywhere (#217).
+	if !a.Caps.Local || a.Caps.SystemTurns || d.ID != "DeepSeek-V4.1" || !d.Caps.Local || !d.Caps.SystemTurns {
+		t.Fatalf("local caps: %+v %+v", a, d)
+	}
 	if list.Kind != "llamacpp" || a.ID != "a" || !a.Caps.Video || a.Caps.Tools || !a.Caps.Known || a.Context != 4096 {
 		t.Fatalf("a: %+v", a)
 	}
@@ -568,8 +572,8 @@ func TestLlamaSwapThinking(t *testing.T) {
 			t.Fatal(err)
 		}
 		swap := owner == "llama-swap"
-		if list.Models[0].Caps.Thinking != swap {
-			t.Fatalf("%s: thinking %v", owner, list.Models[0].Caps.Thinking)
+		if list.Models[0].Caps.Thinking != swap || list.Models[0].Caps.Local != swap {
+			t.Fatalf("%s: caps %+v", owner, list.Models[0].Caps)
 		}
 		think := true
 		if _, err := m.Chat(context.Background(), ChatRequest{Server: id, Model: "q", Think: &think, Effort: "low",

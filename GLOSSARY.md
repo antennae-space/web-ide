@@ -375,6 +375,10 @@ _Avoid_: worker
 **Compaction**
 Replacing the start of a long conversation with a summary to free context.
 
+**Effort note**
+A change of the reasoning effort of the assistant on a local model, written into the history sent where it happened (a system turn, or text after a message of the user or a tool result), so that the request keeps one effort and the server its prompt cache.
+_Avoid_: effort message
+
 **Question**
 Something an AI asks the user and waits for, gathered in the Questions tool.
 _Avoid_: prompt
