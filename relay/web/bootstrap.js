@@ -18,6 +18,7 @@ import { keyOf, nextGateway, pickGateway, pickCluster, routeOf } from './routes.
 const bootAt = performance.now()
 const timings = {}
 const http = { channels: 0, bytes: 0, paths: [] }
+let cacheBytes = 0 // what the Service Worker of this window answered from a cache (#204)
 function publish() {
   window.bootTimings = timings
   window.httpChannels = http.channels
@@ -340,9 +341,14 @@ let phase = null // {name, text, since, warned}
 const cands = { local: 0, remote: 0 }
 // How long a sub-step may wait before the page says it is stuck (it keeps waiting).
 const STALL = { signal: 10000, answer: 15000, ice: 30000, dtls: 15000, hello: 15000 }
-function trace(line) {
+function trace(line, step) {
   if (journal.at(-1)?.line === line) return // a drop then its failure say the same error
-  journal.push({ at: Math.round(performance.now() - bootAt), line })
+  const at = Math.round(performance.now() - bootAt)
+  // A step measured again (the summary of what the load carried, asked once the last module is
+  // in) rewrites its own line rather than adding a second one (#204).
+  const i = step ? journal.findIndex((e) => e.step === step) : -1
+  if (i >= 0) journal[i] = { at, line, step }
+  else journal.push({ at, line, step })
   drawTrace()
 }
 function phaseOf(name, line) {
@@ -1541,8 +1547,23 @@ async function onMessage(d) {
     const line = traceLine(d.step, d.detail)
     if (line) {
       mark('app-' + (d.step === 'plugin' ? d.detail?.id ?? '' : d.step))
-      trace(line)
+      trace(line, d.step)
     }
+    return
+  }
+  // What this window's load carried, asked by the app to end its journal (#204): the bytes this
+  // page streamed through the tunnel, and those its Service Worker answered from a cache.
+  if (d?.kind === 'bytes') {
+    try {
+      d.port?.postMessage({ tunnel: http.bytes, cache: cacheBytes })
+      d.port?.close()
+    } catch {}
+    return
+  }
+  // The Service Worker answered one of this window's fetches from a cache of this origin (#204):
+  // it never crossed the tunnel, but the load still got it.
+  if (d?.kind === 'cached') {
+    cacheBytes += Number(d.bytes) || 0
     return
   }
   if (d?.kind === 'journal') {

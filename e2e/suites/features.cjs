@@ -407,6 +407,39 @@ run(async ({ ctx, page }) => {
     assert(journal.includes(line), `the journal of the load says "${line}":\n${journal}`)
   await page.keyboard.press('Escape')
 
+  // The same load on a slow link (#204): the summary of what it carried comes after the project is
+  // ready, never 1.5 s after the script started, and it counts the assets the page downloaded. A
+  // fresh context, so the assets really cross the network the throttle slows.
+  const slowCtx = await page.context().browser().newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US' })
+  const slow = await slowCtx.newPage()
+  const cdp = await slowCtx.newCDPSession(slow)
+  await cdp.send('Network.emulateNetworkConditions', {
+    offline: false,
+    latency: 80,
+    downloadThroughput: (1.5 * 1000 * 1000) / 8,
+    uploadThroughput: (750 * 1000) / 8,
+  })
+  // A fresh context has no token cookie: the link carries it, as any first visit of a pod does.
+  const slowUrl = new URL(page.url())
+  slowUrl.searchParams.set('token', process.env.E2E_TOKEN)
+  await slow.goto(slowUrl.toString())
+  await slow.waitForSelector('.menubar', { timeout: 90000 })
+  await slow.waitForFunction(() => window.loadJournal.includes('Load carried'), null, { timeout: 40000 })
+  const slowJournal = await slow.evaluate(() => window.loadJournal)
+  const slowAt = (s) => Number(new RegExp(`^\\s*([\\d.]+)  ${s}`, 'm').exec(slowJournal)?.[1] ?? -1)
+  const slowReady = slowAt('Project ready')
+  const slowBytes = slowAt('Load carried')
+  // The last plugin module of the load: the summary must come after it, not 1.5 s after some
+  // earlier phase (what a settle armed by every phase did).
+  const slowLastPlugin = Math.max(...[...slowJournal.matchAll(/^\s*([\d.]+)  Plugin /gm)].map((m) => Number(m[1])))
+  console.log('throttled load:\n' + slowJournal)
+  assert(slowReady >= 0, `a throttled load still marks the project ready:\n${slowJournal}`)
+  assert(slowBytes >= slowReady, `the summary of the load comes after it is ready: ready at ${slowReady}, summary at ${slowBytes}`)
+  assert(slowLastPlugin > 0 && slowBytes >= slowLastPlugin, `the summary counts the modules that arrived last: last plugin at ${slowLastPlugin}, summary at ${slowBytes}`)
+  const slowCarried = /Load carried ([\d.]+) kB from the pod, ([\d.]+) kB from the cache, ([\d.]+) kB on the socket/.exec(slowJournal)
+  assert(slowCarried && Number(slowCarried[1]) > 0, 'a throttled load says what it carried: ' + (slowCarried ? slowCarried[0] : slowJournal.slice(-200)))
+  await slow.close()
+
   // Infos: properties, connections and extensions stacked in one tool
   assert(!(await page.isVisible('.rail-left .rail-btn[title^="Connections"]')), 'no Connections panel on the left')
   assert(!(await page.isVisible('.rail-right .rail-btn[title^="Extensions"]')), 'no Extensions tool')

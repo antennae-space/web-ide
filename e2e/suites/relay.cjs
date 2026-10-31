@@ -369,6 +369,14 @@ run(
     await again.waitForSelector('.pane.active .tab.active:has-text("notes.txt")')
     assert((await again.textContent('.pane.active .ed-content')).includes('via the relay'), 'the app works after the reload')
 
+    // The journal of the reload says where the assets came from (#204): the Service Worker told the
+    // bootstrap page what it answered from its cache, so the cache column is no longer 0.
+    await again.waitForFunction(() => window.loadJournal.includes('Load carried'), null, { timeout: 30000 })
+    const reJournal = await again.evaluate(() => window.loadJournal)
+    const reCarried = /Load carried ([\d.]+) kB from the pod, ([\d.]+) kB from the cache, ([\d.]+) kB on the socket/.exec(reJournal)
+    console.log('reload journal:\n' + reJournal)
+    assert(reCarried && Number(reCarried[2]) > 0, 'a reload says what its Service Worker answered from the cache: ' + (reCarried ? reCarried[0] : reJournal.slice(-200)))
+
     // A pod updated to another version leaves its old cache behind: the Service Worker drops it
     // when the page declares the new one, and the next asset lands in the cache of that version.
     const oldName = warm.names[0]

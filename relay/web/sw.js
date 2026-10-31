@@ -36,15 +36,16 @@ const inShell = new Set(shellFiles)
 
 const cacheName = (id, version) => ASSETS + id + ':' + (version ?? '')
 
-// What each window's page carried, since it opened (#204): bytes streamed through the tunnel, and
-// bytes answered from a cache of this origin (the shell, the immutable assets). The app asks for
-// them with a "stats" message to end its load journal; counting them never blocks a fetch.
-const carried = new Map()
-function carry(clientId, kind, n) {
-  if (!clientId || !n) return
-  const s = carried.get(clientId) ?? { tunnel: 0, cache: 0 }
-  s[kind] += n
-  carried.set(clientId, s)
+// What a load carried is told to the page that served it (#204): the bootstrap page counts the
+// bytes it streams through the tunnel itself, and the Service Worker reports here what it answered
+// from a cache of this origin (the shell, the assets of the pod already carried). Counting never
+// blocks a fetch, and a window that never asks loses nothing.
+async function tellClient(clientId, bytes) {
+  if (!bytes) return
+  try {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    all.find((c) => c.id === clientId)?.postMessage({ kind: 'cached', bytes })
+  } catch {}
 }
 
 // The first Service Worker of this browser takes over at once. A newer one waits while a page runs
@@ -71,7 +72,7 @@ async function shell(req, path, clientId) {
   try {
     const hit = await (await caches.open(SHELL_CACHE + SHELL)).match(path)
     if (hit) {
-      carry(clientId, 'cache', Number(hit.headers.get('content-length')) || 0)
+      void tellClient(clientId, Number(hit.headers.get('content-length')) || 0)
       return hit
     }
   } catch {}
@@ -116,14 +117,6 @@ async function bootstrap(key) {
 
 self.addEventListener('message', (e) => {
   if (e.data?.kind === 'skip') void self.skipWaiting()
-  // What this window's page carried so far (#204): the app ends its load journal with it.
-  if (e.data?.kind === 'stats' && e.source) {
-    const s = carried.get(e.source.id) ?? { tunnel: 0, cache: 0 }
-    try {
-      e.data.port?.postMessage(s)
-      e.data.port?.close()
-    } catch {}
-  }
   if (e.data?.kind === 'own' && e.source) {
     // The build of the pod's front end names its cache when the pod told it (#73): a development
     // rebuild keeps its version, never its build. Else the version, as before.
@@ -196,7 +189,11 @@ async function handle(req, url, clientId) {
     try {
       const hit = await (await caches.open(cacheName(own.id, own.version))).match(req)
       if (hit) {
-        carry(clientId, 'cache', Number(hit.headers.get('content-length')) || 0)
+        // Told to the bootstrap page that serves this window: it adds it to what the load carried
+        // from the cache (#204).
+        try {
+          win.postMessage({ kind: 'cached', bytes: Number(hit.headers.get('content-length')) || 0 })
+        } catch {}
         return hit
       }
     } catch {}
@@ -276,7 +273,6 @@ async function handle(req, url, clientId) {
         const b = bytes(m)
         controller.enqueue(b)
         collect(b)
-        carry(clientId, 'tunnel', b.length)
       }
       for (const m of got.slice(1)) push(m)
       chan.port1.onmessage = (e) => {

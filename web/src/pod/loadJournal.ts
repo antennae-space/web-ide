@@ -6,7 +6,7 @@
 // the same lines itself. `window.loadJournal` and Settings > Remote access > Connection journal
 // read them; the journal is copied around, so it carries no path nor name of a file.
 import { t } from '../i18n'
-import { traceBoot } from './transport'
+import { bootBytes, traceBoot } from './transport'
 
 /** A phase of the load. `plugin` names the plugin in its detail. */
 export type LoadStep = 'start' | 'rpc' | 'home' | 'project-open' | 'reattach' | 'grammars' | 'questions' | 'ready' | 'plugin' | 'bytes'
@@ -113,11 +113,14 @@ export function loadRetry() {
   for (let i = lines.length - 1; i >= 0; i--) if (steps.has(lines[i].step)) lines.splice(i, 1)
 }
 
-// The bytes of the load are worth counting once everything it loaded is in: the plugin modules
-// (and the bundles of the external plugins) arrive after the project is ready. Each phase re-arms
-// a short settle, so the last line comes after the last phase.
+// The summary of what the load carried comes once the project is ready, and only then: a page
+// read at the home page for a minute is not a load, and on a slow link the phases are seconds
+// apart — arming it from any phase wrote it before the socket had carried anything. Each phase
+// after `ready` re-arms a short settle, so it lands after the last module that arrived, and
+// asking it again replaces the line: the journal is read live, not a snapshot taken mid-load.
 let bytesTimer: number | undefined
 function settleBytes(after = 1500) {
+  if (!seen.has('ready')) return
   clearTimeout(bytesTimer)
   bytesTimer = window.setTimeout(() => void markBytes(), after)
 }
@@ -129,30 +132,10 @@ export function loadJournalText() {
 
 Object.defineProperty(window, 'loadJournal', { get: loadJournalText })
 
-// What the load carried. Through the relay the Service Worker counts, per window, what it streamed
-// through the tunnel and what it answered from its cache (#204); on a direct pod the resource
-// timings give the size of the assets, and the socket totals those of the protocol.
-function swBytes(): Promise<{ tunnel: number; cache: number } | null> {
-  const ctrl = navigator.serviceWorker?.controller
-  if (!ctrl) return Promise.resolve(null)
-  const chan = new MessageChannel()
-  return new Promise((resolve) => {
-    const done = setTimeout(() => resolve(null), 1500)
-    chan.port1.onmessage = (e) => {
-      clearTimeout(done)
-      chan.port1.close()
-      resolve(typeof e.data?.tunnel === 'number' ? e.data : null)
-    }
-    try {
-      ctrl.postMessage({ kind: 'stats', port: chan.port2 }, [chan.port2])
-    } catch {
-      clearTimeout(done)
-      resolve(null)
-    }
-  })
-}
-
-/** Bytes of the assets the page downloaded (transferSize, or their size when the browser reports none). */
+// What the load carried. Through the relay the bootstrap page counts the bytes it streamed
+// through the tunnel and what its Service Worker answered from a cache of this origin (#204);
+// on a direct pod, or from a bootstrap page that does not answer, the resource timings of the
+// page give the size of the assets it downloaded.
 function assetBytes(): number {
   let carried = 0
   for (const e of performance.getEntriesByType('resource')) {
@@ -162,15 +145,20 @@ function assetBytes(): number {
   return carried
 }
 
-/** Ends the journal with what the load carried. Asked after the project is ready: it never waits
- * for the page, and a Service Worker or a browser that answers nothing leaves the line at 0. */
+/** Ends the journal with what the load carried, or rewrites the line when a late module changed
+ * the totals. A page or a browser that answers nothing leaves the columns at 0. */
 export async function markBytes() {
-  if (seen.has('bytes')) return
-  const sw = await swBytes()
-  loadMark('bytes', {
-    tunnel: sw?.tunnel ?? assetBytes(),
-    cache: sw?.cache ?? 0,
+  const b = await bootBytes()
+  const detail: LoadDetail = {
+    tunnel: b?.tunnel ?? assetBytes(),
+    cache: b?.cache ?? 0,
     socket: socketBytes.down + socketBytes.up,
-  })
+  }
+  const line = { at: performance.now(), step: 'bytes' as LoadStep, detail }
+  const at = lines.findIndex((l) => l.step === 'bytes')
+  if (at >= 0) lines[at] = line
+  else lines.push(line)
+  seen.add('bytes')
+  traceBoot('bytes', detail)
   console.info(loadJournalText())
 }

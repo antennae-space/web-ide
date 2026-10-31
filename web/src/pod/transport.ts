@@ -117,6 +117,24 @@ export function bootJournal(): Promise<string> {
   })
 }
 
+/** What this window's load carried: the bytes the bootstrap page streamed through the tunnel, and
+ * those its Service Worker answered from a cache of this origin (#204). Null outside the relay, or
+ * from a bootstrap page older than #204 (it does not answer) — the app then falls back to the
+ * resource timings of its own page. */
+export function bootBytes(): Promise<{ tunnel: number; cache: number } | null> {
+  if (!inTunnel()) return Promise.resolve(null)
+  const chan = new MessageChannel()
+  return new Promise((resolve) => {
+    const done = setTimeout(() => resolve(null), 1500)
+    chan.port1.onmessage = (e) => {
+      clearTimeout(done)
+      chan.port1.close()
+      resolve(typeof e.data?.tunnel === 'number' ? e.data : null)
+    }
+    window.parent.postMessage({ kind: 'bytes', port: chan.port2 }, '*', [chan.port2])
+  })
+}
+
 /** The base of the entry pod of the bootstrap page ('/pod/<key>', '' when it has none): its home
  * page is the one of the window. Null outside the relay origin, or from a bootstrap page that
  * does not answer. */
