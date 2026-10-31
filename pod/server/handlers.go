@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/pod/config"
@@ -336,16 +337,27 @@ func (s *Server) registerProject() {
 		if err != nil {
 			return nil, err
 		}
+		// What the pod spends answering this request (#204), step by step: the page shows it in
+		// its load journal, and a slow open is logged. An older page ignores the field.
+		timings := map[string]int64{}
+		at := time.Now()
+		step := func(name string) {
+			timings[name] = time.Since(at).Milliseconds()
+			at = time.Now()
+		}
 		rt, err := s.openRuntime(a.ID, a.Creds)
 		if err != nil {
 			return nil, err
 		}
+		step("openRuntime")
 		if err := s.gitSetup(ctx, rt); err != nil {
 			log.Printf("git setup of %s: %v", a.ID, err) // the Git panel still offers the init
 		}
+		step("gitSetup")
 		s.projectOpened(rt)
 		// The setup command of the kanban settings moves to the saved commands, once.
 		_, _ = s.projectCommands(rt)
+		step("projectCommands")
 		s.mu.Lock()
 		prev := s.runtimes[c.project]
 		same := c.project == a.ID
@@ -374,17 +386,29 @@ func (s *Server) registerProject() {
 			// The home pages of every pod sort the projects by their last opening.
 			s.broadcast("projects.changed", nil, nil)
 		}
+		step("attach")
+		// Files of .ide still tracked by git: the page offers to untrack them once.
+		tracked := s.ideTracked(ctx, v, rt)
+		step("ideTracked")
+		states := s.pluginStates(rt)
+		step("pluginStates")
+		for _, ms := range timings {
+			timings["total"] += ms
+		}
+		if timings["total"] > 500 {
+			log.Printf("project.open %s took %d ms: %v", a.ID, timings["total"], timings)
+		}
 		return map[string]any{
-			"project":  projects.View{Project: v, DisplayName: v.Name()},
-			"root":     rt.Root,
-			"local":    rt.Local,
-			"session":  s.Desks.Get(desks.Key(a.ID, desk)),
-			"desk":     desk,
-			"desks":    s.Desks.List(a.ID),
-			"consoles": rt.Consoles.List(),
-			"plugins":  s.pluginStates(rt),
-			// Files of .ide still tracked by git: the page offers to untrack them once.
-			"ideTracked": s.ideTracked(ctx, v, rt),
+			"project":    projects.View{Project: v, DisplayName: v.Name()},
+			"root":       rt.Root,
+			"local":      rt.Local,
+			"session":    s.Desks.Get(desks.Key(a.ID, desk)),
+			"desk":       desk,
+			"desks":      s.Desks.List(a.ID),
+			"consoles":   rt.Consoles.List(),
+			"plugins":    states,
+			"ideTracked": tracked,
+			"timings":    timings,
 		}, nil
 	})
 	// session.update, session.get, session.put and the session.changed event carry the state of

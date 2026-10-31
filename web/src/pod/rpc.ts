@@ -5,7 +5,8 @@
 import { createSignal } from 'solid-js'
 import { lang, onLangChange, t } from '../i18n'
 import { base as pageBase } from '../app/base'
-import { askPort, type Channel, inTunnel, traceBoot, wsChannel } from './transport'
+import { askPort, type Channel, inTunnel, wsChannel } from './transport'
+import { countSocket, loadMark } from './loadJournal'
 
 export type { Channel }
 
@@ -48,11 +49,13 @@ const queue: string[] = []
 let retry = 0
 let everConnected = false
 
-// Throughput: samples of [timestamp, bytes] kept for one second.
+// Throughput: samples of [timestamp, bytes] kept for one second. The same samples add up in
+// loadJournal for the whole load (#204).
 const down: [number, number][] = []
 const up: [number, number][] = []
 function sample(list: [number, number][], n: number) {
   list.push([performance.now(), n])
+  countSocket(n, list === up)
 }
 function sum(list: [number, number][]) {
   const limit = performance.now() - 1000
@@ -120,7 +123,7 @@ function attach(c: Channel) {
     for (const m of queue.splice(0)) send(m)
   })
   c.onMessage((m) => {
-    traceBoot('rpc') // the first message of the pod: the rpc channel works end to end
+    loadMark('rpc') // the first message of the pod: the rpc channel works end to end
     handleMessage(m)
   })
   c.onClose(() => {

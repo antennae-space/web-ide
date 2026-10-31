@@ -3,6 +3,7 @@ import { createEffect, createRoot, createSignal, For, type JSX, on as track, onC
 import { createMutable } from 'solid-js/store'
 import { Dynamic } from 'solid-js/web'
 import { RpcError, formatRate, on as onPod, podRates, podState } from '../pod/rpc'
+import { loadMark } from '../pod/loadJournal'
 import {
   activeLeaf, activeTab, closeTab, conflictedDocs, cycleTab, docsVersion, home, mutate, navigate as navHistory, openProject, reopenProject,
   openFile, closeEmptyPane, saveAll, session, setConflictOpener, setSize, sizesFor, splitPane, closeProject, moveTabToDesk, switchDesk,
@@ -733,7 +734,9 @@ export function ProjectPage(props: { id: string }) {
         void whenProvided('assistant').then((a) => a.openChat(chatId)).catch(() => {})
       }
       // A push notification of a question of an agent: /project/<id>?questions shows the first one.
+      const qAt = performance.now()
       await resetQuestions()
+      loadMark('questions', { ms: Math.round(performance.now() - qAt) })
       if (new URLSearchParams(location.search).has('questions')) {
         history.replaceState(null, '', location.pathname)
         mutate((s) => showTool(s, 'questions'))
@@ -749,6 +752,7 @@ export function ProjectPage(props: { id: string }) {
       // The URL names the desk shown (a removed desk of an old link opened desk 1).
       if (urlDesk() !== desk()) navigate(deskPath(props.id, desk()), true)
       setReady(true)
+      loadMark('ready', { ms: Math.round(performance.now()) }) // the whole load of the window
       applyDeskFocus()
       window.name = `project-${props.id}` // see openWorktreeWindow
     } catch (e) {

@@ -92,13 +92,13 @@ export function inTunnel(): boolean {
 }
 
 /** The moments of its start the app tells the journal of the bootstrap page (#75): the page
- * writes them with its own clock and its own words, so a load is read from end to end. */
-export type BootStep = 'start' | 'rpc' | 'home'
-const told = new Set<BootStep>()
-export function traceBoot(step: BootStep) {
-  if (!inTunnel() || told.has(step)) return
-  told.add(step)
-  window.parent.postMessage({ kind: 'trace', step }, '*')
+ * writes them with its own clock and its own words, so a load is read from end to end. The
+ * numbers of a phase (its duration, what it carried) travel with it (#204); the page formats
+ * them, the app never sends words nor paths. */
+export type BootStep = string
+export function traceBoot(step: BootStep, detail?: Record<string, number | string | boolean>) {
+  if (!inTunnel()) return
+  window.parent.postMessage({ kind: 'trace', step, detail }, '*')
 }
 
 /** The journal of the connection, as the bootstrap page kept it: '' outside the relay origin,

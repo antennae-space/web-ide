@@ -133,6 +133,21 @@ const words = {
   tAppStart: L('The IDE starts (script loaded)', 'L’IDE démarre (script chargé)', 'El IDE arranca (script cargado)'),
   tAppRpc: L('The IDE talks to the pod (first message)', 'L’IDE parle au pod (premier message)', 'El IDE habla con el pod (primer mensaje)'),
   tAppHome: L('Home page shown', 'Accueil affiché', 'Inicio mostrado'),
+  // The end of the load, told by the app once the project is open (#204). The numbers come from
+  // the app; the page words them, as it does for its own steps.
+  tAppProject: L(
+    'Project opened ({ms} ms, pod {pod} ms: runtime {runtime} ms, git {git} ms, commands {commands} ms, tracked {tracked} ms, plugins {plugins} ms)',
+    'Projet ouvert ({ms} ms, pod {pod} ms : exécution {runtime} ms, git {git} ms, commandes {commands} ms, suivis {tracked} ms, plugins {plugins} ms)',
+    'Proyecto abierto ({ms} ms, pod {pod} ms: ejecución {runtime} ms, git {git} ms, comandos {commands} ms, seguidos {tracked} ms, plugins {plugins} ms)',
+  ),
+  tAppReattach: L('Worktrees attached ({ms} ms)', 'Worktrees attachées ({ms} ms)', 'Worktrees conectadas ({ms} ms)'),
+  tAppGrammars: L('Language packs ready ({ms} ms)', 'Packs de langage prêts ({ms} ms)', 'Paquetes de lenguaje listos ({ms} ms)'),
+  tAppQuestions: L('Questions loaded ({ms} ms)', 'Questions chargées ({ms} ms)', 'Preguntas cargadas ({ms} ms)'),
+  tAppReady: L('Project ready ({ms} ms after the page opened)', 'Projet prêt ({ms} ms après l’ouverture de la page)', 'Proyecto listo ({ms} ms tras abrir la página)'),
+  tAppPlugin: L('Plugin {id} loaded ({ms} ms)', 'Plugin {id} chargé ({ms} ms)', 'Plugin {id} cargado ({ms} ms)'),
+  tAppPluginChunk: L('Plugin {id} loaded from its chunk ({ms} ms, {kb} kB)', 'Plugin {id} chargé depuis son morceau ({ms} ms, {kb} kB)', 'Plugin {id} cargado desde su fragmento ({ms} ms, {kb} kB)'),
+  tAppPluginBundle: L('Plugin {id} loaded from its bundle ({ms} ms, {kb} kB)', 'Plugin {id} chargé depuis son paquet ({ms} ms, {kb} kB)', 'Plugin {id} cargado desde su paquete ({ms} ms, {kb} kB)'),
+  tAppBytes: L('Load carried {tunnel} kB from the pod, {cache} kB from the cache, {socket} kB on the socket', 'Le chargement a porté {tunnel} kB depuis le pod, {cache} kB depuis le cache, {socket} kB sur la socket', 'La carga llevó {tunnel} kB desde el pod, {cache} kB desde la caché, {socket} kB por el socket'),
   tBye: L('The relay says the pod left', 'Le relay signale que le pod est parti', 'El relay avisa de que el pod se ha ido'),
   tKept: L('Reconnected to the same pod: the IDE takes its channels again without reloading', 'Reconnecté au même pod : l’IDE reprend ses canaux sans recharger', 'Reconectado al mismo pod: el IDE retoma sus canales sin recargar'),
   tError: L('Error: ', 'Erreur : ', 'Error: '),
@@ -374,6 +389,37 @@ function drawTrace() {
 Object.defineProperty(window, 'bootJournal', { get: () => journalText() })
 function journalText() {
   return journal.map((e) => (e.at / 1000).toFixed(2).padStart(6) + '  ' + e.line).join('\n')
+}
+// A phase of the load the app reports: its words here, its numbers there (no text nor path of a
+// file crosses the boundary, #204).
+const kilo = (n) => (Number(n) / 1024).toFixed(1)
+function traceLine(step, detail) {
+  const n = detail ?? {}
+  switch (step) {
+    case 'start':
+      return words.tAppStart
+    case 'rpc':
+      return words.tAppRpc
+    case 'home':
+      return words.tAppHome
+    case 'project-open':
+      return fmt(words.tAppProject, { ms: n.ms ?? 0, pod: n.pod ?? 0, runtime: n.runtime ?? 0, git: n.git ?? 0, commands: n.commands ?? 0, tracked: n.tracked ?? 0, plugins: n.plugins ?? 0 })
+    case 'reattach':
+      return fmt(words.tAppReattach, { ms: n.ms ?? 0 })
+    case 'grammars':
+      return fmt(words.tAppGrammars, { ms: n.ms ?? 0 })
+    case 'questions':
+      return fmt(words.tAppQuestions, { ms: n.ms ?? 0 })
+    case 'ready':
+      return fmt(words.tAppReady, { ms: n.ms ?? 0 })
+    case 'plugin':
+      return n.bytes
+        ? fmt(n.bundle ? words.tAppPluginBundle : words.tAppPluginChunk, { id: n.id ?? '', ms: n.ms ?? 0, kb: kilo(n.bytes) })
+        : fmt(words.tAppPlugin, { id: n.id ?? '', ms: n.ms ?? 0 })
+    case 'bytes':
+      return fmt(words.tAppBytes, { tunnel: kilo(n.tunnel), cache: kilo(n.cache), socket: kilo(n.socket) })
+  }
+  return ''
 }
 async function copyJournal(btn) {
   const head = location.host + ' · ' + new Date().toISOString() + ' · ' + navigator.userAgent
@@ -1489,10 +1535,12 @@ function buildOf(k) {
 // the Service Worker arrive on navigator.serviceWorker, not on window.
 async function onMessage(d) {
   // The app tells the moments of its start, and asks for the journal to show it (#75).
+  // The app tells the moments of its start, and asks for the journal to show it (#75). Each
+  // phase of the load down to the project ready travels with its numbers (#204).
   if (d?.kind === 'trace') {
-    const line = { start: words.tAppStart, rpc: words.tAppRpc, home: words.tAppHome }[d.step]
+    const line = traceLine(d.step, d.detail)
     if (line) {
-      mark('app-' + d.step)
+      mark('app-' + (d.step === 'plugin' ? d.detail?.id ?? '' : d.step))
       trace(line)
     }
     return

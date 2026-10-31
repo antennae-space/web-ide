@@ -13,6 +13,7 @@ import { Grammar, type GrammarDef, type RuleDef } from '../editor/tokenizer'
 import { on as onPod, request } from '../pod/rpc'
 import { levelBadge } from './level'
 import { bootJournal, inTunnel } from '../pod/transport'
+import { loadJournalText } from '../pod/loadJournal'
 import { errorToast, toast } from '../ui/toast'
 import { copyText } from '../ui/clipboard'
 import { Doc } from '../editor/doc'
@@ -739,9 +740,7 @@ function RemoteAccess() {
         </div>
         <p class="muted small">{t('The relay only introduces the browser and the pod; the traffic between them is encrypted and the token is proved inside the tunnel.')}</p>
       </Show>
-      <Show when={inTunnel()}>
-        <ConnectionJournal />
-      </Show>
+      <ConnectionJournal />
       <h3>{t('Pods of the account')}</h3>
       <PodsSection />
       <h3>{t('Local network')}<Help topic="settings.remote.lan" /></h3>
@@ -750,11 +749,12 @@ function RemoteAccess() {
   )
 }
 
-/** The journal of the connection of this window through the relay (#75): every step with its
- * time, from the bootstrap page to the home page of the app, to read or to copy. */
+/** The journal of this window's load (#75, #204): every step with its time, from the tunnel to
+ * the project ready, and what the load carried. Through the relay the bootstrap page kept every
+ * line, the app's included; outside it the app keeps them itself. */
 function ConnectionJournal() {
   const [text, setText] = createSignal('')
-  const load = () => void bootJournal().then(setText)
+  const load = () => void (inTunnel() ? bootJournal() : Promise.resolve(loadJournalText())).then(setText)
   return (
     <details class="connection-journal" onToggle={(e) => e.currentTarget.open && load()} data-testid="connection-journal">
       <summary>{t('Connection journal')}</summary>
