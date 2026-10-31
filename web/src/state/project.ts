@@ -698,12 +698,13 @@ export function worktreeChip(id: string | undefined): { label: string; title: st
 }
 
 /** Opens another worktree of the repository in the window (its files, consoles and git). */
-export async function attachWorktree(id: string): Promise<Attached> {
+export async function attachWorktree(id: string, add = true): Promise<Attached> {
   if (attached[id]) return attached[id]
   const r = await request('project.attach', { id })
   const a: Attached = { project: r.project, root: r.root, local: r.local }
   setAttached(id, a)
-  if (id !== home()?.id && !session.attached.includes(id)) mutate((s) => s.attached.push(id))
+  // Reattach adds no worktree: the session already has them and keeps their order.
+  if (add && id !== home()?.id && !session.attached.includes(id)) mutate((s) => s.attached.push(id))
   return a
 }
 
@@ -1106,13 +1107,6 @@ export function placePluginTools(plugins: { manifest: { contributes: { tools?: {
   if (JSON.stringify(next) !== JSON.stringify(session.placement)) mutate((s) => (s.placement = next))
 }
 
-/** The grammars of the language packs, before the language of a document is detected (a pod
- *  slow to answer must not hold the editor: 2 seconds at most, the buffers are detected again
- *  when they arrive). */
-async function waitPackGrammars() {
-  await Promise.race([refreshPackGrammars(), new Promise((r) => setTimeout(r, 2000))])
-}
-
 export async function openProject(id: string, creds?: { password?: string; passphrase?: string }, desk = 1) {
   const t0 = performance.now()
   const r = await request('project.open', { id, creds, desk })
@@ -1140,20 +1134,24 @@ export async function openProject(id: string, creds?: { password?: string; passp
     setSession(reconcile(normalize(r.session)))
     applyingRemote = false
   })
+  // The grammars of the language packs are asked in parallel with the attaches (#205): the
+  // documents of the restored session load after the attaches, and are detected again when the
+  // grammars arrive. Their line of the journal comes when the pod answers.
+  const gAt = performance.now()
+  void refreshPackGrammars().then(() => loadMark('grammars', { ms: Math.round(performance.now() - gAt) }))
   let at = performance.now()
   await reattach()
   loadMark('reattach', { ms: Math.round(performance.now() - at) })
-  at = performance.now()
-  await waitPackGrammars()
-  loadMark('grammars', { ms: Math.round(performance.now() - at) })
   syncDocsWithTabs()
   return r
 }
 
 /** Attaches again the worktrees the window had (those gone are forgotten) and shows the one it showed. */
 async function reattach() {
-  const gone: string[] = []
-  for (const w of [...session.attached]) await attachWorktree(w).catch(() => gone.push(w))
+  const list = [...session.attached]
+  const results = await Promise.allSettled(list.map((w) => attachWorktree(w, false)))
+  const gone = list.filter((_, i) => results[i].status === 'rejected')
+  // Drop the gone ones only: a change made meanwhile (another window, the pod) stays.
   if (gone.length) mutate((s) => (s.attached = s.attached.filter((x) => !gone.includes(x))))
   const w = session.worktree
   if (w && attached[w]) await showWorktree(w)
@@ -1215,11 +1213,13 @@ export async function reopenProject() {
   if (!p) return
   try {
     await request('project.open', { id: p.id, desk: desk() })
-    for (const w of Object.keys(attached)) if (w !== p.id) await request('project.attach', { id: w }).catch(() => dropWorktree(w))
+    const others = Object.keys(attached).filter((w) => w !== p.id)
+    const results = await Promise.allSettled(others.map((w) => request('project.attach', { id: w })))
+    results.forEach((r, i) => r.status === 'rejected' && dropWorktree(others[i]))
   } catch {
     return
   }
-  await waitPackGrammars()
+  void refreshPackGrammars()
   for (const [path, e] of docs) {
     if (!e.doc) continue
     try {

@@ -739,9 +739,10 @@ export function ProjectPage(props: { id: string }) {
         mutate((s) => (s.right.panel = 'assistant'))
         void whenProvided('assistant').then((a) => a.openChat(chatId)).catch(() => {})
       }
-      // The questions are not on the critical path of a load (#204): a pod slow to list them
-      // (its plugins asked one by one) must not hold the page nor its journal. Their line comes
-      // when the pod answers, after the project is ready.
+      // The questions are not on the critical path of a load (#204, #205): a pod slow to list them
+      // (its plugins asked one by one) must not hold the page nor its journal, and a question
+      // already waiting does not pop up (`resetQuestions` keeps `first` until its refresh). Their
+      // line comes when the pod answers, after the project is ready.
       const qAt = performance.now()
       const settled = loadPending() // the questions hold the table of the journal until the pod answers
       const asked = resetQuestions().then(
