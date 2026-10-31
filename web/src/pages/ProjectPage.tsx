@@ -3,7 +3,7 @@ import { createEffect, createRoot, createSignal, For, type JSX, on as track, onC
 import { createMutable } from 'solid-js/store'
 import { Dynamic } from 'solid-js/web'
 import { RpcError, formatRate, on as onPod, podRates, podState } from '../pod/rpc'
-import { loadMark } from '../pod/loadJournal'
+import { loadMark, loadRetry } from '../pod/loadJournal'
 import {
   activeLeaf, activeTab, closeTab, conflictedDocs, cycleTab, docsVersion, home, mutate, navigate as navHistory, openProject, reopenProject,
   openFile, closeEmptyPane, saveAll, session, setConflictOpener, setSize, sizesFor, splitPane, closeProject, moveTabToDesk, switchDesk,
@@ -716,7 +716,13 @@ export function ProjectPage(props: { id: string }) {
     const r = route()
     return r.name === 'project' ? (r.desk ?? 1) : 1
   }
-  onMount(async () => {
+  // The whole load of the window, asked again after a reconnection that cut it short (#204):
+  // a project whose channel dropped mid-open is opened again, and its journal written whole.
+  let opening = false
+  const open = async () => {
+    if (opening) return
+    opening = true
+    setError('')
     try {
       await openWithAuth(props.id, urlDesk())
       // Opened from a ticket to run its conversation: show the assistant.
@@ -733,20 +739,22 @@ export function ProjectPage(props: { id: string }) {
         mutate((s) => (s.right.panel = 'assistant'))
         void whenProvided('assistant').then((a) => a.openChat(chatId)).catch(() => {})
       }
-      // A push notification of a question of an agent: /project/<id>?questions shows the first one.
+      // The questions are not on the critical path of a load (#204): a pod slow to list them
+      // (its plugins asked one by one) must not hold the page nor its journal. Their line comes
+      // when the pod answers, after the project is ready.
       const qAt = performance.now()
-      await resetQuestions()
-      loadMark('questions', { ms: Math.round(performance.now() - qAt) })
+      const asked = resetQuestions().then(() => loadMark('questions', { ms: Math.round(performance.now() - qAt) }))
+      // A push notification of a question of an agent: /project/<id>?questions shows the first one.
       if (new URLSearchParams(location.search).has('questions')) {
         history.replaceState(null, '', location.pathname)
         mutate((s) => showTool(s, 'questions'))
-        showQuestion()
+        void asked.then(() => showQuestion())
       }
       // Opened from a file link of Claude Code while no window had the project.
-      const open = new URLSearchParams(location.search).get('open')
-      if (open) {
+      const openArg = new URLSearchParams(location.search).get('open')
+      if (openArg) {
         history.replaceState(null, '', location.pathname)
-        const [, path, line] = /^(.*?)(?::(\d+))?$/.exec(open)!
+        const [, path, line] = /^(.*?)(?::(\d+))?$/.exec(openArg)!
         void openFile(Number(line) > 0 ? { path, line: Number(line) - 1 } : path)
       }
       // The URL names the desk shown (a removed desk of an old link opened desk 1).
@@ -757,8 +765,11 @@ export function ProjectPage(props: { id: string }) {
       window.name = `project-${props.id}` // see openWorktreeWindow
     } catch (e) {
       setError((e as Error).message)
+    } finally {
+      opening = false
     }
-  })
+  }
+  onMount(() => void open())
   useProjectActions()
   // The URL is the desk shown: a desk link, the history or a shortcut switches the window.
   createEffect(
@@ -820,6 +831,12 @@ export function ProjectPage(props: { id: string }) {
     registerAction('view.toggleBottom', () => mutate((s) => toggleTool(s, 'console'))),
     ...Object.keys(toolPanels).map((id) => registerAction(`tool.${id}`, () => toggleToolFocus(id))),
     onPod('pod.reconnected', async () => {
+      // The open was cut short by the lost channel: ask it again, journal included (#204).
+      if (!ready()) {
+        loadRetry()
+        void open()
+        return
+      }
       await reopenProject()
       void refreshQuestions()
       void refreshPlugins()

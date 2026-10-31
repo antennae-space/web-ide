@@ -107,6 +107,12 @@ run(
     const load = await page.evaluate(() => window.bootJournal)
     for (const line of ['Project opened', 'runtime', 'Worktrees attached', 'Language packs ready', 'Questions loaded', 'Project ready', 'Plugin '])
       assert(load.includes(line), `the journal of the load says "${line}":\n${load}`)
+    // `ready` follows the open by seconds, not by tens of seconds: a load that loses its channel
+    // and never marks the project ready is what the journal is there to catch.
+    const at = (s) => Number(new RegExp(`^\\s*([\\d.]+)  ${s}`, 'm').exec(load)?.[1] ?? -1)
+    const openedAt = at('Project opened')
+    const readyAt = at('Project ready')
+    assert(openedAt >= 0 && readyAt >= openedAt && readyAt - openedAt < 5, `the project is ready seconds after it was opened: opened at ${openedAt}, ready at ${readyAt}`)
     const carried = /Load carried ([\d.]+) kB from the pod, ([\d.]+) kB from the cache, ([\d.]+) kB on the socket/.exec(load)
     assert(carried && Number(carried[1]) > 0, 'the load says what it carried through the tunnel: ' + (carried ? carried[0] : load.slice(-200)))
     console.log(load.slice(-900))

@@ -30,7 +30,10 @@ export type LoadDetail = {
   socket?: number
 }
 
-const lines: { at: number; text: string }[] = []
+// A phase is kept as it happened (its time and its numbers) and worded when the journal is read:
+// the language of the app is only known once its settings have arrived, a moment after the first
+// phases — wording them at mark time would mix the browser's language and the one the user chose.
+const lines: { at: number; step: LoadStep; detail: LoadDetail }[] = []
 const seen = new Set<string>()
 
 /** Bytes carried on the socket since the page opened, counted by pod/rpc on every message. */
@@ -96,9 +99,18 @@ export function loadMark(step: LoadStep, detail: LoadDetail = {}) {
   } catch {
     /* no marks in an old browser: the journal is what matters */
   }
-  lines.push({ at: performance.now(), text: text(step, detail) })
+  lines.push({ at: performance.now(), step, detail })
   traceBoot(step, detail)
   settleBytes()
+}
+
+/** An open asked again (its channel dropped before the project was ready): the phases of the
+ * project are forgotten so the load that succeeds writes them all, with its own times. The
+ * modules already in stay out of the journal — a chunk is really loaded once. */
+export function loadRetry() {
+  const steps = new Set(['project-open', 'reattach', 'grammars', 'questions', 'ready', 'bytes'])
+  for (const s of steps) seen.delete(s)
+  for (let i = lines.length - 1; i >= 0; i--) if (steps.has(lines[i].step)) lines.splice(i, 1)
 }
 
 // The bytes of the load are worth counting once everything it loaded is in: the plugin modules
@@ -110,9 +122,9 @@ function settleBytes(after = 1500) {
   bytesTimer = window.setTimeout(() => void markBytes(), after)
 }
 
-/** The journal as the bootstrap page writes it: the time of each line, in seconds. */
+/** The journal, worded in the language of the app now, each line with its time in seconds. */
 export function loadJournalText() {
-  return lines.map((e) => (e.at / 1000).toFixed(2).padStart(6) + '  ' + e.text).join('\n')
+  return lines.map((e) => (e.at / 1000).toFixed(2).padStart(6) + '  ' + text(e.step, e.detail)).join('\n')
 }
 
 Object.defineProperty(window, 'loadJournal', { get: loadJournalText })
