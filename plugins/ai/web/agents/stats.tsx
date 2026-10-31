@@ -47,7 +47,7 @@ export function statsTitle(s: Totals) {
 }
 
 /** A signal bumped a moment after the agents change: the totals are asked again. */
-function useAgentsTick() {
+export function useAgentsTick() {
   const [tick, setTick] = createSignal(0)
   let timer: number | undefined
   onCleanup(

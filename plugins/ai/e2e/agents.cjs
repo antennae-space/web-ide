@@ -55,17 +55,23 @@ run(async ({ page }) => {
   assert(diff.includes('del:- hi') && diff.includes('add:+ hello') && diff.includes(':  there'), 'edit with its diff: ' + JSON.stringify(diff))
   await page.waitForFunction(() => document.querySelector('[data-testid=agent-tab] .tab-title')?.textContent === 'Fake session')
   assert((await page.getAttribute('[data-testid=agent-usage]', 'title')).includes('1.2k / 200k'), 'context usage shown on the ring')
-  // The popover of the ring: the context, the time and cost of the session, /compact of the agent.
+  // The popover of the ring: the context and /compact of the agent; the time and cost are in the bar.
   await page.click('[data-testid=agent-usage]')
   const ctx = await page.textContent('[data-testid=agent-context]')
   assert(ctx.includes('1.2k') && ctx.includes('200k'), 'context in the popover: ' + ctx)
-  await page.waitForSelector('[data-testid=agent-context-stats]')
-  assert(/Turns\s*1/.test(await page.textContent('[data-testid=agent-context-stats]')), 'session stats in the popover')
+  assert(!(await page.$('[data-testid=agent-context-stats]')), 'no time or cost in the popover')
   assert(await page.isVisible('[data-testid=agent-compact]'), 'Compact now: the agent offers /compact')
   await page.keyboard.press('Escape')
   // Time and cost of the turn on the tab (the fake runs on a plan: an API equivalent).
   await page.waitForFunction(() => /Cost: \$0\.\d+ \(API equivalent\)/.test(document.querySelector('[data-testid=agent-tab]')?.title ?? ''))
   assert(/Work: \d+ s/.test(await page.getAttribute(tab, 'title')), 'work time on the tab')
+  // The bar on top of the message box (#219): work time · cost, the details in its tooltip.
+  await page.waitForSelector('[data-testid=agent-topbar] [data-testid=agent-cost]')
+  const bar = (await page.textContent('[data-testid=agent-gentime]')).replace(/\s+/g, ' ').trim()
+  assert(/^\d+ s ?· \$0\.\d+$/.test(bar), 'work time and cost in the bar: ' + bar)
+  const barTip = await page.getAttribute('[data-testid=agent-gentime]', 'title')
+  assert(/1 turns?, /.test(barTip) && barTip.includes('(API equivalent)'), 'the tooltip of the bar details the turns and the API equivalent: ' + barTip)
+  assert(!(await page.$('[data-testid=agent-topbar] [data-testid=ai-ticket]')), 'no ticket in the bar outside a ticket worktree')
   await page.screenshot({ path: OUT + '/agents-turn.png' })
 
   // A permission: a card in the thread, the tab waits for the user.
@@ -272,6 +278,10 @@ run(async ({ page }) => {
   await prompt(page, 'hello')
   await page.waitForSelector('[data-testid=agent-user]:has-text("hello")')
   await waitState(page, 'ready')
+  // The bar shows the ticket of the worktree and the role on it, the ticket's total in the tooltip.
+  await page.waitForSelector(`[data-testid=agent-topbar] [data-testid=ai-ticket]:has-text("#${n}")`)
+  assert((await page.textContent('[data-testid=agent-topbar] [data-testid=ai-role]')).trim().length > 0, 'the role on the ticket in the bar')
+  await page.waitForFunction((n) => (document.querySelector('[data-testid=agent-gentime]')?.title ?? '').includes(`Ticket #${n}: `), n)
   await page.goto(home + '?ticket=' + n)
   const kp = inFrames(page)
   await kp.waitForSelector('[data-testid=ticket-agent-stats]')

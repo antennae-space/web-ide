@@ -2,7 +2,7 @@
 // /commands the agent announces, files, images, doodles and dictation, the settings of the
 // agent in its bar. A prompt sent during a turn is queued by the pod. Drafts are kept per
 // session while the page lives.
-import { createSignal, For, onCleanup, Show } from 'solid-js'
+import { createSignal, For, onCleanup, Show, type JSX } from 'solid-js'
 import { createStore, produce } from 'solid-js/store'
 import { insertAtCaret, MessageBox, type CompletionItem } from '../llm/MessageBox'
 import { prepare, type Prepared } from '../llm/attachments'
@@ -12,7 +12,6 @@ import { doodleSession, openDoodle } from '../llm/doodle/session'
 import { canCapture, captureScreen, type Picture } from '../llm/doodle/background'
 import { cancelRecording, canRecord, speech, startRecording, stopRecording, transcribe } from '../llm/transcribe'
 import { AttachmentChip, formatTokens, Popover } from '../llm/parts'
-import { fmtCost, fmtWork } from './stats'
 import type { Caps } from '../llm/state'
 import { cancelAgent, configAgent, followAgent, promptAgent, sessions, threads, unqueueAgent, type AgentPart, type ConfigOption } from './state'
 import { contextMenu, errorToast, Icon, phone, registerAction, shortcutOf, t, tn, toast } from '../plugin'
@@ -45,7 +44,7 @@ function partsOf(list: Prepared[]): AgentPart[] {
   return out
 }
 
-export function AgentComposer(props: { id: string; onSent?: () => void }) {
+export function AgentComposer(props: { id: string; onSent?: () => void; head?: JSX.Element }) {
   let fileInput!: HTMLInputElement
   const [view, setView] = createSignal<EditorView>()
   const [preparing, setPreparing] = createSignal(0)
@@ -177,6 +176,10 @@ export function AgentComposer(props: { id: string; onSent?: () => void }) {
   return (
     <div class={`ai-composer-wrap agent-composer mode-${modeTone(modeOption()?.currentValue)}`} classList={{ full: agentFull(), busy: busy() }} data-testid="agent-composer">
       <div class="ai-led" />
+      {props.head}
+      <Show when={props.head}>
+        <div class="ai-led" />
+      </Show>
       <div class="ai-composer">
         <Show when={info()?.queue?.length}>
           <div class="ai-queue" data-testid="agent-queue">
@@ -477,22 +480,6 @@ function ContextPop(props: { id: string; used: number; size: number }) {
           <div class={`ai-ctx-bar ${level()}`}>
             <span style={{ width: `${ratio() * 100}%` }} />
           </div>
-          <Show when={info()?.stats?.turns}>
-            <div class="ai-ctx-rows small" data-testid="agent-context-stats">
-              <span>{t('Work time')}</span>
-              <span>{fmtWork(info()!.stats!.work)}</span>
-              <Show when={info()!.stats!.wait}>
-                <span>{t('Waiting for you')}</span>
-                <span>{fmtWork(info()!.stats!.wait)}</span>
-              </Show>
-              <span>{t('Turns')}</span>
-              <span>{info()!.stats!.turns}</span>
-              <Show when={info()!.stats!.turns - (info()!.stats!.unpriced ?? 0) > 0}>
-                <span>{info()!.stats!.apiEquivalent ? t('Cost (API equivalent)') : t('Cost')}</span>
-                <span>{fmtCost(info()!.stats!.cost)}</span>
-              </Show>
-            </div>
-          </Show>
           <Show when={canCompact()}>
             <div class="ai-pop-sep" />
             <button

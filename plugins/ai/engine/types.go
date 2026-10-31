@@ -49,6 +49,9 @@ type Chat struct {
 	// GenMs: time spent generating its own answers (the sum of their elapsedMs), summed by
 	// the pod at each save (the top bar of the page adds the one of its children).
 	GenMs int64 `json:"genMs,omitempty"`
+	// Cost: what its own answers cost, in dollars (chatCost, assistant_cost.go), summed at each
+	// save like GenMs; 0 for a local model.
+	Cost float64 `json:"cost,omitempty"`
 	// Draft: a first message prepared for the user (open_conversation), put in the message
 	// box of the window that opens the conversation.
 	Draft string `json:"draft,omitempty"`

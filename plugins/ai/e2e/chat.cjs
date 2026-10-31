@@ -147,6 +147,7 @@ run(async ({ page, ctx }) => {
     await page.screenshot({ path: OUT + '/chat-composer-editor.png' })
     await page.keyboard.press('Control+s')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Answer to Steps:")', { timeout: 20000 })
+    assert(!(await page.$('[data-testid=ai-cost]')), 'a model without a price: the time alone, no cost')
     await page.waitForSelector('[data-testid=send]', { timeout: 10000 })
     assert(text(requests.at(-1).messages.at(-1)) === listed && (await composerText(page)) === '', 'Ctrl+S sends the message, the box is emptied')
 

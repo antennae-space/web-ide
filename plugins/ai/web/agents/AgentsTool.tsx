@@ -29,6 +29,7 @@ import {
 import '../llm/assistant.css'
 import { ProjectAgentStats, statsTitle } from './stats'
 import { AgentComposer, agentFull } from './Composer'
+import { AgentStatusBar } from './StatusBar'
 import { UserAttachments } from './UserAttachments'
 import './agents.css'
 import { contextMenu, copyText, EmptyState, errorToast, formAnswerText, HelpLink, Icon, openFile, project, QuestionForm, relPath, requestIn, showsQuestions, t, toast, WorktreeChip } from '../plugin'
@@ -218,7 +219,7 @@ function SessionView(props: { id: string }) {
           </Show>
         </div>
       </div>
-      <AgentComposer id={props.id} onSent={() => thread.reset()} />
+      <AgentComposer id={props.id} onSent={() => thread.reset()} head={<AgentStatusBar id={props.id} />} />
     </div>
   )
 }
