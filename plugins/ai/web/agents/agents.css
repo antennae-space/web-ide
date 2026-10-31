@@ -13,6 +13,7 @@
 .agent-card-name { font-weight: 600; min-width: 96px; }
 
 .agent-session { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.agent-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .agent-thread { --ai-gap: 12px; padding-top: 12px; }
 .agent-stderr { margin: 4px 0 0; max-height: 160px; overflow: auto; white-space: pre-wrap; font: 11.5px/1.4 var(--font-code); color: var(--fg-muted); }
 

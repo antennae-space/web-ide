@@ -675,5 +675,15 @@
   "Stop the session": "Arrêter la session",
   "Views of the conversation": "Vues de la conversation",
   "No turn yet": "Aucun tour pour l’instant",
-  "Ticket #{id}: {stats}": "Ticket #{id} : {stats}"
+  "Ticket #{id}: {stats}": "Ticket #{id} : {stats}",
+  "Work": "Travail",
+  "The time of the turns, the waits for you excluded": "Le temps des tours, sans les attentes de votre réponse",
+  "Turns": "Tours",
+  "Tokens": "Tokens",
+  "Cost (API equivalent)": "Coût (équivalent API)",
+  "Cost": "Coût",
+  "The agent runs on a subscription: what these turns would cost through the API": "L’agent tourne sur un abonnement : ce que ces tours coûteraient par l’API",
+  "Turns without a price": "Tours sans prix",
+  "A local or unknown model": "Un modèle local ou inconnu",
+  "The images and doodles you send to the agent appear here.": "Les images et les doodles que vous envoyez à l’agent apparaissent ici."
 }

@@ -204,7 +204,7 @@ export function Stats() {
   )
 }
 
-function Tile(props: { label: string; value: string; hint?: string; testid?: string }) {
+export function Tile(props: { label: string; value: string; hint?: string; testid?: string }) {
   return (
     <div class="st-tile" title={props.hint} data-testid={props.testid}>
       <span class="st-tile-value">{props.value}</span>

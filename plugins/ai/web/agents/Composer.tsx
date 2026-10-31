@@ -44,6 +44,23 @@ function partsOf(list: Prepared[]): AgentPart[] {
   return out
 }
 
+/** Joins a doodle to the message box of a session (in place of `replace`, edited). */
+async function attachDoodleTo(id: string, doc: DoodleDoc, name: string, replace?: Prepared) {
+  const p = await prepareDoodle(doc, name, capsOf(id))
+  setBox(id, (b) => {
+    const i = replace ? b.pending.indexOf(replace) : -1
+    if (i >= 0) b.pending[i] = p
+    else b.pending.push(p)
+  })
+}
+
+/** Opens a new doodle for a session, on a picture (a page of its board, a screenshot) or blank. */
+export function doodleFor(id: string, background?: Picture) {
+  if (doodleSession()) return
+  const name = t('Doodle {n}', { n: box(id).pending.filter((p) => p.attachment.kind === 'doodle').length + 1 })
+  openDoodle({ doc: newDoc(background), name, external: true, onAttach: (doc) => attachDoodleTo(id, doc, name) })
+}
+
 export function AgentComposer(props: { id: string; onSent?: () => void; head?: JSX.Element }) {
   let fileInput!: HTMLInputElement
   const [view, setView] = createSignal<EditorView>()
@@ -71,21 +88,8 @@ export function AgentComposer(props: { id: string; onSent?: () => void; head?: J
   }
 
   // Doodles: drawn in the host of the project window (the assistant may be closed).
-  const attachDoodle = async (doc: DoodleDoc, name: string, replace?: Prepared) => {
-    const id = props.id
-    const p = await prepareDoodle(doc, name, capsOf(id))
-    setBox(id, (b) => {
-      const i = replace ? b.pending.indexOf(replace) : -1
-      if (i >= 0) b.pending[i] = p
-      else b.pending.push(p)
-    })
-  }
-  const doodle = (background?: Picture) => {
-    if (doodleSession()) return
-    const name = t('Doodle {n}', { n: pending().filter((p) => p.attachment.kind === 'doodle').length + 1 })
-    openDoodle({ doc: newDoc(background), name, external: true, onAttach: (doc) => attachDoodle(doc, name) })
-  }
-  const editDoodle = (p: Prepared) => openDoodle({ doc: cloneDoc(p.attachment.doodle!), name: p.attachment.name, external: true, onAttach: (doc) => attachDoodle(doc, p.attachment.name, p) })
+  const doodle = (background?: Picture) => doodleFor(props.id, background)
+  const editDoodle = (p: Prepared) => openDoodle({ doc: cloneDoc(p.attachment.doodle!), name: p.attachment.name, external: true, onAttach: (doc) => attachDoodleTo(props.id, doc, p.attachment.name, p) })
   const screenshot = async () => {
     try {
       doodle(await captureScreen())
