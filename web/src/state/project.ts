@@ -1124,6 +1124,7 @@ export async function openProject(id: string, creds?: { password?: string; passp
     runtime: tm.openRuntime ?? 0,
     git: tm.gitSetup ?? 0,
     commands: tm.projectCommands ?? 0,
+    attach: tm.attach ?? 0,
     tracked: tm.ideTracked ?? 0,
     plugins: tm.pluginStates ?? 0,
   })

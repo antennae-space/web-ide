@@ -136,9 +136,9 @@ const words = {
   // The end of the load, told by the app once the project is open (#204). The numbers come from
   // the app; the page words them, as it does for its own steps.
   tAppProject: L(
-    'Project opened ({ms} ms, pod {pod} ms: runtime {runtime} ms, git {git} ms, commands {commands} ms, tracked {tracked} ms, plugins {plugins} ms)',
-    'Projet ouvert ({ms} ms, pod {pod} ms : exécution {runtime} ms, git {git} ms, commandes {commands} ms, suivis {tracked} ms, plugins {plugins} ms)',
-    'Proyecto abierto ({ms} ms, pod {pod} ms: ejecución {runtime} ms, git {git} ms, comandos {commands} ms, seguidos {tracked} ms, plugins {plugins} ms)',
+    'Project opened ({ms} ms, pod {pod} ms: runtime {runtime} ms, git {git} ms, commands {commands} ms, attach {attach} ms, tracked {tracked} ms, plugins {plugins} ms)',
+    'Projet ouvert ({ms} ms, pod {pod} ms : exécution {runtime} ms, git {git} ms, commandes {commands} ms, attachement {attach} ms, suivis {tracked} ms, plugins {plugins} ms)',
+    'Proyecto abierto ({ms} ms, pod {pod} ms: ejecución {runtime} ms, git {git} ms, comandos {commands} ms, conexión {attach} ms, seguidos {tracked} ms, plugins {plugins} ms)',
   ),
   tAppReattach: L('Worktrees attached ({ms} ms)', 'Worktrees attachées ({ms} ms)', 'Worktrees conectadas ({ms} ms)'),
   tAppGrammars: L('Language packs ready ({ms} ms)', 'Packs de langage prêts ({ms} ms)', 'Paquetes de lenguaje listos ({ms} ms)'),
@@ -403,7 +403,7 @@ function traceLine(step, detail) {
     case 'home':
       return words.tAppHome
     case 'project-open':
-      return fmt(words.tAppProject, { ms: n.ms ?? 0, pod: n.pod ?? 0, runtime: n.runtime ?? 0, git: n.git ?? 0, commands: n.commands ?? 0, tracked: n.tracked ?? 0, plugins: n.plugins ?? 0 })
+      return fmt(words.tAppProject, { ms: n.ms ?? 0, pod: n.pod ?? 0, runtime: n.runtime ?? 0, git: n.git ?? 0, commands: n.commands ?? 0, attach: n.attach ?? 0, tracked: n.tracked ?? 0, plugins: n.plugins ?? 0 })
     case 'reattach':
       return fmt(words.tAppReattach, { ms: n.ms ?? 0 })
     case 'grammars':

@@ -392,10 +392,12 @@ func (s *Server) registerProject() {
 		step("ideTracked")
 		states := s.pluginStates(rt)
 		step("pluginStates")
+		var total int64
 		for _, ms := range timings {
-			timings["total"] += ms
+			total += ms
 		}
-		if timings["total"] > 500 {
+		timings["total"] = total
+		if total > 500 {
 			log.Printf("project.open %s took %d ms: %v", a.ID, timings["total"], timings)
 		}
 		return map[string]any{

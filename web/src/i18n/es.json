@@ -646,7 +646,7 @@
   "The IDE starts (script loaded)": "El IDE arranca (script cargado)",
   "The IDE talks to the pod (first message)": "El IDE habla con el pod (primer mensaje)",
   "Home page shown": "Inicio mostrado",
-  "Project opened ({ms} ms, pod {pod} ms: runtime {runtime} ms, git {git} ms, commands {commands} ms, tracked {tracked} ms, plugins {plugins} ms)": "Proyecto abierto ({ms} ms, pod {pod} ms: ejecución {runtime} ms, git {git} ms, comandos {commands} ms, seguidos {tracked} ms, plugins {plugins} ms)",
+  "Project opened ({ms} ms, pod {pod} ms: runtime {runtime} ms, git {git} ms, commands {commands} ms, attach {attach} ms, tracked {tracked} ms, plugins {plugins} ms)": "Proyecto abierto ({ms} ms, pod {pod} ms: ejecución {runtime} ms, git {git} ms, comandos {commands} ms, conexión {attach} ms, seguidos {tracked} ms, plugins {plugins} ms)",
   "Worktrees attached ({ms} ms)": "Worktrees conectadas ({ms} ms)",
   "Language packs ready ({ms} ms)": "Paquetes de lenguaje listos ({ms} ms)",
   "Questions loaded ({ms} ms)": "Preguntas cargadas ({ms} ms)",

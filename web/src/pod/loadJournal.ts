@@ -19,6 +19,7 @@ export type LoadDetail = {
   runtime?: number
   git?: number
   commands?: number
+  attach?: number
   tracked?: number
   plugins?: number
   id?: string
@@ -51,12 +52,13 @@ function text(step: LoadStep, d: LoadDetail): string {
     case 'home':
       return t('Home page shown')
     case 'project-open':
-      return t('Project opened ({ms} ms, pod {pod} ms: runtime {runtime} ms, git {git} ms, commands {commands} ms, tracked {tracked} ms, plugins {plugins} ms)', {
+      return t('Project opened ({ms} ms, pod {pod} ms: runtime {runtime} ms, git {git} ms, commands {commands} ms, attach {attach} ms, tracked {tracked} ms, plugins {plugins} ms)', {
         ms: d.ms ?? 0,
         pod: d.pod ?? 0,
         runtime: d.runtime ?? 0,
         git: d.git ?? 0,
         commands: d.commands ?? 0,
+        attach: d.attach ?? 0,
         tracked: d.tracked ?? 0,
         plugins: d.plugins ?? 0,
       })

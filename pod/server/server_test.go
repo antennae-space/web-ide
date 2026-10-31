@@ -347,29 +347,38 @@ func TestProjectOpenTimings(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "main.go"), []byte("package main\n"), 0o644)
 	p := a.call("projects.create", map[string]any{"type": "local", "path": dir})["result"].(map[string]any)
-	open := a.call("project.open", map[string]any{"id": p["id"]})["result"].(map[string]any)
-	tm, ok := open["timings"].(map[string]any)
-	if !ok {
-		t.Fatalf("no timings in project.open: %+v", open)
-	}
-	for _, name := range []string{"openRuntime", "gitSetup", "projectCommands", "attach", "ideTracked", "pluginStates", "total"} {
-		ms, ok := tm[name].(float64)
+	b, _ := dial(t, ts, "secret-token-0123456789abcdef0123")
+	// Several opens, from each window: the total must stay the sum of the steps every time (a
+	// total added to the map while ranging over it could count itself once in a while).
+	for i := 0; i < 8; i++ {
+		c := a
+		if i%2 == 1 {
+			c = b
+		}
+		open := c.call("project.open", map[string]any{"id": p["id"]})["result"].(map[string]any)
+		tm, ok := open["timings"].(map[string]any)
 		if !ok {
-			t.Fatalf("timings[%q] missing: %+v", name, tm)
+			t.Fatalf("no timings in project.open: %+v", open)
 		}
-		if ms < 0 {
-			t.Fatalf("timings[%q] = %v", name, ms)
+		for _, name := range []string{"openRuntime", "gitSetup", "projectCommands", "attach", "ideTracked", "pluginStates", "total"} {
+			ms, ok := tm[name].(float64)
+			if !ok {
+				t.Fatalf("timings[%q] missing: %+v", name, tm)
+			}
+			if ms < 0 {
+				t.Fatalf("timings[%q] = %v", name, ms)
+			}
 		}
-	}
-	// The total is the sum of the steps, and an open of a small local project stays quick.
-	var sum float64
-	for name, ms := range tm {
-		if name != "total" {
-			sum += ms.(float64)
+		// The total is the sum of the steps, and an open of a small local project stays quick.
+		var sum float64
+		for name, ms := range tm {
+			if name != "total" {
+				sum += ms.(float64)
+			}
 		}
-	}
-	if tm["total"].(float64) != sum || tm["total"].(float64) > 5000 {
-		t.Fatalf("timings = %+v", tm)
+		if tm["total"].(float64) != sum || tm["total"].(float64) > 5000 {
+			t.Fatalf("open %d: timings = %+v", i, tm)
+		}
 	}
 }
 
