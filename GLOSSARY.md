@@ -49,7 +49,7 @@ The encrypted WebRTC connection between a browser and a pod, or between two pods
 _Avoid_: relay link, channel
 
 **Load journal**
-The list of the phases of one load of the app, each with its time and what it carried: the tunnel and the handshake (kept by the bootstrap page of the relay), then the phases of the app itself — its script, its first message from the pod, `project.open` with the timings the pod answers, the worktrees, the language packs, the plugin modules — down to the project ready, and the bytes split tunnel / cache / socket. Read it in Settings > Remote access > Connection journal, or with `window.bootJournal` and `window.loadJournal`.
+The list of the phases of one load of the app, each with its time and what it carried: the tunnel and the handshake (kept by the bootstrap page of the relay), then the phases of the app itself — its script, its first message from the pod, `project.open` with the timings the pod answers, when the page modules of the plugins were asked (from the list kept for the project, or with the answer), each module that landed, the worktrees, the language packs — down to the project ready, and the bytes split tunnel / cache / socket. Read it in Settings > Remote access > Connection journal, or with `window.bootJournal` and `window.loadJournal`.
 _Avoid_: boot log, timings panel
 
 **Port forward**
@@ -166,6 +166,10 @@ _Avoid_: extension, add-on, module
 
 **Built-in plugin**
 A plugin that ships compiled into the IDE, with the same manifest and API as an external one.
+
+**Page module** ([plugins](docs/design/plugins.md#loading-on-demand))
+What a plugin runs in the page: for a built-in, its `plugins/<id>/web`, built as a chunk of its own (`plugin-<id>`); for an external one, the bundle the pod serves, run in sandboxed frames. The window asks it as `project.open` answers, and at the next opening, from the list it kept for that project, before the pod answers (#206); it is activated once, and a plugin disabled on the project is never downloaded.
+_Avoid_: plugin bundle (the bundle is the archive of an external plugin), front end
 
 **Contribution**
 What a plugin adds at one contribution point of the IDE: a tool, a tab view, an assistant tool, a tool of the MCP only, a command, a settings section, items of a tool's *options menu*…
