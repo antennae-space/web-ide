@@ -10,7 +10,8 @@ import { addFiles, Composer, focusComposer, fullComposer, suggest } from './Comp
 import { Sidebar } from './Sidebar'
 import { DoodleHost } from './doodle/DoodleModal'
 import { Board } from './board/Board'
-import { boardShown, pages, setBoardWide, showBoard, showSide, toggleSide } from './board/pages'
+import { boardShown, fresh, pages, setBoardWide, setView, view } from './board/pages'
+import { ViewSwitch } from './ViewSwitch'
 import { Stats } from './Stats'
 import { TopBar } from './TopBar'
 import { stickToEnd } from './stick'
@@ -36,6 +37,7 @@ export function AssistantTool() {
   const boardWide = () => width() >= BOARD_WIDE
   createEffect(() => setBoardWide(boardWide()))
   const [splitting, setSplitting] = createSignal(false)
+  const [scrolling, setScrolling] = createSignal(false)
   let mainEl!: HTMLDivElement
   let bodyEl!: HTMLDivElement
   // In a wide detached window the history is always there.
@@ -61,6 +63,15 @@ export function AssistantTool() {
       .catch(() => {})
     focusComposer()
     thread = stickToEnd(list)
+    // The switch fades while the thread scrolls under it.
+    let still: number | undefined
+    const onScroll = () => {
+      setScrolling(true)
+      clearTimeout(still)
+      still = window.setTimeout(() => setScrolling(false), 800)
+    }
+    list.addEventListener('scroll', onScroll, { passive: true })
+    onCleanup(() => (list.removeEventListener('scroll', onScroll), clearTimeout(still)))
   })
 
   // Follow the answer while the view is at the end (llm/stick.ts).
@@ -84,27 +95,6 @@ export function AssistantTool() {
           {chat.title || t('New conversation')}
         </span>
         <span class="grow" />
-        <button
-          class="icon-btn"
-          classList={{ on: boardShown() && prefs.sideView === 'stats' }}
-          title={boardShown() && prefs.sideView === 'stats' && !boardWide() ? t('Back to the conversation') : t('Statistics')}
-          onClick={() => toggleSide('stats')}
-          data-testid="ai-stats-toggle"
-        >
-          <Icon name="chart" size={15} />
-        </button>
-        <button
-          class="icon-btn ai-board-btn"
-          classList={{ on: boardShown() && prefs.sideView === 'board' }}
-          title={boardShown() && prefs.sideView === 'board' && !boardWide() ? t('Back to the conversation') : t('Board of the conversation')}
-          onClick={() => toggleSide('board')}
-          data-testid="ai-board-toggle"
-        >
-          <Icon name="layout" size={15} />
-          <Show when={pages().length}>
-            <span class="ai-board-count">{pages().length}</span>
-          </Show>
-        </button>
         <button class="icon-btn" title={t('New conversation')} onClick={newChat}>
           <Icon name="plus" size={15} />
         </button>
@@ -182,23 +172,12 @@ export function AssistantTool() {
             />
           </Show>
           <div class="ai-board-col" style={{ flex: boardWide() ? `${1 - prefs.boardSplit} 1 0` : '1 1 0' }}>
-            <div class="ai-side-tabs" role="tablist">
-              <button role="tab" aria-selected={prefs.sideView === 'board'} classList={{ on: prefs.sideView === 'board' }} onClick={() => showSide('board')} data-testid="ai-side-board">
-                <Icon name="layout" size={13} /> {t('Board')}
-              </button>
-              <button role="tab" aria-selected={prefs.sideView === 'stats'} classList={{ on: prefs.sideView === 'stats' }} onClick={() => showSide('stats')} data-testid="ai-side-stats">
-                <Icon name="chart" size={13} /> {t('Statistics')}
-              </button>
-              <span class="grow" />
-              <button class="icon-btn" title={boardWide() ? t('Close') : t('Back to the conversation')} onClick={() => showBoard(false)}>
-                <Icon name="close" size={14} />
-              </button>
-            </div>
             <Show when={prefs.sideView === 'stats'} fallback={<Board />}>
               <Stats />
             </Show>
           </div>
         </Show>
+        <ViewSwitch view={view()} onView={setView} count={pages().length} fresh={fresh()} faded={scrolling()} />
       </div>
       <Show when={settings()}>
         <SettingsModal onClose={() => setSettings(false)} />

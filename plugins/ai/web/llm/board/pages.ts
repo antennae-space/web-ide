@@ -5,7 +5,7 @@
 import { createEffect, createMemo, createRoot, createSignal, on } from 'solid-js'
 import { chat, prefs, savePrefs, setPrefs, type ChatMessage } from '../state'
 import type { DoodleDoc } from '../doodle/model'
-import { t, toast } from '../../plugin'
+import type { View } from '../ViewSwitch'
 
 export interface Page {
   key: string
@@ -64,6 +64,10 @@ const [wideMode, setWideMode] = createSignal(true)
 
 const [selectedKey, setSelectedKey] = createSignal<string | null>(null)
 
+/** A page drawn by the model the board does not show yet. */
+const [fresh, setFresh] = createSignal(false)
+export { fresh }
+
 export const pages = createRoot(() => {
   const list = createMemo(() => pagesOf(chat.messages))
   // Another conversation shows its own pages; a new page shows itself.
@@ -76,13 +80,13 @@ export const pages = createRoot(() => {
         const last = list()[n - 1]
         setSelectedKey(last.key)
         // A page the model just drew in this conversation: the board opens beside it, or
-        // says so when it would hide the conversation.
+        // its icon in the switch pulses when it would hide the conversation.
         if (id !== prev[0] || last.from !== 'model') return
         if (wideMode()) {
           setPrefs('sideView', 'board')
           setPrefs('boardOpen', true)
           savePrefs()
-        } else if (!boardShown()) toast(t('New page on the board'), 'info', { label: t('Show'), run: () => showSide('board') })
+        } else if (view() !== 'board') setFresh(true)
       },
     ),
   )
@@ -120,4 +124,10 @@ export function toggleSide(view: 'board' | 'stats') {
 export function showSide(view: 'board' | 'stats') {
   setPrefs('sideView', view)
   showBoard(true)
+  if (view === 'board') setFresh(false)
 }
+
+/** The view of the switch (ViewSwitch.tsx): the conversation alone, or with (or under) a side view. */
+export const view = (): View => (boardShown() ? prefs.sideView : 'chat')
+export const setView = (v: View) => (v === 'chat' ? showBoard(false) : showSide(v))
+

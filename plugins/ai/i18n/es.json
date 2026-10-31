@@ -7,11 +7,8 @@
   "waiting for a capture of the screen": "esperando una captura de la pantalla",
   "capture not shared": "captura no compartida",
   "capture refused": "captura rechazada",
-  "New page on the board": "Nueva página en la pizarra",
-  "Show": "Mostrar",
   "Page {n} · {name}": "Página {n} · {name}",
   "Draws on the board": "Dibuja en la pizarra",
-  "Back to the conversation": "Volver a la conversación",
   "Board of the conversation": "Pizarra de la conversación",
   "Show on the board": "Mostrar en la pizarra",
   "Page {n}": "Página {n}",
@@ -679,5 +676,6 @@
   "Open “{title}”": "Abrir «{title}»",
   "Close the tab (the session goes on)": "Cerrar la pestaña (la sesión sigue)",
   "the session goes on": "la sesión sigue",
-  "Stop the session": "Detener la sesión"
+  "Stop the session": "Detener la sesión",
+  "Views of the conversation": "Vistas de la conversación"
 }
