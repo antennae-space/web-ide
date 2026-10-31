@@ -125,6 +125,33 @@ run(async ({ page }) => {
   assert(!(await page.$('[data-testid=agent-atts]')), 'attachments cleared once sent')
   await waitState(page, 'ready')
 
+  // The switch of the session (#220): the image sent is page 1 of its board, in place of the
+  // thread in this narrow tool; Reuse draws on a copy joined to the next prompt; Stats shows
+  // the session; Chat brings the thread back.
+  const sw = (id) => `[data-testid=agent-session] [data-testid=${id}]`
+  await page.waitForSelector(`${sw('ai-board-toggle')} .ai-board-count:text-is("1")`)
+  assert(true, 'the image sent counts on Board')
+  await page.click(sw('ai-board-toggle'))
+  await page.waitForSelector('[data-testid=agent-session] [data-testid=bd-title]:has-text("Page 1 · dot.png")')
+  assert(!(await page.isVisible('[data-testid=agent-thread]')), 'narrow: the board takes the place of the thread')
+  await page.screenshot({ path: OUT + '/agents-board.png' })
+  await page.click('[data-testid=agent-session] [data-testid=bd-reuse]')
+  await page.waitForSelector('[data-testid=doodle] [data-testid=dd-attach]')
+  await page.click('[data-testid=doodle] [data-testid=dd-attach]')
+  await page.waitForSelector('[data-testid=doodle]', { state: 'detached' })
+  await page.click(sw('ai-stats-toggle'))
+  await page.waitForSelector('[data-testid=agent-stats-view] [data-testid=agent-stats-session]')
+  assert(/Turns/.test(await page.textContent('[data-testid=agent-stats-session]')), 'Stats: the totals of the session')
+  await page.waitForSelector('[data-testid=agent-stats-view] [data-testid=agent-stats-project]')
+  assert(true, 'Stats: the project over the period, the turns of the open session included')
+  await page.screenshot({ path: OUT + '/agents-stats.png' })
+  await page.click(sw('ai-view-chat'))
+  await page.waitForSelector('[data-testid=agent-thread]', { state: 'visible' })
+  await page.waitForSelector('[data-testid=agent-atts] .ai-att[data-kind=doodle]')
+  assert(true, 'the copy drawn on the page waits in the message box')
+  await page.click('[data-testid=agent-atts] .ai-att[data-kind=doodle] .ai-att-x')
+  await page.waitForSelector('[data-testid=agent-atts]', { state: 'detached' })
+
   // ↑ in the empty box: the prompts sent.
   await page.click(box)
   await page.keyboard.press('ArrowUp')

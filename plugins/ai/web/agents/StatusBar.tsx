@@ -4,14 +4,12 @@
 // (its other sessions included).
 import { createResource, Show } from 'solid-js'
 import { RoleBadge, roleFor, TicketButton } from '../llm/TopBar'
+import { ticketOf } from './AgentStats'
 import { sessions } from './state'
 import { agentStats, fmtCost, fmtWork, statsTitle, useAgentsTick, type Totals } from './stats'
 import { capability, Icon, t } from '../plugin'
 
 const priced = (s: Totals) => s.turns - (s.unpriced ?? 0) > 0
-
-/** The ticket of a session: the one it develops, else the one of its worktree (`<project>-t<n>`, as acp/stats.go). */
-const ticketOf = (s?: { ticket?: number; project?: string }) => s?.ticket || Number(s?.project?.match(/-t(\d+)$/)?.[1] ?? 0)
 
 export function AgentStatusBar(props: { id: string; onStats?: () => void }) {
   const info = () => sessions().find((s) => s.id === props.id)

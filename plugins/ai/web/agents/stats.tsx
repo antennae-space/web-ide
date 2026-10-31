@@ -76,13 +76,13 @@ export function TicketAgentStats(props: { ticket: number }) {
   )
 }
 
-const periods = () => [
+export const periods = () => [
   { id: 'today', label: t('Today') },
   { id: 'week', label: t('7 days') },
   { id: 'all', label: t('All') },
 ]
 
-function since(period: string) {
+export function since(period: string) {
   if (period === 'today') return new Date().setHours(0, 0, 0, 0)
   if (period === 'week') return Date.now() - 7 * 24 * 3600 * 1000
   return 0

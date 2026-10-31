@@ -1,6 +1,7 @@
 // The board of the conversation: its pages (the doodles sent, later the drawings of the
 // assistant), one shown large with zoom and pan, the others as a strip of thumbnails. Pages
 // never change: Reuse opens an editable copy in the doodle modal, sent as a new doodle.
+// The Agents tool gives its own pages (the images sent in a session, agents/pages.ts).
 import { createMemo, For, Show } from 'solid-js'
 import { newDoodle, reuseDoodle } from '../Composer'
 import { doodleSession } from '../doodle/session'
@@ -10,7 +11,26 @@ import { pages, selectedPage, selectPage, type Page } from './pages'
 import './board.css'
 import { Icon, t } from '../../plugin'
 
-function Thumb(props: { page: Page; on: boolean }) {
+/** Where the pages come from and where a copy goes: the conversation shown by default. */
+export interface BoardSource {
+  pages: () => Page[]
+  selected: () => Page | undefined
+  select: (key: string) => void
+  reuse: (p: Page) => void
+  newDoodle: () => void
+  empty: () => string
+}
+
+const assistantSource = (): BoardSource => ({
+  pages,
+  selected: selectedPage,
+  select: selectPage,
+  reuse: (p) => reuseDoodle({ name: p.name, kind: 'doodle', size: 0, doodle: p.doc }),
+  newDoodle: () => newDoodle(),
+  empty: () => t('Doodles of this conversation and drawings of the assistant appear here.'),
+})
+
+function Thumb(props: { page: Page; on: boolean; select: (key: string) => void }) {
   // The stored preview of a doodle, else the page drawn small.
   const src = createMemo(() => {
     if (props.page.thumb) return props.page.thumb
@@ -18,21 +38,22 @@ function Thumb(props: { page: Page; on: boolean }) {
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(toSVG(props.page.doc, 96, Math.round((96 * f.h) / f.w)))
   })
   return (
-    <button class="bd-thumb" classList={{ on: props.on }} title={`${t('Page {n}', { n: props.page.number })} · ${props.page.name}`} onClick={() => selectPage(props.page.key)} data-testid="bd-thumb">
+    <button class="bd-thumb" classList={{ on: props.on }} title={`${t('Page {n}', { n: props.page.number })} · ${props.page.name}`} onClick={() => props.select(props.page.key)} data-testid="bd-thumb">
       <img src={src()} alt="" />
       <span>{props.page.number}</span>
     </button>
   )
 }
 
-export function Board() {
+export function Board(props: { source?: BoardSource }) {
+  const src = props.source ?? assistantSource()
   let fit = () => {}
-  const page = () => selectedPage()
+  const page = () => src.selected()
   const move = (d: number) => {
-    const list = pages()
+    const list = src.pages()
     const i = list.findIndex((p) => p.key === page()?.key)
     const next = list[i + d]
-    if (next) selectPage(next.key)
+    if (next) src.select(next.key)
   }
   return (
     <div
@@ -50,8 +71,8 @@ export function Board() {
         fallback={
           <div class="bd-empty" data-testid="bd-empty">
             <Icon name="pen" size={22} />
-            <p>{t('Doodles of this conversation and drawings of the assistant appear here.')}</p>
-            <button class="btn" disabled={!!doodleSession()} onClick={() => newDoodle()}>
+            <p>{src.empty()}</p>
+            <button class="btn" disabled={!!doodleSession()} onClick={() => src.newDoodle()}>
               {t('New doodle')}
             </button>
           </div>
@@ -65,7 +86,7 @@ export function Board() {
               </strong>
               <span class="muted small bd-by">{p().from === 'user' ? t('drawn by you') : t('drawn by the assistant')}</span>
               <span class="grow" />
-              <button class="btn small" title={t('Opens an editable copy, joined to the next message')} disabled={!!doodleSession()} onClick={() => reuseDoodle({ name: p().name, kind: 'doodle', size: 0, doodle: p().doc })} data-testid="bd-reuse">
+              <button class="btn small" title={t('Opens an editable copy, joined to the next message')} disabled={!!doodleSession()} onClick={() => src.reuse(p())} data-testid="bd-reuse">
                 <Icon name="edit" size={13} /> {t('Reuse')}
               </button>
               <button class="btn small" onClick={() => fit()} data-testid="bd-fit">
@@ -82,7 +103,7 @@ export function Board() {
               </details>
             </Show>
             <div class="bd-strip" data-testid="bd-strip">
-              <For each={pages()}>{(x) => <Thumb page={x} on={x.key === p().key} />}</For>
+              <For each={src.pages()}>{(x) => <Thumb page={x} on={x.key === p().key} select={src.select} />}</For>
             </div>
           </>
         )}

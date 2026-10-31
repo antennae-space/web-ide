@@ -406,6 +406,10 @@ export const [prefs, setPrefs] = createStore({
   boardSplit: 0.5,
   /** What the column of the board shows: the pages, or the statistics. */
   sideView: 'board' as 'board' | 'stats',
+  /** The view of a session of the Agents tool (its switch), and the share of the session when
+   *  the board or the statistics are a column next to it. */
+  agentsView: 'chat' as 'chat' | 'board' | 'stats',
+  agentsSplit: 0.5,
   /** Model of the Plan mode ('' server: the model of the conversation). */
   planServer: '',
   planModel: '',

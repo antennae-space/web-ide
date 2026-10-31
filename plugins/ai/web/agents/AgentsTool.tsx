@@ -30,10 +30,18 @@ import '../llm/assistant.css'
 import { ProjectAgentStats, statsTitle } from './stats'
 import { AgentComposer, agentFull } from './Composer'
 import { AgentStatusBar } from './StatusBar'
+import { AgentStats } from './AgentStats'
+import { sessionBoard } from './pages'
+import { Board } from '../llm/board/Board'
+import { ViewSwitch, type View } from '../llm/ViewSwitch'
+import { prefs, savePrefs, setPrefs } from '../llm/state'
 import { UserAttachments } from './UserAttachments'
 import './agents.css'
 import { contextMenu, copyText, EmptyState, errorToast, formAnswerText, HelpLink, Icon, openFile, project, QuestionForm, relPath, requestIn, showsQuestions, t, toast, WorktreeChip } from '../plugin'
 import type { MenuItem } from '../plugin'
+
+/** Width from which the board or the statistics are a column next to the session (as in the assistant). */
+const BOARD_WIDE = 1000
 
 const stateLabel = (s: AgentInfo['state']) =>
   ({ starting: t('agent|Starting'), ready: t('agent|Ready'), busy: t('agent|Working'), asking: t('Waiting for you'), error: t('Stopped') })[s]
@@ -185,8 +193,34 @@ function SessionView(props: { id: string }) {
   let thread!: ReturnType<typeof stickToEnd>
   onMount(() => (thread = stickToEnd(scroller)))
   const busy = () => info()?.state === 'busy' || info()?.state === 'asking'
+  // The switch of the views (llm/ViewSwitch.tsx): wide, the board or the statistics are a
+  // column next to the session; narrow, they take its place.
+  let root!: HTMLDivElement
+  let mainEl!: HTMLDivElement
+  let bodyEl!: HTMLDivElement
+  const [width, setWidth] = createSignal(0)
+  const wide = () => width() >= BOARD_WIDE
+  const view = () => prefs.agentsView
+  const setView = (v: View) => (setPrefs('agentsView', v), savePrefs())
+  const side = () => view() !== 'chat'
+  const board = sessionBoard(props.id)
+  const [splitting, setSplitting] = createSignal(false)
+  const [scrolling, setScrolling] = createSignal(false)
+  onMount(() => {
+    const ro = new ResizeObserver(() => setWidth(root.clientWidth))
+    ro.observe(root)
+    // The switch fades while the thread scrolls under it.
+    let still: number | undefined
+    const onScroll = () => {
+      setScrolling(true)
+      clearTimeout(still)
+      still = window.setTimeout(() => setScrolling(false), 800)
+    }
+    scroller.addEventListener('scroll', onScroll, { passive: true })
+    onCleanup(() => (ro.disconnect(), scroller.removeEventListener('scroll', onScroll), clearTimeout(still)))
+  })
   return (
-    <div class="agent-session" classList={{ 'composer-full': agentFull() }} data-testid="agent-session">
+    <div class="agent-session" classList={{ 'composer-full': agentFull() }} ref={root} data-testid="agent-session">
       <Show when={info()?.state === 'error'}>
         <div class="ai-banner" data-testid="agent-error">
           <Icon name="warning" size={14} />
@@ -201,25 +235,58 @@ function SessionView(props: { id: string }) {
           </button>
         </div>
       </Show>
-      <div class="ai-messages" ref={scroller}>
-        <div class="ai-thread agent-thread" data-testid="agent-thread">
-          <Show when={info()?.state === 'starting' && entries().length === 0}>
-            <div class="muted small">{t('Starting {name}…', { name: info()?.name ?? '' })}</div>
-          </Show>
-          <For each={entries()}>{(e, i) => <EntryView id={props.id} entry={e} index={i()} live={busy() && i() === entries().length - 1} />}</For>
-          <Show when={busy()}>
-            <div class="ai-live-stats">
-              <span class="ai-dots">
-                <i />
-                <i />
-                <i />
-              </span>
-              {stateLabel(info()!.state)}
+      <div class="ai-body" ref={bodyEl}>
+        <div class="agent-main" ref={mainEl} style={{ display: side() && !wide() ? 'none' : undefined, flex: side() && wide() ? `${prefs.agentsSplit} 1 0` : undefined }}>
+          <div class="ai-messages" ref={scroller}>
+            <div class="ai-thread agent-thread" data-testid="agent-thread">
+              <Show when={info()?.state === 'starting' && entries().length === 0}>
+                <div class="muted small">{t('Starting {name}…', { name: info()?.name ?? '' })}</div>
+              </Show>
+              <For each={entries()}>{(e, i) => <EntryView id={props.id} entry={e} index={i()} live={busy() && i() === entries().length - 1} />}</For>
+              <Show when={busy()}>
+                <div class="ai-live-stats">
+                  <span class="ai-dots">
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  {stateLabel(info()!.state)}
+                </div>
+              </Show>
             </div>
-          </Show>
+          </div>
+          <AgentComposer id={props.id} onSent={() => thread.reset()} head={<AgentStatusBar id={props.id} onStats={() => setView('stats')} />} />
         </div>
+        <Show when={side()}>
+          <Show when={wide()}>
+            <div
+              class="ai-split"
+              classList={{ on: splitting() }}
+              data-testid="agent-board-split"
+              onPointerDown={(e) => {
+                setSplitting(true)
+                e.currentTarget.setPointerCapture(e.pointerId)
+              }}
+              onPointerMove={(e) => {
+                if (!splitting()) return
+                const left = mainEl.getBoundingClientRect().left
+                const right = bodyEl.getBoundingClientRect().right
+                setPrefs('agentsSplit', Math.min(0.75, Math.max(0.25, (e.clientX - left) / (right - left))))
+              }}
+              onPointerUp={() => {
+                setSplitting(false)
+                savePrefs()
+              }}
+            />
+          </Show>
+          <div class="ai-board-col" style={{ flex: wide() ? `${1 - prefs.agentsSplit} 1 0` : '1 1 0' }}>
+            <Show when={view() === 'stats'} fallback={<Board source={board} />}>
+              <AgentStats id={props.id} />
+            </Show>
+          </div>
+        </Show>
+        <ViewSwitch view={view()} onView={setView} count={board.pages().length} faded={scrolling()} />
       </div>
-      <AgentComposer id={props.id} onSent={() => thread.reset()} head={<AgentStatusBar id={props.id} />} />
     </div>
   )
 }
