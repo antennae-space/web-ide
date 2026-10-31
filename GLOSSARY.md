@@ -48,6 +48,10 @@ The people the admin of a relay makes VIPs by hand (`web-ide-pod relay vip`), by
 The encrypted WebRTC connection between a browser and a pod, or between two pods, set up through the relay.
 _Avoid_: relay link, channel
 
+**Load journal**
+The list of the phases of one load of the app, each with its time and what it carried: the tunnel and the handshake (kept by the bootstrap page of the relay), then the phases of the app itself — its script, its first message from the pod, `project.open` with the timings the pod answers, the worktrees, the language packs, the plugin modules — down to the project ready, and the bytes split tunnel / cache / socket. Read it in Settings > Remote access > Connection journal, or with `window.bootJournal` and `window.loadJournal`.
+_Avoid_: boot log, timings panel
+
 **Port forward**
 A local port that reaches an address seen from the SSH host of a project.
 _Avoid_: tunnel, SSH tunnel

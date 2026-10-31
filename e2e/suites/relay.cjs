@@ -101,6 +101,15 @@ run(
     for (const line of ['Signaling on the identity link', 'Opening the IDE', 'The IDE starts', 'The IDE talks to the pod', 'Home page shown'])
       assert(boot.includes(line), `the journal of the load says "${line}":\n${boot}`)
     console.log(boot)
+    // The journal goes down to the project ready (#204): project.open with the time the pod spent
+    // on it, the phases after it, each plugin module, and what the load carried.
+    await page.waitForFunction(() => window.bootJournal.includes('Load carried'), null, { timeout: 30000 })
+    const load = await page.evaluate(() => window.bootJournal)
+    for (const line of ['Project opened', 'runtime', 'Worktrees attached', 'Language packs ready', 'Questions loaded', 'Project ready', 'Plugin '])
+      assert(load.includes(line), `the journal of the load says "${line}":\n${load}`)
+    const carried = /Load carried ([\d.]+) kB from the pod, ([\d.]+) kB from the cache, ([\d.]+) kB on the socket/.exec(load)
+    assert(carried && Number(carried[1]) > 0, 'the load says what it carried through the tunnel: ' + (carried ? carried[0] : load.slice(-200)))
+    console.log(load.slice(-900))
     assert(first.app > 0 && first.ready !== undefined && first.channels > 0, 'the phases of the load are measured: ' + JSON.stringify(first))
 
     // The bootstrap page hears only the app's frame (#129): a sandboxed frame inside the app (an

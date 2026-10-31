@@ -396,6 +396,15 @@ run(async ({ ctx, page }) => {
   await page.click('.settings-nav button:has-text("History")')
   await page.waitForTimeout(300)
   assert((await page.$$('.history-entry')).length >= 2, 'settings history lists snapshots')
+
+  // The load journal of the app (#204), outside the relay: the phases of this window, down to
+  // the project ready, and what the load carried.
+  await page.click('.settings-nav button:has-text("Remote access")')
+  await page.click('[data-testid=connection-journal] summary')
+  await page.waitForFunction(() => document.querySelector('[data-testid=connection-journal] pre')?.textContent.includes('Project ready'), null, { timeout: 15000 })
+  const journal = await page.textContent('[data-testid=connection-journal] pre')
+  for (const line of ['The IDE starts', 'The IDE talks to the pod', 'Project opened', 'Worktrees attached', 'Language packs ready', 'Questions loaded', 'Project ready', 'Plugin ', 'Load carried'])
+    assert(journal.includes(line), `the journal of the load says "${line}":\n${journal}`)
   await page.keyboard.press('Escape')
 
   // Infos: properties, connections and extensions stacked in one tool
