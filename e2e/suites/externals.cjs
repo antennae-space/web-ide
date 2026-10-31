@@ -20,12 +20,13 @@ const row = '.plugin-row[data-plugin=greet]'
 const frame = (page, view) => page.frameLocator(`iframe.plugin-frame[data-view=${view}]`)
 
 // The page module of the plugin: its tool checks what the frame reaches, its tab view shows its
-// state, its command toasts.
-const bundle = (base) => `
+// state, its command toasts. It names the version of its own bundle, so the page is caught using
+// a bundle older than the one the pod has (#206).
+const bundle = (base, version) => `
 ide.register({
   views: {
     greet: async (el, ide) => {
-      const out = {}
+      const out = { version: '${version}' }
       try { localStorage.getItem('x'); out.localStorage = 'open' } catch { out.localStorage = 'blocked' }
       try { await new Promise((ok, ko) => { const r = indexedDB.open('x'); r.onsuccess = ok; r.onerror = () => ko(r.error) }); out.indexedDB = 'open' } catch { out.indexedDB = 'blocked' }
       try { await fetch('${base}/1.0.0/x'); out.fetch = 'open' } catch { out.fetch = 'blocked' }
@@ -135,7 +136,7 @@ run(async ({ page, errors }) => {
     fs.mkdirSync(path.join(dir, 'web'), { recursive: true })
     fs.mkdirSync(path.join(dir, 'i18n'), { recursive: true })
     fs.writeFileSync(path.join(dir, 'plugin.json'), manifest)
-    fs.writeFileSync(path.join(dir, 'web', 'index.js'), bundle(base))
+    fs.writeFileSync(path.join(dir, 'web', 'index.js'), bundle(base, version))
     fs.mkdirSync(path.join(dir, 'bin'), { recursive: true })
     fs.copyFileSync(backendBin, path.join(dir, 'bin', 'greet'))
     fs.chmodSync(path.join(dir, 'bin', 'greet'), 0o755)
@@ -306,10 +307,19 @@ run(async ({ page, errors }) => {
   assert(readLock().greet.grants.length === 3, 'all granted: ' + readLock().greet.grants)
   await page.waitForFunction(() => document.querySelector('[data-testid=plugin-greet]')?.checked)
   await closeSettings()
+  // #206: the version remembered at the last opening never keeps an old bundle. The record is put
+  // back to 1.0.0, a version the pod does not have any more: the page asks the pod, gets the
+  // bundle it has now (1.1.0) and runs it.
+  const warmKey = 'plugins.warm:' + decodeURIComponent(new URL(page.url()).pathname.split('/')[2])
+  const remembered = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '[]'), warmKey)
+  const list0 = await remembered()
+  assert(list0.some((e) => e.id === 'greet' && e.ext === '1.1.0'), 'the external remembered with the version of its bundle: ' + JSON.stringify(list0))
+  await page.evaluate((k) => localStorage.setItem(k, JSON.stringify(JSON.parse(localStorage.getItem(k) ?? '[]').map((e) => (e.id === 'greet' ? { id: e.id, ext: '1.0.0' } : e)))), warmKey)
   await page.reload()
   await showGreet()
   await frame(page, 'greet').locator('#checks').waitFor()
   checks = JSON.parse(await frame(page, 'greet').locator('#checks').textContent())
+  assert(checks.version === '1.1.0', 'a remembered version asks for the bundle the pod has: ' + checks.version)
   assert(checks.rpc === 'answered', 'a core method with its grant: ' + checks.rpc)
   got = await answer('core')
   assert(got === 'answered', 'the core call of the backend with its grant: ' + got)

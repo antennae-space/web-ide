@@ -16,6 +16,7 @@ import { normalizePlacement, setPluginZones, type Zone } from './zones'
 import { deviceId, layoutFor } from './device'
 import { settings } from './settings'
 import { capability } from '../plugins/capabilities'
+import type { PluginState } from '../plugins/types'
 import { closeDesks, desk, loadDesks, showDesk, touchRecent, type DeskList } from './desks'
 
 /** plugin:<plugin>/<view>: a tab view of a plugin (plugins/registry.tsx). */
@@ -1107,7 +1108,7 @@ export function placePluginTools(plugins: { manifest: { contributes: { tools?: {
   if (JSON.stringify(next) !== JSON.stringify(session.placement)) mutate((s) => (s.placement = next))
 }
 
-export async function openProject(id: string, creds?: { password?: string; passphrase?: string }, desk = 1) {
+export async function openProject(id: string, creds?: { password?: string; passphrase?: string }, desk = 1, onPlugins?: (list: PluginState[]) => void) {
   const t0 = performance.now()
   const r = await request('project.open', { id, creds, desk })
   // The round trip, and what the pod spent on it (#204): the answer carries its own timings.
@@ -1122,6 +1123,12 @@ export async function openProject(id: string, creds?: { password?: string; passp
     tracked: tm.ideTracked ?? 0,
     plugins: tm.pluginStates ?? 0,
   })
+  // The page modules of the enabled plugins are asked now (#206), before the attaches and the
+  // grammars: their download runs with the rest of the opening, and `pluginsOpened` activates them
+  // once the project is really open. The page hands the registry in — `state/project` does not
+  // import it (the registry already imports this file, and a cycle would run the core modules
+  // before the session exists).
+  onPlugins?.(r.plugins as PluginState[])
   loadDesks(id, r.desks as DeskList, r.desk ?? 1)
   setPluginZones(r.plugins)
   batch(() => {

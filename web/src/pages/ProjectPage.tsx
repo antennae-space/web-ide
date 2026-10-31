@@ -10,7 +10,7 @@ import {
 } from '../state/project'
 import { desk, desks, onDeskGone } from '../state/desks'
 import { cycleWidth, focusDirection, moveColumnBy, scrollMode, stackTile, tileMode, unstackTile, registerTileTools, resizeTile, showToolTile, startResize, swapDirection, tileTools, toggleSplit, detachTool } from '../state/tiles'
-import { pluginHosts, pluginsOpened, pluginTools, refreshPlugins, toolCornerFor } from '../plugins/registry'
+import { pluginHosts, pluginsOpened, pluginTools, preloadPlugins, refreshPlugins, toolCornerFor, warmPluginModules } from '../plugins/registry'
 import { openLinks } from '../plugins/links'
 import { tileLauncher } from '../ui/tileLauncher'
 import { deskPath, navigate, route } from '../app/router'
@@ -88,7 +88,7 @@ export async function openWithAuth(id: string, desk = 1) {
   let creds: { password?: string; passphrase?: string } | undefined
   for (;;) {
     try {
-      const r = await openProject(id, creds, desk)
+      const r = await openProject(id, creds, desk, preloadPlugins)
       pluginsOpened(r.plugins)
       offerIdeUntrack(r.ideTracked)
       return r
@@ -724,7 +724,12 @@ export function ProjectPage(props: { id: string }) {
     opening = true
     setError('')
     try {
-      await openWithAuth(props.id, urlDesk())
+      // The request of the project is sent first, then the modules this project used at its last
+      // opening are asked (#206): they share the link with the answer of `project.open`, not with
+      // the app bundle, and the activation still waits for the states of the project.
+      const opened = openWithAuth(props.id, urlDesk())
+      warmPluginModules(props.id)
+      await opened
       // Opened from a ticket to run its conversation: show the assistant.
       if (new URLSearchParams(location.search).has('assistant')) {
         mutate((s) => (s.right.panel = 'assistant'))

@@ -8,8 +8,9 @@
 import { t } from '../i18n'
 import { bootBytes, traceBoot } from './transport'
 
-/** A phase of the load. `plugin` names the plugin in its detail. */
-export type LoadStep = 'start' | 'rpc' | 'home' | 'project-open' | 'reattach' | 'grammars' | 'questions' | 'ready' | 'plugin' | 'bytes'
+/** A phase of the load. `plugin` names the plugin in its detail, `warm` and `ask` count the
+ * module asks they start (#206). */
+export type LoadStep = 'start' | 'rpc' | 'home' | 'warm' | 'project-open' | 'ask' | 'reattach' | 'grammars' | 'questions' | 'ready' | 'plugin' | 'bytes'
 
 /** What a phase carries: durations in ms, sizes in bytes, the id of a plugin. `pod` is the time
  * the pod spent on `project.open`, split by the steps it names. */
@@ -23,6 +24,7 @@ export type LoadDetail = {
   tracked?: number
   plugins?: number
   id?: string
+  n?: number
   bytes?: number
   bundle?: boolean
   tunnel?: number
@@ -54,6 +56,10 @@ function text(step: LoadStep, d: LoadDetail): string {
       return t('The IDE talks to the pod (first message)')
     case 'home':
       return t('Home page shown')
+    case 'warm':
+      return t('Plugin modules of the last opening asked ({n})', { n: d.n ?? 0 })
+    case 'ask':
+      return t('Plugin modules of the project asked ({n})', { n: d.n ?? 0 })
     case 'project-open':
       return t('Project opened ({ms} ms, pod {pod} ms: runtime {runtime} ms, git {git} ms, commands {commands} ms, attach {attach} ms, tracked {tracked} ms, plugins {plugins} ms)', {
         ms: d.ms ?? 0,

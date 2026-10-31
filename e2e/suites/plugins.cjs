@@ -31,6 +31,13 @@ run(async ({ page }) => {
   // The Kanban is an external official plugin (#158).
   await installOfficial('kanban')
   await openProject(page)
+  // #206: the page modules of the enabled plugins are asked at the answer of project.open, not
+  // after the attaches and the grammars. The journal of this load says so (nothing remembered
+  // yet: this browser opens the project for the first time).
+  const j0 = await page.evaluate(() => window.loadJournal)
+  const at0 = (s) => Number(new RegExp(`^\\s*([\\d.]+)  ${s}`, 'm').exec(j0)?.[1] ?? -1)
+  assert(at0('Plugin modules of the project asked') >= 0 && at0('Plugin modules of the project asked') >= at0('Project opened'), `the modules are asked at the answer (project.open at ${at0('Project opened')}, asked at ${at0('Plugin modules of the project asked')}):\n${j0}`)
+  assert(at0('Plugin modules of the last opening asked') < 0, 'no warm ask before the first opening of the project')
   const kp = inFrames(page)
   const icon = '.rail-group[data-zone=right] .rail-btn[data-id=hello]'
 
@@ -132,10 +139,34 @@ run(async ({ page }) => {
   await page.reload()
   await page.waitForSelector('.rail-btn[data-id=explorer]')
   assert(asked.some((u) => /plugin-exec-/.test(u)) && !asked.some((u) => /plugin-previews-/.test(u)), 'no chunk of a disabled plugin: ' + asked.filter((u) => u.includes('plugin-')).map((u) => u.split('/').pop()))
+
+  // #206: the plugins this project had at its last opening are remembered, and their chunks asked
+  // before the pod answers — the one disabled since is out of the list, so nothing of it lands.
+  const j1 = await page.evaluate(() => window.loadJournal)
+  const at1 = (s) => Number(new RegExp(`^\\s*([\\d.]+)  ${s}`, 'm').exec(j1)?.[1] ?? -1)
+  const warmAt = at1('Plugin modules of the last opening asked')
+  assert(warmAt >= 0 && warmAt <= at1('Project opened'), `the remembered chunks are asked before the answer (warm at ${warmAt}, project.open at ${at1('Project opened')}):\n${j1}`)
+  const warmKey = 'plugins.warm:' + decodeURIComponent(new URL(page.url()).pathname.split('/')[2])
+  const remembered = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k) ?? '[]'), warmKey)
+  const list1 = await remembered()
+  assert(list1.some((e) => e.id === 'exec' && e.ext === undefined) && !list1.some((e) => e.id === 'previews'), 'the remembered list, without the plugin disabled since: ' + JSON.stringify(list1))
+
+  // A module remembered for a plugin the project does not enable any more (another window turned
+  // it off since) is downloaded, never activated: the list is put back by hand here.
+  await page.evaluate((k) => localStorage.setItem(k, JSON.stringify([...JSON.parse(localStorage.getItem(k) ?? '[]'), { id: 'previews' }])), warmKey)
+  const asked2 = []
+  const onRequest2 = (q) => asked2.push(q.url())
+  page.on('request', onRequest2)
+  await page.reload()
+  await page.waitForSelector('.rail-btn[data-id=explorer]')
+  assert(asked2.some((u) => /plugin-previews-/.test(u)), 'the remembered chunk of a plugin turned off since is asked')
+  assert(!(await page.$(forwards)), 'and it stays out of the window: no tool, no activation')
+  page.off('request', onRequest2)
   await setPlugin('previews', true)
   await page.waitForSelector(forwards)
   assert(asked.some((u) => /plugin-previews-/.test(u)), 'its chunk once enabled')
   page.off('request', onRequest)
+  assert((await remembered()).some((e) => e.id === 'previews'), 'enabled again: remembered for the next opening')
 
   // Exec is locked (#137): a terminal opens, the Console tool stays with its dependents, and the
   // console tools of the MCP answer.

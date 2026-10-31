@@ -409,11 +409,18 @@ run(async ({ ctx, page }) => {
     }
   }
   await page.click('.settings-nav button:has-text("Remote access")')
+  // The grammars line lands when the pod answers, off the critical path of the opening (#205):
+  // the phases the journal must hold are waited for before its panel is opened (it reads them
+  // once, when it opens).
+  await page.waitForFunction(() => window.loadJournal.includes('Project ready') && window.loadJournal.includes('Language packs ready'), null, { timeout: 15000 })
   await page.click('[data-testid=connection-journal] summary')
   await page.waitForFunction(() => document.querySelector('[data-testid=connection-journal] pre')?.textContent.includes('Project ready'), null, { timeout: 15000 })
   const journal = await page.textContent('[data-testid=connection-journal] pre')
   for (const line of ['The IDE starts', 'The IDE talks to the pod', 'Project opened', 'Worktrees attached', 'Language packs ready', 'Questions loaded', 'Project ready', 'Plugin ', 'Load carried'])
     assert(journal.includes(line), `the journal of the load says "${line}":\n${journal}`)
+  // #206: the journal says when the modules were asked — with the answer of project.open, or from
+  // the list of the last opening, before it (this window has been reloaded: its chunks are warm).
+  assert(/Plugin modules of (the project|the last opening) asked \((\d+)\)/.test(journal), `the journal says when the plugin modules were asked:\n${journal}`)
   const order = journalInOrder(journal)
   assert(order.sorted && order.last, `the journal reads in the order of its times, the summary last:\n${journal}`)
   await page.keyboard.press('Escape')
@@ -438,13 +445,18 @@ run(async ({ ctx, page }) => {
   await slow.goto(slowUrl.toString())
   await slow.waitForSelector('.menubar', { timeout: 90000 })
   await slow.waitForFunction(() => window.loadJournal.includes('Load carried'), null, { timeout: 40000 })
+  // The console table comes when the load has nothing pending: on a slow link a module can land
+  // after a first summary (which is rewritten, #204), so the wait is for the table, not for the
+  // first summary line — and the journal is read once it printed, with every module in it.
+  const tableAt = Date.now() + 40000
+  while (!tables.length && Date.now() < tableAt) await slow.waitForTimeout(500)
   const slowJournal = await slow.evaluate(() => window.loadJournal)
   const slowAt = (s) => Number(new RegExp(`^\\s*([\\d.]+)  ${s}`, 'm').exec(slowJournal)?.[1] ?? -1)
   const slowReady = slowAt('Project ready')
   const slowBytes = slowAt('Load carried')
   // The last plugin module of the load: the summary must come after it, not 1.5 s after some
   // earlier phase (what a settle armed by every phase did).
-  const slowLastPlugin = Math.max(...[...slowJournal.matchAll(/^\s*([\d.]+)  Plugin /gm)].map((m) => Number(m[1])))
+  const slowLastPlugin = Math.max(...[...slowJournal.matchAll(/^\s*([\d.]+)  Plugin \S+ loaded/gm)].map((m) => Number(m[1])))
   console.log('throttled load:\n' + slowJournal)
   assert(slowReady >= 0, `a throttled load still marks the project ready:\n${slowJournal}`)
   assert(slowBytes >= slowReady, `the summary of the load comes after it is ready: ready at ${slowReady}, summary at ${slowBytes}`)
