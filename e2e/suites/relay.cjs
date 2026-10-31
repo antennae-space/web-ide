@@ -101,6 +101,21 @@ run(
     for (const line of ['Signaling on the identity link', 'Opening the IDE', 'The IDE starts', 'The IDE talks to the pod', 'Home page shown'])
       assert(boot.includes(line), `the journal of the load says "${line}":\n${boot}`)
     console.log(boot)
+    // The journal goes down to the project ready (#204): project.open with the time the pod spent
+    // on it, the phases after it, each plugin module, and what the load carried.
+    await page.waitForFunction(() => window.bootJournal.includes('Load carried'), null, { timeout: 30000 })
+    const load = await page.evaluate(() => window.bootJournal)
+    for (const line of ['Project opened', 'runtime', 'Worktrees attached', 'Language packs ready', 'Questions loaded', 'Project ready', 'Plugin '])
+      assert(load.includes(line), `the journal of the load says "${line}":\n${load}`)
+    // `ready` follows the open by seconds, not by tens of seconds: a load that loses its channel
+    // and never marks the project ready is what the journal is there to catch.
+    const at = (s) => Number(new RegExp(`^\\s*([\\d.]+)  ${s}`, 'm').exec(load)?.[1] ?? -1)
+    const openedAt = at('Project opened')
+    const readyAt = at('Project ready')
+    assert(openedAt >= 0 && readyAt >= openedAt && readyAt - openedAt < 5, `the project is ready seconds after it was opened: opened at ${openedAt}, ready at ${readyAt}`)
+    const carried = /Load carried ([\d.]+) kB from the pod, ([\d.]+) kB from the cache, ([\d.]+) kB on the socket/.exec(load)
+    assert(carried && Number(carried[1]) > 0, 'the load says what it carried through the tunnel: ' + (carried ? carried[0] : load.slice(-200)))
+    console.log(load.slice(-900))
     assert(first.app > 0 && first.ready !== undefined && first.channels > 0, 'the phases of the load are measured: ' + JSON.stringify(first))
 
     // The bootstrap page hears only the app's frame (#129): a sandboxed frame inside the app (an
@@ -353,6 +368,14 @@ run(
     await again.dblclick(`.explorer .tree-row[data-path="${WS}/demo/notes.txt"]`)
     await again.waitForSelector('.pane.active .tab.active:has-text("notes.txt")')
     assert((await again.textContent('.pane.active .ed-content')).includes('via the relay'), 'the app works after the reload')
+
+    // The journal of the reload says where the assets came from (#204): the Service Worker told the
+    // bootstrap page what it answered from its cache, so the cache column is no longer 0.
+    await again.waitForFunction(() => window.loadJournal.includes('Load carried'), null, { timeout: 30000 })
+    const reJournal = await again.evaluate(() => window.loadJournal)
+    const reCarried = /Load carried ([\d.]+) kB from the pod, ([\d.]+) kB from the cache, ([\d.]+) kB on the socket/.exec(reJournal)
+    console.log('reload journal:\n' + reJournal)
+    assert(reCarried && Number(reCarried[2]) > 0, 'a reload says what its Service Worker answered from the cache: ' + (reCarried ? reCarried[0] : reJournal.slice(-200)))
 
     // A pod updated to another version leaves its old cache behind: the Service Worker drops it
     // when the page declares the new one, and the next asset lands in the cache of that version.

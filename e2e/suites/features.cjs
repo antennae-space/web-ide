@@ -396,7 +396,66 @@ run(async ({ ctx, page }) => {
   await page.click('.settings-nav button:has-text("History")')
   await page.waitForTimeout(300)
   assert((await page.$$('.history-entry')).length >= 2, 'settings history lists snapshots')
+
+  // The load journal of the app (#204), outside the relay: the phases of this window, down to
+  // the project ready, and what the load carried. The lines read in the order of their times,
+  // with the summary of the load last wherever its measure landed.
+  const journalInOrder = (text) => {
+    const rows = text.split('\n')
+    const times = rows.map((l) => Number(l.slice(0, 6)))
+    return {
+      sorted: times.every((v, i) => i === 0 || v >= times[i - 1]),
+      last: /Load carried/.test(rows[rows.length - 1] ?? ''),
+    }
+  }
+  await page.click('.settings-nav button:has-text("Remote access")')
+  await page.click('[data-testid=connection-journal] summary')
+  await page.waitForFunction(() => document.querySelector('[data-testid=connection-journal] pre')?.textContent.includes('Project ready'), null, { timeout: 15000 })
+  const journal = await page.textContent('[data-testid=connection-journal] pre')
+  for (const line of ['The IDE starts', 'The IDE talks to the pod', 'Project opened', 'Worktrees attached', 'Language packs ready', 'Questions loaded', 'Project ready', 'Plugin ', 'Load carried'])
+    assert(journal.includes(line), `the journal of the load says "${line}":\n${journal}`)
+  const order = journalInOrder(journal)
+  assert(order.sorted && order.last, `the journal reads in the order of its times, the summary last:\n${journal}`)
   await page.keyboard.press('Escape')
+
+  // The same load on a slow link (#204): the summary of what it carried comes after the project is
+  // ready, never 1.5 s after the script started, and it counts the assets the page downloaded. A
+  // fresh context, so the assets really cross the network the throttle slows.
+  const slowCtx = await page.context().browser().newContext({ viewport: { width: 1440, height: 900 }, locale: 'en-US' })
+  const slow = await slowCtx.newPage()
+  const tables = []
+  slow.on('console', (m) => { if (m.text().includes('Load carried')) tables.push(m.text()) })
+  const cdp = await slowCtx.newCDPSession(slow)
+  await cdp.send('Network.emulateNetworkConditions', {
+    offline: false,
+    latency: 80,
+    downloadThroughput: (1.5 * 1000 * 1000) / 8,
+    uploadThroughput: (750 * 1000) / 8,
+  })
+  // A fresh context has no token cookie: the link carries it, as any first visit of a pod does.
+  const slowUrl = new URL(page.url())
+  slowUrl.searchParams.set('token', process.env.E2E_TOKEN)
+  await slow.goto(slowUrl.toString())
+  await slow.waitForSelector('.menubar', { timeout: 90000 })
+  await slow.waitForFunction(() => window.loadJournal.includes('Load carried'), null, { timeout: 40000 })
+  const slowJournal = await slow.evaluate(() => window.loadJournal)
+  const slowAt = (s) => Number(new RegExp(`^\\s*([\\d.]+)  ${s}`, 'm').exec(slowJournal)?.[1] ?? -1)
+  const slowReady = slowAt('Project ready')
+  const slowBytes = slowAt('Load carried')
+  // The last plugin module of the load: the summary must come after it, not 1.5 s after some
+  // earlier phase (what a settle armed by every phase did).
+  const slowLastPlugin = Math.max(...[...slowJournal.matchAll(/^\s*([\d.]+)  Plugin /gm)].map((m) => Number(m[1])))
+  console.log('throttled load:\n' + slowJournal)
+  assert(slowReady >= 0, `a throttled load still marks the project ready:\n${slowJournal}`)
+  assert(slowBytes >= slowReady, `the summary of the load comes after it is ready: ready at ${slowReady}, summary at ${slowBytes}`)
+  assert(slowLastPlugin > 0 && slowBytes >= slowLastPlugin, `the summary counts the modules that arrived last: last plugin at ${slowLastPlugin}, summary at ${slowBytes}`)
+  const slowCarried = /Load carried ([\d.]+) kB from the pod, ([\d.]+) kB from the cache, ([\d.]+) kB on the socket/.exec(slowJournal)
+  assert(slowCarried && Number(slowCarried[1]) > 0, 'a throttled load says what it carried: ' + (slowCarried ? slowCarried[0] : slowJournal.slice(-200)))
+  const slowOrder = journalInOrder(slowJournal)
+  assert(slowOrder.sorted, `the lines of a throttled load read in the order of their times:\n${slowJournal}`)
+  assert(slowOrder.last, `the summary of the load is its last line:\n${slowJournal}`)
+  assert(tables.length === 1, `the console prints the table of the load once, when nothing is pending: ${tables.length} copies`)
+  await slow.close()
 
   // Infos: properties, connections and extensions stacked in one tool
   assert(!(await page.isVisible('.rail-left .rail-btn[title^="Connections"]')), 'no Connections panel on the left')

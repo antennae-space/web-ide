@@ -4,9 +4,10 @@
 // views, commands). While a module loads, its tools and views show a placeholder.
 import { createMemo, createRoot, createSignal, type JSX } from 'solid-js'
 import { on, request } from '../pod/rpc'
+import { loadMark, loadPending } from '../pod/loadJournal'
 import { setPluginActions } from '../keys/bindings'
 import { API_VERSION, makeApi } from './api'
-import { externalModule } from './external'
+import { externalModule, bundleBytes } from './external'
 import type { ExplorerEntry, PluginContributions, PluginModule, PluginState, StatusItem } from './types'
 import type { MenuItem } from '../ui/overlay'
 import { setCapabilityGate } from './capabilities'
@@ -56,19 +57,41 @@ const hasModule = (s: PluginState) => {
   return !!s.external?.installed && !!(c.tools?.length || c.tabViews?.length || c.commands?.length || s.manifest.provides?.length)
 }
 
-/** The page module of a plugin, loaded once (undefined when it cannot be). */
+/** The page module of a plugin, loaded once (undefined when it cannot be). Its load is a phase
+ * of the journal (#204), with the size of the chunk or of the bundle when it is known. */
 function load(id: string): Promise<PluginModule | undefined> {
   const external = states().find((s) => s.manifest.id === id && s.external?.installed)
   if (external) builtVersion[id] = external.external!.version
   const get = builtins[id] ?? (external ? () => externalModule(external, () => states().find((s) => s.manifest.id === id)) : () => Promise.reject(new Error('no page module')))
-  return (loading[id] ??= get().then(
-    (m) => (modules[id] = m),
+  const held = loading[id]
+  if (held !== undefined) return held
+  const t0 = performance.now()
+  const asked = loadPending() // the journal prints its table once no module is pending (loadJournal)
+  return (loading[id] = get().then(
+    (m) => {
+      asked()
+      loadMark('plugin', { id, ms: Math.round(performance.now() - t0), bytes: external ? bundleBytes[id] : chunkBytes(id), bundle: !!external })
+      return (modules[id] = m)
+    },
     (e) => {
+      asked()
       console.warn('plugin', id, e)
       delete loading[id] // asked again at the next states
       return undefined
     },
   ))
+}
+
+/** Size of the chunk of a built-in plugin, as the browser recorded its download. The chunks are
+ * named plugin-<id>-<hash>.js (vite.config.ts); the shared chunks a plugin pulls (xterm for the
+ * Console) are counted in the total line, not here. */
+function chunkBytes(id: string): number {
+  let n = 0
+  for (const e of performance.getEntriesByType('resource')) {
+    const r = e as PerformanceResourceTiming
+    if (r.name.includes('/plugin-' + id + '-') || r.name.includes('/plugin-' + id + '.')) n += r.transferSize || r.decodedBodySize || 0
+  }
+  return n
 }
 
 // The plugins enabled in the window at the last states, and those to refresh (the project just

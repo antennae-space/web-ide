@@ -22,6 +22,9 @@ import type { MenuItem } from '../ui/overlay'
 
 type Bundle = { version: string; js: string; catalogs: Record<string, Record<string, string>> }
 
+/** Bytes of each external bundle fetched, read by the registry for its journal line (#204). */
+export const bundleBytes: Record<string, number> = {}
+
 type Served = ReturnType<typeof serveFrame>
 
 /** The status items a tab frame gave for its tab (setStatus), and how to answer its choices. */
@@ -287,6 +290,7 @@ function backgroundFrame(state: PluginState, grants: () => string[], bundle: Bun
 /** Loads the bundle of an external plugin and builds its module; current is its state now. */
 export async function externalModule(state: PluginState, current: () => PluginState | undefined): Promise<PluginModule> {
   const bundle = await request<Bundle>('plugins.bundle', { id: state.manifest.id })
+  bundleBytes[state.manifest.id] = bundle.js.length
   const c = state.manifest.contributes
   const grants = () => current()?.external?.grants ?? []
   const bg = backgroundFrame(state, grants, bundle)
