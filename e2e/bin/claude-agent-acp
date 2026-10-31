@@ -182,6 +182,21 @@ async function prompt(id, p) {
     update(sid, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: allowed ? 'Edited.' : 'Not edited.' } })
     return send({ id, result: done('end_turn') })
   }
+  if (text.startsWith('long')) {
+    // "long <tag>": a tool call, a long answer streaming, then the tool call filled in place.
+    const tag = text.split(' ')[1] ?? ''
+    const tool = `long-${nextId++}`
+    update(sid, { sessionUpdate: 'tool_call', toolCallId: tool, title: `Run ${tag}`, kind: 'execute', status: 'in_progress' })
+    for (let i = 0; i < 60; i++) {
+      update(sid, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `${tag} line ${i}\n\n` } })
+      await sleep(60)
+    }
+    const out = Array.from({ length: 40 }, (_, i) => `out ${i}`).join('\n')
+    update(sid, { sessionUpdate: 'tool_call_update', toolCallId: tool, status: 'completed', content: [{ type: 'content', content: { type: 'text', text: out } }] })
+    await sleep(100)
+    update(sid, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `${tag} done.` } })
+    return send({ id, result: done('end_turn') })
+  }
   update(sid, { sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text: 'Thinking about it' } })
   update(sid, { sessionUpdate: 'plan', entries: [{ content: 'Say hello', priority: 'high', status: 'completed' }, { content: 'Edit the file', priority: 'medium', status: 'in_progress' }] })
   await sleep(50)

@@ -3,6 +3,7 @@
 import { createEffect, createResource, createSignal, For, Match, on, onCleanup, onMount, Show, Switch } from 'solid-js'
 import { DiffBlock, Markdown } from '../llm/parts'
 import { Elapsed, follow, useFold } from '../llm/Thread'
+import { stickToEnd } from '../llm/stick'
 import {
   active,
   answerAgent,
@@ -178,17 +179,10 @@ function SessionView(props: { id: string }) {
   const info = () => sessions().find((s) => s.id === props.id)
   const entries = () => threads[props.id]?.entries ?? []
   onMount(() => void loadThread(props.id).catch(errorToast))
+  // Every growth of the thread follows while the view is at the end (llm/stick.ts).
   let scroller!: HTMLDivElement
-  let stick = true
-  createEffect(
-    on(
-      () => {
-        const e = entries()
-        return [e.length, e[e.length - 1]?.text?.length, e[e.length - 1]?.status]
-      },
-      () => stick && requestAnimationFrame(() => (scroller.scrollTop = scroller.scrollHeight)),
-    ),
-  )
+  let thread!: ReturnType<typeof stickToEnd>
+  onMount(() => (thread = stickToEnd(scroller)))
   const busy = () => info()?.state === 'busy' || info()?.state === 'asking'
   return (
     <div class="agent-session" classList={{ 'composer-full': agentFull() }} data-testid="agent-session">
@@ -206,7 +200,7 @@ function SessionView(props: { id: string }) {
           </button>
         </div>
       </Show>
-      <div class="ai-messages" ref={scroller} onScroll={() => (stick = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 40)}>
+      <div class="ai-messages" ref={scroller}>
         <div class="ai-thread agent-thread" data-testid="agent-thread">
           <Show when={info()?.state === 'starting' && entries().length === 0}>
             <div class="muted small">{t('Starting {name}…', { name: info()?.name ?? '' })}</div>
@@ -224,7 +218,7 @@ function SessionView(props: { id: string }) {
           </Show>
         </div>
       </div>
-      <AgentComposer id={props.id} />
+      <AgentComposer id={props.id} onSent={() => thread.reset()} />
     </div>
   )
 }

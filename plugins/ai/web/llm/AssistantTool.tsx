@@ -13,6 +13,7 @@ import { Board } from './board/Board'
 import { boardShown, pages, setBoardWide, showBoard, showSide, toggleSide } from './board/pages'
 import { Stats } from './Stats'
 import { TopBar } from './TopBar'
+import { stickToEnd } from './stick'
 import './assistant.css'
 import { detached, errorToast, Icon, showsQuestions, t } from '../plugin'
 
@@ -46,8 +47,7 @@ export function AssistantTool() {
   }
   let rootEl!: HTMLDivElement
   let list!: HTMLDivElement
-  let stick = true
-  let lastTop = 0
+  let thread: ReturnType<typeof stickToEnd> | undefined
 
   onMount(() => {
     const ro = new ResizeObserver(() => setWidth(rootEl.clientWidth))
@@ -60,35 +60,12 @@ export function AssistantTool() {
       .then(() => loadConfig())
       .catch(() => {})
     focusComposer()
-    // Late renders (Markdown, diagrams) make the thread grow after a load: stay at the end.
-    const thread = new ResizeObserver(() => stick && (list.scrollTop = list.scrollHeight))
-    thread.observe(list.firstElementChild as Element)
-    onCleanup(() => thread.disconnect())
+    thread = stickToEnd(list)
   })
 
-  // Follow the answer while the view is at the bottom. Only a move up stops following: the
-  // event of our own scroll to the end may come after the thread grew again (a large step).
-  const onScroll = () => {
-    if (list.scrollHeight - list.scrollTop - list.clientHeight < 60) stick = true
-    else if (list.scrollTop < lastTop) stick = false
-    lastTop = list.scrollTop
-  }
-  const toBottom = () => requestAnimationFrame(() => list && (list.scrollTop = list.scrollHeight))
-  createEffect(
-    on(
-      () => [chat.messages.length, live.content, live.reasoning, live.tool, approval()],
-      () => stick && toBottom(),
-    ),
-  )
-  createEffect(
-    on(
-      () => chat.id,
-      () => {
-        stick = true
-        toBottom()
-      },
-    ),
-  )
+  // Follow the answer while the view is at the end (llm/stick.ts).
+  createEffect(on(() => [chat.messages.length, live.content, live.reasoning, live.tool, approval()], () => thread?.follow()))
+  createEffect(on(() => chat.id, () => thread?.reset()))
 
   const newChat = () => {
     resetChat()
@@ -159,7 +136,6 @@ export function AssistantTool() {
             class="ai-messages"
             classList={{ dragging: dragging() }}
             ref={list}
-            onScroll={onScroll}
             onDragOver={(e) => {
               if (e.dataTransfer?.types.includes('Files')) {
                 e.preventDefault()
@@ -180,10 +156,7 @@ export function AssistantTool() {
           <Composer
             head={<TopBar narrow={narrow} />}
             onSettings={() => setSettings(true)}
-            onSent={() => {
-              stick = true
-              toBottom()
-            }}
+            onSent={() => thread?.reset()}
           />
         </div>
         <Show when={boardShown()}>

@@ -45,7 +45,7 @@ function partsOf(list: Prepared[]): AgentPart[] {
   return out
 }
 
-export function AgentComposer(props: { id: string }) {
+export function AgentComposer(props: { id: string; onSent?: () => void }) {
   let fileInput!: HTMLInputElement
   const [view, setView] = createSignal<EditorView>()
   const [preparing, setPreparing] = createSignal(0)
@@ -130,6 +130,7 @@ export function AgentComposer(props: { id: string }) {
     const id = props.id
     const text = draft().trim()
     const atts = pending()
+    props.onSent?.()
     try {
       await promptAgent(id, text, partsOf(atts))
       setBox(id, (b) => ((b.draft = ''), (b.pending = [])))

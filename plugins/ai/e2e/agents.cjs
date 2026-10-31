@@ -3,7 +3,7 @@
 // permission card; the follow mode opens the file of an edit; the composer (/ and @ completion, image and file as blocks, history, queue);
 // a config option; Stop; the agent killed is restarted and its session
 // loaded; the tabs are those of the desk (#199): closing one hides the session, another desk
-// shows none, Other sessions opens it again, Stop ends it. Work time and cost: on the tab, the project, and
+// shows none, Other sessions opens it again, Stop ends it; the thread follows its end. Work time and cost: on the tab, the project, and
 // the ticket of a session run in its worktree.
 const { execSync } = require('child_process')
 const { run, openProject, assert, mcp, OUT, WS, installOfficial, inFrames } = require('../../../e2e/common.cjs')
@@ -169,6 +169,28 @@ run(async ({ page }) => {
   await waitState(page, 'ready')
   await page.waitForSelector('[data-testid=agent-thought]:has-text("tick 3"):not(.live):not(.open)')
   assert(!(await page.isVisible('[data-testid=agent-thought-text]:has-text("tick 3")')), 'the thought folds at the end of the turn')
+
+  // The thread follows its end while the agent writes (an earlier tool call filled in place
+  // included); a move up stops following; a prompt sent follows again (#221).
+  const thread = '[data-testid=agent-session] .ai-messages'
+  const fromEnd = () => page.$eval(thread, (e) => e.scrollHeight - e.scrollTop - e.clientHeight)
+  await prompt(page, 'long A')
+  await page.waitForSelector('[data-testid=agent-message]:has-text("A done.")')
+  await waitState(page, 'ready')
+  await page.waitForTimeout(300)
+  assert((await fromEnd()) < 5, 'the thread stayed at its end: ' + (await fromEnd()))
+  await prompt(page, 'long B')
+  await page.waitForSelector('[data-testid=agent-message]:has-text("B line 10")')
+  await page.$eval(thread, (e) => e.scrollBy(0, -400))
+  const top = await page.$eval(thread, (e) => e.scrollTop)
+  await page.waitForSelector('[data-testid=agent-message]:has-text("B done.")')
+  await waitState(page, 'ready')
+  assert(Math.abs((await page.$eval(thread, (e) => e.scrollTop)) - top) < 5 && (await fromEnd()) > 400, 'scrolled up: the thread stays where the user put it')
+  await prompt(page, 'long C')
+  await page.waitForSelector('[data-testid=agent-message]:has-text("C done.")')
+  await waitState(page, 'ready')
+  await page.waitForTimeout(300)
+  assert((await fromEnd()) < 5, 'a prompt sent follows the end again: ' + (await fromEnd()))
 
   // Stop during a turn; a prompt sent meanwhile waits in the queue, then goes.
   await prompt(page, 'slow')
