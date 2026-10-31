@@ -7,7 +7,7 @@
 // started from a card is followed by the orchestrator; another conversation is adopted with
 // agent_adopt: it announces itself with a note, says who follows it and is nested.
 const http = require('http')
-const { run, openProject, assert, mcp, OUT, installOfficial, inFrames, acceptConfirms } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, mcp, OUT, installOfficial, inFrames, acceptConfirms, dropNotes } = require('../../../e2e/common.cjs')
 
 const sse = (res, delta) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`)
 function end(res, reason = 'stop') {
@@ -30,7 +30,7 @@ const fake = http.createServer(async (req, res) => {
   if (req.url.startsWith('/props')) return res.end(JSON.stringify(req.url === '/props' ? { role: 'router' } : { default_generation_settings: { n_ctx: 32768 } }))
   let body = ''
   for await (const c of req) body += c
-  const r = JSON.parse(body)
+  const r = dropNotes(JSON.parse(body))
   res.writeHead(200, { 'Content-Type': 'text/event-stream' })
   const sys = text(r.messages[0])
   const last = r.messages[r.messages.length - 1]

@@ -103,6 +103,10 @@ export interface ChatMessage {
   display?: string
   /** 'claude': written or answered by Claude Code (MCP), else by the user. */
   author?: string
+  /** Date and active file noted by the pod on a message of the user when they changed: the
+   *  model reads them at the end of its content, the bubble does not show them. */
+  date?: string
+  activeFile?: string
   attachments?: Attachment[]
   usage?: Usage
   error?: string

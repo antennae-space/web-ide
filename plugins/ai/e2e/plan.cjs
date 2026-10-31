@@ -5,7 +5,7 @@
 const fs = require('fs')
 const http = require('http')
 const path = require('path')
-const { run, openProject, assert, WS, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, WS, OUT, dropNotes } = require('../../../e2e/common.cjs')
 
 const SCRATCH = path.join(WS, '..', 'scratch') // WEBIDE_SCRATCH of run.sh
 const requests = []
@@ -26,7 +26,7 @@ const fake = http.createServer(async (req, res) => {
   if (req.url.startsWith('/props')) return res.end(JSON.stringify(req.url === '/props' ? { role: 'router' } : { default_generation_settings: { n_ctx: 32768 } }))
   let body = ''
   for await (const c of req) body += c
-  const r = JSON.parse(body)
+  const r = dropNotes(JSON.parse(body))
   res.writeHead(200, { 'Content-Type': 'text/event-stream' })
   if (text(r.messages[0]).startsWith('You summarize')) {
     summaries.push(r)

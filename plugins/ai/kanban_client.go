@@ -141,8 +141,10 @@ func (s *A) linkTicketChat(root string, c *engine.Chat) {
 	}
 }
 
-// ticketPrompt is the ticket part of the system prompt of a conversation linked to a ticket.
-func (s *A) ticketPrompt(r *assistantRun, link *engine.TicketLink) string {
+// ticketPrompt is the ticket part of the system prompt of a conversation linked to a ticket:
+// the instructions of its role, without the ticket itself when the model has its tools (it
+// reads it with kanban_get), so that the system prompt does not change with the ticket.
+func (s *A) ticketPrompt(r *assistantRun, link *engine.TicketLink, tools bool) string {
 	var t struct {
 		ID       int64  `json:"id"`
 		Parent   int64  `json:"parent"`
@@ -151,6 +153,9 @@ func (s *A) ticketPrompt(r *assistantRun, link *engine.TicketLink) string {
 	}
 	if err := s.kanbanCall(r.ctx, r.root, "kanban.markdown", map[string]any{"id": link.ID}, &t); err != nil {
 		return fmt.Sprintf("# Linked ticket\nTicket #%d cannot be found (%s).", link.ID, err)
+	}
+	if tools {
+		t.Markdown = ""
 	}
 	return engine.TicketPrompt(t.ID, link.Role, t.Branch, t.Parent, link.Feedback, t.Markdown)
 }

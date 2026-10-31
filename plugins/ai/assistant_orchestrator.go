@@ -136,7 +136,7 @@ func (s *A) openConversation(r *assistantRun, a assistant.Args) (assistant.ToolR
 		}
 		message := strings.TrimSpace(a.Str("message"))
 		if a.Bool("send", false) && message != "" {
-			c.Messages = []*engine.Message{{Role: "user", Content: assistant.String(message)}}
+			c.AddUser(&engine.Message{Role: "user", Content: assistant.String(message)})
 			s.startRun(r.loc, r.root, r.project, r.lang, c, 0)
 		} else {
 			c.Draft = message

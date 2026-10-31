@@ -174,6 +174,10 @@ type Message struct {
 	Preview *assistant.Preview `json:"preview,omitempty"`
 	// Author: "claude" for a message or the answers of Claude Code (MCP), else the user.
 	Author string `json:"author,omitempty"`
+	// Date and ActiveFile: noted on a message of the user when they changed since the last
+	// message carrying them (Stamp); sent to the model at the end of its content, not shown.
+	Date       string `json:"date,omitempty"`
+	ActiveFile string `json:"activeFile,omitempty"`
 }
 
 type ToolCall struct {

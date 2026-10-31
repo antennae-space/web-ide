@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -29,6 +30,34 @@ type fakeModel struct {
 	models []string
 	// delay between two chunks of an answer.
 	delay time.Duration
+	// notes: the requests keep the note of the date and the active file at the end of the
+	// messages of the user (by default the tests read them without it).
+	notes bool
+}
+
+// contextNote is the note of the date and the active file the pod adds to a message of the
+// user (engine.Context).
+var contextNote = regexp.MustCompile(`(^|\n\n)\((Date|Active file in the editor): [^\n]*\)$`)
+
+// dropNotes takes the note of the date and the active file out of the messages of a request.
+func dropNotes(req map[string]any) {
+	msgs, _ := req["messages"].([]any)
+	for _, m := range msgs {
+		m := m.(map[string]any)
+		if m["role"] != "user" {
+			continue
+		}
+		switch c := m["content"].(type) {
+		case string:
+			m["content"] = contextNote.ReplaceAllString(c, "")
+		case []any:
+			if n := len(c); n > 0 {
+				if p, ok := c[n-1].(map[string]any); ok && p["type"] == "text" && contextNote.MatchString(fmt.Sprint(p["text"])) {
+					m["content"] = c[:n-1]
+				}
+			}
+		}
+	}
 }
 
 func (f *fakeModel) serve(t *testing.T) *httptest.Server {
@@ -38,6 +67,9 @@ func (f *fakeModel) serve(t *testing.T) *httptest.Server {
 			var req map[string]any
 			_ = json.NewDecoder(r.Body).Decode(&req)
 			f.mu.Lock()
+			if !f.notes {
+				dropNotes(req)
+			}
 			f.requests = append(f.requests, req)
 			answer, delay := f.answer, f.delay
 			f.mu.Unlock()

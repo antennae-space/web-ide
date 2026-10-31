@@ -344,7 +344,7 @@ func (s *A) registerAssistant() {
 			chat.Ticket.Project = project
 		}
 		from = minFrom(from, skipQuestions(chat))
-		chat.Messages = append(chat.Messages, &engine.Message{Role: "user", Content: userContent(a.Text, a.Parts), Display: displayOf(a.Text, a.Display, a.Parts), Attachments: a.Attachments})
+		chat.AddUser(&engine.Message{Role: "user", Content: userContent(a.Text, a.Parts), Display: displayOf(a.Text, a.Display, a.Parts), Attachments: a.Attachments})
 		s.startRun(cc.loc, cc.root, project, c.language(), chat, from)
 		return map[string]any{"queued": false}, nil
 	}))
@@ -671,7 +671,7 @@ func (s *A) registerAssistant() {
 	}))
 	// assistant.prompt: the system prompt of a mode as the assistant would send it now (settings).
 	s.handle("assistant.prompt", withChat(func(ctx context.Context, c *Client, cc chatCtx, p json.RawMessage) (any, error) {
-		a, err := bind[struct{ Mode, ActiveFile string }](p)
+		a, err := bind[struct{ Mode string }](p)
 		if err != nil {
 			return nil, err
 		}
@@ -679,7 +679,7 @@ func (s *A) registerAssistant() {
 		if err != nil {
 			return nil, err
 		}
-		chat := &engine.Chat{Mode: a.Mode, Options: &assistant.Options{ActiveFile: a.ActiveFile}}
+		chat := &engine.Chat{Mode: a.Mode}
 		return s.systemPrompt(&assistantRun{loc: cc.loc, root: cc.root, project: c.project}, ref, chat, true), nil
 	}))
 }

@@ -3,7 +3,7 @@
 // attachment, stop, and resume after a crash (with the same or another model). The model is a scripted fake OpenAI server.
 const fs = require('fs')
 const http = require('http')
-const { run, openProject, open, assert, text, installOfficial, WS, OUT } = require('../../../e2e/common.cjs')
+const { run, openProject, open, assert, text, installOfficial, WS, OUT, dropNotes } = require('../../../e2e/common.cjs')
 
 const requests = []
 let slowClosed = false
@@ -61,7 +61,7 @@ const fake = http.createServer(async (req, res) => {
   if (req.url !== '/v1/chat/completions') return res.writeHead(404).end()
   let body = ''
   for await (const c of req) body += c
-  const r = JSON.parse(body)
+  const r = dropNotes(JSON.parse(body))
   requests.push(r)
   res.writeHead(200, { 'Content-Type': 'text/event-stream' })
   const msgs = r.messages

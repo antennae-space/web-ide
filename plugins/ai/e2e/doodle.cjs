@@ -4,7 +4,7 @@
 // Ctrl+Shift+D and sending from the composer of the modal.
 const http = require('http')
 const fs = require('fs')
-const { run, openProject, assert, pinchRefused, OUT, WS, installOfficial } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, pinchRefused, OUT, WS, installOfficial, dropNotes } = require('../../../e2e/common.cjs')
 
 const requests = []
 const sse = (res, delta) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`)
@@ -21,7 +21,7 @@ const fake = http.createServer(async (req, res) => {
   if (req.url.startsWith('/props')) return res.end(JSON.stringify(req.url === '/props' ? { role: 'router' } : { default_generation_settings: { n_ctx: 32768 }, modalities: { vision: true } }))
   let body = ''
   for await (const c of req) body += c
-  const r = JSON.parse(body)
+  const r = dropNotes(JSON.parse(body))
   requests.push(r)
   res.writeHead(200, { 'Content-Type': 'text/event-stream' })
   const lastUser = [...r.messages].reverse().find((m) => m.role === 'user')

@@ -45,7 +45,7 @@ func (s *A) deliver(r *assistantRun, target string, ev engine.AgentEvent, wake b
 		from = minFrom(from, skipParentWait(c))
 		c.Agent.Status, c.Agent.Question, c.Agent.Nudged = engine.AgentRunning, "", false
 	}
-	c.Messages = append(c.Messages, &engine.Message{Role: "user", Kind: "agent_event", Content: assistant.String(text), Event: &ev})
+	c.AddUser(&engine.Message{Role: "user", Kind: "agent_event", Content: assistant.String(text), Event: &ev})
 	if !wake {
 		return s.publishIdle(r.loc, r.root, c, from)
 	}
@@ -185,7 +185,7 @@ func (s *A) spawnAgent(r *assistantRun, a assistant.Args) (assistant.ToolResult,
 	files := engine.ArgStrings(a["files"])
 	c := &engine.Chat{ID: assistant.NewID(), Title: title, Server: server, Model: model, Mode: mode, Options: opts, Ticket: ticket, Parent: r.id,
 		Agent: &engine.SubAgent{Task: task, Files: files, Status: engine.AgentRunning, Depth: depth, Orchestrated: orchestrated}}
-	c.Messages = []*engine.Message{{Role: "user", Kind: "agent_task", Content: assistant.String(engine.TaskText(task, files))}}
+	c.AddUser(&engine.Message{Role: "user", Kind: "agent_task", Content: assistant.String(engine.TaskText(task, files))})
 	r.mu.Lock()
 	r.chat.Children = append(r.chat.Children, c.ID)
 	s.publish(r, -1)
@@ -527,7 +527,7 @@ func (s *A) agentResume(r *assistantRun, a assistant.Args) (assistant.ToolResult
 	r.mu.Unlock()
 	if adopted {
 		ev := engine.AgentEvent{Child: id, Title: parentTitle, Type: "message", Text: engine.AdoptText + " Your last answer failed: go on from where you stopped."}
-		c.Messages = append(c.Messages, &engine.Message{Role: "user", Kind: "agent_event", Content: assistant.String(engine.EventText(ev)), Event: &ev})
+		c.AddUser(&engine.Message{Role: "user", Kind: "agent_event", Content: assistant.String(engine.EventText(ev)), Event: &ev})
 	}
 	if !s.startRun(r.loc, r.root, s.runProject(c, r.root, r.project), r.lang, c, from) {
 		return assistant.ToolResult{}, failf("%s is running already", id)

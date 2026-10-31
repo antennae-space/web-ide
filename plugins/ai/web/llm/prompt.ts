@@ -4,7 +4,7 @@
 // Code does.
 import { createSignal } from 'solid-js'
 import type { Mode } from './state'
-import { activeFile, relPath, request } from '../plugin'
+import { request } from '../plugin'
 
 export interface InstructionFile {
   scope: 'global' | 'project'
@@ -76,6 +76,5 @@ export function templateOf(c: PromptContext | null, mode: Mode = 'build'): { tex
 
 /** The final system prompt of a mode, as the pod would send it now. */
 export function systemPrompt(mode: Mode): Promise<string> {
-  const file = activeFile()
-  return request<string>('assistant.prompt', { mode, activeFile: file ? relPath(file) : '' })
+  return request<string>('assistant.prompt', { mode })
 }

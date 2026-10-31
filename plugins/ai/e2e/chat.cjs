@@ -5,7 +5,7 @@
 // tool goes on), windows following the same conversation; each desk shows its own conversation
 // (#199), after a reload too.
 const http = require('http')
-const { run, openProject, assert, OUT, composerText } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, OUT, composerText, dropNotes } = require('../../../e2e/common.cjs')
 
 const requests = []
 const byScenario = {}
@@ -25,7 +25,7 @@ const fake = http.createServer(async (req, res) => {
   if (req.url.startsWith('/props')) return res.end(JSON.stringify(req.url === '/props' ? { role: 'router' } : { default_generation_settings: { n_ctx: 32768 }, modalities: { vision: true } }))
   let body = ''
   for await (const c of req) body += c
-  const r = JSON.parse(body)
+  const r = dropNotes(JSON.parse(body))
   requests.push(r)
   res.writeHead(200, { 'Content-Type': 'text/event-stream' })
   const msgs = r.messages

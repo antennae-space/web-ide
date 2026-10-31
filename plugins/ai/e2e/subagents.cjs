@@ -8,7 +8,7 @@
 // card shows its model, tokens and cost.
 const http = require('http')
 const fs = require('fs')
-const { run, openProject, assert, OUT, WS } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, OUT, WS, dropNotes } = require('../../../e2e/common.cjs')
 
 const sse = (res, delta) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`)
 function end(res, reason = 'stop') {
@@ -43,7 +43,7 @@ const fake = http.createServer(async (req, res) => {
   if (req.url.startsWith('/props')) return res.end(JSON.stringify(req.url === '/props' ? { role: 'router' } : { default_generation_settings: { n_ctx: 32768 } }))
   let body = ''
   for await (const c of req) body += c
-  const r = JSON.parse(body)
+  const r = dropNotes(JSON.parse(body))
   requests.push(r)
   res.writeHead(200, { 'Content-Type': 'text/event-stream' })
   const last = r.messages[r.messages.length - 1]
