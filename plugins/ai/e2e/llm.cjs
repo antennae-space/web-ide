@@ -259,9 +259,14 @@ run(async ({ page, ctx }) => {
     assert((await page.$$eval('.ai-tool .ai-dur', (e) => e.length)) === 4, 'each tool block shows its duration')
     await page.click('.ai-reasoning .ai-tool-head')
     assert(await page.isVisible('.ai-reasoning-text:has-text("I need to read the file.")'), 'reasoning unfolded by a click')
-    // Dynamic effort: the most after the message, medium after reading, low after an edit.
+    // Dynamic effort: the most after the message, medium after reading, low after an edit. A
+    // local server keeps the first effort in the request; each change is written after the
+    // last tool result (#217), and not shown in the thread.
     const efforts = requests.slice(0, 3).map((r) => r.chat_template_kwargs?.reasoning_effort)
-    assert(efforts.join() === 'xhigh,medium,low', 'reasoning effort of each step: ' + efforts)
+    assert(efforts.join() === 'xhigh,xhigh,xhigh', 'one reasoning effort for the conversation: ' + efforts)
+    const notes = requests.slice(1, 3).map((r) => /Reasoning effort is set to (\w+)\./.exec(r.messages.at(-1).content)?.[1])
+    assert(notes.join() === 'medium,low' && requests[1].messages.at(-1).role === 'tool', 'the effort of each step after its tool result: ' + notes)
+    assert(!(await text(page)).includes('Reasoning effort is set to'), 'the effort note is not shown')
     assert(!requests[0].tools.some((d) => d.function.name === 'set_effort'), 'no set_effort unless turned on')
     assert((await page.textContent('.ai-reasoning .ai-effort').catch(() => '')) === 'Max', 'the effort of the answer is shown')
     await page.click('[data-testid=ai-options]')

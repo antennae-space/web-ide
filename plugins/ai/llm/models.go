@@ -19,6 +19,19 @@ type Caps struct {
 	// Known is false when the server could not tell (model not loaded): the page then
 	// lets the user try.
 	Known bool `json:"known"`
+	// Local: the model runs on a llama.cpp server or behind llama-swap, whose chat template
+	// reads the reasoning effort of the request at the top of the prompt: the assistant keeps
+	// one effort per conversation and writes its changes into the history (#217).
+	Local bool `json:"local,omitempty"`
+	// SystemTurns: its chat template accepts a system message in the middle of the
+	// conversation (DeepSeek's does; Qwen's raises "System message must be at the
+	// beginning"). Told by the family of the model, false by default.
+	SystemTurns bool `json:"systemTurns,omitempty"`
+}
+
+// systemTurns: the families whose template renders a system message anywhere.
+func systemTurns(id string) bool {
+	return strings.Contains(strings.ToLower(id), "deepseek")
 }
 
 type Model struct {
@@ -58,6 +71,15 @@ func (m *Manager) Models(ctx context.Context, serverID string) (*ModelList, erro
 		return nil, err
 	}
 	models = withTyped(models, s.Models)
+	m.mu.Lock()
+	local := kind == "llamacpp" || kind == "openai" && m.swaps[s.URL]
+	m.mu.Unlock()
+	if local {
+		for i := range models {
+			models[i].Caps.Local = true
+			models[i].Caps.SystemTurns = systemTurns(models[i].ID)
+		}
+	}
 	sort.SliceStable(models, func(i, j int) bool { return strings.ToLower(models[i].ID) < strings.ToLower(models[j].ID) })
 	return &ModelList{Kind: kind, Models: models}, nil
 }

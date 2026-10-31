@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 
 	"antennae.space/ide/plugins/ai/llm"
@@ -40,8 +41,16 @@ func TestAssistantEffort(t *testing.T) {
 	if e, tool := sent(0); e != "xhigh" || !tool {
 		t.Fatalf("first answer: %s, set_effort offered %v", e, tool)
 	}
-	if e, _ := sent(1); e != "low" {
+	// A local server keeps the effort of the conversation: the change is written after the
+	// result of set_effort (#217).
+	if e, _ := sent(1); e != "xhigh" {
 		t.Fatalf("after set_effort: %s", e)
+	}
+	model.mu.Lock()
+	note, _ := lastMessage(model.requests[1])["content"].(string)
+	model.mu.Unlock()
+	if !strings.Contains(note, "Reasoning effort is set to low.") {
+		t.Fatalf("after set_effort, no effort note: %q", note)
 	}
 	ms := a.call("assistant.open", map[string]any{"id": "e1"})["result"].(map[string]any)["chat"].(map[string]any)["messages"].([]any)
 	if last := ms[len(ms)-1].(map[string]any); last["effort"] != "low" {

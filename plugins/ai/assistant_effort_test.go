@@ -1,6 +1,8 @@
 package ai
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"antennae.space/ide/plugins/ai/engine"
@@ -49,5 +51,59 @@ func TestEffortFor(t *testing.T) {
 	auto := &engine.Chat{Messages: []*engine.Message{user, answer, tool("read_file", "ok")}, Ticket: &engine.TicketLink{ID: 1, Role: "dev", Effort: "auto"}}
 	if got := effortFor(auto, assistant.Options{Effort: "low"}); got != "medium" {
 		t.Fatalf("dynamic effort of a medium ticket: %s", got)
+	}
+}
+
+// A local model keeps the first effort of the conversation; a change is a note after the last
+// message sent, a system turn or text appended to it (#217).
+func TestLocalEffort(t *testing.T) {
+	c := &engine.Chat{Messages: []*engine.Message{{Role: "user", Content: assistant.String("go")}}}
+	if got := localEffort(c, "qwen", "xhigh", false); got != "xhigh" || c.Effort != "xhigh" || c.Messages[0].EffortNote != nil {
+		t.Fatalf("first effort: %s %+v", got, c.Messages[0])
+	}
+	c.Messages = append(c.Messages, &engine.Message{Role: "assistant"}, &engine.Message{Role: "tool", Content: assistant.String("un")})
+	if got := localEffort(c, "qwen", "medium", false); got != "xhigh" || c.Messages[2].EffortNote == nil || c.Messages[2].EffortNote.Level != "medium" {
+		t.Fatalf("a change: %s %+v", got, c.Messages[2])
+	}
+	// The same effort again: no new note.
+	c.Messages = append(c.Messages, &engine.Message{Role: "assistant"}, &engine.Message{Role: "tool", Content: assistant.String("deux")})
+	if localEffort(c, "qwen", "medium", false); c.Messages[4].EffortNote != nil {
+		t.Fatal("note for the effort in force")
+	}
+	// A failed answer set aside is not a carrier.
+	c.Messages = append(c.Messages, &engine.Message{Role: "assistant", Error: "boom"})
+	localEffort(c, "qwen", "xhigh", false)
+	if n := c.Messages[4].EffortNote; n == nil || n.Text != genericEffort["xhigh"] {
+		t.Fatalf("carrier: %+v", c.Messages[4])
+	}
+	out := apiMessages("sys", c.Messages, false)
+	if text := assistant.ContentText(out[5].Content); text != "deux\n\n"+genericEffort["xhigh"] {
+		t.Fatalf("appended: %q", text)
+	}
+
+	// DeepSeek: a system turn after the message, its trained line.
+	d := &engine.Chat{Effort: "xhigh", Messages: []*engine.Message{{Role: "user", Content: assistant.String("go")}, {Role: "assistant"}, {Role: "tool", Content: assistant.String("un")}}}
+	localEffort(d, "DeepSeek-V4.1", "low", true)
+	out = apiMessages("sys", d.Messages, false)
+	if len(out) != 5 || out[4].Role != "system" || !strings.HasPrefix(assistant.ContentText(out[4].Content), "Reasoning Effort: 50 (range 1-100") || assistant.ContentText(out[3].Content) != "un" {
+		t.Fatalf("system turn: %+v", out)
+	}
+}
+
+// The effort note comes after the date and the active file of a message of the user.
+func TestEffortNoteAfterContext(t *testing.T) {
+	m := &engine.Message{Role: "user", Content: assistant.String("go"), ActiveFile: "a.go",
+		EffortNote: &engine.EffortNote{Level: "low", Text: genericEffort["low"]}}
+	out := apiMessages("sys", []*engine.Message{m}, false)
+	if got := assistant.ContentText(out[1].Content); got != "go\n\n(Active file in the editor: a.go.)\n\n"+genericEffort["low"] {
+		t.Fatalf("%q", got)
+	}
+}
+
+func TestAppendTextToParts(t *testing.T) {
+	parts := json.RawMessage(`[{"type":"text","text":"look"},{"type":"image_url","image_url":{"url":"data:x"}}]`)
+	var got []map[string]any
+	if json.Unmarshal(appendText(parts, "note"), &got) != nil || len(got) != 3 || got[2]["text"] != "note" {
+		t.Fatalf("%v", got)
 	}
 }

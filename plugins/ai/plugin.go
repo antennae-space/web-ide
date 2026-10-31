@@ -11,6 +11,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"antennae.space/ide/lib/i18n"
@@ -39,6 +40,9 @@ type A struct {
 	assistants assistants
 	asking     asking
 	agentParts agentParts
+	// modelCache: the models of each server, read again after 30 s (modelInfo); one per
+	// plugin, so that pods (the tests) do not share it.
+	modelCache sync.Map // server → cachedModels
 }
 
 func New() *A {

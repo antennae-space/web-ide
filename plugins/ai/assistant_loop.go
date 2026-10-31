@@ -50,8 +50,6 @@ type modelInfo struct {
 	found   bool
 }
 
-var modelCache sync.Map // server → struct{at time.Time; list *llm.ModelList}
-
 type cachedModels struct {
 	at   time.Time
 	list *llm.ModelList
@@ -59,7 +57,7 @@ type cachedModels struct {
 
 func (s *A) modelInfo(ctx context.Context, server, model string) modelInfo {
 	var list *llm.ModelList
-	if v, ok := modelCache.Load(server); ok && time.Since(v.(cachedModels).at) < 30*time.Second {
+	if v, ok := s.modelCache.Load(server); ok && time.Since(v.(cachedModels).at) < 30*time.Second {
 		list = v.(cachedModels).list
 	} else {
 		c, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -69,7 +67,7 @@ func (s *A) modelInfo(ctx context.Context, server, model string) modelInfo {
 			return modelInfo{}
 		}
 		list = l
-		modelCache.Store(server, cachedModels{time.Now(), l})
+		s.modelCache.Store(server, cachedModels{time.Now(), l})
 	}
 	for _, m := range list.Models {
 		if m.ID == model {
@@ -98,7 +96,8 @@ const summaryPrefix = "Summary of the earlier conversation (automatic compaction
 // before it, so that the server reads only the new ones (its prompt cache stays valid);
 // only a compaction rewrites it. So the reasoning of every answer goes back as it was
 // received (a chat template that does not want the older ones drops them on the server),
-// and the nudge after a stuck answer stays where it was sent, in place of that answer.
+// and the nudge after a stuck answer stays where it was sent, in place of that answer. The
+// effort notes of a local model stay after the message they were written on (#217).
 func apiMessages(system string, msgs []*engine.Message, vision bool) []llm.Message {
 	out := []llm.Message{{Role: "system", Content: assistant.String(system)}}
 	var images []*engine.Message
@@ -123,7 +122,7 @@ func apiMessages(system string, msgs []*engine.Message, vision bool) []llm.Messa
 			images = append(images, m)
 		}
 		if !m.Compacted && m.Stuck && m.Resumed {
-			out = append(out, llm.Message{Role: "user", Content: assistant.String(stuckNudge)})
+			out = append(out, withEffortNote(llm.Message{Role: "user", Content: assistant.String(stuckNudge)}, m.EffortNote)...)
 			continue
 		}
 		if m.Compacted || unsent(m) {
@@ -147,7 +146,7 @@ func apiMessages(system string, msgs []*engine.Message, vision bool) []llm.Messa
 			tc.Function.Name, tc.Function.Arguments = c.Function.Name, c.Function.Arguments
 			msg.ToolCalls = append(msg.ToolCalls, tc)
 		}
-		out = append(out, msg)
+		out = append(out, withEffortNote(msg, m.EffortNote)...)
 	}
 	flush()
 	return out
@@ -178,6 +177,9 @@ func estimateTokens(m *engine.Message) int {
 	}
 	// The reasoning goes back with its answer (apiMessages): counted.
 	chars += len(m.Reasoning)
+	if m.EffortNote != nil {
+		chars += len(m.EffortNote.Text)
+	}
 	return (chars*2+6)/7 + media*800 + 8
 }
 
@@ -261,26 +263,13 @@ func userContent(text string, parts json.RawMessage) json.RawMessage {
 }
 
 // withContext is the content of a message as the model reads it: with the date and the active
-// file it carries at its end (engine.Context), a last line of a text, a last text part.
+// file it carries at its end (engine.Context), a last line of a text, a last text part (an
+// effort note comes after it, withEffortNote).
 func withContext(m *engine.Message) json.RawMessage {
-	note := engine.Context(m)
-	if note == "" {
-		return m.Content
+	if note := engine.Context(m); note != "" {
+		return appendText(m.Content, note)
 	}
-	var text string
-	if json.Unmarshal(m.Content, &text) == nil {
-		if text = strings.TrimRight(text, "\n"); text != "" {
-			note = text + "\n\n" + note
-		}
-		return assistant.String(note)
-	}
-	var list []json.RawMessage
-	if json.Unmarshal(m.Content, &list) != nil {
-		return m.Content
-	}
-	t, _ := json.Marshal(map[string]string{"type": "text", "text": note})
-	data, _ := json.Marshal(append(list, t))
-	return data
+	return m.Content
 }
 
 func displayOf(text, display string, parts json.RawMessage) string {
@@ -574,7 +563,7 @@ func (s *A) loop(r *assistantRun) {
 			tools := boolOr(o.Tools, true) && (!info.found || info.caps.Tools)
 			mode = r.chat.Mode
 			system := s.systemPrompt(r, ref, r.chat, tools)
-			req = llm.ChatRequest{Server: server, Model: model, Messages: apiMessages(system, r.chat.Messages, !info.found || info.caps.Vision)}
+			req = llm.ChatRequest{Server: server, Model: model}
 			if tools {
 				adopted := r.chat.Agent != nil && r.chat.Agent.Adopted
 				req.Tools = append(s.offered(ref.rt, engine.ToolsFor(mode, r.chat.Ticket, r.chat.Parent != "" && !adopted, engine.CanSpawn(r.chat), adopted)), s.pod.AssistantTools(ref.rt)...)
@@ -585,11 +574,17 @@ func (s *A) loop(r *assistantRun) {
 				if think {
 					effort = effortFor(r.chat, o)
 					req.Effort = effort
+					if info.caps.Local {
+						// One effort per conversation, its changes in the history (#217).
+						req.Effort = localEffort(r.chat, model, effort, info.caps.SystemTurns)
+					}
 					if tools && o.EffortTool && dynamicEffort(o) {
 						req.Tools = append(req.Tools, engine.SetEffortDef.JSON)
 					}
 				}
 			}
+			// After the effort: its note may be the last thing sent.
+			req.Messages = apiMessages(system, r.chat.Messages, !info.found || info.caps.Vision)
 			stream = assistant.NewID()
 			r.chat.Running = &engine.Running{Stream: ""}
 			r.state = "running"

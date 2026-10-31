@@ -55,6 +55,20 @@ type Chat struct {
 	// Dismissed: the user abandoned it after an error; it is no longer shown as failed (until
 	// it runs again).
 	Dismissed bool `json:"dismissed,omitempty"`
+	// Effort: the reasoning effort of the requests to a local model, its first value, kept
+	// for the whole conversation: a change is an EffortNote
+	// in the history, so that each request starts with the one before (#217).
+	Effort string `json:"effort,omitempty"`
+}
+
+// EffortNote is a change of the reasoning effort for a local model, written into the history
+// after the message that carries it (the message of the user, the last tool result): a
+// system turn after it, or its text appended to it. Kept as sent, so every later request
+// renders it at the same place.
+type EffortNote struct {
+	Level  string `json:"level"`
+	Text   string `json:"text"`
+	System bool   `json:"system,omitempty"`
 }
 
 // NestedFile is the AGENTS.md (or CLAUDE.md) of a subfolder, read the first time the
@@ -178,6 +192,9 @@ type Message struct {
 	// message carrying them (Stamp); sent to the model at the end of its content, not shown.
 	Date       string `json:"date,omitempty"`
 	ActiveFile string `json:"activeFile,omitempty"`
+	// EffortNote: the effort of the next answers, written after this message for a local
+	// model (not shown: the answers show their effort).
+	EffortNote *EffortNote `json:"effortNote,omitempty"`
 }
 
 type ToolCall struct {
