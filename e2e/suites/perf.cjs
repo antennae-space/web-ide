@@ -32,7 +32,8 @@ const measure = (page, kind, n = 20) =>
 run(async ({ ctx, page }) => {
   await openProject(page)
   // First load of a project window: the JS it downloads until the editor and its tools show
-  // (the page modules of the enabled plugins load after project.open, #124), and the time.
+  // (the page modules of the enabled plugins are asked at the answer of project.open, #124, and
+  // from the list of the last opening, before it answers, #206), and the time.
   const fresh = await ctx.newPage()
   const t1 = Date.now()
   await fresh.goto(page.url())

@@ -6,7 +6,7 @@ import { project, closeProject, reopenProject, panelAliases } from '../state/pro
 import { EditorArea } from '../ui/EditorArea'
 import { StatusBar } from '../ui/StatusBar'
 import { capability } from '../plugins/capabilities'
-import { pluginHosts, refreshPlugins } from '../plugins/registry'
+import { pluginHosts, refreshPlugins, warmPluginModules } from '../plugins/registry'
 import '../ui/uiCalls'
 import { DiagramViewer } from '../ui/DiagramViewer'
 import { openWithAuth, toolPanels, useProjectActions } from './ProjectPage'
@@ -19,7 +19,10 @@ function useProject(id: string, title: (name: string) => string) {
   const [error, setError] = createSignal('')
   onMount(async () => {
     try {
-      await openWithAuth(id)
+      // The project is asked first, then the modules it used at its last opening (#206).
+      const opened = openWithAuth(id)
+      warmPluginModules(id)
+      await opened
       setReady(true)
       document.title = title(project()?.name ?? '')
     } catch (e) {
