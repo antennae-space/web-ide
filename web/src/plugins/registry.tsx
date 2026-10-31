@@ -4,7 +4,7 @@
 // views, commands). While a module loads, its tools and views show a placeholder.
 import { createMemo, createRoot, createSignal, type JSX } from 'solid-js'
 import { on, request } from '../pod/rpc'
-import { loadMark } from '../pod/loadJournal'
+import { loadMark, loadPending } from '../pod/loadJournal'
 import { setPluginActions } from '../keys/bindings'
 import { API_VERSION, makeApi } from './api'
 import { externalModule, bundleBytes } from './external'
@@ -63,13 +63,18 @@ function load(id: string): Promise<PluginModule | undefined> {
   const external = states().find((s) => s.manifest.id === id && s.external?.installed)
   if (external) builtVersion[id] = external.external!.version
   const get = builtins[id] ?? (external ? () => externalModule(external, () => states().find((s) => s.manifest.id === id)) : () => Promise.reject(new Error('no page module')))
+  const held = loading[id]
+  if (held !== undefined) return held
   const t0 = performance.now()
-  return (loading[id] ??= get().then(
+  const asked = loadPending() // the journal prints its table once no module is pending (loadJournal)
+  return (loading[id] = get().then(
     (m) => {
+      asked()
       loadMark('plugin', { id, ms: Math.round(performance.now() - t0), bytes: external ? bundleBytes[id] : chunkBytes(id), bundle: !!external })
       return (modules[id] = m)
     },
     (e) => {
+      asked()
       console.warn('plugin', id, e)
       delete loading[id] // asked again at the next states
       return undefined

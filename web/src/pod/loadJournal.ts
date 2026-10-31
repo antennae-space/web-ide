@@ -125,9 +125,26 @@ function settleBytes(after = 1500) {
   bytesTimer = window.setTimeout(() => void markBytes(), after)
 }
 
-/** The journal, worded in the language of the app now, each line with its time in seconds. */
+// What the load still waits for: the plugin modules it asked for, the questions it asked the pod.
+// `loadPending` counts a request as it leaves and is released when its answer lands (or fails);
+// the table of the journal is printed once the settle finds nothing pending — one table at the end
+// of a slow load, not one per measure of the bytes.
+let pending = 0
+let printed = false
+export function loadPending(): () => void {
+  pending++
+  return () => {
+    if (pending > 0) pending--
+    settleBytes() // a request that failed settles the journal too
+  }
+}
+
+/** The journal, worded in the language of the app now, each line with its time in seconds, in the
+ * order the phases happened — the summary of the load last, wherever its measure landed. */
 export function loadJournalText() {
-  return lines.map((e) => (e.at / 1000).toFixed(2).padStart(6) + '  ' + text(e.step, e.detail)).join('\n')
+  const order = [...lines].sort((a, b) => a.at - b.at)
+  order.sort((a, b) => Number(a.step === 'bytes') - Number(b.step === 'bytes')) // stable: the times keep their order
+  return order.map((e) => (e.at / 1000).toFixed(2).padStart(6) + '  ' + text(e.step, e.detail)).join('\n')
 }
 
 Object.defineProperty(window, 'loadJournal', { get: loadJournalText })
@@ -160,5 +177,10 @@ export async function markBytes() {
   else lines.push(line)
   seen.add('bytes')
   traceBoot('bytes', detail)
-  console.info(loadJournalText())
+  // The table once, when the load has nothing pending any more: a late module re-arms the settle
+  // and the journal stays live in Settings, but the console is not filled again.
+  if (!printed && pending === 0) {
+    printed = true
+    console.info(loadJournalText())
+  }
 }

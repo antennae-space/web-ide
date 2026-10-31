@@ -3,7 +3,7 @@ import { createEffect, createRoot, createSignal, For, type JSX, on as track, onC
 import { createMutable } from 'solid-js/store'
 import { Dynamic } from 'solid-js/web'
 import { RpcError, formatRate, on as onPod, podRates, podState } from '../pod/rpc'
-import { loadMark, loadRetry } from '../pod/loadJournal'
+import { loadMark, loadPending, loadRetry } from '../pod/loadJournal'
 import {
   activeLeaf, activeTab, closeTab, conflictedDocs, cycleTab, docsVersion, home, mutate, navigate as navHistory, openProject, reopenProject,
   openFile, closeEmptyPane, saveAll, session, setConflictOpener, setSize, sizesFor, splitPane, closeProject, moveTabToDesk, switchDesk,
@@ -743,7 +743,17 @@ export function ProjectPage(props: { id: string }) {
       // (its plugins asked one by one) must not hold the page nor its journal. Their line comes
       // when the pod answers, after the project is ready.
       const qAt = performance.now()
-      const asked = resetQuestions().then(() => loadMark('questions', { ms: Math.round(performance.now() - qAt) }))
+      const settled = loadPending() // the questions hold the table of the journal until the pod answers
+      const asked = resetQuestions().then(
+        () => {
+          settled()
+          loadMark('questions', { ms: Math.round(performance.now() - qAt) })
+        },
+        (e) => {
+          settled()
+          throw e
+        },
+      )
       // A push notification of a question of an agent: /project/<id>?questions shows the first one.
       if (new URLSearchParams(location.search).has('questions')) {
         history.replaceState(null, '', location.pathname)

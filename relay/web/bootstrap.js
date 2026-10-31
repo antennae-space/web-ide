@@ -394,7 +394,11 @@ function drawTrace() {
 // access of the app (its 'journal' message).
 Object.defineProperty(window, 'bootJournal', { get: () => journalText() })
 function journalText() {
-  return journal.map((e) => (e.at / 1000).toFixed(2).padStart(6) + '  ' + e.line).join('\n')
+  // In the order the events happened, the summary of the load last: it is measured again when a
+  // late module lands, and its line keeps the place of the first measure (#204).
+  const order = [...journal].sort((a, b) => a.at - b.at)
+  order.sort((a, b) => Number(a.step === 'bytes') - Number(b.step === 'bytes'))
+  return order.map((e) => (e.at / 1000).toFixed(2).padStart(6) + '  ' + e.line).join('\n')
 }
 // A phase of the load the app reports: its words here, its numbers there (no text nor path of a
 // file crosses the boundary, #204).
