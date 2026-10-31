@@ -169,6 +169,80 @@ run(async ({ page, ctx }) => {
   await page.waitForSelector('.tab:has-text("feature.txt") [data-testid=worktree-chip]', { timeout: 5000 })
   assert(await page.isVisible('.tab:has-text("main.txt")'), 'tabs of both worktrees restored')
 
+  // Two attached worktrees: a reload restores both, in the order of the session.
+  git('branch second')
+  await page.click('[data-testid=branch-selector]')
+  await page.waitForSelector('.pick-item:has-text("Open a branch")')
+  await page.click('.pick-item:has-text("Open a branch")')
+  await page.waitForSelector('.pick-item:has-text("second")')
+  await page.click('.pick-item:has-text("second")')
+  await page.waitForFunction(() => document.querySelector('[data-testid=branch-selector]')?.textContent.includes('second'), null, { timeout: 8000 })
+  const wt2 = WS + '/demo/.ide/worktrees/b-second'
+  fs.writeFileSync(wt2 + '/second.txt', 'second\n')
+  if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
+  await page.waitForSelector(`.explorer .tree-row[data-path="${wt2}/second.txt"]`, { timeout: 5000 })
+  await page.dblclick(`.explorer .tree-row[data-path="${wt2}/second.txt"]`)
+  await page.waitForSelector('.tab:has-text("second.txt") [data-testid=worktree-chip]')
+  await page.waitForTimeout(1200) // the session is pushed after 400 ms and written after 500 ms
+  const projectId = decodeURIComponent(new URL(page.url()).pathname.split('/project/')[1].split('/')[0])
+  const projects = JSON.parse(fs.readFileSync(`${process.env.E2E_DATA}/projects.json`, 'utf8'))
+  const idOf = (p) => projects.find((x) => x.path === p)?.id
+  const featureId = idOf(wt)
+  const secondId = idOf(wt2)
+  assert(featureId && secondId, 'both worktrees registered')
+  const stateFile = `${process.env.E2E_DATA}/desks/${projectId}.json`
+  const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
+  assert(JSON.stringify(state.attached) === JSON.stringify([featureId, secondId]), 'both worktrees attached in the session order: ' + JSON.stringify(state.attached))
+
+  await page.reload()
+  await page.waitForSelector('.menubar', { timeout: 10000 })
+  await page.waitForFunction(() => document.querySelector('[data-testid=branch-selector]')?.textContent.includes('second'), null, { timeout: 8000 }).catch(() => {})
+  assert((await page.textContent('[data-testid=branch-selector]')).includes('second'), 'the second worktree is shown again')
+  await page.waitForSelector('.tab:has-text("second.txt") [data-testid=worktree-chip]', { timeout: 8000 })
+  assert(await page.isVisible('.tab:has-text("feature.txt")') && await page.isVisible('.tab:has-text("main.txt")'), 'tabs of the three worktrees restored')
+  const state2 = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
+  assert(JSON.stringify(state2.attached) === JSON.stringify([featureId, secondId]), 'the session order is kept after the reload: ' + JSON.stringify(state2.attached))
+
+  // A worktree removed between two opens is dropped, without blocking the opening: the window
+  // is closed while the pod removes it, so no project.closed event reaches an open window.
+  const projectUrl = page.url()
+  await page.close()
+  const admin = await ctx.newPage()
+  const homeUrl = new URL(projectUrl)
+  homeUrl.pathname = '/'
+  await admin.goto(homeUrl.href)
+  await admin.waitForSelector('.home .home-bar')
+  const removed = await admin.evaluate(async ({ homeId, worktree }) => {
+    return new Promise((resolve) => {
+      const ws = new WebSocket(`ws://${location.host}/ws`)
+      const timer = setTimeout(() => { ws.close(); resolve({ error: 'timeout' }) }, 8000)
+      ws.onopen = () => ws.send(JSON.stringify({ id: 1, method: 'project.open', params: { id: homeId, desk: 1 } }))
+      ws.onmessage = (e) => {
+        const m = JSON.parse(e.data)
+        if (m.error && m.id) { clearTimeout(timer); ws.close(); resolve(m); return }
+        if (m.id === 1) ws.send(JSON.stringify({ id: 2, method: 'worktrees.remove', params: { path: worktree, force: true } }))
+        else if (m.id === 2) { clearTimeout(timer); ws.close(); resolve(m) }
+      }
+      ws.onerror = () => { clearTimeout(timer); resolve({ error: 'websocket' }) }
+    })
+  }, { homeId: projectId, worktree: wt2 })
+  assert(removed.result !== undefined, 'the worktree is removed by the pod: ' + JSON.stringify(removed).slice(0, 300))
+  await admin.close()
+  page = await ctx.newPage()
+  await page.goto(projectUrl)
+  await page.waitForSelector('.menubar', { timeout: 10000 })
+  await page.waitForTimeout(1200) // the drop is pushed after 400 ms and written after 500 ms
+  const state3 = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
+  assert(!state3.attached.includes(secondId) && state3.attached.includes(featureId), 'only the gone worktree is dropped: ' + JSON.stringify(state3.attached))
+  assert(await page.isVisible('.tab:has-text("feature.txt")'), 'the remaining worktree stays restored')
+  assert((await page.textContent('[data-testid=branch-selector]')).includes('main'), 'the window is back on the main folder')
+  // The remaining worktree is shown again, as the rest of the suite expects.
+  await page.click('[data-testid=branch-selector]')
+  await page.waitForSelector('.pick-item:has-text("feature")')
+  await page.click('.pick-item:has-text("feature")')
+  await page.waitForFunction(() => document.querySelector('[data-testid=branch-selector]')?.textContent.includes('feature'), null, { timeout: 8000 })
+  await page.waitForTimeout(600)
+
   // A worktree may still open in its own window.
   await page.click('[data-testid=branch-selector]')
   await page.click('.pick-item:has-text("Open in a new window")')

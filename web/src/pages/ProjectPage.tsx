@@ -733,11 +733,15 @@ export function ProjectPage(props: { id: string }) {
         void whenProvided('assistant').then((a) => a.openChat(chatId)).catch(() => {})
       }
       // A push notification of a question of an agent: /project/<id>?questions shows the first one.
-      await resetQuestions()
+      // Everywhere else the questions load in the background: they do not hold the opening, and
+      // the questions already waiting do not pop up (resetQuestions keeps `first` until its refresh).
       if (new URLSearchParams(location.search).has('questions')) {
+        await resetQuestions()
         history.replaceState(null, '', location.pathname)
         mutate((s) => showTool(s, 'questions'))
         showQuestion()
+      } else {
+        void resetQuestions()
       }
       // Opened from a file link of Claude Code while no window had the project.
       const open = new URLSearchParams(location.search).get('open')
