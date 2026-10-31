@@ -117,7 +117,7 @@ A feedback leaves the ticket in *To test*; while one is open, the ticket and its
 - `correction` (Build mode, in the worktree): handles one test feedback (`feedback`, started from it, which records the conversation) or the open ones, and marks each one handled;
 - `resolve`: resolves the conflicts of a rebase (worktree) or a merge (main folder).
 
-The system prompt receives the ticket as it is now and the instructions of the role.
+The system prompt receives the instructions of the role, not the ticket: the model reads it with `kanban_get` (first thing, and again when it needs its current state), so that the system prompt stays the same while the ticket changes. Without tools, the ticket as it is now follows the instructions.
 
 ## Steering the day: the Orchestrator mode
 

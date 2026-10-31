@@ -136,7 +136,7 @@ func apiMessages(system string, msgs []*engine.Message, vision bool) []llm.Messa
 		case m.Kind == "summary":
 			msg.Content = assistant.String(summaryPrefix + assistant.ContentText(m.Content))
 		case len(m.Content) > 0:
-			msg.Content = m.Content
+			msg.Content = withContext(m)
 		case m.Role != "assistant":
 			msg.Content = assistant.String("")
 		}
@@ -238,10 +238,10 @@ func drainQueue(c *engine.Chat) bool {
 	}
 	for _, q := range c.Queue {
 		if q.Event != nil {
-			c.Messages = append(c.Messages, &engine.Message{Role: "user", Kind: "agent_event", Content: assistant.String(q.Text), Event: q.Event})
+			c.AddUser(&engine.Message{Role: "user", Kind: "agent_event", Content: assistant.String(q.Text), Event: q.Event})
 			continue
 		}
-		c.Messages = append(c.Messages, &engine.Message{Role: "user", Content: userContent(q.Text, q.Parts), Display: displayOf(q.Text, q.Display, q.Parts), Attachments: q.Attachments, Author: q.Author})
+		c.AddUser(&engine.Message{Role: "user", Content: userContent(q.Text, q.Parts), Display: displayOf(q.Text, q.Display, q.Parts), Attachments: q.Attachments, Author: q.Author})
 	}
 	c.Queue = nil
 	return true
@@ -259,6 +259,29 @@ func userContent(text string, parts json.RawMessage) json.RawMessage {
 		list = append([]json.RawMessage{t}, list...)
 	}
 	data, _ := json.Marshal(list)
+	return data
+}
+
+// withContext is the content of a message as the model reads it: with the date and the active
+// file it carries at its end (engine.Context), a last line of a text, a last text part.
+func withContext(m *engine.Message) json.RawMessage {
+	note := engine.Context(m)
+	if note == "" {
+		return m.Content
+	}
+	var text string
+	if json.Unmarshal(m.Content, &text) == nil {
+		if text = strings.TrimRight(text, "\n"); text != "" {
+			note = text + "\n\n" + note
+		}
+		return assistant.String(note)
+	}
+	var list []json.RawMessage
+	if json.Unmarshal(m.Content, &list) != nil {
+		return m.Content
+	}
+	t, _ := json.Marshal(map[string]string{"type": "text", "text": note})
+	data, _ := json.Marshal(append(list, t))
 	return data
 }
 
@@ -415,7 +438,7 @@ func (s *A) systemPrompt(r *assistantRun, ref *runtimeRef, c *engine.Chat, tools
 			}
 		}
 	}
-	vars := engine.PromptVars{Root: ref.rt.Root, ActiveFile: opt(c).ActiveFile}
+	vars := engine.PromptVars{Root: ref.rt.Root}
 	if ref.project != nil {
 		vars.Project = ref.project.Name()
 		if ref.project.SSH != nil {
@@ -424,7 +447,7 @@ func (s *A) systemPrompt(r *assistantRun, ref *runtimeRef, c *engine.Chat, tools
 	}
 	ticket := ""
 	if c.Ticket != nil {
-		ticket = s.ticketPrompt(r, c.Ticket)
+		ticket = s.ticketPrompt(r, c.Ticket, tools)
 	}
 	mode := c.Mode
 	if mode == "" {

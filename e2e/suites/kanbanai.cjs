@@ -2,7 +2,7 @@
 // kanban_create / kanban_list from any conversation, writing tools only when linked,
 // Briefing mode (tickets created and linked to the conversation).
 const http = require('http')
-const { run, openProject, assert, unfold, OUT, WS, installOfficial, acceptConfirms, inFrames } = require('../common.cjs')
+const { run, openProject, assert, unfold, OUT, WS, installOfficial, acceptConfirms, inFrames, dropNotes } = require('../common.cjs')
 
 const requests = []
 const sse = (res, delta) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`)
@@ -24,7 +24,7 @@ const fake = http.createServer(async (req, res) => {
   if (req.url.startsWith('/props')) return res.end(JSON.stringify(req.url === '/props' ? { role: 'router' } : { default_generation_settings: { n_ctx: 32768 } }))
   let body = ''
   for await (const c of req) body += c
-  const r = JSON.parse(body)
+  const r = dropNotes(JSON.parse(body))
   res.writeHead(200, { 'Content-Type': 'text/event-stream' })
   requests.push(r)
   const msgs = r.messages
@@ -68,9 +68,12 @@ const fake = http.createServer(async (req, res) => {
     sse(res, { content: 'Tickets written.' })
     return end(res)
   }
+  // The ticket is not in the system prompt (#216): the model reads it with kanban_get.
+  const ticketId = Number(/kanban_get \(id (\d+)\)/.exec(msgs[0].content)?.[1])
   if (firstUser.startsWith('Develop ticket')) {
-    const ids = [...msgs[0].content.matchAll(/\(id (\d+)\)/g)].map((m) => Number(m[1]))
-    if (last.role === 'user')
+    if (last.role === 'user') return sse(res, { tool_calls: calls([['g0', 'kanban_get', { id: ticketId }]]) }), end(res, 'tool_calls')
+    const ids = [...text(msgs.find((m) => m.tool_call_id === 'g0')).matchAll(/\(id (\d+)\)/g)].map((m) => Number(m[1]))
+    if (last.tool_call_id === 'g0')
       return (
         sse(res, {
           tool_calls: calls([
@@ -92,8 +95,9 @@ const fake = http.createServer(async (req, res) => {
     return end(res)
   }
   if (firstUser.startsWith('Handle this test feedback')) {
-    const id = Number(/\(id (\d+), Bug/.exec(msgs[0].content)?.[1])
-    if (last.role === 'user') return sse(res, { tool_calls: calls([['f1', 'kanban_feedback', { action: 'done', id }]]) }), end(res, 'tool_calls')
+    if (last.role === 'user') return sse(res, { tool_calls: calls([['g0', 'kanban_get', { id: ticketId }]]) }), end(res, 'tool_calls')
+    const id = Number(/\(id (\d+), Bug/.exec(text(msgs.find((m) => m.tool_call_id === 'g0')))?.[1])
+    if (last.tool_call_id === 'g0') return sse(res, { tool_calls: calls([['f1', 'kanban_feedback', { action: 'done', id }]]) }), end(res, 'tool_calls')
     sse(res, { content: 'Feedback handled.' })
     return end(res)
   }
@@ -302,7 +306,7 @@ run(async ({ page }) => {
     assert((await kp.$eval('[data-testid=ticket-size]', (e) => e.value)) === 'l', 'the plan of the model sets the size of the ticket')
     const rp = requests[before]
     const sys = rp.messages[0].content
-    assert(sys.includes('Ticket linked to this conversation') && sys.includes('implementation plan') && sys.includes('# Ticket #1 · Export JSON'), 'prompt of the Plan role with the ticket')
+    assert(sys.includes('Ticket linked to this conversation') && sys.includes('implementation plan') && sys.includes('kanban_get (id 1)') && !sys.includes('# Ticket #1 · Export JSON'), 'prompt of the Plan role, the ticket read with kanban_get (#216)')
     const pn = toolNames(rp)
     assert(pn.includes('kanban_set_plan') && pn.includes('kanban_feedback') && !pn.includes('exit_plan_mode'), 'tools of the ticket plan: ' + pn.join(','))
     assert(await kp.isVisible('[data-testid=ai-ticket]:has-text("#1")'), 'ticket bar in the assistant')

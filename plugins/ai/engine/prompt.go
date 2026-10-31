@@ -44,8 +44,6 @@ type PromptVars struct {
 	Root    string
 	// Host: the SSH host of a remote project ("" for a local one).
 	Host string
-	// ActiveFile: relative path of the file shown in the editor ("" when none).
-	ActiveFile string
 }
 
 var placeholder = regexp.MustCompile(`\{\{(\w+)\}\}`)
@@ -53,20 +51,23 @@ var blankLines = regexp.MustCompile(`\n{3,}`)
 
 // SystemPrompt is the final system prompt: the template of the mode with its placeholders,
 // the instruction files, the ticket linked to the conversation, and the skills.
+//
+// It stays the same from one request to the next of a conversation (apart from a change of
+// mode or a compaction), so that a server keeps its prompt cache: what changes during a
+// conversation (the date, the active file) comes with the messages of the user (Stamp), the
+// ticket is read with kanban_get. {{activeFile}} and {{date}} are kept empty for the
+// templates of the user that still have them.
 func SystemPrompt(c *llm.Context, v PromptVars, tools bool, mode, ticket string) string {
 	vars := map[string]string{
 		"project":    v.Project,
 		"root":       v.Root,
 		"host":       "",
 		"activeFile": "",
-		"date":       time.Now().Format("Monday, January 2, 2006"),
+		"date":       "",
 		"tools":      "",
 	}
 	if v.Host != "" {
 		vars["host"] = " on the SSH host " + v.Host
-	}
-	if v.ActiveFile != "" {
-		vars["activeFile"] = "Active file in the editor: " + v.ActiveFile + "."
 	}
 	if tools {
 		vars["tools"] = toolsTexts[mode]
@@ -116,7 +117,9 @@ func SystemPrompt(c *llm.Context, v PromptVars, tools bool, mode, ticket string)
 var homePath = regexp.MustCompile(`^/home/[^/]+`)
 
 // TicketPrompt is the part of the system prompt about the ticket linked to a conversation:
-// what its role must do, then the ticket as the model reads it.
+// what its role must do, then the ticket as the model reads it. Without the Markdown (the
+// assistant with its tools: the ticket changes during the conversation, the system prompt
+// must not), the model reads the ticket with kanban_get.
 func TicketPrompt(id int64, role, branch string, parent, feedback int64, markdown string) string {
 	b := ""
 	if branch != "" {
@@ -130,9 +133,68 @@ func TicketPrompt(id int64, role, branch string, parent, feedback int64, markdow
 		fb = "the feedback with id " + itoa(feedback)
 	}
 	r := strings.NewReplacer("{{branch}}", b, "{{feedback}}", fb, "{{id}}", itoa(id)).Replace(RoleInstructions[role])
-	return "# Ticket linked to this conversation\nThis conversation works on ticket #" + itoa(id) +
-		" of the kanban of the project. The tools kanban_update, kanban_add_note, kanban_set_plan, kanban_goal, kanban_feedback and kanban_move act on this ticket.\n\n" +
-		r + "\n\n" + markdown
+	text := "# Ticket linked to this conversation\nThis conversation works on ticket #" + itoa(id) +
+		" of the kanban of the project. The tools kanban_update, kanban_add_note, kanban_set_plan, kanban_goal, kanban_feedback and kanban_move act on this ticket.\n\n" + r
+	if markdown == "" {
+		return text + "\n\nRead the ticket with kanban_get (id " + itoa(id) + ") before you start: its description, notes, plan, goals and test feedback. It changes during the conversation (your changes, the user's): read it again when you need its current state."
+	}
+	return text + "\n\n" + markdown
+}
+
+// Now is the clock of the dates noted on the messages (tests set it).
+var Now = time.Now
+
+// contextText tells the model how the messages of the user carry the date and the active file.
+const contextText = `A message of the user may end with a note in parentheses: the date, and the file active in the editor ("this file"). Each is noted again only when it changed.`
+
+// AddUser appends a message of the user to the conversation, stamped (Stamp).
+func (c *Chat) AddUser(m *Message) {
+	Stamp(c, m)
+	c.Messages = append(c.Messages, m)
+}
+
+// Stamp notes on a message of the user entering the conversation the date and the file active
+// in the editor (Options.ActiveFile, relative to the root), each when it differs from the last
+// one carried by a message still sent (a compacted one no longer counts): the system prompt
+// stays the same, these come with the messages (Context).
+func Stamp(c *Chat, m *Message) {
+	activeFile := ""
+	if c.Options != nil {
+		activeFile = c.Options.ActiveFile
+	}
+	date, file := "", ""
+	for _, p := range c.Messages {
+		if p.Role == "user" && !p.Compacted {
+			if p.Date != "" {
+				date = p.Date
+			}
+			if p.ActiveFile != "" {
+				file = p.ActiveFile
+			}
+		}
+	}
+	if d := Now().Format("Monday, January 2, 2006"); d != date {
+		m.Date = d
+	}
+	if activeFile != "" && activeFile != file {
+		m.ActiveFile = activeFile
+	}
+}
+
+// Context is the note added to the content sent to the model of a message carrying a date or
+// an active file ("" for none).
+func Context(m *Message) string {
+	var parts []string
+	if m.Date != "" {
+		parts = append(parts, "Date: "+m.Date+".")
+	}
+	if m.ActiveFile != "" {
+		parts = append(parts, "Active file in the editor: "+m.ActiveFile+".")
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "(" + strings.Join(parts, " ") + ")"
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }

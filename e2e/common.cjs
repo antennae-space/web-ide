@@ -43,6 +43,19 @@ exports.start = async (opts = {}) => {
 }
 
 /** Opens the demo project from the home page. */
+/** The note of the date and the active file the pod adds at the end of a message of the user
+ *  (#216, engine.Context), and a request of a fake model without it: the suites match the
+ *  texts typed. */
+exports.contextNote = /(^|\n\n)\((Date|Active file in the editor): [^\n]*\)$/
+exports.dropNotes = (r) => {
+  for (const m of r.messages ?? []) {
+    if (m.role !== 'user') continue
+    if (typeof m.content === 'string') m.content = m.content.replace(exports.contextNote, '')
+    else if (Array.isArray(m.content) && m.content.length && exports.contextNote.test(m.content[m.content.length - 1].text ?? '')) m.content = m.content.slice(0, -1)
+  }
+  return r
+}
+
 exports.openProject = async (page) => {
   await page.waitForSelector('.home .home-bar')
   await page.waitForFunction(() => document.querySelector('.project-list .project-card, .ws-dir'))

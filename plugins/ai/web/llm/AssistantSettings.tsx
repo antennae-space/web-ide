@@ -98,7 +98,7 @@ export function PromptSettings() {
       </div>
       <textarea class="ai-prompt-edit mono" rows="12" value={text()} onInput={(e) => edit(e.currentTarget.value)} placeholder={`${scope() === 'project' ? t('Empty: global prompt, else default prompt.') : t('Empty: default prompt.')}\n\n${defaultText()}`} name="systemPrompt" />
       <p class="muted small">
-        {t('Variables:')} <code>{'{{project}}'}</code> <code>{'{{root}}'}</code> <code>{'{{host}}'}</code> <code>{'{{activeFile}}'}</code> <code>{'{{date}}'}</code> <code>{'{{tools}}'}</code> {t('(description of the tools, empty when they are off).')}
+        {t('Variables:')} <code>{'{{project}}'}</code> <code>{'{{root}}'}</code> <code>{'{{host}}'}</code> <code>{'{{tools}}'}</code> {t('(description of the tools, empty when they are off).')}
       </p>
       <div class="form-actions">
         <button type="button" class="btn" onClick={() =>

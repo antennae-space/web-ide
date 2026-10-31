@@ -5,7 +5,7 @@
 const fs = require('fs')
 const http = require('http')
 const { execFileSync } = require('child_process')
-const { run, openProject, assert, WS, OUT, composerText } = require('../../../e2e/common.cjs')
+const { run, openProject, assert, WS, OUT, composerText, dropNotes } = require('../../../e2e/common.cjs')
 
 const demo = WS + '/demo'
 const data = WS + '/../data'
@@ -36,6 +36,8 @@ function end(res, reason, usage) {
 const calls = (list) => list.map(([id, name, args], index) => ({ index, id, type: 'function', function: { name, arguments: JSON.stringify(args) } }))
 const text = (m) => (typeof m.content === 'string' ? m.content : (m.content ?? []).map((p) => p.text ?? '').join(' '))
 
+// The first message of the user of each request as sent, with the note of the date (#216).
+const firstUsers = []
 const fake = http.createServer(async (req, res) => {
   if (req.url === '/api/version') return res.writeHead(404).end()
   if (req.url === '/v1/models')
@@ -44,7 +46,9 @@ const fake = http.createServer(async (req, res) => {
   if (req.url.startsWith('/props?')) return res.end(JSON.stringify({ chat_template_caps: { supports_tools: true }, default_generation_settings: { n_ctx: 8192 } }))
   let body = ''
   for await (const c of req) body += c
-  const r = JSON.parse(body)
+  const raw = JSON.parse(body)
+  firstUsers.push(text(raw.messages.find((m) => m.role === 'user') ?? {}))
+  const r = dropNotes(raw)
   res.writeHead(200, { 'Content-Type': 'text/event-stream' })
   if (text(r.messages[0]).startsWith('You summarize')) {
     summaries.push(r)
@@ -166,6 +170,10 @@ run(async ({ page }) => {
     await ask(page, 'Hello', 'Answer of fake-model.')
     const sys = requests[0].messages[0].content
     assert(sys.includes('Open project: "demo"') && sys.includes('read_file'), 'default prompt with the variables replaced')
+    // The system prompt stays the same during a conversation: the date and the active file
+    // come at the end of the message of the user, not shown in its bubble (#216).
+    assert(!sys.includes('Active file in the editor') && /^Hello\n\n\(Date: \w+day, \w+ \d+, \d{4}\.( Active file in the editor: [^)]+\.)?\)$/.test(firstUsers[0]), 'the date at the end of the first message: ' + JSON.stringify(firstUsers[0]))
+    assert((await page.textContent('.ai-msg.user')).trim() === 'Hello', 'the bubble shows the message typed only')
     assert(sys.includes('Global instruction: answer politely.') && sys.includes('Instruction of the IDE') && sys.includes('Project rule') && sys.includes('Imported rule'), 'global CLAUDE.md, AGENTS.md of ~/.web-ide, project file and @ import in the prompt')
     assert(sys.includes('- greet: Greet') && sys.includes('- deploy: Deploy') && !sys.includes('Good day to you'), 'skills listed without their content')
     assert(await page.isVisible('.ai-usage:has-text("fake-model")'), 'model shown under the answer')

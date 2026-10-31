@@ -177,7 +177,7 @@ func (s *A) reply(loc llm.ChatLocation, root, project, lang, id, text string) (s
 		return "", fmt.Errorf("this conversation has no model yet: the user must send its first message")
 	}
 	from := minFrom(len(chat.Messages), skipQuestions(chat))
-	chat.Messages = append(chat.Messages, &engine.Message{Role: "user", Content: assistant.String(text), Display: text, Author: assistant.AuthorClaude})
+	chat.AddUser(&engine.Message{Role: "user", Content: assistant.String(text), Display: text, Author: assistant.AuthorClaude})
 	if !s.startRun(loc, root, project, lang, chat, from) {
 		return "", fmt.Errorf("the conversation started meanwhile: send your message again")
 	}
