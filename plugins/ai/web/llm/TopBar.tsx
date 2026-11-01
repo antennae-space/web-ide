@@ -1,6 +1,6 @@
 // Bar of the Assistant, on top of the message box, on every conversation: the time it spent
 // generating (with its children), the consoles it started that still run, its parent, its
-// children, then on the right its ticket and the role of the conversation on it. Each part
+// children, the daily quota of the account (QuotaPart.tsx), then on the right its ticket and the role of the conversation on it. Each part
 // hides when it has nothing, except the time. Narrow: they collapse to an icon and a number.
 import { createEffect, Show } from 'solid-js'
 import { chat, chatList, live, setChat, shells, type ChatInfo } from './state'
@@ -9,6 +9,7 @@ import { agentLabels, agentStatus } from './SubAgents'
 import { clock } from './Stats'
 import { fmtCost } from '../agents/stats'
 import { showSide } from './board/pages'
+import { QuotaPart } from './QuotaPart'
 import { capability, contextMenu, errorToast, Icon, pick, request, t } from '../plugin'
 import type { TicketRole, TicketsService } from '../plugin'
 
@@ -192,6 +193,7 @@ export function TopBar(props: { narrow: () => boolean }) {
         <ParentPart narrow={props.narrow} />
       </Show>
       <ChildrenPart />
+      <QuotaPart narrow={props.narrow} />
       <span class="grow" />
       <TicketPart />
       <RolePart />

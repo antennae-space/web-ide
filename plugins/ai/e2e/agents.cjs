@@ -4,7 +4,11 @@
 // a config option; Stop; the agent killed is restarted and its session
 // loaded; the tabs are those of the desk (#199): closing one hides the session, another desk
 // shows none, Other sessions opens it again, Stop ends it; the thread follows its end. Work time and cost: on the tab, the project, and
-// the ticket of a session run in its worktree.
+// the ticket of a session run in its worktree. The daily quota of a Claude subscription (a fake
+// usage endpoint) in the bar.
+const fs = require('fs')
+const http = require('http')
+const path = require('path')
 const { execSync } = require('child_process')
 const { run, openProject, assert, mcp, OUT, WS, installOfficial, inFrames } = require('../../../e2e/common.cjs')
 
@@ -27,7 +31,24 @@ async function prompt(page, text) {
 // A 1×1 PNG.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
 
+/** The usage endpoint of Claude's OAuth (WEBIDE_QUOTA_URL, run.sh) and the token of Claude
+ *  Code in the home of the pod: 3.5 days into the week, 80 % of it used (ahead of the pace). */
+function fakeQuota() {
+  const home = path.join(process.env.E2E_TMP, 'home', '.claude')
+  fs.mkdirSync(home, { recursive: true })
+  fs.writeFileSync(path.join(home, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'e2e-token' } }))
+  const at = (h) => new Date(Date.now() + h * 3600e3).toISOString()
+  const srv = http.createServer((req, res) => {
+    const ok = req.headers.authorization === 'Bearer e2e-token' && req.headers['anthropic-beta'] === 'oauth-2025-04-20'
+    res.writeHead(ok ? 200 : 401, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ five_hour: { utilization: 30, resets_at: at(2) }, seven_day: { utilization: 80, resets_at: at(84) }, seven_day_opus: null }))
+  })
+  srv.listen(Number(process.env.E2E_QUOTA_PORT), '127.0.0.1')
+  srv.unref()
+}
+
 run(async ({ page }) => {
+  fakeQuota()
   // The Kanban is an external official plugin (#158).
   await installOfficial('kanban')
   await openProject(page)
@@ -72,6 +93,13 @@ run(async ({ page }) => {
   const barTip = await page.getAttribute('[data-testid=agent-gentime]', 'title')
   assert(/1 turns?, /.test(barTip) && barTip.includes('(API equivalent)'), 'the tooltip of the bar details the turns and the API equivalent: ' + barTip)
   assert(!(await page.$('[data-testid=agent-topbar] [data-testid=ai-ticket]')), 'no ticket in the bar outside a ticket worktree')
+  // The daily quota of the subscription: ahead of the pace, red; the panel is narrow (300 px):
+  // the day only, the windows and their resets in the tooltip.
+  await page.waitForSelector('[data-testid=agent-topbar] [data-testid=ai-quota-day].q-over')
+  const day = (await page.textContent('[data-testid=ai-quota-day]')).trim()
+  assert(/^-\d+%$/.test(day) && !(await page.$('[data-testid=ai-quota-5h]')), 'the rest of the day, negative: ' + day)
+  const qTip = await page.getAttribute('[data-testid=agent-topbar] [data-testid=ai-quota]', 'title')
+  assert(/share left: -\d+%/.test(qTip) && qTip.includes('5 hours: 30% used, reset') && qTip.includes('Week: 80% used, reset') && qTip.includes('Claude subscription'), 'the windows in the tooltip: ' + qTip)
   await page.screenshot({ path: OUT + '/agents-turn.png' })
 
   // A permission: a card in the thread, the tab waits for the user.

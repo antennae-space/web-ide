@@ -34,6 +34,8 @@ type Deps struct {
 	// Command overrides the command line of an agent (tests).
 	Command func(agent string) ([]string, error)
 	Emit    func(event string, data any)
+	// OnTurn: a turn ended (the daily quota is read again).
+	OnTurn  func()
 	Version string
 	// MCP are the MCP servers given to the sessions (the one of the IDE), to the agents that
 	// support them over HTTP.

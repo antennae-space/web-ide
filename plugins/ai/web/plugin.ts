@@ -48,6 +48,8 @@ export const openTextTab: PluginApi['openText'] = (...a) => api.openText(...a)
 export const phone = () => api.tiles.phone()
 export const tabSize = () => api.theme.tabSize()
 export const pluginAssistantOptions = () => api.plugins.assistantOptions()
+/** The values of the plugin's settings (its manifest's contributes.settings). */
+export const settingValues = () => api.settings.values()
 
 // The editor kit, the keymap.
 export const registerAction = bind(() => api.keys.register)

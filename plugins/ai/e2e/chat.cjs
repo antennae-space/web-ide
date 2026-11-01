@@ -3,8 +3,10 @@
 // kept), scroll at the end after a reload, reload during an answer (the page attaches to
 // the completion still running in the pod) and during a tool (the pod runs the agent: the
 // tool goes on), windows following the same conversation; each desk shows its own conversation
-// (#199), after a reload too.
+// (#199), after a reload too; the daily quota of a budget in the bar.
+const fs = require('fs')
 const http = require('http')
+const path = require('path')
 const { run, openProject, assert, OUT, composerText, dropNotes } = require('../../../e2e/common.cjs')
 
 const requests = []
@@ -121,6 +123,36 @@ run(async ({ page, ctx }) => {
     assert(!(await page.$('[data-testid=ai-ticket]')) && !(await page.$('[data-testid=ai-parent]')) && !(await page.$('[data-testid=ai-children]')), 'nothing else on a conversation without a ticket, a parent or a child')
     const barX = await page.$$eval('[data-testid=ai-topbar] > *', (e) => e.map((x) => x.getBoundingClientRect().left))
     assert(barX.every((x, i) => i === 0 || x > barX[i - 1]), 'bar order, left to right: ' + JSON.stringify(barX))
+
+    // The daily quota (llm/QuotaPart.tsx): none without a Claude token nor a budget; with the
+    // budget of the plugin's settings, what the agents spent today ($2 of turns written here).
+    assert(!(await page.$('[data-testid=ai-quota]')), 'no quota without a source')
+    const turns = path.join(process.env.E2E_DATA, 'agents', 'quota-e2e')
+    fs.mkdirSync(turns, { recursive: true })
+    fs.writeFileSync(path.join(turns, 'turns.jsonl'), JSON.stringify({ session: 's', agent: 'claude', project: 'quota-e2e', start: Date.now(), end: Date.now() + 1000, reported: 2 }) + '\n')
+    const budget = async (v) => {
+      await page.waitForTimeout(300)
+      await page.keyboard.press('Control+Shift+a')
+      await page.click('.pick.se .pick-input')
+      await page.keyboard.press('Control+a')
+      await page.keyboard.type('settings')
+      await page.waitForSelector('.pick-item.selected:has-text("Settings")')
+      await page.keyboard.press('Enter')
+      await page.click('.settings-nav button:has-text("Plugins")')
+      await page.fill('[data-testid=plugin-setting-ai-daily_budget]', v)
+      await page.press('[data-testid=plugin-setting-ai-daily_budget]', 'Tab')
+      await page.click('.modal-settings .modal-head button[title^="Close"]')
+      await page.waitForSelector('.modal-settings', { state: 'detached' })
+    }
+    await budget('10')
+    // The panel is narrow: the number alone.
+    await page.waitForSelector('[data-testid=ai-topbar] [data-testid=ai-quota-day]:text-is("80%")')
+    assert(!(await page.$('[data-testid=ai-quota-day].q-low, [data-testid=ai-quota-day].q-over')) && !(await page.$('[data-testid=ai-quota-5h]')), 'the budget: the day only, plain color')
+    assert((await page.getAttribute('[data-testid=ai-quota]', 'title')).includes('Budget: $2.00 of $10.00 spent today'), 'the budget in the tooltip')
+    await budget('1')
+    await page.waitForSelector('[data-testid=ai-quota-day].q-over:text-is("-100%")')
+    await budget('0')
+    await page.waitForSelector('[data-testid=ai-quota]', { state: 'detached' })
 
     // The message box: Mode, Dictate, Attach, Options; a Markdown editor where Enter adds a
     // line and continues the lists, @paths stand out, Ctrl+S sends.

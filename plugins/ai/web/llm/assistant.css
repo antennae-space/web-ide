@@ -348,6 +348,9 @@ button.ai-bar-item:hover { color: var(--accent); }
 .ai-bar-parent .link .icon { flex: none; }
 .ai-topbar .grow { flex: 1 1 auto; }
 .ai-topbar.narrow .ai-bar-parent .ellipsis { display: none; }
+/* The daily quota (QuotaPart.tsx): orange under 20 %, red when ahead of the pace. */
+.ai-quota .q-low { color: var(--warn); }
+.ai-quota .q-over { color: var(--danger); }
 /* The status of the ticket on its icon, the role of the conversation: colored as on the Kanban's board. */
 .ai-bar-dot.st-todo { --st: var(--info); }
 .ai-bar-dot.st-in_progress { --st: var(--warn); }

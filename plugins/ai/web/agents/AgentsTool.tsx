@@ -255,7 +255,7 @@ function SessionView(props: { id: string }) {
               </Show>
             </div>
           </div>
-          <AgentComposer id={props.id} onSent={() => thread.reset()} head={<AgentStatusBar id={props.id} onStats={() => setView('stats')} />} />
+          <AgentComposer id={props.id} onSent={() => thread.reset()} head={<AgentStatusBar id={props.id} onStats={() => setView('stats')} narrow={() => (side() && wide() ? width() * prefs.agentsSplit : width()) < 420} />} />
         </div>
         <Show when={side()}>
           <Show when={wide()}>

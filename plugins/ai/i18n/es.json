@@ -685,5 +685,15 @@
   "The agent runs on a subscription: what these turns would cost through the API": "El agente funciona con una suscripción: lo que estos turnos costarían por la API",
   "Turns without a price": "Turnos sin precio",
   "A local or unknown model": "Un modelo local o desconocido",
-  "The images and doodles you send to the agent appear here.": "Aquí aparecen las imágenes y los doodles que envías al agente."
+  "The images and doodles you send to the agent appear here.": "Aquí aparecen las imágenes y los doodles que envías al agente.",
+  "Today's share left: {pct}, next share {at}": "Resto de la parte del día: {pct}, próxima parte {at}",
+  "{window}: {pct} used, reset {at}": "{window}: {pct} usado, reinicio {at}",
+  "5 hours": "5 horas",
+  "Week": "Semana",
+  "Budget: {spent} of {budget} spent today (API prices)": "Presupuesto: {spent} de {budget} gastados hoy (precios de la API)",
+  "Claude subscription of Claude Code": "Suscripción Claude de Claude Code",
+  "Day {pct}": "Día {pct}",
+  "5 h {pct}": "5 h {pct}",
+  "Daily budget (dollars)": "Presupuesto diario (dólares)",
+  "Without a Claude subscription signed in Claude Code, the bars of the Assistant and the Agents tool show what is left of it today: the cost of the agents and the assistant since midnight, at API prices. 0: no budget.": "Sin una suscripción Claude conectada en Claude Code, las barras del Asistente y de la herramienta Agentes muestran lo que queda hoy: el coste de los agentes y del asistente desde medianoche, a precios de la API. 0: sin presupuesto."
 }

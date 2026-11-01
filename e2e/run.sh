@@ -211,7 +211,7 @@ PY
   # The projects folder is in /tmp: another scratch folder keeps the approvals of the changes out
   # of the projects.
   cat >"$TMP/launch-pod.sh" <<EOF
-WEBIDE_TEST_PLUGINS=1 XDG_DATA_HOME="$TMP/xdg" WEBIDE_OFFICIAL_DIR="$TMP/official" WEBIDE_PEER_IDLE=4s WEBIDE_INSTRUCTIONS_HOME="$TMP/home" WEBIDE_SCRATCH="$TMP/scratch" WEBIDE_CLAUDE="$ROOT/e2e/bin/claude" PATH="$TMP/bin:$ROOT/e2e/bin:$HOME/go/bin:$HOME/sdk/go/bin:$PATH" "$ROOT/bin/web-ide-pod" -addr "127.0.0.1:$PORT" -data "$TMP/data" -projects "$TMP/ws" \\
+WEBIDE_TEST_PLUGINS=1 XDG_DATA_HOME="$TMP/xdg" WEBIDE_OFFICIAL_DIR="$TMP/official" WEBIDE_PEER_IDLE=4s WEBIDE_INSTRUCTIONS_HOME="$TMP/home" WEBIDE_QUOTA_URL="http://127.0.0.1:$((PORT + 5))/api/oauth/usage" WEBIDE_SCRATCH="$TMP/scratch" WEBIDE_CLAUDE="$ROOT/e2e/bin/claude" PATH="$TMP/bin:$ROOT/e2e/bin:$HOME/go/bin:$HOME/sdk/go/bin:$PATH" "$ROOT/bin/web-ide-pod" -addr "127.0.0.1:$PORT" -data "$TMP/data" -projects "$TMP/ws" \\
   -static "$ROOT/pod/webdist/dist" ${EXTRA[@]+"${EXTRA[@]}"} >>"$TMP/pod.log" 2>&1 </dev/null &
 echo \$! >"$TMP/pod.pid"
 for _ in \$(seq 50); do [ -s "$TMP/data/token" ] && curl -s -o /dev/null "http://127.0.0.1:$PORT/" && break; sleep 0.1; done
@@ -226,7 +226,7 @@ EOF
   bash "$TMP/launch-pod.sh"
 }
 export E2E_URL="http://127.0.0.1:$PORT" E2E_PORT="$PORT" E2E_WS="$TMP/ws" E2E_OUT="${E2E_OUT:-$TMP}" E2E_RESTART_POD="$TMP/restart-pod.sh" E2E_DATA="$TMP/data"
-export E2E_LAN_PORT="$LAN_PORT" E2E_TURN_PORT="$TURN_PORT" E2E_PUSH_PORT="$PUSH_PORT" E2E_TMP="$TMP"
+export E2E_LAN_PORT="$LAN_PORT" E2E_TURN_PORT="$TURN_PORT" E2E_PUSH_PORT="$PUSH_PORT" E2E_QUOTA_PORT=$((PORT + 5)) E2E_TMP="$TMP"
 export E2E_RELAY_URL="http://127.0.0.1:$RELAY_PORT" E2E_RELAY_PORT="$RELAY_PORT" E2E_RELAY_DATA="$TMP/relaydata" E2E_RELAY_LOG="$TMP/relay.log" E2E_BIN="$ROOT/bin/web-ide-pod"
 mkdir -p "$E2E_OUT"
 status=0

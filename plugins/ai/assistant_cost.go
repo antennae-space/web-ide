@@ -11,10 +11,13 @@ import (
 // chatCost is the cost of the answers of a conversation, in dollars: the one the provider
 // tells (OpenRouter), else its tokens at the price of its model (internal/prices). An answer
 // of a local or unknown model costs nothing.
-func chatCost(c *engine.Chat) float64 {
+func chatCost(c *engine.Chat) float64 { return chatCostSince(c, 0) }
+
+// chatCostSince is the cost of the answers ended since a time (Unix ms).
+func chatCostSince(c *engine.Chat, since int64) float64 {
 	var sum float64
 	for _, m := range c.Messages {
-		if m.Role != "assistant" || len(m.Usage) == 0 {
+		if m.Role != "assistant" || len(m.Usage) == 0 || m.At < since {
 			continue
 		}
 		var u llm.Usage

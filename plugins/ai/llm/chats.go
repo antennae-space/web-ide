@@ -71,15 +71,34 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS chats_updated ON chats(updated DESC);
 `
 
-func (m *Manager) chatDB(loc ChatLocation) (*sql.DB, error) {
+// dbPath is the base of the conversations of a project.
+func (m *Manager) dbPath(loc ChatLocation) (string, error) {
 	if !idPattern.MatchString(loc.Project) {
-		return nil, i18n.New("invalid project")
+		return "", i18n.New("invalid project")
 	}
 	path := m.st.Path("chats", loc.Project+".db")
 	if loc.IdeDir != "" {
 		if err := idedir.Local(loc.IdeDir); err == nil {
 			path = filepath.Join(loc.IdeDir, "chats.db")
 		}
+	}
+	return path, nil
+}
+
+// HasChats: the project has a base of conversations (none is made).
+func (m *Manager) HasChats(loc ChatLocation) bool {
+	path, err := m.dbPath(loc)
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(path)
+	return err == nil
+}
+
+func (m *Manager) chatDB(loc ChatLocation) (*sql.DB, error) {
+	path, err := m.dbPath(loc)
+	if err != nil {
+		return nil, err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()

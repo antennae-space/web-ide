@@ -74,7 +74,7 @@ func (s *A) agentsOf(rt *runtime.Runtime) *acp.Manager {
 	return rt.Part("agents", func() any {
 		p := &agentsPart{a: s, project: rt.P.ID}
 		p.m = acp.NewManager(acp.Deps{Keeper: s.Keeper, Owner: rt.P.ID, Dir: s.Store.Path("agents", rt.P.ID), Root: rt.Root,
-			Catalog: acp.Catalog{Dir: s.Store.Path("acp")}, Version: s.Version, MCP: s.agentsMCP(), Emit: rt.Emit})
+			Catalog: acp.Catalog{Dir: s.Store.Path("acp")}, Version: s.Version, MCP: s.agentsMCP(), Emit: rt.Emit, OnTurn: s.quotaTurn})
 		s.agentParts.add(p)
 		return p
 	}).(*agentsPart).m

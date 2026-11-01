@@ -1,9 +1,11 @@
 // Bar of a session of the Agents tool, on top of its message box, like the Assistant's
-// (llm/TopBar.tsx): the work time and cost of the session, then on the right the ticket of
+// (llm/TopBar.tsx): the work time and cost of the session, the daily quota of the account
+// (llm/QuotaPart.tsx), then on the right the ticket of
 // its worktree and the role on it. The tooltip details them, with the total of the ticket
 // (its other sessions included).
 import { createResource, Show } from 'solid-js'
 import { RoleBadge, roleFor, TicketButton } from '../llm/TopBar'
+import { QuotaPart } from '../llm/QuotaPart'
 import { ticketOf } from './AgentStats'
 import { sessions } from './state'
 import { agentStats, fmtCost, fmtWork, statsTitle, useAgentsTick, type Totals } from './stats'
@@ -11,7 +13,7 @@ import { capability, Icon, t } from '../plugin'
 
 const priced = (s: Totals) => s.turns - (s.unpriced ?? 0) > 0
 
-export function AgentStatusBar(props: { id: string; onStats?: () => void }) {
+export function AgentStatusBar(props: { id: string; onStats?: () => void; narrow?: () => boolean }) {
   const info = () => sessions().find((s) => s.id === props.id)
   const stats = () => info()?.stats
   const tid = () => ticketOf(info())
@@ -37,6 +39,7 @@ export function AgentStatusBar(props: { id: string; onStats?: () => void }) {
           </span>
         </Show>
       </button>
+      <QuotaPart narrow={props.narrow} />
       <span class="grow" />
       <Show when={tid() ? capability('tickets') : undefined}>
         {(k) => (

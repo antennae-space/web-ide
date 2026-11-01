@@ -474,6 +474,9 @@ func (s *A) loop(r *assistantRun) {
 		if parent == "" && !again && r.ctx.Err() == nil {
 			s.notifyChat(waitsForUser(r.chat), r.root, r.id, r.chat.Title)
 		}
+		if !again {
+			go s.quotaTurn()
+		}
 		from := -1
 		if again && r.chat.Agent != nil {
 			from = skipParentWait(r.chat)

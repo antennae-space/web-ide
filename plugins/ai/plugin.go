@@ -40,6 +40,7 @@ type A struct {
 	assistants assistants
 	asking     asking
 	agentParts agentParts
+	quotas     quotas
 	// modelCache: the models of each server, read again after 30 s (modelInfo); one per
 	// plugin, so that pods (the tests) do not share it.
 	modelCache sync.Map // server → cachedModels
@@ -82,6 +83,7 @@ func (s *A) Register(h plugins.Host) {
 	s.registerAssistant()
 	s.registerAgents()
 	s.registerMCP()
+	s.registerQuota()
 	// The conversations that ran when the pod stopped are taken back, and saved when it stops.
 	h.OnStart(s.ResumeRuns)
 	h.OnStop(s.saveRunning)
@@ -125,7 +127,7 @@ type handler func(ctx context.Context, c *Client, p json.RawMessage) (any, error
 // global are the methods of the configuration of the pod (model servers, speech models): they
 // answer without a project, as Settings asks them.
 var global = map[string]bool{
-	"llm.config": true, "llm.models": true, "llm.select": true, "llm.children": true, "llm.server.save": true, "llm.server.delete": true,
+	"llm.config": true, "llm.models": true, "llm.quota": true, "llm.select": true, "llm.children": true, "llm.server.save": true, "llm.server.delete": true,
 	"models.list": true, "models.delete": true,
 }
 

@@ -133,7 +133,7 @@ flowchart LR
 
 ## AI
 
-What the core keeps of the assistant and the agents: `assistant`, the tool kit shared by the assistant of the AI plugin and the MCP endpoint, and `hfcache`. The model servers, the conversations, the engine of the assistant, the client of the CLI agents and the statistics are the AI plugin's since #138 (`plugins/ai/llm`, `engine`, `acp`, `internal/stats`, `internal/prices`: [its README](../plugins/ai/README.md)); the core reaches them through hooks only (the Questions tool, the synced vault, the `agents` capability: [plugins.md](../docs/design/plugins.md)). The way they interact is told in [architecture.md](../docs/design/architecture.md#assistant) and [kanban.md](../docs/design/kanban.md#claude-code).
+What the core keeps of the assistant and the agents: `assistant`, the tool kit shared by the assistant of the AI plugin and the MCP endpoint, and `hfcache`. The model servers, the conversations, the engine of the assistant, the client of the CLI agents and the statistics are the AI plugin's since #138 (`plugins/ai/llm`, `engine`, `acp`, `internal/stats`, `internal/prices`, `internal/quota`: [its README](../plugins/ai/README.md)); the core reaches them through hooks only (the Questions tool, the synced vault, the `agents` capability: [plugins.md](../docs/design/plugins.md)). The way they interact is told in [architecture.md](../docs/design/architecture.md#assistant) and [kanban.md](../docs/design/kanban.md#claude-code).
 
 ```mermaid
 flowchart LR

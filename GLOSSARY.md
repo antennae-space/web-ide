@@ -379,6 +379,10 @@ Replacing the start of a long conversation with a summary to free context.
 A change of the reasoning effort of the assistant on a local model, written into the history sent where it happened (a system turn, or text after a message of the user or a tool result), so that the request keeps one effort and the server its prompt cache.
 _Avoid_: effort message
 
+**Daily quota**
+What is left of today's share of the Claude subscription (a seventh of its 7-day window), shown with its 5-hour window in the bars of the Assistant and the Agents tool; without a subscription, what is left of a daily budget in dollars. 100 % at the start of the share, negative when the use runs ahead of the pace.
+_Avoid_: quota alone (the TURN quota of the relay)
+
 **Question**
 Something an AI asks the user and waits for, gathered in the Questions tool.
 _Avoid_: prompt

@@ -29,4 +29,9 @@ func TestChatCost(t *testing.T) {
 	if got := chatCost(&engine.Chat{Model: "qwen3-local", Messages: c.Messages[3:]}); got != 0 {
 		t.Fatalf("local model: cost %v, want 0", got)
 	}
+	// The cost of today: the answers ended since midnight only.
+	c.Messages[1].At, c.Messages[2].At = 1000, 3000
+	if got := chatCostSince(c, 2000); math.Abs(got-0.3) > 1e-9 {
+		t.Fatalf("cost since: %v, want 0.3", got)
+	}
 }

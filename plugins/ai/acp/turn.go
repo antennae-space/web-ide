@@ -68,6 +68,9 @@ func (s *Session) finishTurn(result json.RawMessage) {
 		r.Reported = d
 	}
 	s.m.record(r)
+	if s.m.OnTurn != nil {
+		go s.m.OnTurn()
+	}
 	if s.info.Stats == nil {
 		s.info.Stats = &Totals{}
 	}
