@@ -31,8 +31,9 @@ func quotaHome() string {
 	return h
 }
 
-// llm.quota: the quota of the day, or null without a source. budget: the dollars a day of the
-// manual source (the setting of the plugin), since: the local midnight of the window (ms).
+// llm.quota: the quota of the day of each source, either missing: oauth (the subscription,
+// for the sessions of Claude Code on it), budget (budget: the dollars a day of the plugin's
+// setting, since: the local midnight of the window, ms; for the rest).
 func (s *A) registerQuota() {
 	s.quotas.oauth = quota.NewOAuth(quotaHome())
 	s.handle("llm.quota", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
@@ -43,13 +44,15 @@ func (s *A) registerQuota() {
 		if err != nil {
 			return nil, err
 		}
-		if q := s.quotas.oauth.Get(ctx); q != nil {
-			return q, nil
+		var out struct {
+			OAuth  *quota.Quota `json:"oauth,omitempty"`
+			Budget *quota.Quota `json:"budget,omitempty"`
 		}
-		if a.Budget <= 0 {
-			return nil, nil
+		out.OAuth = s.quotas.oauth.Get(ctx)
+		if a.Budget > 0 {
+			out.Budget = quota.Budget(a.Budget, s.spentSince(a.Since), time.UnixMilli(a.Since))
 		}
-		return quota.Budget(a.Budget, s.spentSince(a.Since), time.UnixMilli(a.Since)), nil
+		return out, nil
 	})
 }
 

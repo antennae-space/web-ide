@@ -380,7 +380,7 @@ A change of the reasoning effort of the assistant on a local model, written into
 _Avoid_: effort message
 
 **Daily quota**
-What is left of today's share of the Claude subscription (a seventh of its 7-day window), shown with its 5-hour window in the bars of the Assistant and the Agents tool; without a subscription, what is left of a daily budget in dollars. 100 % at the start of the share, negative when the use runs ahead of the pace.
+What is left of today's share of the Claude subscription (a seventh of its 7-day window), shown with its 5-hour window in the bar of a Claude Code session on that plan; or what is left of a daily budget in dollars, in the bars of the other sessions and of the Assistant on a paid model. 100 % at the start of the share, negative when the use runs ahead of the pace.
 _Avoid_: quota alone (the TURN quota of the relay)
 
 **Question**

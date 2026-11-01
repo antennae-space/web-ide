@@ -17,8 +17,11 @@ const (
 // Quota is what the bars show: the rest of the day in percent of its share (100 at its start,
 // negative when the use runs ahead of the pace), and the windows of the subscription.
 type Quota struct {
-	// Source: "oauth" (the subscription), "budget" (the manual budget).
+	// Source: "oauth" (the subscription), "budget" (the manual budget); Plan: the subscription
+	// (pro, max) as Claude Code tells it; At: when it was read (Unix ms).
 	Source string `json:"source"`
+	Plan   string `json:"plan,omitempty"`
+	At     int64  `json:"at"`
 	// Day: the rest of the share of the day, in percent; DayEnd: when the next share starts
 	// (Unix ms).
 	Day    float64 `json:"day"`
@@ -56,7 +59,7 @@ func Budget(budget, spent float64, dayStart time.Time) *Quota {
 	if budget <= 0 {
 		return nil
 	}
-	return &Quota{Source: "budget", Day: round(100 * (1 - spent/budget)), DayEnd: dayStart.AddDate(0, 0, 1).UnixMilli(), Budget: budget, Spent: spent}
+	return &Quota{Source: "budget", At: time.Now().UnixMilli(), Day: round(100 * (1 - spent/budget)), DayEnd: dayStart.AddDate(0, 0, 1).UnixMilli(), Budget: budget, Spent: spent}
 }
 
 func round(x float64) float64 { return math.Round(x*10) / 10 }

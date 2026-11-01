@@ -215,6 +215,7 @@ func (m *Manager) restore() {
 		s.th.Entries, s.acp, s.canLoad, s.nextID, s.first = sv.Entries, sv.ACP, sv.CanLoad, sv.NextID, sv.First
 		s.caps, s.queue, s.images = sv.Caps, sv.Queue, sv.Images
 		s.reportedCost, s.subscription = sv.ReportedCost, sv.Subscription
+		s.info.Subscription = s.subscription
 		s.th.index()
 		m.sessions[s.info.ID] = s
 		if p, ok := procs[sv.Proc]; ok {

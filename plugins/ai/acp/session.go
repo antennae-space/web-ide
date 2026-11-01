@@ -75,6 +75,9 @@ type Info struct {
 	Queue []QueuedInfo `json:"queue,omitempty"`
 	Caps  PromptCaps   `json:"caps"`
 	Seq   int64        `json:"seq"`
+	// Subscription: the agent runs on a plan (Claude's), not an API key; its bar shows the
+	// daily quota of the plan.
+	Subscription bool `json:"subscription,omitempty"`
 }
 
 // saved is the file of a session: what a restarted pod needs to go on.

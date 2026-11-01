@@ -349,8 +349,16 @@ button.ai-bar-item:hover { color: var(--accent); }
 .ai-topbar .grow { flex: 1 1 auto; }
 .ai-topbar.narrow .ai-bar-parent .ellipsis { display: none; }
 /* The daily quota (QuotaPart.tsx): orange under 20 %, red when ahead of the pace. */
-.ai-quota .q-low { color: var(--warn); }
-.ai-quota .q-over { color: var(--danger); }
+.ai-quota .q-low, .ai-q-card .q-low { color: var(--warn); }
+.ai-quota .q-over, .ai-q-card .q-over { color: var(--danger); }
+.ai-q-card { gap: 12px; min-width: 290px; }
+.ai-q-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ai-q-title .small { white-space: nowrap; }
+.ai-q-row { display: flex; flex-direction: column; gap: 5px; }
+.ai-q-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 13px; }
+.ai-q-head strong { font-size: 15px; font-variant-numeric: tabular-nums; }
+.ai-q-row .muted.small { line-height: 1.45; }
+.ai-q-help { margin: 0; padding-top: 8px; border-top: 1px solid var(--line); line-height: 1.45; }
 /* The status of the ticket on its icon, the role of the conversation: colored as on the Kanban's board. */
 .ai-bar-dot.st-todo { --st: var(--info); }
 .ai-bar-dot.st-in_progress { --st: var(--warn); }

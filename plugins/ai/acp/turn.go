@@ -87,5 +87,6 @@ func (s *Session) authStatus(params json.RawMessage) {
 	}
 	if json.Unmarshal(params, &p) == nil && p.AuthStatus.Kind != "" {
 		s.subscription = p.AuthStatus.Kind == "account"
+		s.info.Subscription = s.subscription
 	}
 }

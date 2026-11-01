@@ -48,7 +48,7 @@ func NewOAuth(home string) *OAuth {
 // Get is the quota of the subscription, read again when older than TTL (or stale since Gap);
 // nil without a token or when the endpoint fails.
 func (o *OAuth) Get(ctx context.Context) *Quota {
-	tok, err := o.token()
+	tok, plan, err := o.token()
 	if err != nil {
 		return nil
 	}
@@ -59,6 +59,9 @@ func (o *OAuth) Get(ctx context.Context) *Quota {
 		return o.last
 	}
 	q, err := o.fetch(ctx, tok, now)
+	if q != nil {
+		q.Plan = plan
+	}
 	o.at, o.stale = now, false
 	if err != nil {
 		if msg := err.Error(); msg != o.failure {
@@ -79,20 +82,22 @@ func (o *OAuth) Refresh() {
 	o.mu.Unlock()
 }
 
-func (o *OAuth) token() (string, error) {
+// token is the access token of Claude Code and its plan (pro, max).
+func (o *OAuth) token() (string, string, error) {
 	data, err := os.ReadFile(o.Credentials)
 	if err != nil {
-		return "", errors.New("no Claude token")
+		return "", "", errors.New("no Claude token")
 	}
 	var c struct {
 		OAuth struct {
-			AccessToken string `json:"accessToken"`
+			AccessToken      string `json:"accessToken"`
+			SubscriptionType string `json:"subscriptionType"`
 		} `json:"claudeAiOauth"`
 	}
 	if json.Unmarshal(data, &c) != nil || c.OAuth.AccessToken == "" {
-		return "", errors.New("no Claude token")
+		return "", "", errors.New("no Claude token")
 	}
-	return c.OAuth.AccessToken, nil
+	return c.OAuth.AccessToken, c.OAuth.SubscriptionType, nil
 }
 
 type window struct {
@@ -139,7 +144,7 @@ func (o *OAuth) fetch(ctx context.Context, tok string, now time.Time) (*Quota, e
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		return nil, fmt.Errorf("usage endpoint: %w", err)
 	}
-	q := &Quota{Source: "oauth"}
+	q := &Quota{Source: "oauth", At: now.UnixMilli()}
 	if q.Week, err = body.SevenDay.parse(); err != nil || q.Week == nil {
 		return nil, fmt.Errorf("usage endpoint: no 7-day window (%v)", err)
 	}

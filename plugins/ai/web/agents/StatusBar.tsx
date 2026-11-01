@@ -17,6 +17,8 @@ export function AgentStatusBar(props: { id: string; onStats?: () => void; narrow
   const info = () => sessions().find((s) => s.id === props.id)
   const stats = () => info()?.stats
   const tid = () => ticketOf(info())
+  // Claude Code on a subscription: the quota of the plan, else the daily budget.
+  const plan = () => info()?.agent === 'claude' && !!(info()?.subscription || stats()?.apiEquivalent)
   const tick = useAgentsTick()
   const [ticket] = createResource(
     () => (tid() ? { id: tid(), n: tick() } : false),
@@ -39,7 +41,7 @@ export function AgentStatusBar(props: { id: string; onStats?: () => void; narrow
           </span>
         </Show>
       </button>
-      <QuotaPart narrow={props.narrow} />
+      <QuotaPart narrow={props.narrow} pick={(q) => (plan() ? q.oauth : undefined) ?? q.budget} />
       <span class="grow" />
       <Show when={tid() ? capability('tickets') : undefined}>
         {(k) => (

@@ -13,9 +13,9 @@ const requests = []
 const byScenario = {}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const sse = (res, delta) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`)
-function end(res, reason = 'stop') {
+function end(res, reason = 'stop', usage = {}) {
   res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: reason }] })}\n\n`)
-  res.write(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 100, completion_tokens: 10 } })}\n\n`)
+  res.write(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 100, completion_tokens: 10, ...usage } })}\n\n`)
   res.end('data: [DONE]\n\n')
 }
 const text = (m) => (typeof m.content === 'string' ? m.content : (m.content ?? []).map((p) => p.text ?? '').join(' '))
@@ -36,6 +36,11 @@ const fake = http.createServer(async (req, res) => {
   const lastUser = [...msgs].reverse().find((m) => m.role === 'user')
   const scenario = text(lastUser).split(' ')[0]
   byScenario[scenario] = (byScenario[scenario] ?? 0) + 1
+  // An answer whose provider tells its cost (OpenRouter): the conversation has a price.
+  if (scenario === 'paid') {
+    sse(res, { content: 'Paid answer.' })
+    return end(res, 'stop', { cost: 0.5 })
+  }
   if (scenario === 'slow') {
     sse(res, { content: 'Part 1.' })
     for (let i = 0; i < 25 && !res.destroyed; i++) {
@@ -124,36 +129,6 @@ run(async ({ page, ctx }) => {
     const barX = await page.$$eval('[data-testid=ai-topbar] > *', (e) => e.map((x) => x.getBoundingClientRect().left))
     assert(barX.every((x, i) => i === 0 || x > barX[i - 1]), 'bar order, left to right: ' + JSON.stringify(barX))
 
-    // The daily quota (llm/QuotaPart.tsx): none without a Claude token nor a budget; with the
-    // budget of the plugin's settings, what the agents spent today ($2 of turns written here).
-    assert(!(await page.$('[data-testid=ai-quota]')), 'no quota without a source')
-    const turns = path.join(process.env.E2E_DATA, 'agents', 'quota-e2e')
-    fs.mkdirSync(turns, { recursive: true })
-    fs.writeFileSync(path.join(turns, 'turns.jsonl'), JSON.stringify({ session: 's', agent: 'claude', project: 'quota-e2e', start: Date.now(), end: Date.now() + 1000, reported: 2 }) + '\n')
-    const budget = async (v) => {
-      await page.waitForTimeout(300)
-      await page.keyboard.press('Control+Shift+a')
-      await page.click('.pick.se .pick-input')
-      await page.keyboard.press('Control+a')
-      await page.keyboard.type('settings')
-      await page.waitForSelector('.pick-item.selected:has-text("Settings")')
-      await page.keyboard.press('Enter')
-      await page.click('.settings-nav button:has-text("Plugins")')
-      await page.fill('[data-testid=plugin-setting-ai-daily_budget]', v)
-      await page.press('[data-testid=plugin-setting-ai-daily_budget]', 'Tab')
-      await page.click('.modal-settings .modal-head button[title^="Close"]')
-      await page.waitForSelector('.modal-settings', { state: 'detached' })
-    }
-    await budget('10')
-    // The panel is narrow: the number alone.
-    await page.waitForSelector('[data-testid=ai-topbar] [data-testid=ai-quota-day]:text-is("80%")')
-    assert(!(await page.$('[data-testid=ai-quota-day].q-low, [data-testid=ai-quota-day].q-over')) && !(await page.$('[data-testid=ai-quota-5h]')), 'the budget: the day only, plain color')
-    assert((await page.getAttribute('[data-testid=ai-quota]', 'title')).includes('Budget: $2.00 of $10.00 spent today'), 'the budget in the tooltip')
-    await budget('1')
-    await page.waitForSelector('[data-testid=ai-quota-day].q-over:text-is("-100%")')
-    await budget('0')
-    await page.waitForSelector('[data-testid=ai-quota]', { state: 'detached' })
-
     // The message box: Mode, Dictate, Attach, Options; a Markdown editor where Enter adds a
     // line and continues the lists, @paths stand out, Ctrl+S sends.
     const xs = await page.evaluate(() => ['[data-testid=ai-mode]', '.ai-mic', '[data-testid=ai-attach]', '[data-testid=ai-options]'].map((s) => document.querySelector('.ai-composer-bar ' + s).getBoundingClientRect().left))
@@ -182,6 +157,47 @@ run(async ({ page, ctx }) => {
     assert(!(await page.$('[data-testid=ai-cost]')), 'a model without a price: the time alone, no cost')
     await page.waitForSelector('[data-testid=send]', { timeout: 10000 })
     assert(text(requests.at(-1).messages.at(-1)) === listed && (await composerText(page)) === '', 'Ctrl+S sends the message, the box is emptied')
+
+    // The daily quota (llm/QuotaPart.tsx): never the Claude subscription on the assistant; the
+    // budget of the plugin's settings once the conversation has a price, against what the
+    // agents ($2 of turns written here) and the assistant spent today.
+    assert(!(await page.$('[data-testid=ai-quota]')), 'no quota without a source')
+    const turns = path.join(process.env.E2E_DATA, 'agents', 'quota-e2e')
+    fs.mkdirSync(turns, { recursive: true })
+    fs.writeFileSync(path.join(turns, 'turns.jsonl'), JSON.stringify({ session: 's', agent: 'claude', project: 'quota-e2e', start: Date.now(), end: Date.now() + 1000, reported: 2 }) + '\n')
+    const budget = async (v) => {
+      await page.waitForTimeout(300)
+      await page.keyboard.press('Control+Shift+a')
+      await page.click('.pick.se .pick-input')
+      await page.keyboard.press('Control+a')
+      await page.keyboard.type('settings')
+      await page.waitForSelector('.pick-item.selected:has-text("Settings")')
+      await page.keyboard.press('Enter')
+      await page.click('.settings-nav button:has-text("Plugins")')
+      await page.fill('[data-testid=plugin-setting-ai-daily_budget]', v)
+      await page.press('[data-testid=plugin-setting-ai-daily_budget]', 'Tab')
+      await page.click('.modal-settings .modal-head button[title^="Close"]')
+      await page.waitForSelector('.modal-settings', { state: 'detached' })
+    }
+    await budget('10')
+    await page.waitForTimeout(1500)
+    assert(!(await page.$('[data-testid=ai-quota]')), 'a local model without a price: no budget on its conversation')
+    await page.click('.ai-composer .ed-content')
+    await page.keyboard.type('paid answer please')
+    await page.keyboard.press('Control+Enter')
+    await page.waitForSelector('[data-testid=ai-cost]', { timeout: 20000 })
+    // The panel is narrow: the number alone; $2.50 of $10 spent.
+    await page.waitForSelector('[data-testid=ai-topbar] [data-testid=ai-quota][data-source=budget] [data-testid=ai-quota-day]:text-is("75%")')
+    assert(!(await page.$('[data-testid=ai-quota-day].q-low, [data-testid=ai-quota-day].q-over')) && !(await page.$('[data-testid=ai-quota-5h]')), 'the budget: the day only, plain color')
+    await page.click('[data-testid=ai-quota]')
+    const card = await page.textContent('[data-testid=ai-quota-card]')
+    assert(card.includes('Daily budget') && card.includes('$2.50 of $10.00 spent since midnight') && card.includes('Next share in ') && !card.includes('Week'), 'the card of the budget: ' + card)
+    await page.keyboard.press('Escape')
+    await page.waitForSelector('[data-testid=ai-quota-card]', { state: 'detached' })
+    await budget('1')
+    await page.waitForSelector('[data-testid=ai-quota-day].q-over:text-is("-150%")')
+    await budget('0')
+    await page.waitForSelector('[data-testid=ai-quota]', { state: 'detached' })
 
     // Full screen: the box takes the whole tool; Esc comes back with the same text, sending leaves it.
     await page.click('[data-testid=ai-full]')

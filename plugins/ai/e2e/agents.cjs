@@ -36,7 +36,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 function fakeQuota() {
   const home = path.join(process.env.E2E_TMP, 'home', '.claude')
   fs.mkdirSync(home, { recursive: true })
-  fs.writeFileSync(path.join(home, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'e2e-token' } }))
+  fs.writeFileSync(path.join(home, '.credentials.json'), JSON.stringify({ claudeAiOauth: { accessToken: 'e2e-token', subscriptionType: 'max' } }))
   const at = (h) => new Date(Date.now() + h * 3600e3).toISOString()
   const srv = http.createServer((req, res) => {
     const ok = req.headers.authorization === 'Bearer e2e-token' && req.headers['anthropic-beta'] === 'oauth-2025-04-20'
@@ -93,13 +93,24 @@ run(async ({ page }) => {
   const barTip = await page.getAttribute('[data-testid=agent-gentime]', 'title')
   assert(/1 turns?, /.test(barTip) && barTip.includes('(API equivalent)'), 'the tooltip of the bar details the turns and the API equivalent: ' + barTip)
   assert(!(await page.$('[data-testid=agent-topbar] [data-testid=ai-ticket]')), 'no ticket in the bar outside a ticket worktree')
-  // The daily quota of the subscription: ahead of the pace, red; the panel is narrow (300 px):
-  // the day only, the windows and their resets in the tooltip.
-  await page.waitForSelector('[data-testid=agent-topbar] [data-testid=ai-quota-day].q-over')
+  // The daily quota of the subscription (Claude Code runs on it): ahead of the pace, red; the
+  // panel is narrow (300 px): the day only. A click opens the card of the windows.
+  await page.waitForSelector('[data-testid=agent-topbar] [data-testid=ai-quota][data-source=oauth] [data-testid=ai-quota-day].q-over')
   const day = (await page.textContent('[data-testid=ai-quota-day]')).trim()
   assert(/^-\d+%$/.test(day) && !(await page.$('[data-testid=ai-quota-5h]')), 'the rest of the day, negative: ' + day)
-  const qTip = await page.getAttribute('[data-testid=agent-topbar] [data-testid=ai-quota]', 'title')
-  assert(/share left: -\d+%/.test(qTip) && qTip.includes('5 hours: 30% used, reset') && qTip.includes('Week: 80% used, reset') && qTip.includes('Claude subscription'), 'the windows in the tooltip: ' + qTip)
+  await page.click('[data-testid=agent-topbar] [data-testid=ai-quota]')
+  const qCard = await page.textContent('[data-testid=ai-quota-card]')
+  assert(qCard.includes('Claude Max subscription') && qCard.includes("Today's share is used up"), 'the card: the plan, the day: ' + qCard)
+  const five = await page.textContent('[data-testid=ai-quota-five]')
+  assert(five.includes('30% used') && /Reset in 1 h 5\d|Reset in 2 h 00/.test(five), 'the 5 hours, their reset: ' + five)
+  const week = await page.textContent('[data-testid=ai-quota-week]')
+  assert(week.includes('80% used') && /Pace 50%: 30 points ahead of it/.test(week), 'the week, its pace: ' + week)
+  assert(await page.isVisible('[data-testid=ai-quota-week] .ai-q-bar i'), 'the pace marked on the gauge of the week')
+  const qBox = await page.$eval('[data-testid=ai-quota-card]', (e) => e.getBoundingClientRect().toJSON())
+  assert(qBox.left >= 0 && qBox.right <= (await page.evaluate(() => innerWidth)), 'the card inside the window: ' + JSON.stringify(qBox))
+  await page.waitForTimeout(300)
+  await page.screenshot({ path: OUT + '/agents-quota.png' })
+  await page.keyboard.press('Escape')
   await page.screenshot({ path: OUT + '/agents-turn.png' })
 
   // A permission: a card in the thread, the tab waits for the user.

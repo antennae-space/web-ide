@@ -3,7 +3,7 @@
 // children, the daily quota of the account (QuotaPart.tsx), then on the right its ticket and the role of the conversation on it. Each part
 // hides when it has nothing, except the time. Narrow: they collapse to an icon and a number.
 import { createEffect, Show } from 'solid-js'
-import { chat, chatList, live, setChat, shells, type ChatInfo } from './state'
+import { chat, chatList, config, live, setChat, shells, type ChatInfo } from './state'
 import { loadShells, openChat, runStates } from './assistant'
 import { agentLabels, agentStatus } from './SubAgents'
 import { clock } from './Stats'
@@ -179,6 +179,10 @@ function TimePart() {
   )
 }
 
+/** The conversation runs on a model with a price (a cloud provider): the daily budget concerns
+ *  it; the Claude subscription never does (the assistant does not use it). */
+const priced = () => (chat.cost ?? 0) > 0 || !!config.servers.find((s) => s.id === (chat.server || config.server))?.hasKey
+
 /** The bar on top of the message box, inside its frame. */
 export function TopBar(props: { narrow: () => boolean }) {
   // The shells of a conversation shown: the pod knows which ones still run.
@@ -193,7 +197,7 @@ export function TopBar(props: { narrow: () => boolean }) {
         <ParentPart narrow={props.narrow} />
       </Show>
       <ChildrenPart />
-      <QuotaPart narrow={props.narrow} />
+      <QuotaPart narrow={props.narrow} pick={(q) => (priced() ? q.budget : undefined)} />
       <span class="grow" />
       <TicketPart />
       <RolePart />

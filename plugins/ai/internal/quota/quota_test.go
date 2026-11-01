@@ -65,7 +65,7 @@ func fake(t *testing.T, status int, body string) (*OAuth, *int) {
 	t.Cleanup(srv.Close)
 	home := t.TempDir()
 	os.MkdirAll(filepath.Join(home, ".claude"), 0o700)
-	os.WriteFile(filepath.Join(home, ".claude", ".credentials.json"), []byte(`{"claudeAiOauth":{"accessToken":"tok"}}`), 0o600)
+	os.WriteFile(filepath.Join(home, ".claude", ".credentials.json"), []byte(`{"claudeAiOauth":{"accessToken":"tok","subscriptionType":"max"}}`), 0o600)
 	o := NewOAuth(home)
 	o.URL = srv.URL
 	return o, &calls
@@ -79,7 +79,7 @@ func TestOAuth(t *testing.T) {
 	now := time.Date(2026, 11, 1, 11, 0, 0, 0, time.UTC)
 	o.Now = func() time.Time { return now }
 	q := o.Get(context.Background())
-	if q == nil || q.Source != "oauth" || q.FiveHour.Utilization != 30 || q.Week.Utilization != 36 || q.Opus != nil {
+	if q == nil || q.Source != "oauth" || q.FiveHour.Utilization != 30 || q.Week.Utilization != 36 || q.Opus != nil || q.Plan != "max" || q.At != now.UnixMilli() {
 		t.Fatalf("quota: %+v", q)
 	}
 	// Day 4 of the window: 4/7 allowed, 36 % used.

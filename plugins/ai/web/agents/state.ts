@@ -34,6 +34,8 @@ export interface AgentInfo {
   commands?: { name: string; description: string; input?: { hint?: string } }[]
   /** Work time and cost of its turns (agents/stats.tsx). */
   stats?: Totals
+  /** It runs on a plan (Claude's), not an API key. */
+  subscription?: boolean
   started: number
   /** Ticket the session develops (kanban), 0 or absent for none. */
   ticket?: number
