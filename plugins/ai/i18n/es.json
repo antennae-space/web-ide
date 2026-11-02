@@ -136,6 +136,8 @@
   "Loading the transcription model…": "Cargando el modelo de transcripción…",
   "Loads the skill": "Carga el skill",
   "Local transcription (Whisper)": "Transcripción local (Whisper)",
+  "Live dictation is too slow on this device: the rest is transcribed when you stop.": "El dictado en directo es demasiado lento en este dispositivo: el resto se transcribe al parar.",
+  "Live dictation: the text appears in the box as you speak (otherwise: transcribed when you stop)": "Dictado en directo: el texto aparece en el cuadro mientras habla (si no: se transcribe al parar)",
   "Local transcription…": "Transcripción local…",
   "Manage the servers…": "Gestionar los servidores…",
   "Messages sent to the model": "Mensajes enviados al modelo",

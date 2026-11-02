@@ -303,6 +303,10 @@ function SpeechSettings() {
         </label>
       </div>
       <label class="check small">
+        <input type="checkbox" name="whisperLive" checked={prefs.whisperLive} onChange={(e) => (setPrefs('whisperLive', e.currentTarget.checked), savePrefs())} />
+        {t('Live dictation: the text appears in the box as you speak (otherwise: transcribed when you stop)')}
+      </label>
+      <label class="check small">
         <input type="checkbox" checked={prefs.audioToModel} onChange={(e) => (setPrefs('audioToModel', e.currentTarget.checked), savePrefs())} />
         {t('Send audio files as they are to the models that listen to audio (otherwise: local transcription)')}
       </label>

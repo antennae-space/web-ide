@@ -4,6 +4,7 @@
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js'
 import { fuzzy, Icon, newDoc, newEditorView, registerAction, relPath, request, tabSize } from '../plugin'
 import type { EditorView } from '../plugin'
+import type { DictationSink } from './transcribe'
 
 export interface CompletionItem {
   kind: 'command' | 'skill' | 'file' | 'dir'
@@ -28,13 +29,59 @@ export async function projectPaths(): Promise<string[]> {
   return list
 }
 
-/** Inserts text at the caret, with a space before it when needed. */
-export function insertAtCaret(v: EditorView, text: string) {
-  if (!text) return
+/**
+ * Live dictation into the box, at the caret (a selection is replaced). The provisional text of
+ * the open segment is dimmed and written without undo; its final text is one undo step, and the
+ * next segment follows it. The range follows the edits made around it meanwhile.
+ */
+export function liveDictation(v: EditorView): DictationSink {
+  const doc = v.doc
+  const origin = { dictation: true }
   const sel = v.getSelection()
-  const from = Math.min(sel.anchor, sel.head)
-  const before = v.doc.text.slice(0, from)
-  v.edit(from, Math.max(sel.anchor, sel.head), (before && !/\s$/.test(before) ? ' ' : '') + text)
+  let from = Math.min(sel.anchor, sel.head)
+  let to = Math.max(sel.anchor, sel.head)
+  // The text the open segment replaces (the selection at the start, then nothing).
+  let orig = doc.text.slice(from, to)
+  const off = doc.onChange((c) => {
+    if (c.origin === origin) return
+    const delta = c.text.length - (c.to - c.from)
+    // Text typed at the start of the range goes before it, at its end after it.
+    from = c.to <= from ? from + delta : c.from >= from ? from : c.from
+    to = c.from >= to ? to : c.to <= to ? to + delta : c.from + c.text.length
+    if (to < from) to = from
+  })
+  // A space on each side when the words would touch.
+  const spaced = (text: string) => {
+    const before = doc.text.slice(0, from)
+    const after = doc.text.slice(to, to + 1)
+    return (before && !/\s$/.test(before) ? ' ' : '') + text + (after && !/\s/.test(after) ? ' ' : '')
+  }
+  const put = (text: string, undoable: boolean) => {
+    const s = v.getSelection()
+    const caretIn = Math.min(s.anchor, s.head) >= from && Math.max(s.anchor, s.head) <= to
+    const removed = doc.text.slice(from, to)
+    doc.replace(from, to, text, origin, { undoable, selBefore: { anchor: from, head: from + removed.length }, selAfter: { anchor: from + text.length, head: from + text.length } })
+    to = from + text.length
+    if (caretIn) v.hasFocus() ? v.setSelection(to) : v.restoreSelection({ anchor: to, head: to })
+  }
+  return {
+    partial(text) {
+      put(text ? spaced(text) : orig, false)
+      v.setLiveRanges('ai-dictation', text ? [[from, to]] : [])
+    },
+    commit(text) {
+      v.setLiveRanges('ai-dictation', [])
+      put(orig, false)
+      if (text) put(spaced(text), true)
+      doc.breakUndoGroup()
+      from = to
+      orig = ''
+    },
+    end() {
+      v.setLiveRanges('ai-dictation', [])
+      off()
+    },
+  }
 }
 
 export function MessageBox(props: {

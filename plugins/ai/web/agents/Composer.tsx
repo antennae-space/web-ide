@@ -4,13 +4,13 @@
 // session while the page lives.
 import { createSignal, For, onCleanup, Show, type JSX } from 'solid-js'
 import { createStore, produce } from 'solid-js/store'
-import { insertAtCaret, MessageBox, type CompletionItem } from '../llm/MessageBox'
+import { liveDictation, MessageBox, type CompletionItem } from '../llm/MessageBox'
 import { prepare, type Prepared } from '../llm/attachments'
 import { prepareDoodle } from '../llm/doodle/export'
 import { cloneDoc, newDoc, type DoodleDoc } from '../llm/doodle/model'
 import { doodleSession, openDoodle } from '../llm/doodle/session'
 import { canCapture, captureScreen, type Picture } from '../llm/doodle/background'
-import { cancelRecording, canRecord, speech, startRecording, stopRecording, transcribe } from '../llm/transcribe'
+import { cancelDictation, canRecord, speech, startDictation, stopDictation } from '../llm/transcribe'
 import { AttachmentChip, formatTokens, Popover } from '../llm/parts'
 import type { Caps } from '../llm/state'
 import { cancelAgent, configAgent, followAgent, promptAgent, sessions, threads, unqueueAgent, type AgentPart, type ConfigOption } from './state'
@@ -100,16 +100,14 @@ export function AgentComposer(props: { id: string; onSent?: () => void; head?: J
 
   const dictate = async () => {
     try {
-      if (speech.phase === 'recording') {
-        const blob = await stopRecording()
-        const v = view()
-        if (blob && v) insertAtCaret(v, await transcribe(blob))
-      } else if (speech.phase === 'idle') await startRecording()
+      const v = view()
+      if (speech.phase === 'recording') await stopDictation()
+      else if (speech.phase === 'idle' && v) await startDictation(liveDictation(v))
     } catch (e) {
       toast(t('Dictation: {message}', { message: (e as Error).message }), 'error')
     }
   }
-  onCleanup(cancelRecording)
+  onCleanup(cancelDictation)
 
   // The commands the agent announces (its own commands and skills).
   const slashItems = (): CompletionItem[] => (info()?.commands ?? []).map((c) => ({ kind: 'command', label: `/${c.name}`, detail: c.input?.hint ? `${c.description} · ${c.input.hint}` : c.description, insert: `/${c.name} ` }))

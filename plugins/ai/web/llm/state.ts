@@ -390,6 +390,8 @@ export const [prefs, setPrefs] = createStore({
   /** Local speech recognition: Whisper model and language. */
   whisperModel: 'base',
   whisperLang: 'auto',
+  /** Dictation typed in the box as the user speaks (else transcribed at the stop). */
+  whisperLive: true,
   /** Send audio files as such to models that accept audio (else transcribed in the page). */
   audioToModel: false,
   /** Automatic compaction at compactAt % of the context, by the given model ('' = chat model). */
