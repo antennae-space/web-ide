@@ -177,7 +177,8 @@ run(async ({ page }) => {
   const results = requests[requests.length - 1].messages.filter((m) => m.role === 'tool').map((m) => m.content)
   assert(requests[0].tools.some((t) => t.function.name === 'docker_ps'), 'docker tools offered to the model')
   assert(results[0]?.includes(`Compose project "${name}"`) && /app \(.*app-1\): Up/.test(results[0]), 'docker_ps: state of the services: ' + results[0])
-  const logLines = (results[1] ?? '').split('\n').slice(1)
+  // The effort note at the end of the last message (#217) is not part of the logs.
+  const logLines = (results[1] ?? '').split('\n\nReasoning effort is set to')[0].split('\n').slice(1)
   assert(logLines.length > 0 && logLines.every((l) => l.includes('warn')), 'docker_logs: filtered logs of a service: ' + results[1]?.slice(0, 200))
   fake.close()
 
