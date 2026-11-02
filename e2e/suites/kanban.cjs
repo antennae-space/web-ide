@@ -24,6 +24,25 @@ run(async ({ page, ctx }) => {
   await kp.waitForSelector('[data-testid=kanban-view-board][aria-pressed=true]')
   assert(true, 'and back on the Board')
 
+  // Its views switched inside the board keep their place: the Milestones scrolled, the Board
+  // shown, the Milestones again (the same, not drawn anew).
+  await kp.click('[data-testid=kanban-view-milestones]')
+  await kp.waitForSelector('[data-testid=milestones]')
+  await kp.$eval('[data-testid=milestones]', (e) => {
+    e.insertAdjacentHTML('beforeend', '<div class="probe" style="height:3000px;flex:none"></div>')
+    e.scrollTop = 500
+  })
+  await kp.click('[data-testid=kanban-view-board]')
+  await kp.waitForSelector('[data-testid=kanban-view-board][aria-pressed=true]')
+  assert(!(await kp.isVisible('[data-testid=milestones]')), 'the Milestones hidden under the Board')
+  await kp.click('[data-testid=kanban-view-milestones]')
+  await kp.waitForSelector('[data-testid=kanban-view-milestones][aria-pressed=true]')
+  const kept = await kp.$eval('[data-testid=milestones]', (e) => [e.scrollTop, !!e.querySelector('.probe')])
+  assert(kept[0] === 500 && kept[1] && !(await kp.isVisible('.kb-columns')), 'back on the Milestones, where they were: ' + kept)
+  await kp.$eval('[data-testid=milestones]', (e) => (e.querySelector('.probe').remove(), (e.scrollTop = 0)))
+  await kp.click('[data-testid=kanban-view-board]')
+  await kp.waitForSelector('[data-testid=kanban-view-board][aria-pressed=true]')
+
   // New ticket.
   await kp.click('[data-testid=kanban-new]')
   await kp.fill('[data-testid=kanban-title]', 'CSV export of the orders')
