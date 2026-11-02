@@ -4,9 +4,16 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ## [Unreleased]
 
+## [1.28.0] - 2026-11-02
+
 ### Added
 
 - **Live dictation.** The microphone of the Assistant and of the Agents types the words into the box as you speak, still transcribed by Whisper in your browser: dimmed while they may still change, fixed at each pause, one undo per sentence. *Live dictation* in the transcription settings turns it off (the text then comes at the stop, as before); a device too slow for it switches to that by itself.
+
+### Fixed
+
+- **Tools and tabs keep their scroll** when another one is shown in between: a tool on a phone, a tab of the editor area, the frame of an external plugin.
+- **Kanban 1.0.1**: Board, Roadmap and Milestones keep their scroll and their state when you switch between them; Claude Code closes a merged ticket *To test* (`kanban_move`).
 
 ## [1.27.0] - 2026-11-02
 
