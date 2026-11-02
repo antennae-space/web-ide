@@ -178,6 +178,8 @@
 .ai-editor .ed-content { padding: 4px 0; }
 .ai-editor .ed.wrap .ed-ws { padding-right: 0; }
 ::highlight(ai-ref) { color: var(--accent); }
+/* The provisional text of a live dictation (rewritten until its segment is committed). */
+::highlight(ai-dictation) { color: var(--fg-muted); text-decoration: underline dotted var(--fg-muted); }
 .ai-full-btn { position: absolute; top: 8px; right: 8px; z-index: 3; opacity: 0.6; }
 .ai-full-btn:hover, .ai-composer-wrap.full .ai-full-btn { opacity: 1; }
 .ai-editor { padding-right: 22px; }

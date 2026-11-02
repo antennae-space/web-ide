@@ -4,7 +4,7 @@ import { env, pipeline, type AutomaticSpeechRecognitionPipeline } from '@hugging
 
 type Msg =
   | { type: 'config'; remoteHost: string; wasm: { mjs: string; wasm: string } }
-  | { type: 'transcribe'; id: number; repo: string; dtype: any; device: 'webgpu' | 'wasm'; audio: Float32Array; language: string }
+  | { type: 'transcribe'; id: number; repo: string; dtype: any; device: 'webgpu' | 'wasm'; audio: Float32Array; language: string; live?: boolean }
 
 let asr: AutomaticSpeechRecognitionPipeline | null = null
 let loadedKey = ''
@@ -35,14 +35,17 @@ self.onmessage = async (e: MessageEvent<Msg>) => {
     return
   }
   try {
-    postMessage({ type: 'phase', id: m.id, phase: 'loading' })
+    const key = `${m.repo}|${JSON.stringify(m.dtype)}|${m.device}`
+    if (!asr || loadedKey !== key) postMessage({ type: 'phase', id: m.id, phase: 'loading' })
     await load(m.repo, m.dtype, m.device)
     postMessage({ type: 'phase', id: m.id, phase: 'transcribing' })
+    // No audio: the model is only loaded (the start of a live dictation).
+    if (!m.audio.length) return postMessage({ type: 'done', id: m.id, text: '' })
+    // A live segment fits in one window of Whisper: no chunking, faster.
     const out: any = await asr!(m.audio, {
       language: m.language === 'auto' ? null : m.language,
       task: 'transcribe',
-      chunk_length_s: 30,
-      stride_length_s: 5,
+      ...(m.live ? {} : { chunk_length_s: 30, stride_length_s: 5 }),
     } as any)
     const text = (Array.isArray(out) ? out.map((o) => o.text).join(' ') : out.text) as string
     postMessage({ type: 'done', id: m.id, text: text.trim() })

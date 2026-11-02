@@ -32,8 +32,8 @@ import { prepareDoodle } from './doodle/export'
 import { cloneDoc, newDoc, type DoodleDoc } from './doodle/model'
 import { doodleSession, openDoodle } from './doodle/session'
 import { canCapture, captureScreen, type Picture } from './doodle/background'
-import { insertAtCaret, MessageBox, type CompletionItem } from './MessageBox'
-import { cancelRecording, canRecord, modelById, speech, startRecording, stopRecording, transcribe } from './transcribe'
+import { liveDictation, MessageBox, type CompletionItem } from './MessageBox'
+import { cancelDictation, canRecord, modelById, speech, startDictation, stopDictation } from './transcribe'
 import { AttachmentChip, formatSize, formatTokens, Popover, Switch } from './parts'
 import { contextMenu, errorToast, home, Icon, registerAction, shortcutOf, t, tn, toast } from '../plugin'
 import type { EditorView } from '../plugin'
@@ -511,36 +511,34 @@ export function Composer(props: {
     queueMicrotask(() => view()?.focus())
   })
 
-  const insertText = (t: string) => {
-    const v = view()
-    if (v) insertAtCaret(v, t)
-  }
-
   const dictate = async () => {
     try {
-      if (speech.phase === 'recording') {
-        const blob = await stopRecording()
-        if (blob) insertText(await transcribe(blob))
-      } else if (speech.phase === 'idle') await startRecording()
+      const v = view()
+      if (speech.phase === 'recording') await stopDictation()
+      else if (speech.phase === 'idle' && v) await startDictation(liveDictation(v))
     } catch (e) {
       toast(t('Dictation: {message}', { message: (e as Error).message }), 'error')
     }
   }
-  onCleanup(cancelRecording)
+  onCleanup(cancelDictation)
 
   const [now, setNow] = createSignal(Date.now())
   const tick = setInterval(() => speech.phase === 'recording' && setNow(Date.now()), 250)
   onCleanup(() => clearInterval(tick))
+  const loadingLabel = () =>
+    speech.total
+      ? t('Downloading the model {name}: {pct} % ({done} / {total})', { name: modelById(prefs.whisperModel).repo.split('/')[1], pct: Math.round((speech.loaded / speech.total) * 100), done: formatSize(speech.loaded), total: formatSize(speech.total) })
+      : t('Loading the transcription model…')
   const speechLabel = () => {
     switch (speech.phase) {
       case 'recording': {
         const s = Math.max(0, Math.floor((now() - speech.startedAt) / 1000))
-        return t('Recording {time} · click the microphone to finish', { time: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` })
+        const rec = t('Recording {time} · click the microphone to finish', { time: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` })
+        // Live dictation: the words wait for the model.
+        return speech.modelLoading ? `${rec} · ${loadingLabel()}` : rec
       }
       case 'loading':
-        return speech.total
-          ? t('Downloading the model {name}: {pct} % ({done} / {total})', { name: modelById(prefs.whisperModel).repo.split('/')[1], pct: Math.round((speech.loaded / speech.total) * 100), done: formatSize(speech.loaded), total: formatSize(speech.total) })
-          : t('Loading the transcription model…')
+        return loadingLabel()
       case 'transcribing':
         return t('Local transcription…')
     }

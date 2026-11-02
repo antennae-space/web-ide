@@ -4,6 +4,10 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ## [Unreleased]
 
+### Added
+
+- **Live dictation.** The microphone of the Assistant and of the Agents types the words into the box as you speak, still transcribed by Whisper in your browser: dimmed while they may still change, fixed at each pause, one undo per sentence. *Live dictation* in the transcription settings turns it off (the text then comes at the stop, as before); a device too slow for it switches to that by itself.
+
 ## [1.26.0] - 2026-10-30
 
 ### Changed
