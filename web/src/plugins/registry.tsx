@@ -1,13 +1,14 @@
 // Plugins of the window (docs/design/plugins.md): the states the pod sends (project.open,
-// plugins.changed), the page modules of the built-in plugins, each a chunk loaded when the plugin
-// is first enabled and activated once, and the contributions of the enabled ones (tools, tab
+// plugins.changed), the page modules of the built-in plugins, each a chunk of its own asked as
+// soon as the states arrive (and, at the next opening, before the pod answers: `warmPluginModules`
+// #206), activated once the project is open, and the contributions of the enabled ones (tools, tab
 // views, commands). While a module loads, its tools and views show a placeholder.
 import { createMemo, createRoot, createSignal, type JSX } from 'solid-js'
 import { on, request } from '../pod/rpc'
 import { loadMark, loadPending } from '../pod/loadJournal'
 import { setPluginActions } from '../keys/bindings'
 import { API_VERSION, makeApi } from './api'
-import { externalModule, bundleBytes } from './external'
+import { dropBundle, externalModule, fetchBundle, bundleBytes } from './external'
 import type { ExplorerEntry, PluginContributions, PluginModule, PluginState, StatusItem } from './types'
 import type { MenuItem } from '../ui/overlay'
 import { setCapabilityGate } from './capabilities'
@@ -19,7 +20,7 @@ import { t } from '../i18n'
 import { errorToast, toast } from '../ui/toast'
 import { setPackGrammars, setPackLanguages } from '../editor/languages'
 import { refreshPackGrammars } from '../editor/packGrammars'
-import { placePluginTools, type TabState } from '../state/project'
+import { home, placePluginTools, project, type TabState } from '../state/project'
 
 // The page module of each built-in, a chunk of its own (vite.config.ts: plugin-<id>).
 const builtins: Record<string, () => Promise<PluginModule>> = {
@@ -57,14 +58,18 @@ const hasModule = (s: PluginState) => {
   return !!s.external?.installed && !!(c.tools?.length || c.tabViews?.length || c.commands?.length || s.manifest.provides?.length)
 }
 
-/** The page module of a plugin, loaded once (undefined when it cannot be). Its load is a phase
- * of the journal (#204), with the size of the chunk or of the bundle when it is known. */
-function load(id: string): Promise<PluginModule | undefined> {
-  const external = states().find((s) => s.manifest.id === id && s.external?.installed)
-  if (external) builtVersion[id] = external.external!.version
-  const get = builtins[id] ?? (external ? () => externalModule(external, () => states().find((s) => s.manifest.id === id)) : () => Promise.reject(new Error('no page module')))
+/**
+ * The page module of a plugin, loaded once (undefined when it cannot be). Its load is a phase
+ * of the journal (#204), with the size of the chunk or of the bundle when it is known. `list`
+ * names the states to build from: the ones of a `project.open` answer, before they reach the
+ * window (#206) — the live states stay the reference of what an external frame gets.
+ */
+function load(id: string, list = states()): Promise<PluginModule | undefined> {
   const held = loading[id]
   if (held !== undefined) return held
+  const external = list.find((s) => s.manifest.id === id && s.external?.installed)
+  if (external) builtVersion[id] = external.external!.version
+  const get = builtins[id] ?? (external ? () => externalModule(external, () => states().find((s) => s.manifest.id === id)) : () => Promise.reject(new Error('no page module')))
   const t0 = performance.now()
   const asked = loadPending() // the journal prints its table once no module is pending (loadJournal)
   return (loading[id] = get().then(
@@ -99,6 +104,65 @@ function chunkBytes(id: string): number {
 let running = new Set<string>()
 const toRefresh = new Set<string>()
 
+// What this project loaded last time (#206), kept in the browser one key per project: the ids of
+// the enabled plugins with a page module, the built-ins alone, and for an external one the
+// version of the bundle remembered (so an update is not fetched under the old one). A plugin
+// disabled or removed since falls out of the list at the states that follow.
+const warmKey = (projectId: string) => `plugins.warm:${projectId}`
+type WarmEntry = { id: string; ext?: string }
+
+const warmList = (list: PluginState[]): WarmEntry[] =>
+  list
+    .filter((s) => s.enabled && s.manifest.apiVersion === API_VERSION && hasModule(s))
+    .map((s) => (builtins[s.manifest.id] ? { id: s.manifest.id } : { id: s.manifest.id, ext: s.external?.version }))
+
+function rememberWarm(list: PluginState[]) {
+  const id = project()?.id ?? home()?.id
+  if (!id) return
+  try {
+    localStorage.setItem(warmKey(id), JSON.stringify(warmList(list)))
+  } catch {
+    /* private mode or quota: the warm start is a comfort, not a promise */
+  }
+}
+
+/**
+ * The states `project.open` answered: the modules of the enabled plugins are asked at once, while
+ * the worktrees attach and the grammars arrive (#206). Nothing is activated here — activation
+ * still waits for the project (`pluginsOpened`), and finds these loads already running.
+ */
+export function preloadPlugins(list: PluginState[]) {
+  const wanted = list.filter((s) => s.enabled && hasModule(s) && s.manifest.apiVersion === API_VERSION && !active[s.manifest.id] && loading[s.manifest.id] === undefined)
+  wanted.sort((a, b) => Number(!!b.manifest.required) - Number(!!a.manifest.required)) // the locked ones first, as for the activation
+  for (const s of wanted) void load(s.manifest.id, list)
+  if (wanted.length) loadMark('ask', { n: wanted.length })
+}
+
+/**
+ * Asks the modules this project used at its last opening, before `project.open` answers (#206):
+ * the chunk of a built-in (a module evaluates nothing but its own definitions and its deferred
+ * events of the pod until it is activated), and the bundle of an external still at the remembered
+ * version. A module loaded for a plugin the project does not enable any more is never activated.
+ */
+export function warmPluginModules(projectId: string) {
+  let entries: WarmEntry[]
+  try {
+    entries = JSON.parse(localStorage.getItem(warmKey(projectId)) ?? '[]')
+  } catch {
+    return // nothing kept, or a record this browser will not read
+  }
+  if (!Array.isArray(entries)) return
+  let started = 0
+  for (const e of entries) {
+    if (!e || typeof e.id !== 'string' || active[e.id] || loading[e.id] !== undefined) continue
+    if (builtins[e.id]) void load(e.id)
+    else if (typeof e.ext === 'string') void fetchBundle(e.id, e.ext).catch((err) => console.warn('plugin', e.id, err))
+    else continue
+    started++
+  }
+  if (started) loadMark('warm', { n: started })
+}
+
 /**
  * Takes the states of the plugins of the project: the enabled ones are loaded (the locked ones
  * first) and activated, and those just enabled (all of them when the project was just opened)
@@ -118,13 +182,15 @@ export function setPluginStates(list: PluginState[] | undefined, opened = false)
     delete modules[id]
     delete loading[id]
     delete builtVersion[id]
+    dropBundle(id) // a bundle fetched for the old version is not the one this project has
   }
   setStates(list)
+  rememberWarm(list)
   if (opened) for (const s of list) if (s.enabled) toRefresh.add(s.manifest.id)
   const wanted = list.filter((s) => s.enabled && hasModule(s) && !active[s.manifest.id] && s.manifest.apiVersion === API_VERSION)
   wanted.sort((a, b) => Number(!!b.manifest.required) - Number(!!a.manifest.required))
   for (const s of wanted)
-    void load(s.manifest.id).then((m) => {
+    void load(s.manifest.id, list).then((m) => {
       if (!m || active[s.manifest.id]) return
       active[s.manifest.id] = m.activate(makeApi(s.manifest.id))
       setVersion((v) => v + 1)

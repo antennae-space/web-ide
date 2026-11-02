@@ -117,4 +117,27 @@ run(async ({ page }) => {
   const r = await call
   const text = r.result?.content?.[0]?.text ?? JSON.stringify(r)
   assert(text.includes('Postgres'), 'the answers returned to the MCP call: ' + text)
+
+  // A question left waiting: it is listed at open, without a modal; ?questions shows the first.
+  await showAgents(page)
+  await waitState(page, 'ready')
+  await prompt(page, 'ask me at open')
+  await showQuestions(page)
+  await page.waitForSelector(`${items}[data-source=acp]`, { timeout: 15000 })
+  await page.waitForTimeout(400)
+  assert(!(await page.$(modal)), 'the session override keeps the modal closed')
+  await page.click(items)
+  await page.waitForSelector(`${modal}[data-kind=form]`, { timeout: 15000 })
+  await page.click('[data-testid=question-later]')
+  await page.waitForSelector(modal, { state: 'detached' })
+
+  await page.reload()
+  await page.waitForSelector('.menubar')
+  await page.waitForTimeout(1000) // the questions load in the background
+  assert(!(await page.$(modal)), 'a question already waiting does not pop up at open')
+  const url = new URL(page.url())
+  url.searchParams.set('questions', '')
+  await page.goto(url.href)
+  await page.waitForSelector(`${modal}[data-kind=form]`, { timeout: 15000 })
+  assert(true, '?questions shows the first waiting question')
 })

@@ -1,6 +1,6 @@
 # `plugins`
 
-The built-in plugins of the IDE, one folder each, in the shape of an external plugin ([plugins.md](../docs/design/plugins.md#shape-of-a-plugin)): `plugin.json` (the manifest), the Go package of its pod side (`*.go`, listed by `pod/plugins/builtin`), `web/` (its page module, the chunk `plugin-<id>`, loaded when the plugin is first enabled), `e2e/` (its browser suites, found by `e2e/run.sh`) and its `README.md`.
+The built-in plugins of the IDE, one folder each, in the shape of an external plugin ([plugins.md](../docs/design/plugins.md#shape-of-a-plugin)): `plugin.json` (the manifest), the Go package of its pod side (`*.go`, listed by `pod/plugins/builtin`), `web/` (its page module, the chunk `plugin-<id>`, asked as `project.open` answers — and, at the next opening, before the pod answers: [Loading on demand](../docs/design/plugins.md#loading-on-demand)), `e2e/` (its browser suites, found by `e2e/run.sh`) and its `README.md`.
 
 | Plugin | What it is |
 |---|---|

@@ -25,6 +25,39 @@ type Bundle = { version: string; js: string; catalogs: Record<string, Record<str
 /** Bytes of each external bundle fetched, read by the registry for its journal line (#204). */
 export const bundleBytes: Record<string, number> = {}
 
+// The bundle of an external plugin is asked apart from its module (#206): the warm start of the
+// last opening can fetch it before the states of the project are known, and the load at the
+// activation takes the same promise instead of asking the pod again. One ask at a time per plugin:
+// the pod answers the bundle it has now, so an ask running when the states land is the right one,
+// and a bundle already in hand is kept only for the version it carries.
+type Ask = { promise: Promise<Bundle>; version: string }
+const asks: Record<string, Ask> = {}
+
+/** The bundle asked for `version` (the one the page remembered): its promise, reused as is. */
+export function fetchBundle(id: string, version: string): Promise<Bundle> {
+  const held = asks[id]
+  if (held && (!held.version || held.version === version)) return held.promise
+  const ask = {} as Ask
+  ask.promise = request<Bundle>('plugins.bundle', { id }).then(
+    (b) => {
+      ask.version = b.version
+      bundleBytes[id] = b.js.length
+      return b
+    },
+    (e) => {
+      if (asks[id] === ask) delete asks[id] // asked again at the next states
+      throw e
+    },
+  )
+  asks[id] = ask
+  return ask.promise
+}
+
+/** Forgets a bundle in hand (the plugin was updated or removed: its module is built again). */
+export function dropBundle(id: string) {
+  delete asks[id]
+}
+
 type Served = ReturnType<typeof serveFrame>
 
 /** The status items a tab frame gave for its tab (setStatus), and how to answer its choices. */
@@ -287,10 +320,10 @@ function backgroundFrame(state: PluginState, grants: () => string[], bundle: Bun
   }
 }
 
-/** Loads the bundle of an external plugin and builds its module; current is its state now. */
+/** Builds the module of an external plugin from its bundle (fetched by `fetchBundle`): the
+ * sandboxed frames come at activation, not before (#206). */
 export async function externalModule(state: PluginState, current: () => PluginState | undefined): Promise<PluginModule> {
-  const bundle = await request<Bundle>('plugins.bundle', { id: state.manifest.id })
-  bundleBytes[state.manifest.id] = bundle.js.length
+  const bundle = await fetchBundle(state.manifest.id, state.external?.version ?? '')
   const c = state.manifest.contributes
   const grants = () => current()?.external?.grants ?? []
   const bg = backgroundFrame(state, grants, bundle)

@@ -134,6 +134,10 @@ const words = {
   tAppStart: L('The IDE starts (script loaded)', 'L’IDE démarre (script chargé)', 'El IDE arranca (script cargado)'),
   tAppRpc: L('The IDE talks to the pod (first message)', 'L’IDE parle au pod (premier message)', 'El IDE habla con el pod (primer mensaje)'),
   tAppHome: L('Home page shown', 'Accueil affiché', 'Inicio mostrado'),
+  // When the page starts asking the page modules of the plugins (#206): at the last opening's
+  // list, before the pod answers, or with the states the project answers.
+  tAppWarm: L('Plugin modules of the last opening asked ({n})', 'Morceaux des plugins de la dernière ouverture demandés ({n})', 'Fragmentos de los plugins de la última apertura pedidos ({n})'),
+  tAppAsk: L('Plugin modules of the project asked ({n})', 'Morceaux des plugins du projet demandés ({n})', 'Fragmentos de los plugins del proyecto pedidos ({n})'),
   // The end of the load, told by the app once the project is open (#204). The numbers come from
   // the app; the page words them, as it does for its own steps.
   tAppProject: L(
@@ -412,6 +416,10 @@ function traceLine(step, detail) {
       return words.tAppRpc
     case 'home':
       return words.tAppHome
+    case 'warm':
+      return fmt(words.tAppWarm, { n: n.n ?? 0 })
+    case 'ask':
+      return fmt(words.tAppAsk, { n: n.n ?? 0 })
     case 'project-open':
       return fmt(words.tAppProject, { ms: n.ms ?? 0, pod: n.pod ?? 0, runtime: n.runtime ?? 0, git: n.git ?? 0, commands: n.commands ?? 0, attach: n.attach ?? 0, tracked: n.tracked ?? 0, plugins: n.plugins ?? 0 })
     case 'reattach':
@@ -1550,8 +1558,11 @@ async function onMessage(d) {
   if (d?.kind === 'trace') {
     const line = traceLine(d.step, d.detail)
     if (line) {
+      // A phase is written once, and a phase measured again rewrites its line; each plugin module
+      // keeps its own (#204, #206).
+      const key = d.detail?.id ? d.step + ':' + d.detail.id : d.step
       mark('app-' + (d.step === 'plugin' ? d.detail?.id ?? '' : d.step))
-      trace(line, d.step)
+      trace(line, key)
     }
     return
   }

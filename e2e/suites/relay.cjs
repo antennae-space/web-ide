@@ -105,7 +105,7 @@ run(
     // on it, the phases after it, each plugin module, and what the load carried.
     await page.waitForFunction(() => window.bootJournal.includes('Load carried'), null, { timeout: 30000 })
     const load = await page.evaluate(() => window.bootJournal)
-    for (const line of ['Project opened', 'runtime', 'Worktrees attached', 'Language packs ready', 'Questions loaded', 'Project ready', 'Plugin '])
+    for (const line of ['Project opened', 'runtime', 'Plugin modules of the project asked', 'Worktrees attached', 'Language packs ready', 'Questions loaded', 'Project ready', 'Plugin '])
       assert(load.includes(line), `the journal of the load says "${line}":\n${load}`)
     // `ready` follows the open by seconds, not by tens of seconds: a load that loses its channel
     // and never marks the project ready is what the journal is there to catch.
