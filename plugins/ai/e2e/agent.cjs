@@ -61,7 +61,8 @@ const fake = http.createServer(async (req, res) => {
   // The pod asks again after a stuck answer, with a nudge as the last message.
   const nudge = (m) => m.role === 'user' && text(m).startsWith('Your previous answer was stopped')
   const lastUser = [...msgs].reverse().find((m) => m.role === 'user' && !text(m).startsWith('Summary of the earlier conversation') && !nudge(m))
-  const ask = text(lastUser ?? { content: '' })
+  // The effort note at the end of a message (#217) is not the ask ("Please think carefully…").
+  const ask = text(lastUser ?? { content: '' }).split('\n\nReasoning effort is set to')[0]
   const toolsDone = msgs.filter((m) => m.role === 'tool').length
   if (ask.includes('tools')) {
     if (last.role === 'user')
