@@ -63,10 +63,10 @@
     "id": "kanban",
     "url": "https://github.com/antennae-space/plugin-kanban",
     "constraint": "^1",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "sha256": {
-      "linux-amd64": "b7f695844563efcbbe104cdf12aeeeb73cde20f92d252eacc23beaf191010af9",
-      "linux-arm64": "167135a9ebf9f67cad20e0a4aba57b57623544d264c69484a9a55733da3bfee1"
+      "linux-amd64": "385241907c55cfa27af782735d158d6c28b5400c2764a5c6b44ed98d95ec052a",
+      "linux-arm64": "54142aea9ea39a3ede8708c305c468140b407c06e154e7595b1724bf1efffacd"
     }
   }
 ]
