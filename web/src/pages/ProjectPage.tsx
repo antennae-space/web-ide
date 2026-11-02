@@ -13,6 +13,7 @@ import { cycleWidth, focusDirection, moveColumnBy, scrollMode, stackTile, tileMo
 import { pluginHosts, pluginsOpened, pluginTools, preloadPlugins, refreshPlugins, toolCornerFor, warmPluginModules } from '../plugins/registry'
 import { openLinks } from '../plugins/links'
 import { tileLauncher } from '../ui/tileLauncher'
+import { useScrollMemory } from '../ui/scrollMemory'
 import { deskPath, navigate, route } from '../app/router'
 import { defaultPlacement, moveTool, normalizePlacement, showTool, shownIn, toggleTool, toolsIn, zoneOf, zones, type Zone } from '../state/zones'
 import { applyDeskFocus, holdDeskFocus } from '../state/deskFocus'
@@ -667,8 +668,12 @@ function ZonePanel(props: { zone: Zone; width?: number; style?: JSX.CSSPropertie
   const id = () => shownIn(session, props.zone)!
   const items = () => toolMenuItems({ zone: props.zone })
   const side = props.zone === 'left' || props.zone === 'right'
+  const [el, setEl] = createSignal<HTMLElement>()
+  // A tool shown again (another one was in the zone, the phone showed another part) is where it was.
+  useScrollMemory(el, () => `tool:${id()}`)
   return (
     <aside
+      ref={setEl}
       class={`zone zone-${props.zone}`}
       classList={{ side, [`side-${props.zone}`]: side, focused: focusPart() === props.zone }}
       data-tool={id()}

@@ -229,10 +229,15 @@ export type FrameCall =
   | { call: 'showTool'; id: string }
   | { call: 'closeModal'; result?: unknown }
   | { call: 'setDesk'; state: unknown }
+  /** Where its scrolled elements are (the bootstrap's own): the page keeps it while the view is hidden. */
+  | { call: 'scroll'; spots: SandboxScrollSpots }
+
+/** The scrolled elements of a view, by their path from its root (`ui/scrollMemory.ts`). */
+export type SandboxScrollSpots = Record<string, { top: number; left: number; end?: boolean }>
 
 /** What the page sends the frame. */
 export type PageMessage =
-  | { init: { view: SandboxView; lang: string; catalog: Record<string, string>; theme: SandboxTheme; editor?: SandboxEditorState; settings?: Record<string, unknown>; modal?: boolean; project?: SandboxProject; desk?: unknown } }
+  | { init: { view: SandboxView; lang: string; catalog: Record<string, string>; theme: SandboxTheme; editor?: SandboxEditorState; settings?: Record<string, unknown>; modal?: boolean; project?: SandboxProject; desk?: unknown; scroll?: SandboxScrollSpots } }
   | { project: SandboxProject }
   | { reply: number; result?: unknown; error?: string; code?: string; data?: Record<string, string> }
   | { theme: SandboxTheme }

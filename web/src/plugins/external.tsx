@@ -153,6 +153,8 @@ function SandboxFrame(props: {
       catalogs: props.bundle.catalogs,
       view: props.view,
       tab: props.tab,
+      // A modal view starts anew each time; a tool or a tab view is kept where it was.
+      scrollKey: props.modal ? undefined : props.tab ? `frame:tab:${props.tab.id}` : `frame:tool:${props.view}`,
       editor: props.editor,
       settings: () => pluginSettingValues(props.state.manifest),
       openModal: modalOpener(props.state, props.grants, props.bundle),

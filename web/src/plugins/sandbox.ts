@@ -12,6 +12,7 @@ import { copyText } from '../ui/clipboard'
 import { capability } from './capabilities'
 import { emit, openModalOf, publish, use } from './services'
 import { renderMarkdown } from '../ui/markdown'
+import { keepScroll, saveScrollSpots, scrollSpots } from '../ui/scrollMemory'
 import { docTarget, openDoc, type HelpTopic } from '../state/docs'
 import topics from '../help/topics.json'
 import { lang, t } from '../i18n'
@@ -118,11 +119,14 @@ export const bootstrap = `(() => {
     },
   }
   window.ide = ide
+  const keepScroll = ${keepScroll.toString()}
   function start() {
     if (!info || !registered || mounted) return
     mounted = true
     const v = info.view && views[info.view.id]
     if (v) v(document.getElementById('root'), ide)
+    // A tool or a tab view shown again is where it was: the page keeps its scroll meanwhile.
+    if (info.scroll) keepScroll(document.getElementById('root'), info.scroll, (spots) => send({ call: 'scroll', spots }))
     send({ call: 'ready' })
   }
   function receive(e) {
@@ -237,6 +241,8 @@ export type FrameHost = {
   openModal?: (view: string, state: unknown, title: string, size: SandboxModalSize) => Promise<unknown>
   /** A modal view: closes its modal with a result. */
   closeModal?: (result: unknown) => void
+  /** A tool or a tab view: the key its scroll is kept under while it is hidden. */
+  scrollKey?: string
   /** Its tools (it may show them). */
   tools?: string[]
   /** A tab view: the title it gives its tab. */
@@ -419,6 +425,9 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
         return
       case 'ready':
         host.onReady?.()
+        return
+      case 'scroll':
+        if (host.scrollKey && m.spots && typeof m.spots === 'object') saveScrollSpots(host.scrollKey, JSON.parse(JSON.stringify(m.spots)))
         return
       case 'dialog':
         void (async () => {
@@ -603,7 +612,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     const st = host.tab ? host.tab.state : host.state
     const state = st === undefined ? undefined : JSON.parse(JSON.stringify(st))
     lastDesk = deskJSON()
-    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme(), editor: editorState(), settings: host.settings?.(), modal: !!host.closeModal, project: projectInfo(), desk: JSON.parse(lastDesk) } })
+    send({ init: { view: { id: host.view, state }, lang: lang(), catalog: catalog(), theme: theme(), editor: editorState(), settings: host.settings?.(), modal: !!host.closeModal, project: projectInfo(), desk: JSON.parse(lastDesk), scroll: host.scrollKey ? scrollSpots(host.scrollKey) : undefined } })
   }
   frame.addEventListener('load', start)
   // The theme and the language follow the page.

@@ -26,6 +26,7 @@ import { addDesk, desk, deskLabel, desks } from '../state/desks'
 import { route } from '../app/router'
 import { hiddenTools, tileMode, nextSplit, resizing, scrollMode, tileTools } from '../state/tiles'
 import { ScrollArea } from './ScrollArea'
+import { useScrollMemory } from './scrollMemory'
 import { capability } from '../plugins/capabilities'
 import { Dynamic } from 'solid-js/web'
 import { DocView } from './DocView'
@@ -130,6 +131,12 @@ function Pane(props: { id: string }) {
     return l?.active ? session.tabs[l.active] : undefined
   }
   const isActivePane = () => session.activePane === props.id
+  // A tool or plugin tab shown again is where it was (a file keeps its own, in its editor).
+  const [body, setBody] = createSignal<HTMLElement>()
+  useScrollMemory(body, () => {
+    const tab = active()
+    return tab && (tab.kind === 'tool' ? `tool:${tab.tool}` : tab.kind.startsWith('plugin:') ? `tab:${tab.id}` : undefined)
+  })
   // File tabs of the window sharing a name: their folders (see tabNames.ts).
   const dirs = createMemo(() => distinctDirs(Object.values(session.tabs).flatMap((x) => (x.kind === 'file' && x.path ? [relPath(x.path)] : []))))
   let tabbar!: HTMLDivElement
@@ -290,7 +297,7 @@ function Pane(props: { id: string }) {
           ◫
         </button>
       </div>
-      <div class="pane-body">
+      <div class="pane-body" ref={setBody}>
         <Show when={phone() && isActivePane() && active()?.kind === 'file'}>
           <LockLayer />
         </Show>

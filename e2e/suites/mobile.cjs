@@ -7,6 +7,8 @@ const fs = require('fs')
 const { run, openProject, assert, pinchRefused, phoneShow, phoneView, OUT, WS } = require('../common.cjs')
 
 fs.writeFileSync(WS + '/demo/long.txt', Array.from({ length: 200 }, (_, i) => `line ${i + 1}`).join('\n') + '\n')
+// Enough files for the explorer to scroll.
+for (let i = 10; i < 70; i++) fs.writeFileSync(`${WS}/demo/zz-${i}.txt`, '')
 
 const visible = (page, sel) => page.isVisible(sel)
 const view = (page) =>
@@ -173,6 +175,29 @@ run(
     assert((await view(page)) === 'explorer' && (await active(page)) === 'explorer', 'the explorer full screen, alone, the mode closed')
     assert(!(await visible(page, '[data-testid=status-bar]')), 'the bar is hidden with the editor when a tool view is shown')
     await page.screenshot({ path: OUT + '/mobile-explorer.png' })
+    // Another tool shown, then the explorer again: it is where it was.
+    await page.waitForSelector('.zone[data-tool=explorer] .tree-row:has-text("zz-69.txt")', { state: 'attached' })
+    const scroller = () =>
+      page.evaluate(() => [...document.querySelectorAll('.zone[data-tool=explorer] *')].find((e) => e.scrollHeight > e.clientHeight + 100 && getComputedStyle(e).overflowY !== 'visible'))
+    const scrollTo = (y) =>
+      page.evaluate((y) => {
+        const e = [...document.querySelectorAll('.zone[data-tool=explorer] *')].find((e) => e.scrollHeight > e.clientHeight + 100 && getComputedStyle(e).overflowY !== 'visible')
+        e.scrollTop = y
+        return e.scrollTop
+      }, y)
+    assert(await scroller(), 'the explorer scrolls')
+    const kept = await scrollTo(400)
+    await page.waitForTimeout(300)
+    await phoneShow(page, 'search')
+    await page.waitForSelector('.phone-body > .zone[data-tool=search]')
+    await phoneShow(page, 'explorer')
+    await page.waitForSelector('.zone[data-tool=explorer] .tree-row:has-text("zz-69.txt")', { state: 'attached' })
+    const back = await page
+      .waitForFunction((y) => [...document.querySelectorAll('.zone[data-tool=explorer] *')].some((e) => Math.abs(e.scrollTop - y) <= 1), kept, { timeout: 4000 })
+      .then(() => true, () => false)
+    assert(kept > 0 && back, 'the explorer shown again keeps its scroll: ' + kept)
+    await scrollTo(0)
+    await page.waitForTimeout(300)
     await page.click('.tree-row:has-text("long.txt")')
     await page.waitForFunction(() => document.querySelector('.phone-body > .center:not(.hidden) .tab.active')?.textContent.includes('long.txt'))
     assert((await view(page)) === 'editor' && (await active(page)) === 'editor', 'opening a file brings the editor to the front')

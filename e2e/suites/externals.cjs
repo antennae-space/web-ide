@@ -33,7 +33,7 @@ ide.register({
       try { void parent.document.title; out.parent = 'open' } catch { out.parent = 'blocked' }
       try { await ide.rpc('fs.list', { path: '' }); out.rpc = 'answered' } catch (e) { out.rpc = 'refused: ' + e.message }
       el.innerHTML = '<p id="hello">' + ide.t('Hello from the frame') + '</p><pre id="checks">' + JSON.stringify(out) + '</pre><button id="open">open</button><button id="view">view</button>'
-      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><button id="targets">targets</button><button id="settings">settings</button><button id="console">console</button><button id="docker">docker</button><button id="terminal">terminal</button><button id="size">size</button><button id="confirm">confirm</button><button id="prompt">prompt</button><button id="pick">pick</button><button id="later">later</button><button id="modal">modal</button><pre id="answer"></pre><pre id="event"></pre><pre id="menu-choice"></pre><button id="bump">bump</button><pre id="desk"></pre>'
+      el.innerHTML += '<button id="backend">backend</button><button id="probe">probe</button><button id="core">core</button><button id="list">list</button><button id="dial">dial</button><button id="secret">secret</button><button id="targets">targets</button><button id="settings">settings</button><button id="console">console</button><button id="docker">docker</button><button id="terminal">terminal</button><button id="size">size</button><button id="confirm">confirm</button><button id="prompt">prompt</button><button id="pick">pick</button><button id="later">later</button><button id="modal">modal</button><pre id="answer"></pre><pre id="event"></pre><pre id="menu-choice"></pre><button id="bump">bump</button><pre id="desk"></pre><div id="tall" style="height:3000px"></div>'
       // A count kept in the desk (#200): each desk its own, followed when another desk is shown.
       const count = () => ((ide.desk && ide.desk.n) || 0)
       const showDesk = () => (el.querySelector('#desk').textContent = 'n=' + count())
@@ -204,6 +204,22 @@ run(async ({ page, errors }) => {
   assert(checks.parent === 'blocked', 'no access to the page: ' + JSON.stringify(checks))
   assert(checks.rpc.startsWith('refused') && checks.rpc.includes('fs.list is not granted to Greet'), 'a core method without its grant: ' + checks.rpc)
   assert((await frame(page, 'greet').locator('#hello').textContent()) === 'Hello from the frame', 'its texts')
+
+  // Its tool hidden then shown again: a new frame, where the last one was scrolled.
+  const scrolled = () => frame(page, 'greet').locator('#root').evaluate((e) => e.scrollTop)
+  await frame(page, 'greet').locator('#root').evaluate((e) => (e.scrollTop = 500))
+  await page.waitForTimeout(300)
+  await page.click('.rail-btn[data-id=greet]')
+  await page.waitForSelector('iframe.plugin-frame[data-view=greet]', { state: 'detached' })
+  await page.click('.rail-btn[data-id=greet]')
+  await frame(page, 'greet').locator('#checks').waitFor()
+  let top = 0
+  for (let i = 0; i < 40 && top !== 500; i++) {
+    await page.waitForTimeout(100)
+    top = await scrolled().catch(() => 0)
+  }
+  assert(top === 500, 'a tool frame shown again keeps its scroll: ' + top)
+  await frame(page, 'greet').locator('#root').evaluate((e) => (e.scrollTop = 0))
 
   // Its backend, confined: it answers its frame and emits to it; it reads the project
   // (files:read), not the pod's key nor the network; the core refuses it fs.list.
