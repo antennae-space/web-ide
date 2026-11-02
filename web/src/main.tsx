@@ -2,7 +2,7 @@ import { render } from 'solid-js/web'
 import { Match, onMount, Switch } from 'solid-js'
 import './styles.css'
 import { startPod } from './pod/rpc'
-import { traceBoot } from './pod/transport'
+import { loadMark } from './pod/loadJournal'
 import { installPush, installVisibility } from './pod/push'
 import { loadSettings } from './state/settings'
 import { detectLayout, installKeyHandler } from './keys/bindings'
@@ -17,7 +17,7 @@ import { Toasts } from './ui/toast'
 import { SettingsHost } from './settings/SettingsModal'
 import { ConflictHost } from './conflict/ConflictDialog'
 
-traceBoot('start') // the bundle is parsed and runs
+loadMark('start') // the bundle is parsed and runs
 
 function App() {
   onMount(() => {

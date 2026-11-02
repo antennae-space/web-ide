@@ -5,7 +5,7 @@ import { homeBase } from '../app/home'
 import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import { on as onPod, request } from '../pod/rpc'
-import { traceBoot } from '../pod/transport'
+import { loadMark } from '../pod/loadJournal'
 import { deskPath, navigate } from '../app/router'
 import { lastDesk, loadLastDesks } from '../state/desks'
 import { contextMenu, Modal } from '../ui/overlay'
@@ -57,7 +57,7 @@ export function Home() {
     const list = projects()
     if (list) loadIcons(list)
     // The home page shows its projects: the end of a load through the relay (#75).
-    if (list) requestAnimationFrame(() => traceBoot('home'))
+    if (list) requestAnimationFrame(() => loadMark('home'))
   })
   const [iconFor, setIconFor] = createSignal<{ p: { id: string; name: string }; spec: IconSpec | null; save?: (spec: IconSpec, svg: string) => Promise<void> } | null>(null)
   const editIcon = async (p: Project) => {

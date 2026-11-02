@@ -18,6 +18,7 @@ import { keyOf, nextGateway, pickGateway, pickCluster, routeOf } from './routes.
 const bootAt = performance.now()
 const timings = {}
 const http = { channels: 0, bytes: 0, paths: [] }
+let cacheBytes = 0 // what the Service Worker of this window answered from a cache (#204)
 function publish() {
   window.bootTimings = timings
   window.httpChannels = http.channels
@@ -133,6 +134,21 @@ const words = {
   tAppStart: L('The IDE starts (script loaded)', 'L’IDE démarre (script chargé)', 'El IDE arranca (script cargado)'),
   tAppRpc: L('The IDE talks to the pod (first message)', 'L’IDE parle au pod (premier message)', 'El IDE habla con el pod (primer mensaje)'),
   tAppHome: L('Home page shown', 'Accueil affiché', 'Inicio mostrado'),
+  // The end of the load, told by the app once the project is open (#204). The numbers come from
+  // the app; the page words them, as it does for its own steps.
+  tAppProject: L(
+    'Project opened ({ms} ms, pod {pod} ms: runtime {runtime} ms, git {git} ms, commands {commands} ms, attach {attach} ms, tracked {tracked} ms, plugins {plugins} ms)',
+    'Projet ouvert ({ms} ms, pod {pod} ms : exécution {runtime} ms, git {git} ms, commandes {commands} ms, attachement {attach} ms, suivis {tracked} ms, plugins {plugins} ms)',
+    'Proyecto abierto ({ms} ms, pod {pod} ms: ejecución {runtime} ms, git {git} ms, comandos {commands} ms, conexión {attach} ms, seguidos {tracked} ms, plugins {plugins} ms)',
+  ),
+  tAppReattach: L('Worktrees attached ({ms} ms)', 'Worktrees attachées ({ms} ms)', 'Worktrees conectadas ({ms} ms)'),
+  tAppGrammars: L('Language packs ready ({ms} ms)', 'Packs de langage prêts ({ms} ms)', 'Paquetes de lenguaje listos ({ms} ms)'),
+  tAppQuestions: L('Questions loaded ({ms} ms)', 'Questions chargées ({ms} ms)', 'Preguntas cargadas ({ms} ms)'),
+  tAppReady: L('Project ready ({ms} ms after the page opened)', 'Projet prêt ({ms} ms après l’ouverture de la page)', 'Proyecto listo ({ms} ms tras abrir la página)'),
+  tAppPlugin: L('Plugin {id} loaded ({ms} ms)', 'Plugin {id} chargé ({ms} ms)', 'Plugin {id} cargado ({ms} ms)'),
+  tAppPluginChunk: L('Plugin {id} loaded from its chunk ({ms} ms, {kb} kB)', 'Plugin {id} chargé depuis son morceau ({ms} ms, {kb} kB)', 'Plugin {id} cargado desde su fragmento ({ms} ms, {kb} kB)'),
+  tAppPluginBundle: L('Plugin {id} loaded from its bundle ({ms} ms, {kb} kB)', 'Plugin {id} chargé depuis son paquet ({ms} ms, {kb} kB)', 'Plugin {id} cargado desde su paquete ({ms} ms, {kb} kB)'),
+  tAppBytes: L('Load carried {tunnel} kB from the pod, {cache} kB from the cache, {socket} kB on the socket', 'Le chargement a porté {tunnel} kB depuis le pod, {cache} kB depuis le cache, {socket} kB sur la socket', 'La carga llevó {tunnel} kB desde el pod, {cache} kB desde la caché, {socket} kB por el socket'),
   tBye: L('The relay says the pod left', 'Le relay signale que le pod est parti', 'El relay avisa de que el pod se ha ido'),
   tKept: L('Reconnected to the same pod: the IDE takes its channels again without reloading', 'Reconnecté au même pod : l’IDE reprend ses canaux sans recharger', 'Reconectado al mismo pod: el IDE retoma sus canales sin recargar'),
   tError: L('Error: ', 'Erreur : ', 'Error: '),
@@ -325,9 +341,14 @@ let phase = null // {name, text, since, warned}
 const cands = { local: 0, remote: 0 }
 // How long a sub-step may wait before the page says it is stuck (it keeps waiting).
 const STALL = { signal: 10000, answer: 15000, ice: 30000, dtls: 15000, hello: 15000 }
-function trace(line) {
+function trace(line, step) {
   if (journal.at(-1)?.line === line) return // a drop then its failure say the same error
-  journal.push({ at: Math.round(performance.now() - bootAt), line })
+  const at = Math.round(performance.now() - bootAt)
+  // A step measured again (the summary of what the load carried, asked once the last module is
+  // in) rewrites its own line rather than adding a second one (#204).
+  const i = step ? journal.findIndex((e) => e.step === step) : -1
+  if (i >= 0) journal[i] = { at, line, step }
+  else journal.push({ at, line, step })
   drawTrace()
 }
 function phaseOf(name, line) {
@@ -373,7 +394,42 @@ function drawTrace() {
 // access of the app (its 'journal' message).
 Object.defineProperty(window, 'bootJournal', { get: () => journalText() })
 function journalText() {
-  return journal.map((e) => (e.at / 1000).toFixed(2).padStart(6) + '  ' + e.line).join('\n')
+  // In the order the events happened, the summary of the load last: it is measured again when a
+  // late module lands, and its line keeps the place of the first measure (#204).
+  const order = [...journal].sort((a, b) => a.at - b.at)
+  order.sort((a, b) => Number(a.step === 'bytes') - Number(b.step === 'bytes'))
+  return order.map((e) => (e.at / 1000).toFixed(2).padStart(6) + '  ' + e.line).join('\n')
+}
+// A phase of the load the app reports: its words here, its numbers there (no text nor path of a
+// file crosses the boundary, #204).
+const kilo = (n) => (Number(n) / 1024).toFixed(1)
+function traceLine(step, detail) {
+  const n = detail ?? {}
+  switch (step) {
+    case 'start':
+      return words.tAppStart
+    case 'rpc':
+      return words.tAppRpc
+    case 'home':
+      return words.tAppHome
+    case 'project-open':
+      return fmt(words.tAppProject, { ms: n.ms ?? 0, pod: n.pod ?? 0, runtime: n.runtime ?? 0, git: n.git ?? 0, commands: n.commands ?? 0, attach: n.attach ?? 0, tracked: n.tracked ?? 0, plugins: n.plugins ?? 0 })
+    case 'reattach':
+      return fmt(words.tAppReattach, { ms: n.ms ?? 0 })
+    case 'grammars':
+      return fmt(words.tAppGrammars, { ms: n.ms ?? 0 })
+    case 'questions':
+      return fmt(words.tAppQuestions, { ms: n.ms ?? 0 })
+    case 'ready':
+      return fmt(words.tAppReady, { ms: n.ms ?? 0 })
+    case 'plugin':
+      return n.bytes
+        ? fmt(n.bundle ? words.tAppPluginBundle : words.tAppPluginChunk, { id: n.id ?? '', ms: n.ms ?? 0, kb: kilo(n.bytes) })
+        : fmt(words.tAppPlugin, { id: n.id ?? '', ms: n.ms ?? 0 })
+    case 'bytes':
+      return fmt(words.tAppBytes, { tunnel: kilo(n.tunnel), cache: kilo(n.cache), socket: kilo(n.socket) })
+  }
+  return ''
 }
 async function copyJournal(btn) {
   const head = location.host + ' · ' + new Date().toISOString() + ' · ' + navigator.userAgent
@@ -1489,12 +1545,29 @@ function buildOf(k) {
 // the Service Worker arrive on navigator.serviceWorker, not on window.
 async function onMessage(d) {
   // The app tells the moments of its start, and asks for the journal to show it (#75).
+  // The app tells the moments of its start, and asks for the journal to show it (#75). Each
+  // phase of the load down to the project ready travels with its numbers (#204).
   if (d?.kind === 'trace') {
-    const line = { start: words.tAppStart, rpc: words.tAppRpc, home: words.tAppHome }[d.step]
+    const line = traceLine(d.step, d.detail)
     if (line) {
-      mark('app-' + d.step)
-      trace(line)
+      mark('app-' + (d.step === 'plugin' ? d.detail?.id ?? '' : d.step))
+      trace(line, d.step)
     }
+    return
+  }
+  // What this window's load carried, asked by the app to end its journal (#204): the bytes this
+  // page streamed through the tunnel, and those its Service Worker answered from a cache.
+  if (d?.kind === 'bytes') {
+    try {
+      d.port?.postMessage({ tunnel: http.bytes, cache: cacheBytes })
+      d.port?.close()
+    } catch {}
+    return
+  }
+  // The Service Worker answered one of this window's fetches from a cache of this origin (#204):
+  // it never crossed the tunnel, but the load still got it.
+  if (d?.kind === 'cached') {
+    cacheBytes += Number(d.bytes) || 0
     return
   }
   if (d?.kind === 'journal') {

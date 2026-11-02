@@ -36,6 +36,18 @@ const inShell = new Set(shellFiles)
 
 const cacheName = (id, version) => ASSETS + id + ':' + (version ?? '')
 
+// What a load carried is told to the page that served it (#204): the bootstrap page counts the
+// bytes it streams through the tunnel itself, and the Service Worker reports here what it answered
+// from a cache of this origin (the shell, the assets of the pod already carried). Counting never
+// blocks a fetch, and a window that never asks loses nothing.
+async function tellClient(clientId, bytes) {
+  if (!bytes) return
+  try {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    all.find((c) => c.id === clientId)?.postMessage({ kind: 'cached', bytes })
+  } catch {}
+}
+
 // The first Service Worker of this browser takes over at once. A newer one waits while a page runs
 // on the old shell: the page offers to reload (bootstrap.js), and only then is it told to skip —
 // a reload cuts the tunnels of the page, the user chooses when.
@@ -56,10 +68,13 @@ self.addEventListener('activate', (e) => e.waitUntil(Promise.all([self.clients.c
 
 // The shell, from the cache of this Service Worker; the network when it is not there (a cache
 // the browser evicted).
-async function shell(req, path) {
+async function shell(req, path, clientId) {
   try {
     const hit = await (await caches.open(SHELL_CACHE + SHELL)).match(path)
-    if (hit) return hit
+    if (hit) {
+      void tellClient(clientId, Number(hit.headers.get('content-length')) || 0)
+      return hit
+    }
   } catch {}
   return fetch(req)
 }
@@ -134,7 +149,7 @@ self.addEventListener('fetch', (event) => {
   // The manifest and the icons of the installable app come from the relay as well. The shell is
   // answered from the cache of this Service Worker (#73), the rest of /_relay is the network.
   const path = url.pathname === '/index.html' ? '/' : url.pathname
-  if (url.origin === self.location.origin && req.method === 'GET' && inShell.has(path)) return event.respondWith(shell(req, path))
+  if (url.origin === self.location.origin && req.method === 'GET' && inShell.has(path)) return event.respondWith(shell(req, path, event.clientId))
   if (url.pathname.startsWith('/_relay') || url.pathname === '/sw.js' || url.pathname === '/') return
   event.respondWith(handle(req, url, event.clientId))
 })
@@ -173,7 +188,14 @@ async function handle(req, url, clientId) {
   if (own.id && !preview && req.method === 'GET' && !req.headers.has('range')) {
     try {
       const hit = await (await caches.open(cacheName(own.id, own.version))).match(req)
-      if (hit) return hit
+      if (hit) {
+        // Told to the bootstrap page that serves this window: it adds it to what the load carried
+        // from the cache (#204).
+        try {
+          win.postMessage({ kind: 'cached', bytes: Number(hit.headers.get('content-length')) || 0 })
+        } catch {}
+        return hit
+      }
     } catch {}
   }
 

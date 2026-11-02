@@ -5,6 +5,7 @@ import type { Indent } from '../editor/indent'
 import { batch, createEffect, createRoot, createSignal, on as track } from 'solid-js'
 import { createStore, produce, reconcile, unwrap } from 'solid-js/store'
 import { notify, on, request, setScope } from '../pod/rpc'
+import { loadMark } from '../pod/loadJournal'
 import { Doc } from '../editor/doc'
 import { detectLanguage, onGrammarsChanged } from '../editor/languages'
 import { refreshPackGrammars } from '../editor/packGrammars'
@@ -1113,7 +1114,20 @@ async function waitPackGrammars() {
 }
 
 export async function openProject(id: string, creds?: { password?: string; passphrase?: string }, desk = 1) {
+  const t0 = performance.now()
   const r = await request('project.open', { id, creds, desk })
+  // The round trip, and what the pod spent on it (#204): the answer carries its own timings.
+  const tm = (r.timings ?? {}) as Record<string, number>
+  loadMark('project-open', {
+    ms: Math.round(performance.now() - t0),
+    pod: tm.total ?? 0,
+    runtime: tm.openRuntime ?? 0,
+    git: tm.gitSetup ?? 0,
+    commands: tm.projectCommands ?? 0,
+    attach: tm.attach ?? 0,
+    tracked: tm.ideTracked ?? 0,
+    plugins: tm.pluginStates ?? 0,
+  })
   loadDesks(id, r.desks as DeskList, r.desk ?? 1)
   setPluginZones(r.plugins)
   batch(() => {
@@ -1126,8 +1140,12 @@ export async function openProject(id: string, creds?: { password?: string; passp
     setSession(reconcile(normalize(r.session)))
     applyingRemote = false
   })
+  let at = performance.now()
   await reattach()
+  loadMark('reattach', { ms: Math.round(performance.now() - at) })
+  at = performance.now()
   await waitPackGrammars()
+  loadMark('grammars', { ms: Math.round(performance.now() - at) })
   syncDocsWithTabs()
   return r
 }
