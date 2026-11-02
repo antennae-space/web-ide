@@ -4,6 +4,25 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ## [Unreleased]
 
+## [1.27.0] - 2026-11-02
+
+### Added
+
+- **Agents: a view switch Chat · Board · Stats** on each session, as in the Assistant (a floating switch at the top right of the chat): the board of the images and doodles sent in the session (*Reuse drawing* joins a copy to the next prompt), and the statistics of the session, its ticket and the project over a period.
+- **A status bar in the Agents tool** with the work time and the cost of the session; the Assistant's bar shows its cost too.
+- **The daily quota of the Claude subscription** in those bars (*Day 64 % · 5 h 30 %*) on a Claude Code session running on the plan, else the daily budget of the AI settings against the cost since midnight. A click opens a card: today, the 5 hours and the week with their gauges, the resets and the pace of the week.
+- **The load journal** (Settings › Remote access › *Connection journal*, or `window.loadJournal`): the phases of the app down to the project ready, the bytes of each window and the timings of the pod.
+- Claude Code closes a ticket *To test* whose branch is merged (`kanban_move`, status `done`, plugin-kanban).
+
+### Changed
+
+- **Faster opening of a project**: the worktrees attach in parallel, the grammars of the language packs and the questions load without holding the opening, and the modules of the plugins are asked at the answer of the pod, or before it on a reload (those of the last opening).
+- **Assistant with a local model: the server's prompt cache stays valid** for the whole conversation: the earlier reasoning goes back to the model, the system prompt does not change (the date and the active file are noted on the message that saw them change), and changing the effort is written in the history.
+
+### Fixed
+
+- Agents: the thread stays at its end while the agent writes.
+
 ## [1.26.0] - 2026-10-30
 
 ### Changed
