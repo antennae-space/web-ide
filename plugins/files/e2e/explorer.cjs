@@ -246,6 +246,21 @@ run(async ({ page }) => {
   await page.$eval(body, (el) => (el.scrollTop = el.scrollHeight))
   await page.waitForSelector(row(big(1999)))
   assert(Date.now() - t0 < 2000 && (await rows()) < 150, 'scrolling to the end shows the last file at once, still a few rows')
+  // The wheel scrolls by what it asks: no scroll anchoring moving it back as the rows change
+  // (that left ghost rows on the screen).
+  await page.$eval(body, (el) => (el.scrollTop = 0))
+  await page.hover(row(big(0)))
+  for (let i = 0; i < 10; i++) {
+    await page.mouse.wheel(0, 120)
+    await page.waitForTimeout(30)
+  }
+  await page.waitForTimeout(300)
+  const wheeled = await page.$eval(body, (el) => el.scrollTop)
+  const firstShown = await page.$eval(body, (el) => {
+    const top = el.getBoundingClientRect().top
+    return [...el.querySelectorAll('.tree-row')].find((r) => r.getBoundingClientRect().bottom > top + 30)?.getAttribute('data-path')
+  })
+  assert(wheeled === 1200 && !!firstShown?.includes('/big/f00'), `the wheel scrolls by what it asks (${wheeled}px), the rows in view follow (${firstShown})`)
   // The arrows walk past the rows drawn.
   await page.$eval(body, (el) => (el.scrollTop = 0))
   await page.waitForSelector(row(big(0)))
