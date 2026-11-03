@@ -233,6 +233,41 @@ run(async ({ page }) => {
   await page.waitForFunction(() => !!document.querySelector('.explorer .tree-row[data-tint=test]'))
   assert((await tint('pkg/x.spec.ts')) === 'test', 'checking Tests back tints the rows again')
 
+  // A folder of 2000 files (#225): the tree is virtualized, only the rows in view are drawn.
+  fs.mkdirSync(demo + '/big')
+  const big = (i) => `big/f${String(i).padStart(4, '0')}.txt`
+  for (let i = 0; i < 2000; i++) fs.writeFileSync(`${demo}/${big(i)}`, '')
+  const body = '.explorer .panel-body'
+  await page.dblclick(row('big'))
+  await page.waitForSelector(row(big(0)))
+  const rows = () => page.$$eval('.explorer .tree-row', (els) => els.length)
+  assert((await rows()) < 150, `a folder of 2000 files draws only the rows in view (${await rows()} rows)`)
+  const t0 = Date.now()
+  await page.$eval(body, (el) => (el.scrollTop = el.scrollHeight))
+  await page.waitForSelector(row(big(1999)))
+  assert(Date.now() - t0 < 2000 && (await rows()) < 150, 'scrolling to the end shows the last file at once, still a few rows')
+  // The arrows walk past the rows drawn.
+  await page.$eval(body, (el) => (el.scrollTop = 0))
+  await page.waitForSelector(row(big(0)))
+  await page.click(row(big(0)))
+  for (let i = 0; i < 80; i++) await page.keyboard.press('ArrowDown')
+  const focused = () => page.evaluate(() => document.activeElement?.getAttribute('data-path'))
+  assert((await focused()) === `${demo}/${big(80)}`, 'ArrowDown goes through the rows out of view: ' + (await focused()))
+  // Locate reaches a file deep in the big folder.
+  await page.$eval(body, (el) => (el.scrollTop = el.scrollHeight))
+  await page.dblclick(row(big(1999)))
+  await page.waitForSelector('.pane.active .tab.active:has-text("f1999.txt")')
+  await page.$eval(body, (el) => (el.scrollTop = 0))
+  await page.waitForSelector(row(big(1999)), { state: 'detached' })
+  await page.click('[data-testid=explorer-locate]')
+  await page.waitForFunction((p) => document.activeElement?.getAttribute('data-path') === p, `${demo}/${big(1999)}`)
+  assert(true, 'Locate scrolls to a row out of view and focuses it')
+  await page.keyboard.press('ArrowLeft')
+  await page.waitForFunction((p) => document.activeElement?.getAttribute('data-path') === p, `${demo}/big`)
+  assert(true, 'ArrowLeft goes up to the folder, far above')
+  await page.keyboard.press('ArrowLeft')
+  await page.waitForSelector(row(big(0)), { state: 'detached' })
+
   await option('Show the hidden files')
   await page.waitForSelector(row('.gitignore'), { state: 'detached' })
   assert(true, 'hidden files hidden')
