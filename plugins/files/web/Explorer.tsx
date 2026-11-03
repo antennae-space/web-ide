@@ -505,19 +505,23 @@ export function Explorer() {
             <bdi>{relPath(root()) === root() ? root() : ''}</bdi>
           </span>
         </div>
-        {/* The full height of the list, the rows in view placed after the space of those above. */}
-        <div ref={block} class="tree-rows" style={{ height: `${items().length * rowH()}px`, 'padding-top': `${range()[0] * rowH()}px` }}>
-          <For each={shown()}>
-            {(it) =>
-              it.entry ? (
-                <Row entry={it.entry} depth={it.depth} inherited={it.inherited} move={move} />
-              ) : (
-                <div class="tree-error" style={{ 'padding-left': `${it.depth * 14 + 22}px` }} title={it.error}>
-                  {it.error}
-                </div>
-              )
-            }
-          </For>
+        {/* The full height of the list, fixed while scrolling; the rows in view moved down by a
+            transform (a padding would change the layout, and the scroll anchoring of the browser
+            would move the scroll back, leaving ghost rows). */}
+        <div ref={block} class="tree-rows" style={{ height: `${items().length * rowH()}px` }}>
+          <div class="tree-window" style={{ transform: `translateY(${range()[0] * rowH()}px)` }}>
+            <For each={shown()}>
+              {(it) =>
+                it.entry ? (
+                  <Row entry={it.entry} depth={it.depth} inherited={it.inherited} move={move} />
+                ) : (
+                  <div class="tree-error" style={{ 'padding-left': `${it.depth * 14 + 22}px` }} title={it.error}>
+                    {it.error}
+                  </div>
+                )
+              }
+            </For>
+          </div>
         </div>
       </div>
     </div>

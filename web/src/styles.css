@@ -260,6 +260,8 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 /* The Explorer is virtualized (#225): the block of its rows has the height of the whole list, and
    each line, the error of a folder too, the height of a row. */
 .tree-rows { box-sizing: border-box; }
+/* No scroll anchoring: the rows drawn change as the list scrolls, the browser must not move the scroll for them. */
+.explorer .panel-body { overflow-anchor: none; }
 .tree-rows .tree-error { box-sizing: border-box; height: 24px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Speed Search: the filter box of a tree, under the head of its panel. */
 .tree-filter { display: flex; align-items: center; gap: 4px; padding: 4px 8px; border-bottom: 1px solid var(--line); flex: none; }
