@@ -25,6 +25,8 @@ run(async ({ page }) => {
   for (const [f, t] of [['composer.json', '{}'], ['pyproject.toml', '[project]\nname = "demo"\n'], ['package.json', '{"name": "demo"}'], ['tsconfig.json', '{"compilerOptions": {"strict": true, "allowJs": true, "checkJs": true}}']])
     fs.writeFileSync(path.join(demo, f), t)
   for (const f of files) fs.writeFileSync(path.join(demo, f.name), f.text)
+  // HTML hands the content of <style> and <script> to CSS and to the pack's JavaScript (#227).
+  fs.writeFileSync(path.join(demo, 'page.html'), '<html>\n<style>\nbody { margin: 0 }\n</style>\n<script>\nconst t = `a\nb</script>\n<section id="after"></section>\n<script>yield</script>\n')
   await openProject(page)
 
   for (const f of files) {
@@ -35,6 +37,14 @@ run(async ({ page }) => {
       .then(() => true, () => false)
     assert(colored, `${f.name}: highlighted by its pack (${f.keyword})`)
   }
+
+  await open(page, 'page.html')
+  const tokens = (type) => page.evaluate((t) => [...(CSS.highlights.get('tok-' + t) ?? [])].map((r) => r.startContainer.data?.slice(r.startOffset, r.endOffset)), type)
+  await page.waitForFunction(() => [...(CSS.highlights.get('tok-keyword') ?? [])].some((r) => r.startContainer.data?.slice(r.startOffset, r.endOffset) === 'const'), null, { timeout: 10000 }).catch(() => {})
+  assert((await tokens('keyword')).includes('const') && (await tokens('property')).includes('margin'), 'page.html: the JavaScript of <script> and the CSS of <style> are highlighted')
+  const tags = await tokens('tag')
+  assert(tags.includes('</script>') && tags.some((x) => x?.startsWith('<section')), '</script> ends the block even inside a template string, the HTML after it is HTML: ' + JSON.stringify(tags))
+  assert((await tokens('keyword')).includes('yield'), 'a second <script> is JavaScript again')
 
   if (!(await page.isVisible('[data-tool=problems]'))) await page.click('.rail-right .rail-btn[title^="Problems"]')
   await page.click('[data-tool=problems] .tab:has-text("Problems")')

@@ -132,6 +132,9 @@ const html: GrammarDef = {
     root: [
       { token: 'comment', regex: '<!--', next: 'comment' },
       { token: 'meta', regex: r`<!\w[^>]*>|<\?xml[^>]*\?>` },
+      // The content of <script> and <style> is JavaScript and CSS (#227).
+      { token: 'tag', regex: r`<script\b`, flags: 'i', next: 'scriptTag' },
+      { token: 'tag', regex: r`<style\b`, flags: 'i', next: 'styleTag' },
       { token: 'tag', regex: r`</?[A-Za-z][\w:.-]*`, next: 'tag' },
       { token: 'escape', regex: r`&[#\w]+;` },
       { token: 'meta', regex: r`\{\{|\}\}|\{%|%\}` },
@@ -142,6 +145,12 @@ const html: GrammarDef = {
       { token: 'operator', regex: '=' },
       { token: 'string', regex: r`"[^"]*"?|'[^']*'?` },
     ],
+    // The opening tag, then its content until the closing tag, which pops both (zero-width) and
+    // is read by root as any other tag.
+    scriptTag: [{ token: '', regex: r`(?=</)`, next: '@pop' }, { token: 'tag', regex: '>', next: 'script' }, { include: 'tag', token: '', regex: '' }],
+    styleTag: [{ token: '', regex: r`(?=</)`, next: '@pop' }, { token: 'tag', regex: '>', next: 'style' }, { include: 'tag', token: '', regex: '' }],
+    script: [{ token: '', regex: r`(?=</script\b)`, flags: 'i', next: '@pop' }, { embed: 'javascript', token: '', regex: '' }],
+    style: [{ token: '', regex: r`(?=</style\b)`, flags: 'i', next: '@pop' }, { embed: 'css', token: '', regex: '' }],
     comment: [{ token: 'comment', regex: '-->', next: '@pop' }, { token: 'comment', regex: r`[^-]+|-` }],
   },
 }

@@ -60,7 +60,8 @@ export function grammar(id: string): Grammar {
   let g = cache.get(id)
   if (!g) {
     const def = grammarDefs().find((d) => d.id === id) ?? builtinGrammars.find((d) => d.id === 'plaintext')!
-    g = new Grammar(def)
+    // The grammars it embeds (the CSS and JavaScript of HTML) are found the same way.
+    g = new Grammar(def, (other) => (other === id ? undefined : grammar(other)))
     cache.set(id, g)
   }
   return g
