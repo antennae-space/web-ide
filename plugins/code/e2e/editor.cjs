@@ -6,6 +6,35 @@ const { execSync } = require('child_process')
 const { run, openProject, open, assert, text, installOfficial, WS, OUT, openMenu } = require('../../../e2e/common.cjs')
 
 const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 'e2e', GIT_AUTHOR_EMAIL: 'e2e@x', GIT_COMMITTER_NAME: 'e2e', GIT_COMMITTER_EMAIL: 'e2e@x' }
+const zlib = require('zlib')
+const png = (w, h) => {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+    return c >>> 0
+  })
+  const crc = (b) => {
+    let c = 0xffffffff
+    for (const x of b) c = crcTable[(c ^ x) & 0xff] ^ (c >>> 8)
+    return (c ^ 0xffffffff) >>> 0
+  }
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4)
+    len.writeUInt32BE(data.length)
+    const td = Buffer.concat([Buffer.from(type), data])
+    const c = Buffer.alloc(4)
+    c.writeUInt32BE(crc(td))
+    return Buffer.concat([len, td, c])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(w, 0)
+  ihdr.writeUInt32BE(h, 4)
+  ihdr.set([8, 2, 0, 0, 0], 8) // 8 bits, RGB
+  const raw = Buffer.alloc((w * 3 + 1) * h, 0x80)
+  for (let y = 0; y < h; y++) raw[y * (w * 3 + 1)] = 0
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
+}
+
 const git = (cmd) => execSync(`git ${cmd}`, { cwd: WS + '/demo', env: gitEnv, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 
 run(async ({ page }) => {
@@ -26,6 +55,8 @@ run(async ({ page }) => {
   fs.writeFileSync(WS + '/demo/img/dot.png', Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64'))
   fs.writeFileSync(WS + '/demo/guide.md', '# Guide\n\nSee [the notes](notes.txt#L1) and [the web](https://example.com).\n\n![dot](img/dot.png)\n\n- [x] done\n- [ ] todo\n\n## Second part\n\n```go\nfunc main() {}\n```\n\n[Back up](#second-part)\n' +
     Array.from({ length: 80 }, (_, i) => `\n## Section ${i}\n\nText ${i}.\n`).join(''))
+  // The image of #226, written before the project opens: Ctrl+P lists the files known then.
+  fs.writeFileSync(WS + '/demo/img/photo.png', png(3000, 300))
   await openProject(page)
   await open(page, 'main.go')
 
@@ -644,4 +675,26 @@ run(async ({ page }) => {
   assert(await page.isVisible(popup + ' .hunk-none'), 'the popup says it: ' + (await page.textContent(popup + ' .hunk-none')))
   await page.screenshot({ path: OUT + '/editor-hunk-saved.png' })
   await page.keyboard.press('Escape')
+
+  // An image file opens as an image (#226): its size in pixels, a click for the actual size, the
+  // file written again on disk shown again.
+  await page.keyboard.press('Control+p')
+  await page.waitForSelector('.pick-input')
+  await page.keyboard.type('photo.png')
+  await page.waitForFunction(() => document.querySelector('.pick-item.selected')?.textContent.includes('photo.png'))
+  await page.keyboard.press('Enter')
+  const info = '.pane.active [data-testid=image-info]'
+  await page.waitForFunction((s) => document.querySelector(s)?.textContent === '3000 × 300 px', info)
+  assert(!(await page.isVisible('.pane.active .empty-pane')), 'an image file shows the image, with its size: 3000 × 300 px')
+  const imgWidth = () => page.$eval('.pane.active .image-stage img', (i) => Math.round(i.getBoundingClientRect().width))
+  const fitted = await imgWidth()
+  assert(fitted < 3000, `fitted to the pane: ${fitted}px wide`)
+  await page.click('.pane.active .image-stage')
+  assert((await imgWidth()) === 3000, 'a click shows the actual size')
+  await page.click('.pane.active .image-stage')
+  assert((await imgWidth()) === fitted, 'another click fits it again')
+  await page.screenshot({ path: OUT + '/editor-image.png' })
+  fs.writeFileSync(WS + '/demo/img/photo.png', png(40, 20))
+  await page.waitForFunction((s) => document.querySelector(s)?.textContent === '40 × 20 px', info, { timeout: 10000 })
+  assert(true, 'the image written again on disk is shown again: 40 × 20 px')
 }, { permissions: ['clipboard-read', 'clipboard-write'] })

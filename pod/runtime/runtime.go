@@ -266,6 +266,8 @@ func (r *Runtime) Read(p string) (*FileContent, error) {
 	fc := &FileContent{Path: p, Size: st.Size, ReadOnly: !fsx.Within(r.Root, p)}
 	if st.Size > maxFile {
 		fc.Binary = true
+		// Followed too: a view of the file (an image) shows it again when it changes.
+		r.watchDir(path.Dir(p))
 		return fc, nil
 	}
 	data, err := r.FS.Read(p)
@@ -275,6 +277,7 @@ func (r *Runtime) Read(p string) (*FileContent, error) {
 	text, f, ok := DecodeText(data)
 	if !ok {
 		fc.Binary = true
+		r.watchDir(path.Dir(p))
 		return fc, nil
 	}
 	fc.Content, fc.Format = text, f

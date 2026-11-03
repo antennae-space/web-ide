@@ -37,5 +37,8 @@
   "Open the full diff": "Abrir el diff completo",
   "{n} lines hidden": "{n} líneas ocultas",
   "Nothing here": "Nada aquí",
-  "No change against this reference": "Sin diferencias con esta referencia"
+  "No change against this reference": "Sin diferencias con esta referencia",
+  "Cannot show the image: {error}": "No se puede mostrar la imagen: {error}",
+  "Fit to the pane": "Ajustar al panel",
+  "{width} × {height} px": "{width} × {height} px"
 }

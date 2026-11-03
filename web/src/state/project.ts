@@ -770,6 +770,8 @@ export function loadDoc(path: string): Promise<Doc | null> {
       const f = await request('fs.read', { path })
       if (f.binary) {
         entry.binary = true
+        // The views reading docError() learn it at once (the image view of #226).
+        setDocsVersion((v) => v + 1)
         return null
       }
       const doc = new Doc(path, f.buffer ?? f.content, {

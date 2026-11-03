@@ -12,6 +12,7 @@ import {
   wordHunks,
 } from './plugin'
 import { HunkPopup, type HunkLine, type HunkView } from './HunkPopup'
+import { ImageView, isImagePath } from './ImageView'
 
 /** Lines of a hunk shown on each side of its popup, and the context lines kept around it. */
 const POPUP_LINES = 14
@@ -747,9 +748,16 @@ export function FileEditor(props: { tab: TabState; paneId: string }) {
         <div class="banner banner-info">{t('Read-only: file outside the project ({path})', { path })}</div>
       </Show>
       <Show when={error()}>
-        <div class="empty-pane">{error() === 'binary' ? t('Binary or too large file: no preview.') : t('Cannot read: {error}', { error: error() ?? '' })}</div>
+        {/* A binary buffer that is an image: shown as one (#226). */}
+        <Show
+          when={error() === 'binary' && isImagePath(path)}
+          fallback={<div class="empty-pane">{error() === 'binary' ? t('Binary or too large file: no preview.') : t('Cannot read: {error}', { error: error() ?? '' })}</div>}
+        >
+          <ImageView path={path} />
+        </Show>
       </Show>
-      <div class="editor-host" onContextMenu={editorMenu}>
+      {/* Hidden when the buffer cannot be shown: the message or the image takes the pane. */}
+      <div class="editor-host" style={{ display: error() ? 'none' : undefined }} onContextMenu={editorMenu}>
         {/* The view is mounted by hand: it gets its own node, never touched by Solid. */}
         <div class="editor-mount" ref={host} inert={rendered()} />
         <Show when={rendered()}>
