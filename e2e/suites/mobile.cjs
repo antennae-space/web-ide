@@ -176,7 +176,7 @@ run(
     assert(!(await visible(page, '[data-testid=status-bar]')), 'the bar is hidden with the editor when a tool view is shown')
     await page.screenshot({ path: OUT + '/mobile-explorer.png' })
     // Another tool shown, then the explorer again: it is where it was.
-    await page.waitForSelector('.zone[data-tool=explorer] .tree-row:has-text("zz-69.txt")', { state: 'attached' })
+    await page.waitForSelector('.zone[data-tool=explorer] .tree-row:has-text("zz-20.txt")', { state: 'attached' })
     const scroller = () =>
       page.evaluate(() => [...document.querySelectorAll('.zone[data-tool=explorer] *')].find((e) => e.scrollHeight > e.clientHeight + 100 && getComputedStyle(e).overflowY !== 'visible'))
     const scrollTo = (y) =>
@@ -191,7 +191,7 @@ run(
     await phoneShow(page, 'search')
     await page.waitForSelector('.phone-body > .zone[data-tool=search]')
     await phoneShow(page, 'explorer')
-    await page.waitForSelector('.zone[data-tool=explorer] .tree-row:has-text("zz-69.txt")', { state: 'attached' })
+    await page.waitForSelector('.zone[data-tool=explorer] .tree-row:has-text("zz-20.txt")', { state: 'attached' })
     const back = await page
       .waitForFunction((y) => [...document.querySelectorAll('.zone[data-tool=explorer] *')].some((e) => Math.abs(e.scrollTop - y) <= 1), kept, { timeout: 4000 })
       .then(() => true, () => false)
