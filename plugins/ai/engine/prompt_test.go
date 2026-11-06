@@ -1,10 +1,12 @@
 package engine
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
+	"antennae.space/ide/plugins/ai/llm"
 	"antennae.space/ide/pod/assistant"
 )
 
@@ -53,5 +55,103 @@ func TestTicketPrompt(t *testing.T) {
 	}
 	if p := TicketPrompt(7, "dev", "", 0, 0, "# The ticket"); !strings.HasSuffix(p, "# The ticket") || strings.Contains(p, "kanban_get (id") {
 		t.Fatal(p)
+	}
+}
+
+// The rules of every AI are in the system prompt once, whatever the mode, with or without
+// tools, and a template of the user does not remove them.
+func TestSystemPromptRules(t *testing.T) {
+	custom := "My own template."
+	for _, mode := range []string{Build, Plan, Briefing, Orchestrator} {
+		for _, tools := range []bool{true, false} {
+			for _, c := range []*llm.Context{nil, {GlobalPrompt: &custom, GlobalPlanPrompt: &custom, GlobalBriefingPrompt: &custom}} {
+				p := SystemPrompt(c, PromptVars{Project: "p", Root: "/r"}, tools, mode, "")
+				if strings.Count(p, assistant.AgentRules) != 1 {
+					t.Fatalf("mode %s, tools %v: %d copies of the rules in %q", mode, tools, strings.Count(p, assistant.AgentRules), p)
+				}
+			}
+		}
+	}
+	// With the custom template, the template stays and the rules follow it.
+	p := SystemPrompt(&llm.Context{GlobalPrompt: &custom}, PromptVars{}, true, Build, "")
+	if !strings.HasPrefix(p, custom+"\n\n"+assistant.AgentRules) {
+		t.Fatal(p)
+	}
+}
+
+// Each role of a ticket: the assistant gets the rules from its system prompt, not twice; an
+// agent of the Agents tool gets them with the briefing of the role.
+func TestRolePrompts(t *testing.T) {
+	shared := map[string][]string{
+		"briefing": {assistant.RoleDescription},
+		"plan":     {assistant.RolePlanSave},
+		"dev":      {assistant.RoleDevFollow, assistant.RoleNoMerge, assistant.RoleDevEnd, assistant.TestSummaryStyle},
+		"correction": {
+			assistant.RoleFixKinds, assistant.RoleNoMerge, assistant.RoleFixDone,
+		},
+		"resolve": {},
+	}
+	if len(shared) != len(RoleInstructions) {
+		t.Fatalf("a role has no test: %d roles", len(RoleInstructions))
+	}
+	for role, lines := range shared {
+		if _, ok := RoleInstructions[role]; !ok {
+			t.Fatalf("no role %s", role)
+		}
+		assist := TicketPrompt(7, role, "ticket/7-x", 0, 0, "")
+		if strings.Contains(assist, assistant.AgentRules) {
+			t.Fatalf("%s: the rules are already in the system prompt", role)
+		}
+		for _, l := range lines {
+			if !strings.Contains(assist, l) {
+				t.Fatalf("%s: missing %q in %q", role, l, assist)
+			}
+		}
+		agent := AgentPrompt(7, role, "ticket/7-x", 0, 0, "# The ticket")
+		if !strings.Contains(agent, "# The ticket") || strings.Count(agent, assistant.AgentRules) != 1 {
+			t.Fatalf("%s: agent prompt %q", role, agent)
+		}
+		if strings.Contains(agent, "{{") {
+			t.Fatalf("%s: placeholder left in %q", role, agent)
+		}
+	}
+}
+
+// The tools that write a test summary, a description or a report state their format.
+func TestToolDescriptionsStyle(t *testing.T) {
+	var all []assistant.Def
+	all = append(append(append(all, kanbanReadDefs...), kanbanWriteDefs...), childAgentDefs...)
+	prop := func(name, field string) string {
+		for _, d := range all {
+			if d.Name != name {
+				continue
+			}
+			var def struct {
+				Function struct {
+					Parameters struct {
+						Properties map[string]struct {
+							Description string `json:"description"`
+						} `json:"properties"`
+					} `json:"parameters"`
+				} `json:"function"`
+			}
+			if err := json.Unmarshal(d.JSON, &def); err != nil {
+				t.Fatal(err)
+			}
+			return def.Function.Parameters.Properties[field].Description
+		}
+		t.Fatalf("no tool %s", name)
+		return ""
+	}
+	for _, c := range []struct{ tool, field, want string }{
+		{"kanban_create", "description", assistant.DescriptionStyle},
+		{"kanban_update", "description", assistant.DescriptionStyle},
+		{"kanban_update", "test_summary", assistant.TestSummaryStyle},
+		{"kanban_move", "test_summary", assistant.TestSummaryStyle},
+		{"agent_report", "summary", "in English"},
+	} {
+		if got := prop(c.tool, c.field); !strings.Contains(got, c.want) {
+			t.Fatalf("%s.%s: %q has no %q", c.tool, c.field, got, c.want)
+		}
 	}
 }

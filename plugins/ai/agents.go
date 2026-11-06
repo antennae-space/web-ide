@@ -178,7 +178,7 @@ func (c agentsCap) Develop(project, agent string, t caps.TicketBrief) (caps.Agen
 	if m == nil {
 		return caps.AgentSession{}, false, i18n.New("agents run on local projects only")
 	}
-	prompt := engine.TicketPrompt(t.ID, t.Role, t.Branch, t.Parent, t.Feedback, t.Markdown)
+	prompt := engine.AgentPrompt(t.ID, t.Role, t.Branch, t.Parent, t.Feedback, t.Markdown)
 	if t.Text != "" {
 		prompt += "\n\n---\n\n" + t.Text
 	}

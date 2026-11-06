@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"antennae.space/ide/plugins/ai/llm"
+	"antennae.space/ide/pod/assistant"
 )
 
 // DefaultTemplates are the templates of the modes when the user wrote none.
@@ -50,7 +51,8 @@ var placeholder = regexp.MustCompile(`\{\{(\w+)\}\}`)
 var blankLines = regexp.MustCompile(`\n{3,}`)
 
 // SystemPrompt is the final system prompt: the template of the mode with its placeholders,
-// the instruction files, the ticket linked to the conversation, and the skills.
+// the rules of every AI (outside the template: a template of the user keeps them), the
+// instruction files, the ticket linked to the conversation, and the skills.
 //
 // It stays the same from one request to the next of a conversation (apart from a change of
 // mode or a compaction), so that a server keeps its prompt cache: what changes during a
@@ -81,7 +83,7 @@ func SystemPrompt(c *llm.Context, v PromptVars, tools bool, mode, ticket string)
 		}
 		return m
 	})
-	text = strings.TrimSpace(blankLines.ReplaceAllString(text, "\n\n"))
+	text = strings.TrimSpace(blankLines.ReplaceAllString(text, "\n\n")) + "\n\n" + assistant.AgentRules
 	if c != nil && len(c.Files) > 0 {
 		text += "\n\n# Instructions"
 		text += "\nInstructions of the user (global) and of the project. They come before your habits; the project ones come before the global ones."
@@ -139,6 +141,12 @@ func TicketPrompt(id int64, role, branch string, parent, feedback int64, markdow
 		return text + "\n\nRead the ticket with kanban_get (id " + itoa(id) + ") before you start: its description, notes, plan, goals and test feedback. It changes during the conversation (your changes, the user's): read it again when you need its current state."
 	}
 	return text + "\n\n" + markdown
+}
+
+// AgentPrompt is the briefing of a role for an agent of the Agents tool: it has no system prompt
+// of ours, so the rules of every AI come with it, whatever the agent and its project.
+func AgentPrompt(id int64, role, branch string, parent, feedback int64, markdown string) string {
+	return TicketPrompt(id, role, branch, parent, feedback, markdown) + "\n\n" + assistant.AgentRules
 }
 
 // Now is the clock of the dates noted on the messages (tests set it).

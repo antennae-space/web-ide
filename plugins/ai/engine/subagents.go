@@ -127,13 +127,13 @@ const SubAgentText = `# You are a sub-agent
 Another conversation (your parent) gave you the task of the first message, with a fresh context: you do not see its conversation. Work on your own with your tools.
 - Report progress with agent_note at milestones (a short title, what you did or found); it does not stop you.
 - When you are blocked or a choice is not yours, ask your parent with agent_ask: you then wait for its answer. Do not ask the user directly.
-- When the task is done (or cannot be done), end with agent_report: a summary of the result, the files you changed, and done or blocked. Your parent reads only this report, so make it complete.`
+- When the task is done (or cannot be done), end with agent_report, in English: a summary of the result, the files you changed, and done or blocked. Your parent reads only this report, so make it complete.`
 
 // AdoptedText ends the system prompt of an adopted conversation.
 const AdoptedText = `# You are followed by an Orchestrator
 An Orchestrator conversation (your parent) adopted this conversation to follow the work of the day: it does not see this conversation. Go on with your task and with the user as before.
 - Tell your parent where you are with agent_note: right away when you are adopted (what you are working on, where you are), then at milestones. It does not stop you.
-- When your task is over (or cannot be done), send agent_report: the result, the files you changed, and done or blocked. Your parent reads only your notes and this report, so make it complete.`
+- When your task is over (or cannot be done), send agent_report, in English: the result, the files you changed, and done or blocked. Your parent reads only your notes and this report, so make it complete.`
 
 // AdoptText is the message of the parent to a conversation it adopts.
 const AdoptText = "You are now followed by this Orchestrator conversation. Announce yourself with agent_note: what you are working on and where you are. Then go on with your task; when it is over, end with agent_report."
@@ -164,9 +164,9 @@ func agentDefs() (parent, child []assistant.Def) {
 			obj{"title": str("Short title"), "text": str("What you did or found")}, "title", "text"),
 		fn("agent_ask", "Asks your parent a question when you are blocked or a choice is not yours; your turn stops until it answers (the answer is the result of this call).",
 			obj{"question": str("The question, with what the parent needs to answer it")}, "question"),
-		fn("agent_report", "Ends your task with your report to the parent: the result, the files changed, and done or blocked. Nothing runs after it.",
+		fn("agent_report", "Ends your task with your report to the parent, in English: the result, the files changed, and done or blocked. Nothing runs after it.",
 			obj{
-				"summary":       str("The result, complete: the parent reads only this"),
+				"summary":       str("The result, complete, in English: the parent reads only this"),
 				"files_changed": strList("Files you changed"),
 				"status":        enum("done, or blocked when the task could not be done", "done", "blocked"),
 			}, "summary"),
