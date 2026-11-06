@@ -14,6 +14,14 @@ run(
     // The texts of a plugin come from its own catalog (plugins/files/i18n).
     await page.waitForSelector('[data-testid=explorer-collapse]')
     assert((await page.getAttribute('[data-testid=explorer-collapse]', 'title')) === 'Tout replier', 'French texts of a plugin, from its catalog')
+    // A preset alias in the language of the page (plugins/ai/i18n).
+    await page.click('.rail-btn[data-id=assistant]')
+    await page.click('.ai-composer .ed-content')
+    await page.keyboard.type('/q')
+    await page.waitForSelector('[data-testid=ai-complete] .ai-complete-item:has-text("Remarques / Questions / Idée / Propal ?")')
+    await page.keyboard.press('Backspace')
+    await page.keyboard.press('Backspace')
+    await page.click('.rail-btn[data-id=assistant]')
 
     // Settings → Language → English: the interface follows without a reload.
     await page.click('.menubar button[title^="Réglages"]')

@@ -376,6 +376,10 @@ _Avoid_: memory, rules
 **Skill**
 A folder with a `SKILL.md`, loaded by an AI when its description matches the task.
 
+**Alias**
+A short text of the user with a name, global, kept in the synced settings: chosen in the `/` list of a message box, it puts its text in the box, to change before sending. A command of the same name comes first.
+_Avoid_: snippet, template, command (a command runs, an alias only writes)
+
 **Sub-agent**
 A child run the assistant starts for a side task, with its own context.
 _Avoid_: worker

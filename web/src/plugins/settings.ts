@@ -14,6 +14,15 @@ export function pluginSettingValues(m: PluginManifest): Record<string, unknown> 
   return out
 }
 
+/** A value the plugin edits on its own page (a list, what contributes.settings cannot hold). */
+export const pluginStored = (id: string, key: string): unknown => settings.pluginSettings[id]?.[key]
+
+export function setPluginStored(id: string, key: string, value: unknown, label = '') {
+  updateSettings((s) => {
+    s.pluginSettings[id] = { ...(s.pluginSettings[id] ?? {}), [key]: value }
+  }, label)
+}
+
 /** Sets one value, checked against its declaration. */
 export function setPluginSetting(m: PluginManifest, key: string, p: PluginSetting, value: unknown) {
   if (p.type === 'boolean') value = !!value

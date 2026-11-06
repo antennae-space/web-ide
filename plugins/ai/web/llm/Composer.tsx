@@ -32,6 +32,7 @@ import { prepareDoodle } from './doodle/export'
 import { cloneDoc, newDoc, type DoodleDoc } from './doodle/model'
 import { doodleSession, openDoodle } from './doodle/session'
 import { canCapture, captureScreen, type Picture } from './doodle/background'
+import { aliasItems } from './aliases'
 import { liveDictation, MessageBox, type CompletionItem } from './MessageBox'
 import { cancelDictation, canRecord, modelById, speech, startDictation, stopDictation } from './transcribe'
 import { AttachmentChip, formatSize, formatTokens, Popover, Switch } from './parts'
@@ -200,6 +201,12 @@ export async function runCommand(text: string, onSettings: () => void): Promise<
   return true
 }
 
+/** The commands and the skills of the / list. */
+const commandItems = (): CompletionItem[] => [
+  ...commands.map((c) => ({ kind: 'command' as const, label: `/${c.name}`, detail: t(c.hint), insert: `/${c.name} ` })),
+  ...(promptContext()?.skills ?? []).map((sk) => ({ kind: 'skill' as const, label: `/${sk.name}`, detail: sk.description, insert: `/${sk.name} ` })),
+]
+
 const [help, setHelp] = createSignal(false)
 /** The message box takes the whole assistant tool (the thread hidden) to write a long message. */
 export const [fullComposer, setFullComposer] = createSignal(false)
@@ -232,6 +239,17 @@ function HelpCard() {
             <div class="ai-help-row">
               <code>/{sk.name} [{t('request')}]</code>
               <span>{sk.description}</span>
+            </div>
+          )}
+        </For>
+      </Show>
+      <Show when={aliasItems(commandItems()).length}>
+        <strong class="ai-help-sub">{t('Aliases')}</strong>
+        <For each={aliasItems(commandItems())}>
+          {(a) => (
+            <div class="ai-help-row">
+              <code>{a.label}</code>
+              <span>{a.detail}</span>
             </div>
           )}
         </For>
@@ -548,10 +566,7 @@ export function Composer(props: {
   onMount(() => {
     if (!promptContext()) loadPromptContext().catch(() => {})
   })
-  const slashItems = (): CompletionItem[] => [
-    ...commands.map((c) => ({ kind: 'command' as const, label: `/${c.name}`, detail: t(c.hint), insert: `/${c.name} ` })),
-    ...(promptContext()?.skills ?? []).map((sk) => ({ kind: 'skill' as const, label: `/${sk.name}`, detail: sk.description, insert: `/${sk.name} ` })),
-  ]
+  const slashItems = (): CompletionItem[] => [...commandItems(), ...aliasItems(commandItems())]
 
   const canSend = () => (!!draft().trim() || pending().length > 0 || !!props.sendable?.()) && !preparing()
 

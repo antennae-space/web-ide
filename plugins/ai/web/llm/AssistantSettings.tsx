@@ -1,9 +1,10 @@
 // Settings of the assistant besides the servers: system prompt and instructions, and
 // compaction of long conversations.
-import { createResource, createSignal, For, onMount, Show } from 'solid-js'
+import { createResource, createSignal, For, Index, onMount, Show } from 'solid-js'
 import { applyConfig, config, loadModels, prefs, savePrefs, select, setPrefs, type Mode, type Model, type ModelConf, type ServerView } from './state'
 import { languages, probeGpu, speech, whisperModels } from './transcribe'
 import { formatSize } from './parts'
+import { aliases, aliasName, aliasText, saveAliases } from './aliases'
 import { defaultTemplate, loadPromptContext, promptContext, storedTemplates, systemPrompt, templateOf } from './prompt'
 import { errorToast, fmtSize, Icon, Modal, openTextTab, relPath, request, t, toast } from '../plugin'
 
@@ -336,6 +337,45 @@ function SpeechSettings() {
   )
 }
 
+/** The aliases of the / list: Index keeps the focus in a row while the list is saved. */
+function AliasSettings() {
+  const edit = (i: number, patch: { name?: string; text?: string }) => {
+    saveAliases(aliases().map((a, j) => (j !== i ? a : patch.text !== undefined ? { name: a.name, text: patch.text } : { ...a, ...patch })))
+  }
+  return (
+    <div class="form" data-testid="alias-settings">
+      <p class="muted small">{t('An alias is a text of yours, in every project. Pick it in the / list of the message box of the assistant or of an agent: its text goes in the box, and you can change it before you send. A command of the same name comes first: the alias does not show in that box.')}</p>
+      <Index each={aliases()}>
+        {(a, i) => (
+          <div class="ai-alias-row" data-testid="alias-row">
+            <input
+              class="mono"
+              value={a().name}
+              aria-label={t('Name')}
+              placeholder={t('Name')}
+              onInput={(e) => {
+                const name = aliasName(e.currentTarget.value)
+                e.currentTarget.value = name
+                edit(i, { name })
+              }}
+              data-testid="alias-name"
+            />
+            <textarea class="grow" rows="2" value={aliasText(a())} aria-label={t('Text')} placeholder={t('Text')} onInput={(e) => edit(i, { text: e.currentTarget.value })} data-testid="alias-text" />
+            <button type="button" class="btn small danger" onClick={() => saveAliases(aliases().filter((_, j) => j !== i))} data-testid="alias-delete">
+              {t('Delete')}
+            </button>
+          </div>
+        )}
+      </Index>
+      <div class="form-actions">
+        <button type="button" class="btn" onClick={() => saveAliases([...aliases(), { name: '', text: '' }])} data-testid="alias-add">
+          {t('Add an alias')}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function SettingsModal(props: { onClose: () => void }) {
   const blank = { id: '', name: '', kind: 'auto' as ServerView['kind'], url: '', apiKey: '', context: 0, parallel: 1, hasKey: false, clearKey: false, note: '', children: false, models: [] as ModelConf[] }
   const [form, setForm] = createSignal({ ...blank })
@@ -383,7 +423,7 @@ export function SettingsModal(props: { onClose: () => void }) {
     }
   }
   const setModel = (i: number, patch: Partial<ModelConf>) => setForm({ ...form(), models: form().models.map((m, j) => (j === i ? { ...m, ...patch } : m)) })
-  type Tab = 'servers' | 'prompt' | 'plan' | 'subagents' | 'compaction' | 'speech'
+  type Tab = 'servers' | 'prompt' | 'plan' | 'subagents' | 'compaction' | 'speech' | 'aliases'
   const [tab, setTab] = createSignal<Tab>('servers')
   const tabs: [Tab, string][] = [
     ['servers', 'Servers'],
@@ -392,6 +432,7 @@ export function SettingsModal(props: { onClose: () => void }) {
     ['subagents', 'Sub-agents'],
     ['compaction', 'Compaction'],
     ['speech', 'Transcription'],
+    ['aliases', 'Aliases'],
   ]
   return (
     <Modal title={t('Assistant settings')} onClose={props.onClose} class="ai-servers modal-wide">
@@ -418,6 +459,9 @@ export function SettingsModal(props: { onClose: () => void }) {
       </Show>
       <Show when={tab() === 'speech'}>
         <SpeechSettings />
+      </Show>
+      <Show when={tab() === 'aliases'}>
+        <AliasSettings />
       </Show>
       <div class="form" style={{ display: tab() === 'servers' ? undefined : 'none' }}>
         <For each={config.servers} fallback={<p class="muted">{t('No server. Add llama.cpp (llama-server) or Ollama below.')}</p>}>

@@ -236,6 +236,9 @@
 .ai-tab { border: 0; background: none; padding: 6px 12px; color: var(--fg-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; }
 .ai-tab:hover { color: var(--fg); }
 .ai-tab.active { color: var(--fg); border-bottom-color: var(--accent); }
+.ai-alias-row { display: flex; align-items: flex-start; gap: 8px; }
+.ai-alias-row input { width: 100px; flex: none; }
+.ai-alias-row textarea { min-width: 0; resize: vertical; }
 .ai-server-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
 .ai-prompt-edit { font-size: 12px; line-height: 1.45; resize: vertical; min-height: 160px; }
 

@@ -264,6 +264,48 @@ run(async ({ page }) => {
     assert(listed.length === 1 && listed[0] === 'nest/AGENTS.md', 'context popover lists the nested instructions: ' + JSON.stringify(listed))
     await page.keyboard.press('Escape')
 
+    // Aliases: the presets until the first edit; one made in the settings (its name cleaned, kept
+    // by the pod), chosen in the / list and changed before sending; the same name as a command:
+    // the command stays, the alias does not show.
+    await page.click('.ai-composer .ed-content')
+    await page.keyboard.type('/')
+    await page.waitForSelector('[data-testid=ai-complete] .ai-complete-label:has-text("/scr")')
+    const presets = await page.textContent('[data-testid=ai-complete]')
+    assert(presets.includes('/ref') && presets.includes('/q') && presets.includes('Simplify, compress, and repeat your response'), 'the presets in the / list: ' + presets)
+    await page.keyboard.press('Backspace')
+    await page.click('.ai-panel button[title^="Settings"]')
+    await page.click('.ai-tab:has-text("Aliases")')
+    assert((await page.locator('[data-testid=alias-row]').count()) === 3, 'three presets in the settings')
+    await page.locator('[data-testid=alias-delete]').nth(1).click()
+    await page.click('[data-testid=alias-add]')
+    await page.locator('[data-testid=alias-name]').nth(2).fill('/my snippet')
+    await page.locator('[data-testid=alias-text]').nth(2).fill('Text of the alias')
+    assert((await page.locator('[data-testid=alias-name]').nth(2).inputValue()) === 'mysnippet', 'the name of an alias is one word')
+    await page.click('[data-testid=alias-add]')
+    await page.locator('[data-testid=alias-name]').nth(3).fill('help')
+    await page.locator('[data-testid=alias-text]').nth(3).fill('Not the command')
+    await page.click('.ai-servers .modal-head button')
+    const savedAliases = () => {
+      const h = JSON.parse(fs.readFileSync(data + '/settings.json', 'utf8'))
+      return h.entries.find((e) => e.id === h.current)?.settings.pluginSettings?.ai?.aliases
+    }
+    for (let i = 0; i < 40 && savedAliases()?.length !== 4; i++) await page.waitForTimeout(100)
+    assert(savedAliases()?.map((a) => a.name).join() === 'scr,q,mysnippet,help', 'aliases kept in the settings of the pod: ' + JSON.stringify(savedAliases()))
+    await page.click('.ai-composer .ed-content')
+    await page.keyboard.type('/mysn')
+    await page.waitForSelector('[data-testid=ai-complete] .ai-complete-item.active:has-text("/mysnippet")')
+    await page.keyboard.press('Enter')
+    assert((await composerText(page)) === 'Text of the alias', 'an alias chosen in the / list puts its text in the box: ' + (await composerText(page)))
+    await page.keyboard.type(', changed')
+    assert((await composerText(page)) === 'Text of the alias, changed', 'its text is changed before sending')
+    await page.keyboard.press('Control+a')
+    await page.keyboard.press('Delete')
+    await page.keyboard.type('/help')
+    await page.waitForSelector('[data-testid=ai-complete] .ai-complete-label:has-text("/help")')
+    assert((await page.locator('[data-testid=ai-complete] .ai-complete-label:has-text("/help")').count()) === 1 && !(await page.textContent('[data-testid=ai-complete]')).includes('Not the command'), 'a command wins over an alias of its name')
+    await page.keyboard.press('Control+a')
+    await page.keyboard.press('Delete')
+
     // Commands: completion, /help, /model, a skill as a command, /compact with instructions.
     await page.click('.ai-composer .ed-content')
     await page.keyboard.type('/he')
@@ -274,6 +316,7 @@ run(async ({ page }) => {
     await page.waitForSelector('[data-testid=ai-help]')
     const helpText = await page.textContent('[data-testid=ai-help]')
     assert(helpText.includes('/compact') && helpText.includes('/greet'), '/help lists the commands and the skills')
+    assert(helpText.includes('/mysnippet') && helpText.includes('Text of the alias') && !helpText.includes('Not the command'), '/help lists the aliases shown in the / list')
     await page.fill('.ai-composer .ed-content', '/model fake-small')
     await page.keyboard.press('Control+Enter')
     await page.waitForSelector('[data-testid=model-pill]:has-text("fake-small")')

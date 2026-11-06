@@ -50,6 +50,8 @@ export const tabSize = () => api.theme.tabSize()
 export const pluginAssistantOptions = () => api.plugins.assistantOptions()
 /** The values of the plugin's settings (its manifest's contributes.settings). */
 export const settingValues = () => api.settings.values()
+export const storedSetting = (key: string) => api.settings.stored(key)
+export const storeSetting = (key: string, value: unknown, label?: string) => api.settings.store(key, value, label)
 
 // The editor kit, the keymap.
 export const registerAction = bind(() => api.keys.register)
