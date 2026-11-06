@@ -395,6 +395,9 @@ _Avoid_: quota alone (the TURN quota of the relay)
 Something an AI asks the user and waits for, gathered in the Questions tool.
 _Avoid_: prompt
 
+**STE style**
+The way agents write explanations: the spirit of ASD-STE100 (Simplified Technical English) without its dictionary. Short sentences, one instruction per sentence, active voice, one word for one meaning.
+
 ## Kanban
 
 **Ticket**

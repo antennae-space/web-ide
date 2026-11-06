@@ -29,6 +29,7 @@ Go is in the `PATH` of the pod: the assistant of the IDE calls `go` directly (a 
 - Every text shown to the user goes through `t()` (`web/src/i18n`): the English text is the key, each other language of `languages.json` has a catalog (`fr.json`, `es.json`). Messages sent by the pod use `i18n.Errorf` / `i18n.T` (`lib/i18n`) and its catalogs. A text of a built-in plugin only (its page, its manifest, its Go messages) goes to its own catalogs, `plugins/<id>/i18n/<lang>.json`; a text shared with the core stays in the core's.
 - One tested commit per feature: `make test` and the e2e suites touching the change must pass; add e2e assertions for visible features.
 - Match the surrounding code: comment density, naming, small focused files.
+- Write explanations in the STE style, the spirit of ASD-STE100 without its dictionary: short sentences, one instruction per sentence, active voice, one word for one meaning, six sentences per paragraph at most. Do not change exact names, paths, commands, code and error messages. Say what you verified and what you did not verify. This applies to the *How to test* and the *Description* of a ticket and to reports between agents, in English, and to the last message of a work session, in the language of the user. It does not apply to notes, plans and commit messages.
 
 ## Docs
 
