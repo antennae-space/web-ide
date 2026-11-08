@@ -281,7 +281,7 @@ func ToolsFor(mode string, ticket *TicketLink, sub, spawn, adopted bool) []json.
 				out = append(out, d.JSON)
 			}
 		}
-		out = append(out, assistant.AskUserDef.JSON, boardDoodleDef.JSON, boardImageDef.JSON)
+		out = append(out, assistant.AskUserDef.JSON, boardDoodleDef.JSON, boardImageDef.JSON, GenerateImageDef.JSON)
 		for _, d := range parentAgentDefs {
 			out = append(out, d.JSON)
 		}

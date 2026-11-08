@@ -64,10 +64,13 @@ func TestGenerateImageTool(t *testing.T) {
 	if !offered() {
 		t.Fatal("generate_image not offered with an image model")
 	}
+	// The Orchestrator has it too, like the other tools of the board.
+	found := false
 	for _, d := range engine.ToolsFor(engine.Orchestrator, nil, false, false, false) {
-		if strings.Contains(string(d), `"generate_image"`) {
-			t.Fatal("generate_image offered to the Orchestrator")
-		}
+		found = found || strings.Contains(string(d), `"generate_image"`)
+	}
+	if !found {
+		t.Fatal("generate_image not offered to the Orchestrator")
 	}
 	_ = os.WriteFile(filepath.Join(dir, "logo.svg"), []byte("<svg/>"), 0o644)
 	for js, want := range map[string]string{
@@ -88,8 +91,10 @@ func TestGenerateImageTool(t *testing.T) {
 		t.Fatalf("saved image: %q %v", data, err)
 	}
 	// Out of Build mode, the scratch folder only.
-	if _, err := s.generateImage(r, rt, engine.Plan, args(`{"title":"x","prompt":"p","path":"fox.png"}`)); err == nil || !strings.Contains(err.Error(), "scratch folder") {
-		t.Fatalf("Plan mode: %v", err)
+	for _, mode := range []string{engine.Plan, engine.Orchestrator} {
+		if _, err := s.generateImage(r, rt, mode, args(`{"title":"x","prompt":"p","path":"fox.png"}`)); err == nil || !strings.Contains(err.Error(), "scratch folder") {
+			t.Fatalf("%s mode: %v", mode, err)
+		}
 	}
 	// A page of the board is sent to the edits endpoint.
 	src := "data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte("page-one"))
