@@ -686,6 +686,12 @@ run(async ({ page }) => {
     await page.waitForSelector('[data-testid=image-settings] select[name=imageModel] option[value="fake-model"]', { state: 'attached' })
     await page.selectOption('[data-testid=image-settings] select[name=imageModel]', 'fake-model')
     await page.click('.ai-servers .modal-head button')
+    // Opened again, the settings show the model chosen (its list comes after the value).
+    await page.click('.ai-panel button[title^="Settings"]')
+    await page.click('.ai-tab:has-text("Image generation")')
+    await page.waitForSelector('[data-testid=image-settings] select[name=imageModel] option[value="fake-model"]', { state: 'attached' })
+    assert((await page.inputValue('[data-testid=image-settings] select[name=imageModel]')) === 'fake-model', 'the image model shows once the settings are opened again')
+    await page.click('.ai-servers .modal-head button')
     await page.click('.ai-panel button[title="New conversation"]')
     await page.fill('.ai-composer .ed-content', 'Imagine: a fox')
     await page.keyboard.press('Control+Enter')

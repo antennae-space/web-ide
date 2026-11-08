@@ -153,6 +153,8 @@ export function PromptSettings() {
   )
 }
 
+// The models of a server come after the value of their select: each option says whether it
+// is the chosen one, else the select shows "— choose —" when the settings open again.
 export function PlanSettings() {
   const [list] = createResource(
     () => prefs.planServer,
@@ -180,7 +182,7 @@ export function PlanSettings() {
             <span>{t('Model')}</span>
             <select value={prefs.planModel} onChange={(e) => set('planModel', e.currentTarget.value)} name="planModel">
               <option value="">{t('— choose —')}</option>
-              <For each={list() ?? []}>{(m) => <option value={m.id}>{m.id}</option>}</For>
+              <For each={list() ?? []}>{(m) => <option value={m.id} selected={m.id === prefs.planModel}>{m.id}</option>}</For>
             </select>
           </label>
         </Show>
@@ -213,7 +215,7 @@ export function SubAgentSettings() {
             <span>{t('Model')}</span>
             <select value={config.childModel ?? ''} onChange={(e) => set(config.childServer!, e.currentTarget.value)} name="childModel">
               <option value="">{t('— choose —')}</option>
-              <For each={list() ?? []}>{(m) => <option value={m.id}>{m.id}</option>}</For>
+              <For each={list() ?? []}>{(m) => <option value={m.id} selected={m.id === config.childModel}>{m.id}</option>}</For>
             </select>
           </label>
         </Show>
@@ -246,7 +248,7 @@ export function ImageSettings() {
             <span>{t('Model')}</span>
             <select value={config.imageModel ?? ''} onChange={(e) => set(config.imageServer!, e.currentTarget.value)} name="imageModel">
               <option value="">{t('— choose —')}</option>
-              <For each={list() ?? []}>{(m) => <option value={m.id}>{m.id}</option>}</For>
+              <For each={list() ?? []}>{(m) => <option value={m.id} selected={m.id === config.imageModel}>{m.id}</option>}</For>
             </select>
           </label>
         </Show>
@@ -290,7 +292,7 @@ export function CompactionSettings() {
             <span>{t('Model')}</span>
             <select value={prefs.compactModel} onChange={(e) => set('compactModel', e.currentTarget.value)} name="compactModel">
               <option value="">{t('— choose —')}</option>
-              <For each={list() ?? []}>{(m) => <option value={m.id}>{m.id}</option>}</For>
+              <For each={list() ?? []}>{(m) => <option value={m.id} selected={m.id === prefs.compactModel}>{m.id}</option>}</For>
             </select>
           </label>
         </Show>
