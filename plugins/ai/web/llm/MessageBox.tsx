@@ -7,7 +7,7 @@ import type { EditorView } from '../plugin'
 import type { DictationSink } from './transcribe'
 
 export interface CompletionItem {
-  kind: 'command' | 'skill' | 'file' | 'dir'
+  kind: 'command' | 'skill' | 'alias' | 'file' | 'dir'
   label: string
   detail?: string
   insert: string
@@ -254,7 +254,7 @@ export function MessageBox(props: {
                 onMouseEnter={() => setSelIndex(i())}
                 ref={(el) => createEffect(() => i() === selIndex() && el.scrollIntoView({ block: 'nearest' }))}
               >
-                <Icon name={it.kind === 'dir' ? 'folder' : it.kind === 'file' ? 'file' : it.kind === 'skill' ? 'puzzle' : 'chevron'} size={13} />
+                <Icon name={it.kind === 'dir' ? 'folder' : it.kind === 'file' ? 'file' : it.kind === 'skill' ? 'puzzle' : it.kind === 'alias' ? 'text' : 'chevron'} size={13} />
                 <span class="ai-complete-label">{it.label}</span>
                 <Show when={it.detail}>
                   <span class="ai-complete-detail ellipsis">{it.detail}</span>

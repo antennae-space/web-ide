@@ -4,6 +4,7 @@
 // session while the page lives.
 import { createSignal, For, onCleanup, Show, type JSX } from 'solid-js'
 import { createStore, produce } from 'solid-js/store'
+import { aliasItems } from '../llm/aliases'
 import { liveDictation, MessageBox, type CompletionItem } from '../llm/MessageBox'
 import { prepare, type Prepared } from '../llm/attachments'
 import { prepareDoodle } from '../llm/doodle/export'
@@ -109,8 +110,9 @@ export function AgentComposer(props: { id: string; onSent?: () => void; head?: J
   }
   onCleanup(cancelDictation)
 
-  // The commands the agent announces (its own commands and skills).
-  const slashItems = (): CompletionItem[] => (info()?.commands ?? []).map((c) => ({ kind: 'command', label: `/${c.name}`, detail: c.input?.hint ? `${c.description} · ${c.input.hint}` : c.description, insert: `/${c.name} ` }))
+  // The commands the agent announces (its own commands and skills), then the aliases.
+  const agentItems = (): CompletionItem[] => (info()?.commands ?? []).map((c) => ({ kind: 'command', label: `/${c.name}`, detail: c.input?.hint ? `${c.description} · ${c.input.hint}` : c.description, insert: `/${c.name} ` }))
+  const slashItems = (): CompletionItem[] => [...agentItems(), ...aliasItems(agentItems())]
 
   // ↑ / ↓ in an empty box (or one showing a prompt of the history) go through the prompts sent.
   let back = -1

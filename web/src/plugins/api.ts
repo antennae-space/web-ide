@@ -28,7 +28,7 @@ import { EditorView } from '../editor/view'
 import { capability, provide, type Capabilities } from './capabilities'
 import { decoratePath } from './decorations'
 import { explorerItems, editorDecorations, fileDecorations, pluginAssistantOptions, pluginStates } from './registry'
-import { pluginSettingValues } from './settings'
+import { pluginSettingValues, pluginStored, setPluginStored } from './settings'
 import { folderMark, inExcluded, loadFolderMarks, markFolder, markOf } from '../state/folders'
 import { addDesk, desk as deskShown, deskKey, desks, onDeskRemove, setDeskDrag } from '../state/desks'
 import { setDynamicActions } from '../keys/bindings'
@@ -270,7 +270,8 @@ export function makeApi(id: string) {
     window: { detached: () => route().name === 'tool' },
     /**
      * The Settings of the IDE, on a section (themes by default), and the values of the plugin's own
-     * settings (contributes.settings, the defaults where the user set none).
+     * settings (contributes.settings, the defaults where the user set none). stored / store: a
+     * value it edits on its own page, not declared, in the same synced settings.
      */
     settings: {
       open: openSettings,
@@ -278,6 +279,8 @@ export function makeApi(id: string) {
         const m = pluginStates().find((p) => p.manifest.id === id)?.manifest
         return m ? pluginSettingValues(m) : {}
       },
+      stored: (key: string) => pluginStored(id, key),
+      store: (key: string, value: unknown, label?: string) => setPluginStored(id, key, value, label),
     },
     /** The other plugins: their options of a conversation of the assistant, by plugin id. */
     plugins: { assistantOptions: pluginAssistantOptions },

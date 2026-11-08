@@ -213,7 +213,7 @@ The file view is Code's (`fileView`); another plugin could not mark it. The **`e
 
 ## What the Debug tool added to the API
 
-The page of the Debug plugin (#189, [debug.md](debug.md#the-debug-tool)) needed three points of the `api`, open to every plugin: `api.settings.values()` (the values of its own settings, `contributes.settings`, with their defaults), `api.hideTool(tool)` (closes the zone of one of its tools when it shows it: the tool closed at the end of a session) and `api.toolShown(tool)`. The menu bar has a **Run** menu for the commands `debug.*`, hidden while no action of it exists (a menu shows only when one of its actions does).
+The page of the Debug plugin (#189, [debug.md](debug.md#the-debug-tool)) needed three points of the `api`, open to every plugin: `api.settings.values()` (the values of its own settings, `contributes.settings`, with their defaults; `stored(key)` and `store(key, value, label)` read and write a value it edits on its own page, not declared, in the same synced settings: the aliases of the AI, #229), `api.hideTool(tool)` (closes the zone of one of its tools when it shows it: the tool closed at the end of a session) and `api.toolShown(tool)`. The menu bar has a **Run** menu for the commands `debug.*`, hidden while no action of it exists (a menu shows only when one of its actions does).
 
 ## API v1
 

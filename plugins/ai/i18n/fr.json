@@ -711,5 +711,11 @@
   "Next share {in} ({at})": "Part suivante {in} ({at})",
   "The cost of the agents and the assistant since midnight against the daily budget of Settings > Plugins > AI.": "Le coût des agents et de l’assistant depuis minuit, face au budget du jour de Paramètres > Plugins > AI.",
   "A day is a seventh of the weekly window: what was not used carries over, going faster eats into the next days.": "Un jour est un septième de la fenêtre de la semaine : ce qui n’a pas servi est reporté, aller plus vite entame les jours suivants.",
-  "Daily quota": "Quota du jour"
+  "Daily quota": "Quota du jour",
+  "Aliases": "Alias",
+  "Add an alias": "Ajouter un alias",
+  "An alias is a text of yours, in every project. Pick it in the / list of the message box of the assistant or of an agent: its text goes in the box, and you can change it before you send. A command of the same name comes first: the alias does not show in that box.": "Un alias est un texte à vous, dans tous les projets. Choisissez-le dans la liste / de la zone de message de l’assistant ou d’un agent : son texte arrive dans la zone, et vous pouvez le modifier avant l’envoi. Une commande du même nom passe d’abord : l’alias ne s’affiche pas dans cette zone.",
+  "Simplify, compress, and repeat your response": "Simplifie, compresse et répète ta réponse",
+  "Rewrite your responses with reference points": "Réécris tes réponses avec des points de repère",
+  "Remarks / Questions / Idea / Proposal?": "Remarques / Questions / Idée / Propal ?"
 }
