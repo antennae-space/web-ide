@@ -717,5 +717,11 @@
   "An alias is a text of yours, in every project. Pick it in the / list of the message box of the assistant or of an agent: its text goes in the box, and you can change it before you send. A command of the same name comes first: the alias does not show in that box.": "Un alias est un texte à vous, dans tous les projets. Choisissez-le dans la liste / de la zone de message de l’assistant ou d’un agent : son texte arrive dans la zone, et vous pouvez le modifier avant l’envoi. Une commande du même nom passe d’abord : l’alias ne s’affiche pas dans cette zone.",
   "Simplify, compress, and repeat your response": "Simplifie, compresse et répète ta réponse",
   "Rewrite your responses with reference points": "Réécris tes réponses avec des points de repère",
-  "Remarks / Questions / Idea / Proposal?": "Remarques / Questions / Idée / Propal ?"
+  "Remarks / Questions / Idea / Proposal?": "Remarques / Questions / Idée / Propal ?",
+  "Generates an image": "Génère une image",
+  "Image generation": "Génération d'images",
+  "Server of the images": "Serveur des images",
+  "No image generation": "Pas de génération d'images",
+  "The assistant can make and change images (generate_image) with an image model of a server that speaks the OpenAI images API: stable-diffusion.cpp behind llama-swap, or a cloud provider. On one GPU, llama-swap unloads the model of the conversation for the image, then loads it again.": "L'assistant peut créer et modifier des images (generate_image) avec un modèle d'image d'un serveur compatible avec l'API images d'OpenAI : stable-diffusion.cpp derrière llama-swap, ou un fournisseur cloud. Sur un seul GPU, llama-swap décharge le modèle de la conversation pour l'image, puis le recharge.",
+  "the server returned no image": "le serveur n'a renvoyé aucune image"
 }

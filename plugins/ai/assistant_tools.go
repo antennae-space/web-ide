@@ -138,6 +138,8 @@ func (s *A) assistantTool(r *assistantRun, ref *runtimeRef, call engine.ToolCall
 		res, err = s.boardDoodle(r, a)
 	case "board_draw_image":
 		res, err = s.boardImage(r, ref.rt, a)
+	case "generate_image":
+		res, err = s.generateImage(r, ref.rt, mode, a)
 	case "kanban_next", "kanban_history", "list_conversations", "action_card", "open_conversation":
 		res, err = s.orchestratorTool(r, ref, name, a)
 	case "spawn_agent":

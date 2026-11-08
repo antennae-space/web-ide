@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"antennae.space/ide/lib/i18n"
+	"antennae.space/ide/plugins/ai/engine"
 	"antennae.space/ide/pod/runtime"
 )
 
@@ -36,7 +37,8 @@ func (s *A) missingFor(rt *runtime.Runtime, tool string) error {
 	return nil
 }
 
-// offered drops the definitions of the tools whose capability the project of rt lacks.
+// offered drops the definitions of the tools whose capability the project of rt lacks, and
+// generate_image without an image model.
 func (s *A) offered(rt *runtime.Runtime, defs []json.RawMessage) []json.RawMessage {
 	out := defs[:0:0]
 	for _, d := range defs {
@@ -44,6 +46,11 @@ func (s *A) offered(rt *runtime.Runtime, defs []json.RawMessage) []json.RawMessa
 			Function struct{ Name string } `json:"function"`
 		}
 		_ = json.Unmarshal(d, &f)
+		if f.Function.Name == engine.GenerateImageDef.Name {
+			if server, _ := s.LLM.ImageDefault(); server == "" {
+				continue
+			}
+		}
 		if s.missingFor(rt, f.Function.Name) == nil {
 			out = append(out, d)
 		}

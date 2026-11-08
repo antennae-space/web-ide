@@ -75,6 +75,9 @@ type Config struct {
 	// Default server and model of the sub-agents ("": the ones of the parent).
 	ChildServer string `json:"childServer,omitempty"`
 	ChildModel  string `json:"childModel,omitempty"`
+	// Server and model of generate_image ("": the tool is not offered).
+	ImageServer string `json:"imageServer,omitempty"`
+	ImageModel  string `json:"imageModel,omitempty"`
 }
 
 type Manager struct {
@@ -120,7 +123,8 @@ func (m *Manager) View() map[string]any {
 		views = append(views, ServerView{ID: s.ID, Name: s.Name, Kind: s.Kind, URL: s.URL, HasKey: s.APIKey != "", Context: s.Context, Parallel: s.Parallel,
 			Models: s.Models, Note: s.Note, Children: s.Children})
 	}
-	return map[string]any{"servers": views, "server": m.cfg.Server, "model": m.cfg.Model, "childServer": m.cfg.ChildServer, "childModel": m.cfg.ChildModel}
+	return map[string]any{"servers": views, "server": m.cfg.Server, "model": m.cfg.Model, "childServer": m.cfg.ChildServer, "childModel": m.cfg.ChildModel,
+		"imageServer": m.cfg.ImageServer, "imageModel": m.cfg.ImageModel}
 }
 
 // SetChildDefault sets the default server and model of the sub-agents.
@@ -138,6 +142,26 @@ func (m *Manager) ChildDefault() (string, string) {
 	for _, s := range m.cfg.Servers {
 		if s.ID == m.cfg.ChildServer {
 			return m.cfg.ChildServer, m.cfg.ChildModel
+		}
+	}
+	return "", ""
+}
+
+// SetImageDefault sets the server and model of generate_image.
+func (m *Manager) SetImageDefault(server, model string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cfg.ImageServer, m.cfg.ImageModel = server, model
+	return m.st.WriteJSON(configFile, m.cfg)
+}
+
+// ImageDefault is the server and model of generate_image ("" when unset).
+func (m *Manager) ImageDefault() (string, string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, s := range m.cfg.Servers {
+		if s.ID == m.cfg.ImageServer && m.cfg.ImageModel != "" {
+			return m.cfg.ImageServer, m.cfg.ImageModel
 		}
 	}
 	return "", ""
@@ -252,6 +276,9 @@ func (m *Manager) DeleteServer(id string) error {
 	}
 	if m.cfg.ChildServer == id {
 		m.cfg.ChildServer, m.cfg.ChildModel = "", ""
+	}
+	if m.cfg.ImageServer == id {
+		m.cfg.ImageServer, m.cfg.ImageModel = "", ""
 	}
 	return m.st.WriteJSON(configFile, m.cfg)
 }

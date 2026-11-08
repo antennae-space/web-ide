@@ -313,7 +313,7 @@ export interface ChatInfo {
   genMs?: number
 }
 
-export const [config, setConfig] = createStore<{ servers: ServerView[]; server: string; model: string; childServer?: string; childModel?: string }>({ servers: [], server: '', model: '' })
+export const [config, setConfig] = createStore<{ servers: ServerView[]; server: string; model: string; childServer?: string; childModel?: string; imageServer?: string; imageModel?: string }>({ servers: [], server: '', model: '' })
 export const [models, setModels] = createSignal<Model[]>([])
 export const [modelsError, setModelsError] = createSignal('')
 export const [modelsLoading, setModelsLoading] = createSignal(false)

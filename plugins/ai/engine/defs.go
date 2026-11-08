@@ -134,6 +134,17 @@ var boardImageDef = fn("board_draw_image",
 		"image": str(`SVG markup ("<svg …>…</svg>", with a viewBox or a width and height; no script nor external reference), the path of an image of the project (png, jpg, webp, gif, svg), or "screen"`),
 	}, "title", "image")
 
+// GenerateImageDef: offered when an image model is set (the settings of the assistant).
+var GenerateImageDef = fn("generate_image",
+	"Makes an image with the image model of the IDE (a photo, an illustration, a mockup, an icon) and puts it on the board as a new page; you receive it. With edit, changes an image instead: a page of the board or an image of the project. It can take a few minutes (the model may be loaded first). To save it as a file, give path.",
+	obj{
+		"title":  str("Short name of the page"),
+		"prompt": str("What the image shows (or, with edit, what to change), in English, precise: subject, style, colors, text written in it"),
+		"size":   str(`"WIDTHxHEIGHT", e.g. "1024x1024" (default: the one of the model), "1280x720"`),
+		"edit":   str("The number of a page of the board, or the path of an image of the project, to change"),
+		"path":   str("Where to save the image (a .png file), relative to the project root; out of Build mode, in the scratch folder only"),
+	}, "title", "prompt")
+
 var sharePreviewDef = fn("share_preview",
 	"Offers the user to try the app: shows a card in the conversation that, on their click, starts the command in a console (unless it runs already), waits for the port, then opens the app on a temporary URL they can reach from any device (phone included). Nothing runs before the click. Use it for a development server rather than run_command when the user should see the app. When the project has a saved serve command (list_commands), use it: pass its command_id, or no command at all when there is only one with a port.",
 	obj{
@@ -270,7 +281,7 @@ func ToolsFor(mode string, ticket *TicketLink, sub, spawn, adopted bool) []json.
 				out = append(out, d.JSON)
 			}
 		}
-		out = append(out, assistant.AskUserDef.JSON, boardDoodleDef.JSON, boardImageDef.JSON)
+		out = append(out, assistant.AskUserDef.JSON, boardDoodleDef.JSON, boardImageDef.JSON, GenerateImageDef.JSON)
 		for _, d := range parentAgentDefs {
 			out = append(out, d.JSON)
 		}
@@ -287,7 +298,7 @@ func ToolsFor(mode string, ticket *TicketLink, sub, spawn, adopted bool) []json.
 			out = append(out, d.JSON)
 		}
 	}
-	out = append(out, boardDoodleDef.JSON, boardImageDef.JSON, sharePreviewDef.JSON)
+	out = append(out, boardDoodleDef.JSON, boardImageDef.JSON, GenerateImageDef.JSON, sharePreviewDef.JSON)
 	if sub {
 		for _, d := range childAgentDefs {
 			out = append(out, d.JSON)
