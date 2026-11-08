@@ -604,13 +604,14 @@ func TestChatTimes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p := times["p"]; p.Ms != 2000 || p.ThinkMs != 300 || p.Parent != "" {
+	// Chars counts every message, the user's too.
+	if p := times["p"]; p.Ms != 2000 || p.ThinkMs != 300 || p.Parent != "" || p.Chars < 3 {
 		t.Fatalf("p: %+v", p)
 	}
 	if s := times["s"]; s.Ms != 2000 || s.Parent != "p" {
 		t.Fatalf("s: %+v", s)
 	}
-	if e, ok := times["e"]; !ok || e.Ms != 0 {
+	if e, ok := times["e"]; !ok || e.Ms != 0 || e.Chars != 0 {
 		t.Fatalf("e: %+v %v", e, ok)
 	}
 }

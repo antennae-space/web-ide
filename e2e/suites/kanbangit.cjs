@@ -38,6 +38,17 @@ const fake = http.createServer(async (req, res) => {
   const msgs = r.messages
   const last = msgs[msgs.length - 1]
   const goal = Number((msgs[0].content.match(/\(id (\d+)\)/) ?? [])[1])
+  // The session of a consolidation (#235): one lesson, one commit citing its source.
+  if (last.role === 'user' && msgs[0].content.includes('You do the **consolidation**'))
+    return (
+      sse(res, {
+        tool_calls: calls([
+          ['c1', 'bash', { command: "printf '# Notes\\n- Exports go to export.txt.\\n' > AGENTS.md && git add AGENTS.md && git commit -q -m '#3 Consolidation: exports go to export.txt (#1)'" }],
+          ['c2', 'kanban_move', { status: 'to_test', test_summary: '1. Read `AGENTS.md`. Expected: the rule on exports (#1).' }],
+        ]),
+      }),
+      end(res, 'tool_calls')
+    )
   if (last.role === 'user')
     return (
       sse(res, {
@@ -191,6 +202,43 @@ run(async ({ page, ctx }) => {
     await unfold(page, 'Git and changes')
     await kp.waitForSelector('[data-testid=ticket-diff-file]:has-text("export.txt")', { timeout: 10000 })
     assert(true, 'changes still visible after closing')
+
+    // Consolidation (#235): the Board offers the tickets processed (#1 Done); a New one is
+    // added by hand. Start creates the consolidation, starts it and runs its session.
+    const openBoard = async () => {
+      if (!(await kp.isVisible('[data-testid=kanban-open-board]'))) await kp.click('.rail-left .rail-btn[title^="Kanban"]')
+      await kp.click('[data-testid=kanban-open-board]')
+    }
+    await mcp('kanban_create', { title: 'CSV import' })
+    await openBoard()
+    await kp.click('[data-testid=kanban-consolidate]')
+    await kp.waitForSelector('[data-testid=consolidate-candidate]:has-text("#1 Data export")')
+    assert((await kp.locator('[data-testid=consolidate-candidate]').count()) === 1, 'the ticket Done is a candidate, the New one is not')
+    await kp.fill('[data-testid=consolidate-add-input]', '#2')
+    await kp.click('[data-testid=consolidate-add]')
+    await kp.waitForSelector('[data-testid=consolidate-candidate]:has-text("#2 CSV import")')
+    await kp.waitForSelector('[data-testid=consolidate-estimate]:has-text("2 ticket(s)")')
+    assert(true, 'a ticket added by hand, the estimate counts both')
+    const before = requests.length
+    await kp.click('[data-testid=consolidate-start]')
+    const cwt = repo + '/.ide/worktrees/3-consolidation-' + new Date().toLocaleDateString('sv')
+    await kp.waitForSelector('[data-testid=worktree-banner]:has-text("Ticket #3")', { timeout: 15000 })
+    await kp.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Fait.")', { timeout: 20000 })
+    assert(requests[before].messages[0].content.includes('You do the **consolidation** of this ticket'), 'the session has the role consolidation')
+    assert(git('log -1 --format=%s', cwt) === '#3 Consolidation: exports go to export.txt (#1)', 'one commit per lesson, citing its source')
+    await kp.click('[data-testid=branch-selector]')
+    await kp.click('.pick-item:has-text("main folder")')
+    await openBoard()
+    await kp.click('[data-testid=ticket-card-3]:has([data-testid=card-consolidation])')
+    await kp.waitForSelector('[data-testid=ticket-status]:has-text("To test")', { timeout: 10000 })
+    await unfold(page, 'Sources')
+    assert((await kp.locator('[data-testid=ticket-source]').count()) === 2, 'the ticket lists its sources, its card shows it is a consolidation')
+    await openBoard()
+    await kp.click('[data-testid=kanban-consolidate]')
+    await kp.waitForSelector('[data-testid=consolidate-none]')
+    await kp.waitForSelector('[data-testid=consolidate-past]:has-text("#3") [data-testid=consolidate-past-state]:has-text("Proposed")')
+    assert(true, 'consolidated tickets no longer offered, the consolidation listed as proposed')
+    await page.screenshot({ path: OUT + '/kanban-consolidate.png' })
   } finally {
     fake.close()
   }

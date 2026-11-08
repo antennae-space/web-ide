@@ -223,7 +223,7 @@ func (c agentsCap) ChatTimes(project string) (map[string]caps.ChatTime, error) {
 	}
 	out := make(map[string]caps.ChatTime, len(times))
 	for id, t := range times {
-		out[id] = caps.ChatTime{Parent: t.Parent, Ms: t.Ms, ThinkMs: t.ThinkMs}
+		out[id] = caps.ChatTime{Parent: t.Parent, Ms: t.Ms, ThinkMs: t.ThinkMs, Chars: t.Chars}
 	}
 	return out, nil
 }
