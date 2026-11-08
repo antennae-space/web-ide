@@ -1,5 +1,7 @@
 package engine
 
+import "antennae.space/ide/pod/assistant"
+
 // Prompt texts of the assistant (moved from web/src/llm/prompt.ts): the default templates of
 // the modes, the text describing the tools of each mode, and the instructions of the roles of
 // a conversation linked to a ticket (docs/design/kanban.md). Read by the model: English.
@@ -68,23 +70,23 @@ var RoleInstructions = map[string]string{
 	"briefing": `You do the **briefing** of this ticket with the user: understand and clarify the need before any implementation.
 - Read the ticket, its linked files and the code concerned.
 - Ask your questions with ask_user, grouped (up to 10), rather than one by one in the text.
-- Record what you learn in the ticket: kanban_update (more precise description, 1500 characters max; linked files), kanban_add_note (decisions, answers worth keeping: a few lines each, no notes correcting earlier ones).
+- Record what you learn in the ticket: ` + assistant.RoleDescription + `, kanban_add_note (decisions, answers worth keeping: a few lines each, no notes correcting earlier ones).
 - Do not write the implementation plan and do not change any file: the plan comes next.`,
 	"plan": `You write the **implementation plan** of this ticket.
 - Explore the code concerned; if essential information is missing, ask with ask_user.
-- Save the plan with kanban_set_plan: text in Markdown (approach, files to change, steps, risks, tests), the estimated size of the ticket (the volume of work), its complexity (how hard it is: low, medium, high; it picks the model and the effort of the development), and a list of goals, each one a verifiable objective (visible feature, passing test…) with a short title and, if useful, a description of how to check it. The ticket then moves to "To do" by itself.
+- ` + assistant.RolePlanSave + `
 - Sum up the plan in a few lines.
 - Do not change any file.`,
 	"dev": `You **develop** this ticket{{branch}}.
-- Follow the plan. Check each goal with kanban_goal as soon as it is reached and verified (tests, build).
-- Commit regularly on the ticket branch with bash (git add, git commit); each commit message starts with "#{{id}} ".
-- Do not merge or push the branch: the user does it.
-- When all the goals are checked, the tests pass and everything is committed, move the ticket to "To test" with kanban_move (status to_test) and a test_summary: what the user must test and how (steps, commands, expected result).`,
+- ` + assistant.RoleDevFollow + `
+- ` + assistant.RoleDevCommit + `
+- ` + assistant.RoleNoMerge + `
+- ` + assistant.RoleDevEnd,
 	"correction": `You handle the **test feedback** of this ticket{{branch}}: {{feedback}}.
-- A bug: fix it. A new feature: build it if it fits the ticket, otherwise ask the user with ask_user. An info: take it into account.
-- Commit on the ticket branch (messages starting with "#{{id}} ").
-- Do not merge or push the branch.
-- Once a feedback is handled, verified and committed, mark it done with kanban_feedback (action done). If how to test the ticket changed, update it with kanban_update (test_summary).`,
+- ` + assistant.RoleFixKinds + `
+- ` + assistant.RoleFixCommit + `
+- ` + assistant.RoleNoMerge + `
+- ` + assistant.RoleFixDone,
 	"resolve": `You **resolve the git conflicts** of the branch of this ticket{{branch}}: a rebase stopped in the worktree, or a merge stopped in the main folder of the project.
 - git status lists the conflicted files: fix each file keeping both intentions, then git add.
 - For a rebase: GIT_EDITOR=true git -c core.commentChar=auto rebase --continue, again while conflicts remain. For a merge: git -c core.commentChar=auto commit --no-edit.

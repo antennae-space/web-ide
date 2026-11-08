@@ -51,6 +51,7 @@ run(async ({ page }) => {
   assert(text.includes('Briefing received (ticket #1). MCP web-ide:') && text.includes('Data export'), 'briefing received, kanban_get through the MCP server of the IDE: ' + text)
   const prompt = await kp.textContent('[data-testid=agent-user]')
   assert(prompt.includes('You **develop** this ticket on the branch ticket/1-data-export') && prompt.includes('Develop ticket #1'), 'first prompt: the role, the ticket and the message')
+  assert(prompt.includes('# How you work and write') && prompt.includes('one action and one expected result each'), 'first prompt: the rules of every AI (#228)')
   await page.screenshot({ path: OUT + '/kanban-agent-session.png' })
 
   // The session is the development of the ticket: kanban_get tells it.

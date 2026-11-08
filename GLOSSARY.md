@@ -396,7 +396,14 @@ Something an AI asks the user and waits for, gathered in the Questions tool.
 _Avoid_: prompt
 
 **STE style**
-The way agents write explanations: the spirit of ASD-STE100 (Simplified Technical English) without its dictionary. Short sentences, one instruction per sentence, active voice, one word for one meaning.
+The way agents write explanations: the spirit of ASD-STE100 (Simplified Technical English) without its dictionary. Short sentences, one instruction per sentence, active voice, one word for one meaning, six sentences per paragraph at most. Names, paths, commands, code and error messages stay as they are.
+
+**Agent rules**
+The one text every AI follows, for all users and all projects, always active, with no setting (`assistant.AgentRules`): the behavior of an AI, the STE style, and where the style applies. A template of the user does not remove it.
+_Avoid_: instructions (the files of a project), system prompt (the rules are a part of it)
+
+**Reference point**
+A short code an AI gives to each item of a list of 3 or more (F1 findings, D1 decisions, O1 options, R1 risks, Q1 questions, A1 actions), kept during the conversation, so that the user answers with the code. Short answers have none.
 
 ## Kanban
 

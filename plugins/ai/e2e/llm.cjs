@@ -252,6 +252,7 @@ run(async ({ page, ctx }) => {
     assert(readResult?.content.includes('9\t\treturn fmt.Sprintf("Bonjour %s", g.Name)'), 'read_file returns numbered lines')
     assert(/Hello/.test(symResult?.content ?? '') && /Greeter/.test(symResult?.content ?? ''), 'lsp_symbols returns the structure (gopls): ' + (symResult?.content ?? '').slice(0, 60).replace(/\n/g, ' | '))
     assert(requests[0].messages[0].role === 'system' && requests[0].tools.length >= 10 && requests[0].stream === true, 'system prompt and tools sent')
+    assert(requests[0].messages[0].content.includes('# How you work and write'), 'the rules of every AI in the system prompt (#228)')
     assert(!requests[0].messages.some((m) => 'usage' in m || 'attachments' in m), 'fields of the page removed from the messages')
     // The reasoning and the four calls form one chain, the last one: shown whole.
     assert(!(await page.isVisible('[data-testid=ai-steps-more]')), 'the last chain has no label')

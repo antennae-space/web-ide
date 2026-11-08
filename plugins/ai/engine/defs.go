@@ -162,7 +162,7 @@ var kanbanReadDefs = []assistant.Def{
 	fn("kanban_create", "Creates a ticket in the backlog (status New). Use it when the user asks for it or agrees to note a task for later.",
 		obj{
 			"title":       str("Short title"),
-			"description": str(fmt.Sprintf("Description in Markdown, %d characters max: context, need, acceptance criteria", assistant.MaxDescription)),
+			"description": str(fmt.Sprintf("Description in Markdown, %d characters max: context, need, acceptance criteria. %s", assistant.MaxDescription, assistant.DescriptionStyle)),
 			"priority":    enum("", priorities...),
 			"files":       strList("Paths of the files concerned (relative to the root)"),
 			"parent":      lineageParent,
@@ -178,9 +178,9 @@ var kanbanWriteDefs = []assistant.Def{
 	fn("kanban_update", "Changes the ticket linked to this conversation (only the given fields).",
 		obj{
 			"title":        str("New title"),
-			"description":  str(fmt.Sprintf("New full description (Markdown, %d characters max)", assistant.MaxDescription)),
+			"description":  str(fmt.Sprintf("New full description (Markdown, %d characters max). %s", assistant.MaxDescription, assistant.DescriptionStyle)),
 			"priority":     enum("", priorities...),
-			"test_summary": str("How to test the ticket (Markdown): steps, commands, expected results"),
+			"test_summary": str("How to test the ticket (Markdown): " + assistant.TestSummaryStyle),
 			"add_files":    strList("Files to link"),
 			"remove_files": strList("Files to unlink"),
 			"size":         sizeProp,
@@ -221,7 +221,7 @@ var kanbanWriteDefs = []assistant.Def{
 	fn("kanban_move", "Moves the linked ticket from In progress to To test (status to_test), with test_summary: how to test it. Other changes belong to the user.",
 		obj{
 			"status":       enum("review is the old name of to_test", "to_test", "review"),
-			"test_summary": str("For to_test: what to test and how (steps, commands, expected results), in Markdown"),
+			"test_summary": str("For to_test: how to test the ticket (Markdown): " + assistant.TestSummaryStyle),
 			"comment":      str("Comment for the history (optional)"),
 		}, "status"),
 }

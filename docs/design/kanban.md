@@ -119,6 +119,18 @@ A feedback leaves the ticket in *To test*; while one is open, the ticket and its
 
 The system prompt receives the instructions of the role, not the ticket: the model reads it with `kanban_get` (first thing, and again when it needs its current state), so that the system prompt stays the same while the ticket changes. Without tools, the ticket as it is now follows the instructions.
 
+**Agent rules** (#228): one text for every AI, for all users and all projects, with no setting (`AgentRules` in `pod/assistant/rules.go`, the tool kit, as no package of `pod/` imports the AI plugin). It holds the behavior, the STE style and where the style applies:
+
+| Text | Language | Form |
+|---|---|---|
+| How to test (`test_summary`) | English | Numbered steps, one action and one expected result each |
+| Description written by a model | English | Never rewrites the text of the user |
+| `agent_report` | English | STE style |
+| Last message of a development session | The language of the user | STE style |
+| Notes, plans, commit messages | As before | Out of the rules |
+
+It reaches each AI by one path: the assistant in its system prompt, after the template, so a template of the user keeps it; Claude Code by the instructions of the MCP server (Claude Code cuts them at about 4 KB, `TestMCPInstructionsSize` keeps them under) and the MCP prompts; an agent of the Agents tool in the first prompt of a ticket session, whatever the agent. A session with no ticket of pi does not get it (no MCP over HTTP); for opencode this is not verified. The project can give the text in its `AGENTS.md`. The lines the role prompts of the assistant (`plugins/ai/engine/texts.go`) and of the MCP (`pod/server/mcp_prompts.go`) have in common are constants of the same file. Each text keeps what is its own (`EnterWorktree`, `review`, `coverage`, `resolve`). The tools of the assistant that write these fields state their format; those of the MCP are the Kanban plugin's.
+
 ## Steering the day: the Orchestrator mode
 
 A new conversation starts in Orchestrator mode (setting *Mode of a new conversation*). It reads the project and the kanban and changes nothing:

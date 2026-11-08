@@ -221,13 +221,14 @@ func (s *Server) mcpCall(ctx context.Context, m mcpMessage) mcpReply {
 	return reply
 }
 
-// mcpInstructions names the addresses of the IDE: the public one, and the local one beside it.
+// mcpInstructions names the addresses of the IDE, the public one and the local one beside it,
+// then the rules of every AI.
 func (s *Server) mcpInstructions() string {
 	text := mcpInstructions
 	if pub, local := s.publicURL(), s.localURL(); pub != local {
 		text += strings.ReplaceAll(mcpLocal, "<local>", local)
 	}
-	return strings.ReplaceAll(text, "<ide>", s.publicURL())
+	return strings.ReplaceAll(text, "<ide>", s.publicURL()) + "\n\n" + assistant.AgentRules
 }
 
 // publicURL is the address the user opens the IDE at from anywhere: the configured one, else the
