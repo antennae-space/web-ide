@@ -463,6 +463,10 @@ Terms of work not merged yet; each one moves to its section, or goes, when its t
 The conversation a ticket's development asks when the plan does not answer: by default the one that wrote the plan.
 _Avoid_: planner, supervisor
 
+**Consolidation** (#235, [consolidation](docs/design/consolidation.md))
+A ticket of kind `consolidation`, started by the user, whose session moves the durable lessons of the tickets just processed (its sources) into the *Instructions*, the READMEs, the skills and the glossary, one commit per lesson; merged like any ticket, rolled back by a revert.
+_Avoid_: memory, sleep, learning
+
 **Worktree holder** (#46)
 The step of a lineage whose development currently uses the lineage's worktree.
 

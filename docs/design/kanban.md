@@ -119,6 +119,10 @@ A feedback leaves the ticket in *To test*; while one is open, the ticket and its
 
 The system prompt receives the instructions of the role, not the ticket: the model reads it with `kanban_get` (first thing, and again when it needs its current state), so that the system prompt stays the same while the ticket changes. Without tools, the ticket as it is now follows the instructions.
 
+## Consolidation (planned)
+
+A ticket of kind `consolidation`, started by *Consolidate* on the Board, reads the tickets just processed and proposes their durable lessons as commits to the instructions of the project; it is reviewed, merged and closed like any ticket, and rolled back by a revert. See [consolidation.md](consolidation.md).
+
 ## Steering the day: the Orchestrator mode
 
 A new conversation starts in Orchestrator mode (setting *Mode of a new conversation*). It reads the project and the kanban and changes nothing:
