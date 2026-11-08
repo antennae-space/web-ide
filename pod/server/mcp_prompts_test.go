@@ -21,12 +21,13 @@ func promptText(t *testing.T, name string, args map[string]string) string {
 // Each role carries the rules of every AI and the lines it shares with the assistant.
 func TestMCPRolePrompts(t *testing.T) {
 	shared := map[string][]string{
-		"brief":    {assistant.RoleDescription},
-		"plan":     {assistant.RolePlanSave},
-		"dev":      {assistant.RoleDevFollow, assistant.RoleNoMerge, assistant.RoleDevEnd, assistant.TestSummaryStyle},
-		"fix":      {assistant.RoleFixKinds, assistant.RoleNoMerge, assistant.RoleFixDone},
-		"review":   {},
-		"coverage": {},
+		"brief":       {assistant.RoleDescription},
+		"plan":        {assistant.RolePlanSave},
+		"dev":         {assistant.RoleDevFollow, assistant.RoleNoMerge, assistant.RoleDevEnd, assistant.TestSummaryStyle},
+		"fix":         {assistant.RoleFixKinds, assistant.RoleNoMerge, assistant.RoleFixDone},
+		"review":      {},
+		"coverage":    {},
+		"consolidate": {assistant.ConsolidationRead, assistant.ConsolidationKeep, assistant.ConsolidationWhere, assistant.ConsolidationCommit, assistant.RoleNoMerge, assistant.ConsolidationNote, assistant.ConsolidationEnd},
 	}
 	if len(shared) != len(mcpRoles) {
 		t.Fatalf("a role has no test: %d roles", len(mcpRoles))

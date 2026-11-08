@@ -116,6 +116,7 @@ A feedback leaves the ticket in *To test*; while one is open, the ticket and its
 - `dev` (Build mode, in the worktree): follows the plan, checks goals, commits on the ticket branch, moves to *To test* with how to test;
 - `correction` (Build mode, in the worktree): handles one test feedback (`feedback`, started from it, which records the conversation) or the open ones, and marks each one handled;
 - `resolve`: resolves the conflicts of a rebase (worktree) or a merge (main folder).
+- `consolidation` (Build mode, in the worktree of a consolidation): moves the durable lessons of its sources into the instructions, one commit per lesson ([consolidation.md](consolidation.md#the-run)); for Claude Code, the MCP prompt `consolidate`.
 
 The system prompt receives the instructions of the role, not the ticket: the model reads it with `kanban_get` (first thing, and again when it needs its current state), so that the system prompt stays the same while the ticket changes. Without tools, the ticket as it is now follows the instructions.
 
@@ -131,7 +132,7 @@ The system prompt receives the instructions of the role, not the ticket: the mod
 
 It reaches each AI by one path: the assistant in its system prompt, after the template, so a template of the user keeps it; Claude Code by the instructions of the MCP server (Claude Code cuts them at about 4 KB, `TestMCPInstructionsSize` keeps them under) and the MCP prompts; an agent of the Agents tool in the first prompt of a ticket session, whatever the agent. A session with no ticket of pi does not get it (no MCP over HTTP); for opencode this is not verified. The project can give the text in its `AGENTS.md`. The lines the role prompts of the assistant (`plugins/ai/engine/texts.go`) and of the MCP (`pod/server/mcp_prompts.go`) have in common are constants of the same file. Each text keeps what is its own (`EnterWorktree`, `review`, `coverage`, `resolve`). The tools of the assistant that write these fields state their format; those of the MCP are the Kanban plugin's.
 
-## Consolidation (planned)
+## Consolidation
 
 A ticket of kind `consolidation`, started by *Consolidate* on the Board, reads the tickets just processed and proposes their durable lessons as commits to the instructions of the project; it is reviewed, merged and closed like any ticket, and rolled back by a revert. See [consolidation.md](consolidation.md).
 

@@ -180,6 +180,9 @@ func (m *Manager) ListChats(loc ChatLocation) ([]ChatInfo, error) {
 type ChatTime struct {
 	Parent      string
 	Ms, ThinkMs int64
+	// Chars: the length of all its messages, what a reader of the conversation takes in (the
+	// estimate of a consolidation).
+	Chars int64
 }
 
 // ChatTimes gives the time of the answers of each conversation of a project.
@@ -189,7 +192,8 @@ func (m *Manager) ChatTimes(loc ChatLocation) (map[string]ChatTime, error) {
 		return nil, err
 	}
 	rows, err := db.Query(`SELECT c.id, coalesce(json_extract(c.extra, '$.parent'), ''),
-		coalesce(sum(json_extract(m.data, '$.elapsedMs')), 0), coalesce(sum(json_extract(m.data, '$.thinkMs')), 0)
+		coalesce(sum(json_extract(m.data, '$.elapsedMs')), 0), coalesce(sum(json_extract(m.data, '$.thinkMs')), 0),
+		(SELECT coalesce(sum(length(a.data)), 0) FROM messages a WHERE a.chat_id = c.id)
 		FROM chats c LEFT JOIN messages m ON m.chat_id = c.id AND m.role = 'assistant' GROUP BY c.id`)
 	if err != nil {
 		return nil, err
@@ -200,7 +204,7 @@ func (m *Manager) ChatTimes(loc ChatLocation) (map[string]ChatTime, error) {
 		var id string
 		var t ChatTime
 		var ms, think float64
-		if err := rows.Scan(&id, &t.Parent, &ms, &think); err != nil {
+		if err := rows.Scan(&id, &t.Parent, &ms, &think, &t.Chars); err != nil {
 			return nil, err
 		}
 		t.Ms, t.ThinkMs = int64(ms), int64(think)

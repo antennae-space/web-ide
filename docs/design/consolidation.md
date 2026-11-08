@@ -1,6 +1,6 @@
 # Consolidation
 
-A consolidation moves the durable lessons of the tickets just processed into the instructions of the project: `AGENTS.md`, the READMEs of the folders, the skills, the glossary. It is the long memory of the AIs that work on the project. The user starts it by hand, reviews its diff, merges it, and can roll it back. Milestone 19, decided on 2026-11-08: the spec here (#234), the run (#235), the review and the rollback (#236), the pruning (#237).
+A consolidation moves the durable lessons of the tickets just processed into the instructions of the project: `AGENTS.md`, the READMEs of the folders, the skills, the glossary. It is the long memory of the AIs that work on the project. The user starts it by hand, reviews its diff, merges it, and can roll it back. Milestone 19, decided on 2026-11-08: the spec here (#234), the run (#235, done in plugin-kanban and the core), the review and the rollback (#236), the pruning (#237).
 
 The idea comes from *Language Models Need Sleep* (Behrouz et al., [arXiv 2606.03979](https://arxiv.org/abs/2606.03979)). A model with a short memory (its context) and a long memory (its parameters) needs a phase that moves what the short memory learned into the long memory, and prunes the long memory. The IDE does not train a model. It applies the same idea to text: a thread is the short memory, the instructions are the long memory. The paper calls the text-only form *sleep-time compute* and says that it is weaker than a change of weights. It is the form an IDE that calls models by API can have.
 
@@ -21,14 +21,14 @@ The idea comes from *Language Models Need Sleep* (Behrouz et al., [arXiv 2606.03
 
 ## Start
 
-The Board header has *Consolidate* (a split button: the assistant on a click, Claude Code by its arrow). It opens a dialog:
+The Board header has *Consolidate*. It opens a dialog:
 
 - **The candidates**: the tickets of kind `ticket` in *To test* or *Done* that are not consolidated, oldest first, all checked. *Add a ticket…* adds an older or consolidated ticket by its number. A step counts as its own ticket. An abandoned ticket is not a candidate (it can be added by hand).
-- **An estimate**: about how many tokens the run reads. It is the sum, over the checked tickets, of the length of their texts (description, plan, notes, feedback, how to test) divided by 4, plus the tokens of the last answer of each linked conversation (the context it had). It is shown as an order of size, not a price.
+- **An estimate**: about how many tokens the run reads, per ticket and in total. It is the length of the texts of the ticket (description, plan, how to test, notes, feedback) and of all the messages of its linked conversations and their sub-agents (`Chars` of the `agents.chatTimes` bridge), divided by 4. It is shown as an order of size, not a price. An IDE before this change gives no `Chars`: the estimate then counts the texts only.
 - **The past consolidations**: number, date, number of sources, state (*Proposed*, *Merged*, *Rejected*, *Rolled back*), a link to the ticket, and *Roll back* on a merged one.
-- *Start* is disabled when no ticket is checked.
+- *Start* (the assistant) and *Start with Claude Code*, disabled when no ticket is checked.
 
-*Start* creates the ticket, *Consolidation YYYY-MM-DD*, with its sources, and starts it: branch `ticket/<n>-consolidation-yyyy-mm-dd` from the base of the kanban, worktree, setup commands, *In progress*. Then it opens its session, as *Dev session* does: the assistant in Build mode with the role `consolidation`, or Claude Code with `/mcp__web-ide__consolidate <n>`. The effort is the one of a *high* complexity (Max, Opus): reading many threads and choosing what lasts is the hard part.
+*Start* creates the ticket, *Consolidation YYYY-MM-DD*, with its sources and the complexity *high* (`kanban.consolidation.create`). Then the page starts it, as *Start development* does: branch `ticket/<n>-consolidation-yyyy-mm-dd` from the base of the kanban, worktree, setup commands, *In progress*, the worktree shown in the window. Then it opens its session, as *Dev session* does: the assistant in Build mode with the role `consolidation` (or the session of the development agent of the kanban settings), or Claude Code with `/mcp__web-ide__consolidate <n>`. The effort is the one of the complexity *high* (Max, Opus): reading many threads and choosing what lasts is the hard part. The ticket view is not opened: its tab would take the place of the Board, whose frame runs the start. In the ticket view of a consolidation, *Dev session* starts the same session again.
 
 ## The run
 
@@ -89,6 +89,6 @@ The two prompts share their lines, as the other roles do ([kanban.md](kanban.md#
 ## Storage and API
 
 - `tickets.kind` (`ticket` or `consolidation`), `tickets.merge_commit` (the commit of the merge, stored for every ticket), `tickets.rolled_back` (the time of the rollback, 0 if none), and a table `consolidation_sources (ticket_id, source_id)`.
-- RPC: `kanban.consolidation.candidates` (the candidates, the estimate and the past consolidations), `kanban.consolidation.create { sources }` (creates and starts the ticket), `kanban.drop { id, commit }`, `kanban.rollback { id }` (and `continue`, `abort` through those of the merge).
+- RPC: `kanban.consolidation.candidates` (the candidates with their estimate, and the past consolidations; with `id`, that one ticket, for *Add a ticket…*), `kanban.consolidation.create { sources }` (creates the ticket, To do), `kanban.drop { id, commit }`, `kanban.rollback { id }` (and `continue`, `abort` through those of the merge).
 - MCP: `kanban_get` lists the sources of a consolidation; no tool starts, merges or rolls back a consolidation (the user's actions).
 - `kanban_next` and the Orchestrator never offer a consolidation: it starts when it is created.

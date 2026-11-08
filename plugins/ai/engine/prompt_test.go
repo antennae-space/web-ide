@@ -89,7 +89,8 @@ func TestRolePrompts(t *testing.T) {
 		"correction": {
 			assistant.RoleFixKinds, assistant.RoleNoMerge, assistant.RoleFixDone,
 		},
-		"resolve": {},
+		"resolve":       {},
+		"consolidation": {assistant.ConsolidationRead, assistant.ConsolidationKeep, assistant.ConsolidationWhere, assistant.RoleNoMerge, assistant.ConsolidationNote, assistant.ConsolidationEnd},
 	}
 	if len(shared) != len(RoleInstructions) {
 		t.Fatalf("a role has no test: %d roles", len(RoleInstructions))

@@ -124,8 +124,9 @@ type AgentSession struct {
 }
 
 // ChatTime is the time of the answers of a conversation, its thinking time, and the
-// conversation it is a sub-agent of ("" for none).
+// conversation it is a sub-agent of ("" for none), and the length of its messages.
 type ChatTime struct {
 	Parent      string
 	Ms, ThinkMs int64
+	Chars       int64
 }

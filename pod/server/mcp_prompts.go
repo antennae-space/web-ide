@@ -52,6 +52,15 @@ var mcpRoles = []mcpRole{
 - Each finding the developer must act on becomes a test feedback with kanban_feedback (action add): kind bug (wrong behavior), feature (missing from the plan or the goals) or info (worth knowing), and the complexity of the fix (low, medium, high); one concrete finding each, with the file and line, under 1000 characters. Skip what an open feedback already says; no feedback for style nits.
 - Then one note with kanban_add_note: the verdict in a few lines (ready to test, or what blocks).
 - Sum up for the user: the feedback added, the verdict.`},
+	{"consolidate", "Consolidate: move the durable lessons of the sources of a consolidation into the instructions", `Do the **consolidation** of ticket #{{id}}: move the durable lessons of its sources, tickets already processed, into the instructions of the project.
+- Read the ticket (kanban_get); switch this session into its worktree with EnterWorktree (path: the worktree) unless you already work there, else work in it with absolute paths.
+- ` + assistant.ConsolidationRead + `
+- ` + assistant.ConsolidationKeep + `
+- ` + assistant.ConsolidationWhere + `
+- ` + assistant.ConsolidationCommit + `
+- ` + assistant.RoleNoMerge + `
+- ` + assistant.ConsolidationNote + `
+- ` + assistant.ConsolidationEnd},
 	{"coverage", "Review the e2e coverage of the user stories of a milestone: gaps become milestone feedback", `**Review the e2e coverage** of milestone {{id}}: its user stories are the minimal coverage the browser tests must give.
 - Read the milestone (kanban_milestone action get): its spec (read the file or the address), its user stories, its tickets (kanban_get for their how to test).
 - Read how the project tests in the browser (e2e/README.md, the e2e suites, or whatever the project uses) and find, for each user story, the assertions that check it end to end.

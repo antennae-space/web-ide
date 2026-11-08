@@ -87,6 +87,14 @@ var RoleInstructions = map[string]string{
 - ` + assistant.RoleFixCommit + `
 - ` + assistant.RoleNoMerge + `
 - ` + assistant.RoleFixDone,
+	"consolidation": `You do the **consolidation** of this ticket{{branch}}: you move the durable lessons of its sources, tickets already processed, into the instructions of the project.
+- ` + assistant.ConsolidationRead + `
+- ` + assistant.ConsolidationKeep + `
+- ` + assistant.ConsolidationWhere + `
+- ` + assistant.ConsolidationCommit + `
+- ` + assistant.RoleNoMerge + `
+- ` + assistant.ConsolidationNote + `
+- ` + assistant.ConsolidationEnd,
 	"resolve": `You **resolve the git conflicts** of the branch of this ticket{{branch}}: a rebase stopped in the worktree, or a merge stopped in the main folder of the project.
 - git status lists the conflicted files: fix each file keeping both intentions, then git add.
 - For a rebase: GIT_EDITOR=true git -c core.commentChar=auto rebase --continue, again while conflicts remain. For a merge: git -c core.commentChar=auto commit --no-edit.
