@@ -131,6 +131,10 @@ The system prompt receives the instructions of the role, not the ticket: the mod
 
 It reaches each AI by one path: the assistant in its system prompt, after the template, so a template of the user keeps it; Claude Code by the instructions of the MCP server (Claude Code cuts them at about 4 KB, `TestMCPInstructionsSize` keeps them under) and the MCP prompts; an agent of the Agents tool in the first prompt of a ticket session, whatever the agent. A session with no ticket of pi does not get it (no MCP over HTTP); for opencode this is not verified. The project can give the text in its `AGENTS.md`. The lines the role prompts of the assistant (`plugins/ai/engine/texts.go`) and of the MCP (`pod/server/mcp_prompts.go`) have in common are constants of the same file. Each text keeps what is its own (`EnterWorktree`, `review`, `coverage`, `resolve`). The tools of the assistant that write these fields state their format; those of the MCP are the Kanban plugin's.
 
+## Consolidation (planned)
+
+A ticket of kind `consolidation`, started by *Consolidate* on the Board, reads the tickets just processed and proposes their durable lessons as commits to the instructions of the project; it is reviewed, merged and closed like any ticket, and rolled back by a revert. See [consolidation.md](consolidation.md).
+
 ## Steering the day: the Orchestrator mode
 
 A new conversation starts in Orchestrator mode (setting *Mode of a new conversation*). It reads the project and the kanban and changes nothing:
