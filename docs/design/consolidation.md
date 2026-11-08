@@ -1,6 +1,6 @@
 # Consolidation
 
-A consolidation moves the durable lessons of the tickets just processed into the instructions of the project: `AGENTS.md`, the READMEs of the folders, the skills, the glossary. It is the long memory of the AIs that work on the project. The user starts it by hand, reviews its diff, merges it, and can roll it back. Milestone 19, decided on 2026-11-08: the spec here (#234), the run (#235, done in plugin-kanban and the core), the review and the rollback (#236), the pruning (#237).
+A consolidation moves the durable lessons of the tickets just processed into the instructions of the project: `AGENTS.md`, the READMEs of the folders, the skills, the glossary. It is the long memory of the AIs that work on the project. The user starts it by hand, reviews its diff, merges it, and can roll it back. Milestone 19, decided on 2026-11-08: the spec here (#234), the run (#235, done in plugin-kanban and the core), the review and the rollback (#236, done), the pruning (#237).
 
 The idea comes from *Language Models Need Sleep* (Behrouz et al., [arXiv 2606.03979](https://arxiv.org/abs/2606.03979)). A model with a short memory (its context) and a long memory (its parameters) needs a phase that moves what the short memory learned into the long memory, and prunes the long memory. The IDE does not train a model. It applies the same idea to text: a thread is the short memory, the instructions are the long memory. The paper calls the text-only form *sleep-time compute* and says that it is weaker than a change of weights. It is the form an IDE that calls models by API can have.
 
@@ -64,19 +64,19 @@ At the end it moves its ticket to *To test*. Its *How to test* lists each commit
 
 ## Review, merge, rejection
 
-The ticket view of a consolidation shows its sources (number, title, status) in place of the plan, and the commits of its branch in *Git and changes*, each with **Drop**: `git revert --no-edit <commit>` in the worktree, so the branch keeps the trace. A test feedback (*remove this rule*, *put it in that README*) is handled by a *Fix session* with the role `correction`, as for any ticket. The user can also edit the files in the worktree and commit.
+The ticket view of a consolidation shows its sources (number, title, status) in place of the plan, and the commits of its branch in *Git and changes* while its worktree exists, each with **Drop** (`kanban.drop`): `git revert --no-edit <commit>` in the worktree, so the branch keeps the trace (a revert commit has no *Drop*). The commit must be on the branch and not in the base; a conflict stops the revert, and the conflicts box offers *Continue*, *Abort the revert* and a resolution session. A test feedback (*remove this rule*, *put it in that README*) is handled by a *Fix session* with the role `correction`, as for any ticket. The user can also edit the files in the worktree and commit.
 
-*Merge* and *Done* are those of every ticket. The pod stores the commit the merge made on the base branch (a merge commit, or the squash commit). *Abandon* rejects it: the branch can be deleted, and its sources stay consolidated, so the next run does not offer them again.
+*Merge* and *Done* are those of every ticket. The pod stores the commit the merge made on the base branch (a merge commit, or the squash commit) in `tickets.merge_commit`, for every ticket merged by the IDE, also when the merge is finished by *Continue* after a conflict. *Abandon* rejects it: the branch can be deleted, and its sources stay consolidated, so the next run does not offer them again.
 
 ## Rollback
 
-*Roll back* is in *More actions* of a merged consolidation (*Done*) and in the list of the dialog. It asks for confirmation, then runs in the main folder, on the local base branch:
+*Roll back* is next to *merged into* in *Git and changes*, in *More actions* of a merged consolidation (*Done*), and in the list of the dialog. It asks for confirmation, then runs in the main folder, on the local base branch (`kanban.rollback`):
 
 - `git revert --no-edit -m 1 <commit>` for a merge commit, `git revert --no-edit <commit>` for a squash commit;
 - a conflict stops it. The ticket shows the conflict, as for a merge, and *Resolve* starts a session with the role `resolve`; *Abort* runs `git revert --abort`;
-- the pod never forces it, and refuses while the main folder has uncommitted changes in the files the revert touches.
+- the pod never forces it: git itself refuses while uncommitted changes of the main folder touch the files of the revert, and the pod refuses while a merge, a rebase or a revert is in progress there, or when the main folder is on another branch. A consolidation the IDE did not merge (no `merge_commit`) is reverted by hand.
 
-Once the revert is committed, the ticket stays *Done* and gets the state *Rolled back* (a badge on the card, an event in the history with the commit of the revert). Its sources stay consolidated. A rollback cannot be undone from the IDE: a new consolidation can add the tickets again.
+Once the revert is committed (at once, or by *Continue* after a conflict), the ticket stays *Done* and gets the state *Rolled back* (`tickets.rolled_back`; a badge on the card and in *Git and changes*, an event in the history with the commit of the revert). Its sources stay consolidated. A rollback cannot be undone from the IDE: a new consolidation can add the tickets again.
 
 ## Where the code lives
 
@@ -89,6 +89,6 @@ The two prompts share their lines, as the other roles do ([kanban.md](kanban.md#
 ## Storage and API
 
 - `tickets.kind` (`ticket` or `consolidation`), `tickets.merge_commit` (the commit of the merge, stored for every ticket), `tickets.rolled_back` (the time of the rollback, 0 if none), and a table `consolidation_sources (ticket_id, source_id)`.
-- RPC: `kanban.consolidation.candidates` (the candidates with their estimate, and the past consolidations; with `id`, that one ticket, for *Add a ticket…*), `kanban.consolidation.create { sources }` (creates the ticket, To do), `kanban.drop { id, commit }`, `kanban.rollback { id }` (and `continue`, `abort` through those of the merge).
+- RPC: `kanban.commits { id }` (the commits of the worktree not in the base), `kanban.consolidation.candidates` (the candidates with their estimate, and the past consolidations; with `id`, that one ticket, for *Add a ticket…*), `kanban.consolidation.create { sources }` (creates the ticket, To do), `kanban.drop { id, commit }`, `kanban.rollback { id }` (and `continue`, `abort` through those of the merge).
 - MCP: `kanban_get` lists the sources of a consolidation; no tool starts, merges or rolls back a consolidation (the user's actions).
 - `kanban_next` and the Orchestrator never offer a consolidation: it starts when it is created.

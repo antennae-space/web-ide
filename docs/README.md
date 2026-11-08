@@ -37,7 +37,7 @@ How the IDE is built and why, kept up to date with the code.
 - [Doodle](design/doodle.md): drawings attached for the assistant.
 - [Plugins](design/plugins.md): the plugin system, phase 1 decided.
 - [Debug](design/debug.md): the debug host, the adapters of the language packs, the Debug tool (planned).
-- [Consolidation](design/consolidation.md): the lessons of the tickets moved into the instructions, reviewed and rolled back (#235 done; the review and the rollback planned).
+- [Consolidation](design/consolidation.md): the lessons of the tickets moved into the instructions, reviewed and rolled back (#235 and #236 done; the pruning planned).
 - Drafts under discussion: [Desks](design/desks.md).
 
 ## Code
