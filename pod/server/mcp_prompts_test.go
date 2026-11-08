@@ -27,7 +27,7 @@ func TestMCPRolePrompts(t *testing.T) {
 		"fix":         {assistant.RoleFixKinds, assistant.RoleNoMerge, assistant.RoleFixDone},
 		"review":      {},
 		"coverage":    {},
-		"consolidate": {assistant.ConsolidationRead, assistant.ConsolidationKeep, assistant.ConsolidationWhere, assistant.ConsolidationCommit, assistant.RoleNoMerge, assistant.ConsolidationNote, assistant.ConsolidationEnd},
+		"consolidate": {assistant.ConsolidationRead, assistant.ConsolidationKeep, assistant.ConsolidationWhere, assistant.ConsolidationCommit, assistant.ConsolidationPrune, assistant.RoleNoMerge, assistant.ConsolidationNote, assistant.ConsolidationEnd},
 	}
 	if len(shared) != len(mcpRoles) {
 		t.Fatalf("a role has no test: %d roles", len(mcpRoles))

@@ -1,6 +1,6 @@
 # Consolidation
 
-A consolidation moves the durable lessons of the tickets just processed into the instructions of the project: `AGENTS.md`, the READMEs of the folders, the skills, the glossary. It is the long memory of the AIs that work on the project. The user starts it by hand, reviews its diff, merges it, and can roll it back. Milestone 19, decided on 2026-11-08: the spec here (#234), the run (#235, done in plugin-kanban and the core), the review and the rollback (#236, done), the pruning (#237).
+A consolidation moves the durable lessons of the tickets just processed into the instructions of the project: `AGENTS.md`, the READMEs of the folders, the skills, the glossary. It is the long memory of the AIs that work on the project. The user starts it by hand, reviews its diff, merges it, and can roll it back. Milestone 19, decided on 2026-11-08: the spec here (#234), the run (#235, done in plugin-kanban and the core), the review and the rollback (#236, done), the pruning (#237, done).
 
 The idea comes from *Language Models Need Sleep* (Behrouz et al., [arXiv 2606.03979](https://arxiv.org/abs/2606.03979)). A model with a short memory (its context) and a long memory (its parameters) needs a phase that moves what the short memory learned into the long memory, and prunes the long memory. The IDE does not train a model. It applies the same idea to text: a thread is the short memory, the instructions are the long memory. The paper calls the text-only form *sleep-time compute* and says that it is weaker than a change of weights. It is the form an IDE that calls models by API can have.
 
@@ -54,7 +54,7 @@ Where a lesson goes:
 
 It writes in the style of the file it changes (the rules of `AGENTS.md`: STE, short, no restatement). Each lesson is one commit, `Consolidation: <the lesson in a few words> (#a, #b)`. It adds a note to its ticket with the lessons it did not keep and why, in a few lines.
 
-**Pruning** (#237): it compares the lessons with the rules already there, and proposes, each in its own commit `Prune: <what> (<reason>)`:
+**Pruning** (#237, `ConsolidationPrune` of `pod/assistant/consolidation.go`): it compares the lessons with the rules already there, and proposes, each in its own commit `#<n> Prune: <what> (<reason>)`:
 
 - to merge two rules that say the same thing;
 - to remove a rule that a newer decision contradicts, citing the decision (ticket, commit);
