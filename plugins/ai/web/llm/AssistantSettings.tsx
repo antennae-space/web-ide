@@ -222,6 +222,39 @@ export function SubAgentSettings() {
   )
 }
 
+export function ImageSettings() {
+  const [list] = createResource(
+    () => config.imageServer,
+    (server) => (server ? request<{ models: Model[] }>('llm.models', { server }).then((r) => r.models, () => []) : Promise.resolve([] as Model[])),
+  )
+  const set = (server: string, model: string) => request('llm.image', { server, model }).then(applyConfig, errorToast)
+  return (
+    <div class="form" data-testid="image-settings">
+      <p class="muted small">
+        {t('The assistant can make and change images (generate_image) with an image model of a server that speaks the OpenAI images API: stable-diffusion.cpp behind llama-swap, or a cloud provider. On one GPU, llama-swap unloads the model of the conversation for the image, then loads it again.')}
+      </p>
+      <div class="field-row">
+        <label class="field grow">
+          <span>{t('Server of the images')}</span>
+          <select value={config.imageServer ?? ''} onChange={(e) => set(e.currentTarget.value, '')} name="imageServer">
+            <option value="">{t('No image generation')}</option>
+            <For each={config.servers}>{(s) => <option value={s.id}>{s.name}</option>}</For>
+          </select>
+        </label>
+        <Show when={config.imageServer}>
+          <label class="field grow">
+            <span>{t('Model')}</span>
+            <select value={config.imageModel ?? ''} onChange={(e) => set(config.imageServer!, e.currentTarget.value)} name="imageModel">
+              <option value="">{t('— choose —')}</option>
+              <For each={list() ?? []}>{(m) => <option value={m.id}>{m.id}</option>}</For>
+            </select>
+          </label>
+        </Show>
+      </div>
+    </div>
+  )
+}
+
 export function CompactionSettings() {
   const [list] = createResource(
     () => prefs.compactServer,
@@ -423,13 +456,14 @@ export function SettingsModal(props: { onClose: () => void }) {
     }
   }
   const setModel = (i: number, patch: Partial<ModelConf>) => setForm({ ...form(), models: form().models.map((m, j) => (j === i ? { ...m, ...patch } : m)) })
-  type Tab = 'servers' | 'prompt' | 'plan' | 'subagents' | 'compaction' | 'speech' | 'aliases'
+  type Tab = 'servers' | 'prompt' | 'plan' | 'subagents' | 'images' | 'compaction' | 'speech' | 'aliases'
   const [tab, setTab] = createSignal<Tab>('servers')
   const tabs: [Tab, string][] = [
     ['servers', 'Servers'],
     ['prompt', 'Prompt and instructions'],
     ['plan', 'Plan mode'],
     ['subagents', 'Sub-agents'],
+    ['images', 'Image generation'],
     ['compaction', 'Compaction'],
     ['speech', 'Transcription'],
     ['aliases', 'Aliases'],
@@ -453,6 +487,9 @@ export function SettingsModal(props: { onClose: () => void }) {
       </Show>
       <Show when={tab() === 'subagents'}>
         <SubAgentSettings />
+      </Show>
+      <Show when={tab() === 'images'}>
+        <ImageSettings />
       </Show>
       <Show when={tab() === 'compaction'}>
         <CompactionSettings />

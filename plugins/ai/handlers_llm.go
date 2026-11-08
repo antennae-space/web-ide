@@ -61,6 +61,19 @@ func (s *A) registerLLM() {
 		s.pod.Broadcast("llm.config", view)
 		return view, nil
 	})
+	// llm.image: the server and model of generate_image ("": off).
+	s.handle("llm.image", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
+		a, err := bind[struct{ Server, Model string }](p)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.LLM.SetImageDefault(a.Server, a.Model); err != nil {
+			return nil, err
+		}
+		view := s.LLM.View()
+		s.pod.Broadcast("llm.config", view)
+		return view, nil
+	})
 	s.handle("llm.select", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
 		a, err := bind[struct{ Server, Model string }](p)
 		if err != nil {
