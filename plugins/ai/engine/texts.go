@@ -92,6 +92,7 @@ var RoleInstructions = map[string]string{
 - ` + assistant.ConsolidationKeep + `
 - ` + assistant.ConsolidationWhere + `
 - ` + assistant.ConsolidationCommit + `
+- ` + assistant.ConsolidationPrune + `
 - ` + assistant.RoleNoMerge + `
 - ` + assistant.ConsolidationNote + `
 - ` + assistant.ConsolidationEnd,

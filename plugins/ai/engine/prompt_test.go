@@ -90,7 +90,7 @@ func TestRolePrompts(t *testing.T) {
 			assistant.RoleFixKinds, assistant.RoleNoMerge, assistant.RoleFixDone,
 		},
 		"resolve":       {},
-		"consolidation": {assistant.ConsolidationRead, assistant.ConsolidationKeep, assistant.ConsolidationWhere, assistant.RoleNoMerge, assistant.ConsolidationNote, assistant.ConsolidationEnd},
+		"consolidation": {assistant.ConsolidationRead, assistant.ConsolidationKeep, assistant.ConsolidationWhere, assistant.ConsolidationCommit, assistant.ConsolidationPrune, assistant.RoleNoMerge, assistant.ConsolidationNote, assistant.ConsolidationEnd},
 	}
 	if len(shared) != len(RoleInstructions) {
 		t.Fatalf("a role has no test: %d roles", len(RoleInstructions))
@@ -104,7 +104,7 @@ func TestRolePrompts(t *testing.T) {
 			t.Fatalf("%s: the rules are already in the system prompt", role)
 		}
 		for _, l := range lines {
-			if !strings.Contains(assist, l) {
+			if !strings.Contains(assist, strings.ReplaceAll(l, "{{id}}", "7")) {
 				t.Fatalf("%s: missing %q in %q", role, l, assist)
 			}
 		}
