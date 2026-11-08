@@ -392,6 +392,10 @@ _Avoid_: snippet, template, command (a command runs, an alias only writes)
 A child run the assistant starts for a side task, with its own context.
 _Avoid_: worker
 
+**Stuck alert**
+A card in a conversation of the assistant: rules on its last steps say it may go round in circles (the same call with the same result, the same error, an edit undone, an answer stuck twice). The turn goes on; the user ignores it (a false alert) or stops the turn.
+_Avoid_: loop (the reasoning loop is one of its rules), warning
+
 **Compaction**
 Replacing the start of a long conversation with a summary to free context.
 

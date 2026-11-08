@@ -678,6 +678,9 @@ func (s *A) loop(r *assistantRun) {
 		msg.Stuck = looped || emptyAnswer(msg) && msg.Reasoning != ""
 		retry := msg.Stuck && !lastStuck(r.chat)
 		msg.Resumed = retry
+		if msg.Stuck && !retry {
+			msg.Suspect = engine.LoopSuspect() // stuck again: the turn ends on a stuck alert
+		}
 		ans.timing(msg)
 		r.chat.Messages = append(r.chat.Messages, msg)
 		s.publish(r, len(r.chat.Messages)-1)
@@ -708,9 +711,28 @@ func (s *A) loop(r *assistantRun) {
 		if err != nil {
 			return
 		}
-		if stop := s.runCalls(r, ref, calls, mode); stop || r.ctx.Err() != nil {
+		stop := s.runCalls(r, ref, calls, mode)
+		if r.ctx.Err() == nil {
+			s.watchStuck(r)
+		}
+		if stop || r.ctx.Err() != nil {
 			return
 		}
+	}
+}
+
+// watchStuck sets a stuck alert on the last message of the step when the rules find the
+// conversation suspect (engine.FindSuspect); the turn goes on, the card suggests.
+func (s *A) watchStuck(r *assistantRun) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := len(r.chat.Messages)
+	if n == 0 {
+		return
+	}
+	if sp := engine.FindSuspect(r.chat.Messages); sp != nil {
+		r.chat.Messages[n-1].Suspect = sp
+		s.publish(r, n-1)
 	}
 }
 

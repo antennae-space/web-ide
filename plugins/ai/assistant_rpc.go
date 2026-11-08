@@ -510,6 +510,28 @@ func (s *A) registerAssistant() {
 			return a.Index, nil
 		})
 	}))
+	// assistant.suspect: the choice of the user on a stuck alert: ignored (a false alert) or
+	// stopped (the page stops the turn with assistant.stop).
+	s.handle("assistant.suspect", withChat(func(ctx context.Context, c *Client, cc chatCtx, p json.RawMessage) (any, error) {
+		a, err := bind[struct {
+			ID    string `json:"id"`
+			Index int    `json:"index"`
+			State string `json:"state"`
+		}](p)
+		if err != nil {
+			return nil, err
+		}
+		if a.State != "ignored" && a.State != "stopped" {
+			return nil, i18n.New("invalid state")
+		}
+		return nil, s.change(cc, a.ID, func(chat *engine.Chat, _ *assistantRun) (int, error) {
+			if a.Index < 0 || a.Index >= len(chat.Messages) || chat.Messages[a.Index].Suspect == nil {
+				return -1, i18n.New("no stuck alert here")
+			}
+			chat.Messages[a.Index].Suspect.State = a.State
+			return a.Index, nil
+		})
+	}))
 	// assistant.card: the result of an action card the user clicked (it stays disabled).
 	s.handle("assistant.card", withChat(func(ctx context.Context, c *Client, cc chatCtx, p json.RawMessage) (any, error) {
 		a, err := bind[struct {

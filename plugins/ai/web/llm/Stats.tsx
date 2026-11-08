@@ -55,6 +55,7 @@ export interface StatsData {
   withTools: number
   multi: number
   repeats: number
+  suspects?: Record<string, number>
   context?: {
     tokens: number
     parts: Part[] | null
@@ -270,6 +271,12 @@ function Body(props: { s: StatsData; children: ChatResult['children'] & {}; proj
         <Tile label={t('Tool failures')} value={pct(failures(), s().toolCalls)} hint={t('{n} of {m} calls', { n: failures(), m: s().toolCalls })} testid="st-failures" />
         <Tile label={t('Tool chains')} value={pct(s().multi, s().withTools)} hint={t('Answers calling several tools at once, among those calling tools')} testid="st-multi" />
         <Tile label={t('Repeated calls')} value={String(s().repeats)} hint={t('Calls identical to one made since the last message of the user')} />
+        <Tile
+          label={t('Stuck alerts')}
+          value={String(Object.values(s().suspects ?? {}).reduce((a, b) => a + b, 0))}
+          hint={t('{n} ignored (false alerts), {m} stopped', { n: s().suspects?.ignored ?? 0, m: s().suspects?.stopped ?? 0 })}
+          testid="st-suspects"
+        />
       </div>
 
       <Show when={s().efforts?.length}>
