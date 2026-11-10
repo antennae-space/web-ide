@@ -1,8 +1,9 @@
 // The plugin of the browser tests (pod/plugins/hello): a tool calling its backend, an item of the
 // status bar while the tool has the focus, items it adds to the ⋮ menu of its tool, and the editor
-// decorations it puts in the file view of Code (editorDecorations #187, on deco.txt).
+// decorations it puts in the file view of Code (editorDecorations #187, on deco.txt), and a root of
+// the Explorer with a node in Scratches and Consoles once its menu asks (docs/design/explorer.md).
 import { createResource, createSignal } from 'solid-js'
-import type { PluginModule } from '@ide/types'
+import type { ExplorerNode, PluginModule } from '@ide/types'
 import './deco.css'
 
 /** The file of the browser tests the decorations below apply to (e2e: plugins/code/e2e/decorations.cjs). */
@@ -35,6 +36,26 @@ export const hello: PluginModule = {
     const [moved, setMoved] = createSignal<Record<string, string>>({})
     let added = 0
 
+    // ---------- Explorer roots (docs/design/explorer.md) ----------
+    // Off until its menu turns them on: the other suites see the Explorer of the core only.
+    const [nodes, setNodes] = createSignal(false)
+    const helloNodes = (): ExplorerNode[] =>
+      nodes()
+        ? [
+            { id: 'greet', label: 'Greeting', icon: 'comment', badge: 'new', open: () => api.showTool('hello') },
+            {
+              id: 'group',
+              label: 'Group',
+              icon: 'folder',
+              children: () => [
+                { id: 'deco', label: DECO_FILE, path: api.project.root() + '/' + DECO_FILE },
+                { id: 'done', label: 'Finished', icon: 'check', dimmed: true, desk: 2 },
+              ],
+              menu: () => [{ label: api.t('Say hello'), action: () => api.ui.toast(api.t('Hello from the Explorer')) }],
+            },
+          ]
+        : []
+
     return {
       tools: { hello: { component: HelloTool } },
       toolStatus: { hello: () => [{ id: 'hello', testid: 'status-hello', text: 'Hello', menu: () => [{ label: 'Hi', action: () => {} }] }] },
@@ -42,12 +63,15 @@ export const hello: PluginModule = {
         hello: () => [
           { label: api.t('Say hello from the menu'), action: () => api.ui.toast(api.t('Hello from the menu')) },
           { label: api.t('Greet twice'), checked: twice(), action: () => setTwice(!twice()) },
+          { label: api.t('Show the Explorer nodes'), checked: nodes(), action: () => setNodes(!nodes()) },
         ],
       },
       // One button in the corner of its zone or tile, before the ⋮ (toolCorner, #176).
       toolCorner: {
         hello: () => [<button class="icon-btn" data-testid="hello-corner" title={api.t('Say hello')} onClick={() => api.ui.toast(api.t('Hello from the corner'))} />],
       },
+      explorerRoots: [{ id: 'hello', label: () => api.t('Hello nodes'), icon: 'puzzle', order: 60, nodes: helloNodes }],
+      explorerNodes: { scratches: () => (nodes() ? [{ id: 'hello-console', label: 'Hello console', icon: 'terminal', open: () => api.ui.toast(api.t('Hello from the Explorer')) }] : []) },
       editorDecorations: {
         gutter: (path) => (isDeco(path) ? marks().map((m) => ({ id: m.id, line: m.line, class: 'deco-mark', title: moved()[m.id] ?? `deco ${m.id}` })) : undefined),
         lines: (path) => (isDeco(path) && classLine() >= 0 ? [{ id: 'ln', line: classLine(), class: 'deco-line' }] : undefined),

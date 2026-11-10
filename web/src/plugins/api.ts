@@ -27,7 +27,7 @@ import { dropClasses, dropIndex, moveItem, setDropAt } from '../ui/tabDrop'
 import { EditorView } from '../editor/view'
 import { capability, provide, type Capabilities } from './capabilities'
 import { decoratePath } from './decorations'
-import { explorerItems, editorDecorations, fileDecorations, pluginAssistantOptions, pluginStates } from './registry'
+import { explorerItems, explorerRoots, editorDecorations, fileDecorations, pluginAssistantOptions, pluginStates } from './registry'
 import { pluginSettingValues, pluginStored, setPluginStored } from './settings'
 import { folderMark, inExcluded, loadFolderMarks, markFolder, markOf } from '../state/folders'
 import { addDesk, desk as deskShown, deskKey, desks, onDeskRemove, setDeskDrag } from '../state/desks'
@@ -174,7 +174,7 @@ export function makeApi(id: string) {
     folders: { mark: folderMark, markOf, inExcluded, setMark: markFolder, load: loadFolderMarks },
     /** What the other plugins give the Explorer, and what every tree asks: menu items, decorations
      * (#179: `decorate` merges them, #183: the same answer for Recent Files, the Commit tree and Search). */
-    explorer: { items: explorerItems, decorations: fileDecorations, decorate: decoratePath },
+    explorer: { items: explorerItems, decorations: fileDecorations, decorate: decoratePath, roots: explorerRoots },
     /** The files of the project, as the pod reads them (from the disk, not the buffers). */
     files: {
       read: (path: string) => request<{ content: string; binary?: boolean; readOnly?: boolean }>('fs.read', { path }),

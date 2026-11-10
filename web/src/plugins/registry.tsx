@@ -9,7 +9,7 @@ import { loadMark, loadPending } from '../pod/loadJournal'
 import { setPluginActions } from '../keys/bindings'
 import { API_VERSION, makeApi } from './api'
 import { dropBundle, externalModule, fetchBundle, bundleBytes } from './external'
-import type { ExplorerEntry, PluginContributions, PluginModule, PluginState, StatusItem } from './types'
+import type { ExplorerEntry, ExplorerNode, ExplorerRoot, PluginContributions, PluginModule, PluginState, StatusItem } from './types'
 import type { MenuItem } from '../ui/overlay'
 import { setCapabilityGate } from './capabilities'
 import { setPluginProviders } from '../popups/searchProviders'
@@ -295,6 +295,20 @@ export function homeParts() {
 
 /** The items of the Explorer menu of an entry, given by the enabled plugins. */
 export const explorerItems = (entry: ExplorerEntry) => enabled().flatMap((s) => active[s.manifest.id].explorerItems?.(entry) ?? [])
+
+/**
+ * The roots of the Explorer of the enabled plugins, each with the nodes the other plugins put
+ * into it after its own (docs/design/explorer.md). A root nobody gives gets no nodes.
+ */
+export const explorerRoots = (): ExplorerRoot[] => {
+  const list = enabled().map((s) => active[s.manifest.id])
+  return list.flatMap((c) =>
+    (c.explorerRoots ?? []).map((r) => {
+      const extra = list.flatMap((o) => (o.explorerNodes?.[r.id] ? [o.explorerNodes[r.id]] : []))
+      return extra.length ? { ...r, nodes: (): ExplorerNode[] => [...r.nodes(), ...extra.flatMap((n) => n())] } : r
+    }),
+  )
+}
 
 /** The decorations of the Explorer of the enabled plugins. */
 export const fileDecorations = () => enabled().flatMap((s) => (active[s.manifest.id].fileDecorations ? [active[s.manifest.id].fileDecorations!] : []))

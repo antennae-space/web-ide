@@ -64,6 +64,13 @@ export interface FileRowProps {
   onContextMenu?: (e: MouseEvent & { currentTarget: HTMLDivElement; target: Element }) => void
   onMouseEnter?: (e: MouseEvent & { currentTarget: HTMLDivElement; target: Element }) => void
   onMouseDown?: (e: MouseEvent & { currentTarget: HTMLDivElement; target: Element }) => void
+  /** A row the user drags (a root of the Explorer), and the handlers of a drop on it. */
+  draggable?: boolean
+  onDragStart?: (e: DragEvent & { currentTarget: HTMLDivElement; target: Element }) => void
+  onDragOver?: (e: DragEvent & { currentTarget: HTMLDivElement; target: Element }) => void
+  onDragLeave?: (e: DragEvent & { currentTarget: HTMLDivElement; target: Element }) => void
+  onDrop?: (e: DragEvent & { currentTarget: HTMLDivElement; target: Element }) => void
+  onDragEnd?: (e: DragEvent & { currentTarget: HTMLDivElement; target: Element }) => void
 }
 
 /** One class string: a `classList` entry would be wiped when the decoration rewrites `class`. */
@@ -102,6 +109,12 @@ export function FileRow(props: FileRowProps): JSX.Element {
       onContextMenu={props.onContextMenu}
       onMouseEnter={props.onMouseEnter}
       onMouseDown={props.onMouseDown}
+      draggable={props.draggable}
+      onDragStart={props.onDragStart}
+      onDragOver={props.onDragOver}
+      onDragLeave={props.onDragLeave}
+      onDrop={props.onDrop}
+      onDragEnd={props.onDragEnd}
     >
       <Show when={props.twist !== false}>
         <span class="tree-twist" classList={{ open: !!props.open, none: !props.dir }}>

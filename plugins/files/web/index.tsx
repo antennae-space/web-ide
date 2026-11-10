@@ -1,8 +1,9 @@
-// The Files plugin, locked (pod/plugins/files): the Explorer, the Files tab of Search
+// The Files plugin, locked (pod/plugins/files): the Explorer and its roots, the Files tab of Search
 // Everywhere, and the files service (reveal a file, create a file or a folder).
 import type { PluginModule } from '@ide/types'
 import { api as theApi, bindApi } from './plugin'
 import { createIn, Explorer, explorerCorner, explorerMenu, revealInExplorer, watchFolders } from './Explorer'
+import { projectRoot, scratchesRoot } from './roots'
 import { filesProvider } from './search'
 import { decorate } from './tints'
 
@@ -26,6 +27,8 @@ export const files: PluginModule = {
       searchProviders: [filesProvider],
       // The built-in rules of the Explorer rows (#182): tests, library roots, manifests, marks.
       fileDecorations: { decorate },
+      // The project and Scratches and Consoles; the other roots come from their plugins.
+      explorerRoots: [projectRoot, scratchesRoot],
     }
   },
 }

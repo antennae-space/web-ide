@@ -2,11 +2,14 @@
 // A click selects, a double click (or Enter) opens the file and gives it the focus.
 // Virtualized (#225): the expanded tree is a flat list of rows, and only the rows in view (plus a
 // margin) are in the DOM, so a folder of thousands of files stays as quick as a small one.
+// The tree is the one of the project, a root among the others (docs/design/explorer.md): the
+// consoles, the sessions… each a root given by its plugin, in the same flat list.
 import { batch, createEffect, createMemo, createSignal, For, on, onCleanup, onMount, untrack, type JSX } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import type { MenuItem } from '@ide/api'
-import type { FileKind, FileTint } from '@ide/types'
-import { api, contextMenu, copyText, desk, errorToast, FileRow, Icon, prompt, t, toast } from './plugin'
+import type { ExplorerNode, ExplorerRoot, FileKind, FileTint } from '@ide/types'
+import { api, contextMenu, copyText, desk, errorToast, FileRow, Icon, prompt, t, toast, WorktreeChip } from './plugin'
+import { isFolded, isNodeOpen, isShown, moveRoot, orderedRoots, placeRoot, PROJECT, setFolded, setNodeOpen } from './roots'
 import { isLibraryName, markLabels, type FolderMark } from './tints'
 
 const folderMark = (p: string) => api.folders.mark(p)
@@ -76,6 +79,10 @@ function setExpanded(p: string, open: boolean) {
   if (open && !children[p]) load(p)
 }
 
+/** The key of the row of a root, and the prefix of the keys of its nodes (a file row's key is its path). */
+const rootKey = (id: string) => 'root:' + id
+const nodePrefix = (id: string) => 'node:' + id
+
 const rowOf = (path: string) => document.querySelector<HTMLElement>(`.explorer .tree-row[data-path="${CSS.escape(path)}"]`)
 
 /** The mounted Explorer: brings a row of the flat list into view (it may not be in the DOM). */
@@ -104,6 +111,7 @@ function showRow(path: string, focus: boolean) {
 export function revealInExplorer(path: string, focus = false) {
   const r = root()
   if (!path.startsWith(r + '/')) return
+  if (isFolded(PROJECT)) setFolded(PROJECT, false)
   const parts = path.slice(r.length + 1).split('/')
   let cur = r
   for (const part of parts.slice(0, -1)) {
@@ -150,6 +158,7 @@ async function expandAll() {
 function collapseAll() {
   desk.set((s) => {
     s.expanded = []
+    s.openNodes = []
   })
 }
 
@@ -231,6 +240,11 @@ function refreshAll() {
 }
 
 function menuFor(ev: MouseEvent, e: Entry) {
+  contextMenu(ev, menuItems(e))
+}
+
+/** The items of the context menu of an entry (of the root of the project too). */
+function menuItems(e: Entry): MenuItem[] {
   const dir = e.dir ? e.path : e.path.slice(0, e.path.lastIndexOf('/'))
   const items: MenuItem[] = [
     { label: t('New file…'), action: () => createIn(dir, false) },
@@ -256,7 +270,7 @@ function menuFor(ev: MouseEvent, e: Entry) {
       ...(Object.keys(markLabels) as FolderMark[]).map((m) => ({ label: t(markLabels[m]), checked: cur === m, action: () => api.folders.setMark(e.path, cur === m ? '' : m) })),
     )
   }
-  contextMenu(ev, items)
+  return items
 }
 
 /**
@@ -312,10 +326,23 @@ interface Inherited {
   label?: string
 }
 
-/** A line of the flat tree: a row of an entry, or the error of a folder that could not be listed. */
-type Item = { entry: Entry; depth: number; inherited: Inherited; error?: undefined } | { error: string; dir: string; depth: number; entry?: undefined }
+
+/**
+ * A line of the flat tree: a root, a node of a root, an entry of the project, or the error of a
+ * folder that could not be listed. Its key is the `data-path` of its row: the path of an entry,
+ * `root:<id>` for a root, `node:<root>/<id>…` for a node.
+ */
+type Item =
+  | { kind: 'root'; key: string; root: ExplorerRoot; depth: number }
+  | { kind: 'node'; key: string; node: ExplorerNode; depth: number; parent: string }
+  | { kind: 'file'; key: string; entry: Entry; depth: number; inherited: Inherited }
+  | { kind: 'error'; key: string; error: string; dir: string; depth: number }
 
 const sameInherited = (a: Inherited, b: Inherited) => a.ignored === b.ignored && a.excluded === b.excluded && a.kind === b.kind && a.tint === b.tint && a.label === b.label
+
+/** What a row of a node shows: while it holds, the row is kept (its node is swapped for the new one). */
+const sameNode = (a: ExplorerNode, b: ExplorerNode) =>
+  a.label === b.label && a.icon === b.icon && a.title === b.title && a.path === b.path && a.project === b.project && a.desk === b.desk && a.badge === b.badge && a.dimmed === b.dimmed && !a.children === !b.children
 
 /**
  * The channels of a row (#179, #182): what the plugins say about the entry (Git: state and badge;
@@ -339,9 +366,9 @@ function channels(e: Entry, inherited: Inherited) {
 }
 
 /**
- * The expanded tree as one list, in the order of the rows: the content of a folder after it when
- * it is open. Only the folders compute what they pass down; the items are reused by path while
- * nothing of theirs changes, so `<For>` keeps their rows.
+ * The roots and their open content as one list, in the order of the rows: the content of a
+ * folder or a node after it when it is open. Only the folders compute what they pass down; the
+ * items are reused by key while nothing of theirs changes, so `<For>` keeps their rows.
  */
 function flatTree(): () => Item[] {
   let cache = new Map<string, Item>()
@@ -350,29 +377,54 @@ function flatTree(): () => Item[] {
     const next = new Map<string, Item>()
     const s = desk.get()
     const expanded = new Set(s.expanded)
+    const keep = (it: Item) => {
+      next.set(it.key, it)
+      out.push(it)
+    }
     const walk = (dir: string, depth: number, inherited: Inherited) => {
       const err = errors[dir]
       if (err) {
         const key = '\0' + dir
         const old = cache.get(key)
-        const it: Item = old && old.error === err && old.depth === depth ? old : { error: err, dir, depth }
-        next.set(key, it)
-        out.push(it)
+        keep(old?.kind === 'error' && old.error === err && old.depth === depth ? old : { kind: 'error', key, error: err, dir, depth })
       }
       for (const e of children[dir] ?? []) {
         if (!s.hidden && e.name.startsWith('.')) continue
         if (!s.excluded && folderMark(e.path) === 'excluded') continue
         const old = cache.get(e.path)
-        const it: Item = old && old.entry === e && old.depth === depth && sameInherited(old.inherited, inherited) ? old : { entry: e, depth, inherited }
-        next.set(e.path, it)
-        out.push(it)
+        keep(old?.kind === 'file' && old.entry === e && old.depth === depth && sameInherited(old.inherited, inherited) ? old : { kind: 'file', key: e.path, entry: e, depth, inherited })
         if (e.dir && expanded.has(e.path)) {
           const c = channels(e, inherited)
           walk(e.path, depth + 1, { ignored: c.ignored, excluded: c.excluded, kind: c.kind, tint: c.tint, label: c.label })
         }
       }
     }
-    walk(root(), 0, { ignored: false, excluded: false })
+    const walkNodes = (list: ExplorerNode[], depth: number, prefix: string, parent: string) => {
+      for (const n of list) {
+        const key = prefix + '/' + n.id
+        const old = cache.get(key)
+        let it: Item
+        if (old?.kind === 'node' && old.depth === depth && sameNode(old.node, n)) {
+          old.node = n
+          it = old
+        } else it = { kind: 'node', key, node: n, depth, parent }
+        keep(it)
+        if (n.children && isNodeOpen(key)) walkNodes(n.children(), depth + 1, key, key)
+      }
+    }
+    for (const r of orderedRoots()) {
+      const nodes = r.id === PROJECT ? [] : r.nodes()
+      if (!isShown(r, nodes.length)) continue
+      const key = rootKey(r.id)
+      const old = cache.get(key)
+      if (old?.kind === 'root') {
+        old.root = r
+        keep(old)
+      } else keep({ kind: 'root', key, root: r, depth: 0 })
+      if (isFolded(r.id)) continue
+      if (r.id === PROJECT) walk(root(), 1, { ignored: false, excluded: false })
+      else walkNodes(nodes, 1, nodePrefix(r.id), key)
+    }
     cache = next
     return out
   })
@@ -381,7 +433,13 @@ function flatTree(): () => Item[] {
 /** Rows drawn beyond each edge of the view: a quick scroll or a key press shows no blank. */
 const MARGIN = 20
 
-function Row(props: { entry: Entry; depth: number; inherited: Inherited; move: (path: string, delta: number) => void }) {
+/** What a row gets from the list: the moves of the keyboard, the ids of the roots shown. */
+interface RowNav {
+  move: (key: string, delta: number) => void
+  roots: () => string[]
+}
+
+function Row(props: { entry: Entry; depth: number; inherited: Inherited; nav: RowNav }) {
   const e = props.entry
   const open = () => isExpanded(e.path)
   const mark = () => (e.dir ? folderMark(e.path) : null)
@@ -423,14 +481,14 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited; move: (
         if (ev.key === 'Enter') activate()
         else if (ev.key === 'ArrowRight' && e.dir) {
           if (!open()) setExpanded(e.path, true)
-          else props.move(e.path, 1)
+          else props.nav.move(e.path, 1)
         } else if (ev.key === 'ArrowLeft') {
           if (e.dir && open()) setExpanded(e.path, false)
           else {
             const parent = e.path.slice(0, e.path.lastIndexOf('/'))
-            if (parent !== root()) showRow(parent, true)
+            showRow(parent === root() ? rootKey(PROJECT) : parent, true)
           }
-        } else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') props.move(e.path, ev.key === 'ArrowDown' ? 1 : -1)
+        } else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') props.nav.move(e.path, ev.key === 'ArrowDown' ? 1 : -1)
         else if (ev.key === 'F2') rename(e)
         else if (ev.key === 'Delete') remove(e)
         else if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && (ev.key === 'x' || ev.key === 'c')) setClip({ path: e.path, cut: ev.key === 'x' })
@@ -446,6 +504,192 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited; move: (
   )
 }
 
+const rootEntry = (): Entry => ({ name: api.project.name() ?? api.project.basename(root()), path: root(), dir: true, size: 0 })
+
+// The root dragged onto another one: it takes its place (the upper half of the row) or the next.
+const [dragged, setDragged] = createSignal<string | null>(null)
+const [dropAt, setDropAt] = createSignal<{ id: string; after: boolean } | null>(null)
+
+/** The row of a root: folds its content, moved by its menu or by drag and drop. */
+function RootRow(props: { root: ExplorerRoot; nav: RowNav }) {
+  const r = props.root
+  const key = rootKey(r.id)
+  const project = r.id === PROJECT
+  const open = () => !isFolded(r.id)
+  const toggle = () => setFolded(r.id, open())
+  const place = () => props.nav.roots().indexOf(r.id)
+  const menu = (ev: MouseEvent) => {
+    setSelected(key)
+    contextMenu(ev, [
+      ...(project ? [...menuItems(rootEntry()), { separator: true, label: '' }] : []),
+      { label: t(open() ? 'Fold' : 'Unfold'), action: toggle },
+      { label: t('Move up'), action: () => moveRoot(r.id, -1, props.nav.roots()), disabled: place() <= 0 },
+      { label: t('Move down'), action: () => moveRoot(r.id, 1, props.nav.roots()), disabled: place() >= props.nav.roots().length - 1 },
+    ])
+  }
+  const dropClass = () => (dropAt()?.id === r.id ? (dropAt()!.after ? 'drop-after' : 'drop-before') : undefined)
+  return (
+    <FileRow
+      name={r.label()}
+      path={key}
+      dir
+      open={open()}
+      depth={0}
+      icon={project ? undefined : <Icon name={r.icon} />}
+      selected={selected() === key}
+      expanded={open()}
+      chosen={selected() === key}
+      extraClass={['explorer-root', dropClass()].filter(Boolean).join(' ')}
+      title={project ? root() : undefined}
+      after={
+        project && relPath(root()) === root() ? (
+          <span class="muted tree-root-path">
+            <bdi>{root()}</bdi>
+          </span>
+        ) : undefined
+      }
+      draggable
+      onDragStart={(ev) => {
+        setDragged(r.id)
+        ev.dataTransfer?.setData('text/plain', r.label())
+        if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move'
+      }}
+      onDragOver={(ev) => {
+        if (!dragged() || dragged() === r.id) return
+        ev.preventDefault()
+        const box = ev.currentTarget.getBoundingClientRect()
+        setDropAt({ id: r.id, after: ev.clientY > box.top + box.height / 2 })
+      }}
+      onDragLeave={() => dropAt()?.id === r.id && setDropAt(null)}
+      onDrop={(ev) => {
+        ev.preventDefault()
+        const id = dragged()
+        const at = dropAt()
+        if (id && at) {
+          const ids = props.nav.roots()
+          placeRoot(id, at.after ? ids[ids.indexOf(at.id) + 1] : at.id)
+        }
+        setDragged(null)
+        setDropAt(null)
+      }}
+      onDragEnd={() => {
+        setDragged(null)
+        setDropAt(null)
+      }}
+      onFocus={() => setSelected(key)}
+      onClick={(ev) => {
+        setSelected(key)
+        ;(ev.currentTarget as HTMLElement).focus()
+        if ((ev.target as Element).closest('.tree-twist') || desk.get().singleClick || api.tiles.phone()) toggle()
+      }}
+      onDblClick={(ev) => !(ev.target as Element).closest('.tree-twist') && !desk.get().singleClick && toggle()}
+      onKeyDown={(ev) => {
+        if (ev.key === 'Enter') toggle()
+        else if (ev.key === 'ArrowRight') open() ? props.nav.move(key, 1) : toggle()
+        else if (ev.key === 'ArrowLeft') open() && toggle()
+        else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') props.nav.move(key, ev.key === 'ArrowDown' ? 1 : -1)
+        else return
+        ev.preventDefault()
+      }}
+      onContextMenu={menu}
+    />
+  )
+}
+
+/** The name of a worktree attached to the window, for the question before switching to it. */
+const worktreeName = (id: string) => api.project.basename(api.project.rootOf(id) ?? '') || id
+
+/** Shows a node in its tool, after the switch to its worktree when the user agrees. */
+async function openNode(n: ExplorerNode) {
+  if (n.project && n.project !== api.project.current()) {
+    if (!confirm(t('“{name}” is in the worktree {worktree}. Show this worktree?', { name: n.label, worktree: worktreeName(n.project) }))) return
+    await api.project.showWorktree(n.project)
+  }
+  if (n.path) await openAndFocus(n.path)
+  else n.open?.()
+}
+
+/** The tags at the right of a node: its state, its desk and its worktree when they are not the ones shown. */
+function NodeTags(props: { node: ExplorerNode }) {
+  const home = () => api.project.info()?.parent ?? api.project.current()
+  const deskName = (n: number) => {
+    const d = api.desks.list().find((x) => x.n === n)
+    return d?.name || t('Desk {n}', { n })
+  }
+  return (
+    <>
+      {props.node.badge && <span class="tree-tag">{props.node.badge}</span>}
+      {props.node.desk !== undefined && props.node.desk !== api.desks.current() && (
+        <span class="tree-tag" data-testid="explorer-desk-tag">
+          {deskName(props.node.desk)}
+        </span>
+      )}
+      {props.node.project &&
+        props.node.project !== api.project.current() &&
+        (props.node.project === home() ? (
+          <span class="tree-tag" data-testid="worktree-chip">
+            {worktreeName(props.node.project)}
+          </span>
+        ) : (
+          <WorktreeChip project={props.node.project} />
+        ))}
+    </>
+  )
+}
+
+/** The row of a node of a root: a click selects, a double click (or Enter) shows it in its tool. */
+function NodeRow(props: { item: Extract<Item, { kind: 'node' }>; nav: RowNav }) {
+  const it = props.item
+  const n = () => it.node
+  const open = () => isNodeOpen(it.key)
+  const toggle = () => setNodeOpen(it.key, !open())
+  const activate = () => (n().open || n().path ? void openNode(n()) : n().children && toggle())
+  const deco = () => (n().path ? api.explorer.decorate(n().path!, false) : undefined)
+  return (
+    <FileRow
+      name={n().label}
+      path={it.key}
+      dir={!!n().children}
+      open={open()}
+      depth={it.depth}
+      deco={deco()}
+      icon={n().path ? undefined : <Icon name={n().icon ?? 'circle'} />}
+      selected={selected() === it.key}
+      current={!!n().path && api.activePath() === n().path}
+      expanded={n().children ? open() : undefined}
+      chosen={selected() === it.key}
+      extraClass={n().dimmed ? 'explorer-node dimmed' : 'explorer-node'}
+      title={n().title ?? n().path}
+      end={<NodeTags node={n()} />}
+      onFocus={() => setSelected(it.key)}
+      onClick={(ev) => {
+        setSelected(it.key)
+        ;(ev.currentTarget as HTMLElement).focus()
+        if (n().children && (ev.target as Element).closest('.tree-twist')) toggle()
+        else if (desk.get().singleClick || api.tiles.phone()) activate()
+      }}
+      onDblClick={(ev) => {
+        if (desk.get().singleClick || (ev.target as Element).closest('.tree-twist')) return
+        activate()
+      }}
+      onKeyDown={(ev) => {
+        if (ev.key === 'Enter') activate()
+        else if (ev.key === 'ArrowRight' && n().children) open() ? props.nav.move(it.key, 1) : toggle()
+        else if (ev.key === 'ArrowLeft') n().children && open() ? toggle() : showRow(it.parent, true)
+        else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') props.nav.move(it.key, ev.key === 'ArrowDown' ? 1 : -1)
+        else return
+        ev.preventDefault()
+      }}
+      onContextMenu={(ev) => {
+        setSelected(it.key)
+        const items = n().menu?.() ?? []
+        if (items.length) contextMenu(ev, items)
+        else ev.preventDefault()
+      }}
+    />
+  )
+}
+
 export function Explorer() {
   const items = flatTree()
   let body!: HTMLDivElement
@@ -454,7 +698,7 @@ export function Explorer() {
   const [height, setHeight] = createSignal(800)
   // The height of a row, measured once one is drawn (the styles give 24px).
   const [rowH, setRowH] = createSignal(24)
-  /** Where the block of the rows starts in the scrolled body (after the root line). */
+  /** Where the block of the rows starts in the scrolled body. */
   const offset = () => (block ? block.offsetTop - body.offsetTop : 0)
   const range = () => {
     const h = rowH()
@@ -467,10 +711,10 @@ export function Explorer() {
     const [start, end] = range()
     return items().slice(start, end)
   })
-  const indexOf = (path: string) => items().findIndex((it) => it.entry?.path === path)
-  /** Scrolls the row of a path into view: false while it is not in the list yet. */
-  const show = (path: string) => {
-    const i = indexOf(path)
+  const indexOf = (key: string) => items().findIndex((it) => it.key === key)
+  /** Scrolls the row of a key into view: false while it is not in the list yet. */
+  const show = (key: string) => {
+    const i = indexOf(key)
     if (i < 0) return false
     const h = rowH()
     const top = offset() + i * h
@@ -479,13 +723,13 @@ export function Explorer() {
     setScrollTop(body.scrollTop)
     return true
   }
-  /** Focuses the row delta lines away from a path (the error lines are skipped). */
-  const move = (path: string, delta: number) => {
-    const list = items()
-    for (let i = indexOf(path) + delta; i >= 0 && i < list.length; i += delta) {
-      const e = list[i].entry
-      if (e) return showRow(e.path, true)
-    }
+  const nav: RowNav = {
+    /** Focuses the row delta lines away from a key (the error lines are skipped). */
+    move: (key, delta) => {
+      const list = items()
+      for (let i = indexOf(key) + delta; i >= 0 && i < list.length; i += delta) if (list[i].kind !== 'error') return showRow(list[i].key, true)
+    },
+    roots: createMemo(() => items().flatMap((it) => (it.kind === 'root' ? [it.root.id] : []))),
   }
   onMount(() => {
     view = { show }
@@ -528,7 +772,6 @@ export function Explorer() {
       { defer: true },
     ),
   )
-  const rootEntry = (): Entry => ({ name: api.project.name() ?? api.project.basename(root()), path: root(), dir: true, size: 0 })
   return (
     <div class="panel explorer">
       <div class="panel-head">
@@ -541,12 +784,6 @@ export function Explorer() {
         onScroll={() => setScrollTop(body.scrollTop)}
         onContextMenu={(e) => e.target === e.currentTarget && menuFor(e, rootEntry())}
       >
-        <div class="tree-root" onContextMenu={(e) => menuFor(e, rootEntry())}>
-          <span>{rootEntry().name}</span>
-          <span class="muted" title={root()}>
-            <bdi>{relPath(root()) === root() ? root() : ''}</bdi>
-          </span>
-        </div>
         {/* The full height of the list, fixed while scrolling; the rows in view moved down by a
             transform (a padding would change the layout, and the scroll anchoring of the browser
             would move the scroll back, leaving ghost rows). */}
@@ -554,8 +791,12 @@ export function Explorer() {
           <div class="tree-window" style={{ transform: `translateY(${range()[0] * rowH()}px)` }}>
             <For each={shown()}>
               {(it) =>
-                it.entry ? (
-                  <Row entry={it.entry} depth={it.depth} inherited={it.inherited} move={move} />
+                it.kind === 'file' ? (
+                  <Row entry={it.entry} depth={it.depth} inherited={it.inherited} nav={nav} />
+                ) : it.kind === 'root' ? (
+                  <RootRow root={it.root} nav={nav} />
+                ) : it.kind === 'node' ? (
+                  <NodeRow item={it} nav={nav} />
                 ) : (
                   <div class="tree-error" style={{ 'padding-left': `${it.depth * 14 + 22}px` }} title={it.error}>
                     {it.error}

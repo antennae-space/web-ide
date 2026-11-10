@@ -105,6 +105,10 @@ export interface PluginContributions {
   explorerItems?: (entry: ExplorerEntry) => MenuItem[]
   /** Decorations of the Explorer: the files left out, the state of a file (Git: modified…). */
   fileDecorations?: FileDecorations
+  /** Roots of the Explorer (docs/design/explorer.md): the terminals, the debug sessions… */
+  explorerRoots?: ExplorerRoot[]
+  /** Nodes put into a root of another plugin, by root id (the SQL consoles into `scratches`). */
+  explorerNodes?: Record<string, () => ExplorerNode[]>
   /**
    * Decorations of the file view of Code for this plugin (#187): marks in the gutter, classes on
    * whole lines, text at the end of a line, hovers, items of the context menu. The debug host is
@@ -151,6 +155,45 @@ export interface ExplorerEntry {
   path: string
   dir: boolean
   folder: string
+}
+
+/**
+ * A root of the Explorer (docs/design/explorer.md): a foldable row, a tree of nodes below it.
+ * The user orders the roots of a desk; the plugin orders the nodes of its root.
+ */
+export interface ExplorerRoot {
+  id: string
+  label: () => string
+  icon: string
+  /** Its place by default, before the user moves it: Conversations 10, the project 20, Scratches 30, Terminals 40, Debug 50. */
+  order: number
+  /** Its nodes, read in a memo: they may follow the state of the plugin. A root with none is hidden. */
+  nodes: () => ExplorerNode[]
+}
+
+/** A node of a root of the Explorer: a console, a session, a file a thread changed… */
+export interface ExplorerNode {
+  /** Unique in its root. */
+  id: string
+  label: string
+  icon?: string
+  title?: string
+  /** A file: drawn as a file row, a click opens it. */
+  path?: string
+  /** Its children: the node folds (closed by default). */
+  children?: () => ExplorerNode[]
+  /** The worktree it belongs to: a chip at the right of the row when it is not the one shown, and a click asks before switching. */
+  project?: string
+  /** The desk it belongs to: a tag at the right of the row when it is not the desk shown. */
+  desk?: number
+  /** A short text at the right of the row (a state: paused, waiting). */
+  badge?: string
+  /** Shown dimmed (a finished task, an ended session). */
+  dimmed?: boolean
+  /** Shows it in its tool (the Explorer switches the worktree first when needed). */
+  open?: () => void
+  /** Items of its context menu. */
+  menu?: () => MenuItem[]
 }
 
 /** Category of a path, shown as the tint of its row (docs/design/plugins.md, Explorer decorations). */

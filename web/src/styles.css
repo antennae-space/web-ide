@@ -215,8 +215,13 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .panel-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--fg-muted); }
 .panel-body { flex: 1; overflow: auto; min-height: 0; }
 .tree { padding: 4px 0; user-select: none; }
-.tree-root { display: flex; align-items: baseline; gap: 6px; padding: 2px 10px 4px; font-weight: 600; white-space: nowrap; }
-.tree-root .muted { font-weight: 400; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+/* The roots of the Explorer (docs/design/explorer.md): a bold row, a line where a dragged root lands. */
+.tree-row.explorer-root .tree-name { font-weight: 600; }
+.tree-root-path { margin-left: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.tree-row.drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.tree-row.drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.tree-row.dimmed > :not(.tree-twist) { opacity: 0.55; }
+.tree-tag { flex: none; margin-left: 6px; padding: 0 6px; border-radius: 9px; font-size: 12px; line-height: 17px; color: var(--fg-muted); background: color-mix(in srgb, var(--fg-muted) 16%, transparent); }
 .tree-row { display: flex; align-items: center; gap: 5px; height: 24px; padding-right: 8px; cursor: pointer; white-space: nowrap; }
 /* The decoration of a path, the same in every tree of the window (#183): the Explorer, Recent
    Files, the Commit tab and Search results draw these classes through the shared file row.
