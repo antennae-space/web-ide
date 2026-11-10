@@ -7,7 +7,12 @@ import { resolvePath } from '../ui/uiCalls'
 import type { PageMessage, SandboxExplorerNode } from './sandbox-api'
 import type { ExplorerNode, ExplorerRoot, PluginManifest } from './types'
 
-type Pushed = { plugin: string; frame: number; root: string; nodes: SandboxExplorerNode[]; send: (m: PageMessage) => void }
+/** A frame a plugin's page runs: a message for it, and the marking of an action of the user
+ * (a choice in the menu of its Explorer node) so that the dialogs it opens after count as the
+ * user's (#245). */
+type Served = { send: (m: PageMessage) => void; userAction: () => void }
+
+type Pushed = { plugin: string; frame: number; root: string; nodes: SandboxExplorerNode[]; served: () => Served }
 
 const [pushed, setPushed] = createSignal<Pushed[]>([])
 let nextFrame = 1
@@ -16,13 +21,13 @@ let nextFrame = 1
 const rootsOf = (m: PluginManifest) => [...(m.contributes.explorerRoots ?? []).map((r) => r.id), ...(m.contributes.explorerNodes ?? [])]
 
 /** What the host of one frame gets: push its nodes into a root, and take them all back when it stops. */
-export function explorerHost(m: PluginManifest, send: () => (msg: PageMessage) => void) {
+export function explorerHost(m: PluginManifest, served: () => Served) {
   const frame = nextFrame++
   const roots = rootsOf(m)
   return {
     set: (root: string, nodes: SandboxExplorerNode[]) => {
       if (!roots.includes(root)) return
-      setPushed((l) => [...l.filter((p) => !(p.frame === frame && p.root === root)), ...(nodes.length ? [{ plugin: m.id, frame, root, nodes, send: send() }] : [])])
+      setPushed((l) => [...l.filter((p) => !(p.frame === frame && p.root === root)), ...(nodes.length ? [{ plugin: m.id, frame, root, nodes, served }] : [])])
     },
     drop: () => setPushed((l) => l.filter((p) => p.frame !== frame)),
   }
@@ -30,7 +35,11 @@ export function explorerHost(m: PluginManifest, send: () => (msg: PageMessage) =
 
 /** A node of a frame as the core's: its id scoped by the plugin (two plugins may fill one root). */
 function toNode(n: SandboxExplorerNode, p: Pushed): ExplorerNode {
-  const back = (item?: string) => p.send({ explorer: { root: p.root, node: n.id, item } })
+  const back = (item?: string) => {
+    const s = p.served()
+    s.userAction()
+    s.send({ explorer: { root: p.root, node: n.id, item } })
+  }
   return {
     id: `${p.plugin}:${n.id}`,
     label: n.label,

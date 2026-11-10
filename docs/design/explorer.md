@@ -18,7 +18,7 @@ In their order by default:
 |---|---|---|---|
 | Conversations & Agents | AI | the active threads of the assistant and the active sessions of the Agents tool, merged; their children: the sub-agents, then the files the thread changed (those of its `edit_file` / `write_file`, of the `edit`, `delete`, `move` tool calls of an agent, kept since #242; not those a command changes; an agent tells no sub-agents) | #242 done, #243 |
 | The project (its name) | Files | the file tree of the worktree shown; a folder icon | #239 |
-| Scratches and Consoles | Files (empty) | the SQL consoles (plugin-database), by connection; an external plugin fills it with `contributes.explorerNodes: ["scratches"]` | #244 done, #245 |
+| Scratches and Consoles | Files (empty) | the SQL consoles (plugin-database), under the node of their connection, hidden tabs included; a double click shows the tab, its menu renames it (*Rename…*) or closes it; an external plugin fills it with `contributes.explorerNodes: ["scratches"]` | #244, #245 |
 | Terminals and tasks | Exec | the consoles of the Console tool: a terminal or a task icon, the tags of their desk and worktree, an ended one dimmed (with its exit code when it is not 0); a double click shows it in the Console (it comes to the desk shown, as when the assistant shows it); its menu renames, moves or closes it | #240, done |
 | Debug sessions | Debug | the debug sessions of every attached worktree, with their state (*Paused*, *Starting*), an ended one dimmed (the last 5); a double click shows it in the Debug tool (the Explorer asks before switching its worktree); its menu stops or restarts it | #241, done |
 

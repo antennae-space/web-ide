@@ -91,6 +91,7 @@ export const bootstrap = `(() => {
     onExplorer: (f) => explorerFns.push(f),
     onViewTabs(f) { if (!viewTabsFns.length) send({ call: 'watchViewTabs' }); viewTabsFns.push(f) },
     closeViewTab: (view, key) => send({ call: 'closeViewTab', view: String(view), key: key === undefined ? undefined : String(key) }),
+    setViewTabTitle: (view, title, key) => send({ call: 'setViewTabTitle', view: String(view), title: String(title), key: key === undefined ? undefined : String(key) }),
     markdown: (text) => call({ call: 'markdown', text: String(text) }),
     openLink: (url) => send({ call: 'openLink', url: String(url) }),
     help: (topic) => send({ call: 'help', topic: String(topic) }),
@@ -255,6 +256,8 @@ export type FrameHost = {
   tools?: string[]
   /** A tab view: the title it gives its tab. */
   setTitle?: (title: string) => void
+  /** One of its tab views (its view and its key): the title the user gave it (#245). */
+  setViewTabTitle?: (view: string, key: string | undefined, title: string) => void
   /** A tab view: the items of the status bar it gives for its tab. */
   setStatus?: (items: SandboxStatusItem[]) => void
   /** Its tool or its tab: the items it adds to the options menu (the ⋮) of the zone or tile. */
@@ -591,6 +594,11 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
           }
         return
       }
+      case 'setViewTabTitle':
+        // A tab of its views, named by the user (its Explorer node): the title its frame gave and
+        // the tab's own.
+        if (typeof m.view === 'string' && typeof m.title === 'string') host.setViewTabTitle?.(m.view, m.key, m.title.slice(0, 100))
+        return
       case 'setExplorerNodes':
         if (typeof m.root === 'string' && Array.isArray(m.nodes)) host.setExplorerNodes?.(m.root.slice(0, 100), clampNodes(m.nodes))
         return
@@ -699,6 +707,11 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
   return {
     send,
+    /** The page acted for the user (a choice in the menu of a node it pushed): the dialogs the
+     * frame opens after are the user's, even in its hidden background frame (#245). */
+    userAction: () => {
+      if (navigator.userActivation?.isActive) askedByUser = Date.now()
+    },
     lang: () => send({ lang: lang(), catalog: catalog() }),
     /** The editor's text or selection changed; a key of the editor was pressed. */
     editorChanged: () => {
