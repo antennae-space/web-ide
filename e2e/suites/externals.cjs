@@ -93,10 +93,22 @@ ide.register({
   commands: { hello: (ide) => ide.toast('Command of Greet') },
   // Its roots of the Explorer (#244), pushed by its background frame; a root it does not own is refused.
   background: (ide) => {
-    ide.setExplorerNodes('greetings', [{ id: 'g1', label: 'Greeting one', icon: 'comment', badge: 'new', open: true, menu: [{ id: 'wave', label: 'Wave' }], children: [{ id: 'n1', label: 'notes.txt', path: 'notes.txt' }] }])
+    const g1 = { id: 'g1', label: 'Greeting one', icon: 'comment', badge: 'new', open: true, menu: [{ id: 'wave', label: 'Wave' }], children: [{ id: 'n1', label: 'notes.txt', path: 'notes.txt' }] }
+    ide.setExplorerNodes('greetings', [g1])
+    // Its tabs, listed though a hidden tab has no frame: a node each, its menu closes it.
+    let tabs = []
+    ide.onViewTabs((l) => {
+      tabs = l
+      ide.setExplorerNodes('greetings', [g1, ...l.map((x) => ({ id: 'tab:' + x.view + ':' + (x.key || ''), label: 'Tab ' + x.title, icon: 'file', open: true, menu: [{ id: 'close', label: 'Close the tab' }] }))])
+    })
     ide.setExplorerNodes('scratches', [{ id: 'sc', label: 'Greet console', icon: 'terminal', open: true }])
     ide.setExplorerNodes('terminals', [{ id: 'x', label: 'Not mine' }])
-    ide.onExplorer((e) => ide.toast('explorer ' + e.root + ' ' + e.node + ' ' + (e.item || 'open')))
+    ide.onExplorer((e) => {
+      const tab = tabs.find((x) => e.node === 'tab:' + x.view + ':' + (x.key || ''))
+      if (tab && e.item === 'close') return ide.closeViewTab(tab.view, tab.key)
+      if (tab) return ide.openView(tab.view, tab.state, tab.title, tab.key)
+      ide.toast('explorer ' + e.root + ' ' + e.node + ' ' + (e.item || 'open'))
+    })
   },
 })
 `
@@ -335,6 +347,16 @@ run(async ({ page, errors }) => {
   await page.dblclick('.explorer .tree-row[data-path="node:greetings/greet:g1/greet:n1"]')
   await page.waitForSelector('.pane.active .tab.active:has-text("notes.txt")')
   assert(true, 'a file node of an external plugin opens the file of the project')
+  // Its tabs (onViewTabs): the Note tab, hidden behind notes.txt, has its node; Close the tab closes it.
+  const noteNode = '.explorer .tree-row[data-path="node:greetings/greet:tab:note:"]'
+  await page.waitForSelector(noteNode)
+  assert((await page.textContent(noteNode + ' .tree-name')) === 'Tab Note', 'the background frame lists a hidden tab of its views')
+  await page.click(noteNode, { button: 'right' })
+  await page.click('.ctx-menu >> text=Close the tab')
+  // has-text ignores the case: notes.txt would match "Note".
+  await page.waitForFunction(() => ![...document.querySelectorAll('.pane .tab')].some((x) => /^Note\b/.test(x.textContent.trim())))
+  await page.waitForSelector(noteNode, { state: 'detached' })
+  assert(true, 'closeViewTab closes a hidden tab of its views, its node goes')
 
   // A new version asks the network and fs.list: the update asks only those.
   release('1.1.0', { ide: '^1.0', permissions: ['files:read', 'net', 'core:fs.list'] })

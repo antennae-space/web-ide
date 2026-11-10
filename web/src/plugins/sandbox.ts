@@ -35,7 +35,7 @@ export const bootstrap = `(() => {
   // The editor of the tab: its state pushed by the page, and the listeners of the view.
   let ed = null
   const edFns = { change: [], selection: [], keys: {} }
-  const settingsFns = [], statusFns = [], toolMenuFns = [], deskFns = [], explorerFns = []
+  const settingsFns = [], statusFns = [], toolMenuFns = [], deskFns = [], explorerFns = [], viewTabsFns = []
   let next = 1
   // What the module sends before the page gives the channel (a call at load) waits for it.
   const queue = []
@@ -89,6 +89,8 @@ export const bootstrap = `(() => {
     onToolMenu: (f) => toolMenuFns.push(f),
     setExplorerNodes: (root, nodes) => send({ call: 'setExplorerNodes', root: String(root), nodes: plain(nodes || []) }),
     onExplorer: (f) => explorerFns.push(f),
+    onViewTabs(f) { if (!viewTabsFns.length) send({ call: 'watchViewTabs' }); viewTabsFns.push(f) },
+    closeViewTab: (view, key) => send({ call: 'closeViewTab', view: String(view), key: key === undefined ? undefined : String(key) }),
     markdown: (text) => call({ call: 'markdown', text: String(text) }),
     openLink: (url) => send({ call: 'openLink', url: String(url) }),
     help: (topic) => send({ call: 'help', topic: String(topic) }),
@@ -156,6 +158,7 @@ export const bootstrap = `(() => {
     if (m.status) statusFns.forEach((f) => f(m.status))
     if (m.toolMenu) toolMenuFns.forEach((f) => f(m.toolMenu))
     if (m.explorer) explorerFns.forEach((f) => f(m.explorer))
+    if (m.viewTabs) viewTabsFns.forEach((f) => f(m.viewTabs))
     if (m.project && info) info.project = m.project
     if (m.desk && info) { info.desk = m.desk.state; deskFns.forEach((f) => f(m.desk.state)) }
     // A method of a capability it provides, asked by the page for another plugin.
@@ -560,6 +563,34 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
             })),
           )
         return
+      case 'watchViewTabs': {
+        // The tabs of its views on the desk shown, sent again when they change (#244).
+        const prefix = `plugin:${host.plugin}/`
+        let last = ''
+        const dispose = createRoot((d) => {
+          createEffect(() => {
+            const tabs = Object.values(session.tabs)
+              .filter((x) => x.kind.startsWith(prefix))
+              .map((x) => ({ view: x.kind.slice(prefix.length), key: x.key, title: x.title, state: x.state }))
+            const json = JSON.stringify(tabs)
+            if (json === last || json.length > maxDeskState * 4) return
+            last = json
+            port.postMessage({ viewTabs: JSON.parse(json) } satisfies PageMessage)
+          })
+          return d
+        })
+        offs.push(dispose)
+        return
+      }
+      case 'closeViewTab': {
+        const kind = `plugin:${host.plugin}/${String(m.view)}`
+        for (const l of leaves())
+          for (const id of l.tabs) {
+            const x = session.tabs[id]
+            if (x?.kind === kind && x.key === m.key) closeTab(l.id, id, true)
+          }
+        return
+      }
       case 'setExplorerNodes':
         if (typeof m.root === 'string' && Array.isArray(m.nodes)) host.setExplorerNodes?.(m.root.slice(0, 100), clampNodes(m.nodes))
         return

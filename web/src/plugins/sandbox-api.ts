@@ -119,6 +119,9 @@ export type SandboxExplorerNode = {
   menu?: SandboxToolMenuItem[]
 }
 
+/** A tab of one of its views open on the desk shown: its view, its key, its title, its state (#244). */
+export type SandboxViewTab = { view: string; key?: string; title?: string; state?: unknown }
+
 /** The global `ide` of a frame. */
 export interface SandboxAPI {
   register(c: SandboxContributions): void
@@ -199,6 +202,13 @@ export interface SandboxAPI {
   setExplorerNodes(root: string, nodes: SandboxExplorerNode[]): void
   /** A node of this frame opened (no item) or a choice of its menu. */
   onExplorer(f: (e: { root: string; node: string; item?: string }) => void): void
+  /**
+   * The tabs of its views open on the desk shown, now and at each change (a tab opened, closed):
+   * the background frame lists them in the Explorer, a hidden tab having no frame (#244).
+   */
+  onViewTabs(f: (tabs: SandboxViewTab[]) => void): void
+  /** Closes a tab of one of its views, by its view and its key. */
+  closeViewTab(view: string, key?: string): void
   /** The HTML of a Markdown text, rendered and sanitized by the IDE as its own. */
   markdown(text: string): Promise<string>
   /** Opens an http(s) address in a new tab of the browser, while the user is in the frame. */
@@ -257,6 +267,8 @@ export type FrameCall =
   | { call: 'setStatus'; items: SandboxStatusItem[] }
   | { call: 'setToolMenu'; items: SandboxToolMenuItem[] }
   | { call: 'setExplorerNodes'; root: string; nodes: SandboxExplorerNode[] }
+  | { call: 'watchViewTabs' }
+  | { call: 'closeViewTab'; view: string; key?: string }
   | { call: 'markdown'; id: number; text: string }
   | { call: 'openLink'; url: string }
   | { call: 'help'; topic: string }
@@ -291,4 +303,5 @@ export type PageMessage =
   | { status: { item: string; choice: string } }
   | { toolMenu: { item: string } }
   | { explorer: { root: string; node: string; item?: string } }
+  | { viewTabs: SandboxViewTab[] }
   | { desk: { state: unknown } }
