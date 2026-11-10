@@ -29,4 +29,5 @@ export const WorktreeChip = (p: Parameters<PluginApi['ui']['WorktreeChip']>[0]):
 export const contextMenu: PluginApi['ui']['contextMenu'] = (...a) => api.ui.contextMenu(...a)
 export const prompt: PluginApi['ui']['prompt'] = (...a) => api.ui.prompt(...a)
 export const errorToast: PluginApi['ui']['errorToast'] = (...a) => api.ui.errorToast(...a)
+export const toast: PluginApi['ui']['toast'] = (...a) => api.ui.toast(...a)
 export const copyText: PluginApi['ui']['copyText'] = (...a) => api.ui.copyText(...a)

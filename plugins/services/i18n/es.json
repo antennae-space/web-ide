@@ -15,7 +15,6 @@
   "Off: share it": "Desactivado: compartirlo",
   "Stop sharing": "Dejar de compartir",
   "Detach this pod: its next request is refused": "Separar este pod: su próxima petición se rechaza",
-  "Cut": "Cortar",
   "attached {when}": "conectado {when}",
   "last request {when}": "última petición {when}",
   "%s is offline": "%s está desconectado",

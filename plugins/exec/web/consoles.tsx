@@ -7,7 +7,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import type { ConsoleInfo } from '@ide/capabilities'
 import type { MenuItem } from '@ide/api'
-import { api, contextMenu, copyText, desk, errorToast, Icon, prompt, t, WorktreeChip } from './plugin'
+import { api, contextMenu, copyText, desk, errorToast, Icon, prompt, t, toast, WorktreeChip } from './plugin'
 import { adHocCommand, loadCommands } from './commands'
 import { openCommands } from './CommandsModal'
 import { Launcher } from './Launcher'
@@ -272,6 +272,27 @@ function disposeTerm(id: string) {
   terms.delete(id)
 }
 
+/** The menu of a right click in a terminal: its clipboard (the ⋮ of its zone or tile keeps the tool menu). */
+function termMenu(e: MouseEvent, id: string) {
+  const term = terms.get(id)?.term
+  if (!term) return
+  contextMenu(e, [
+    { label: t('Copy'), hint: 'Ctrl+Shift+C', disabled: !term.hasSelection(), action: () => void copyText(term.getSelection()) },
+    {
+      label: t('Paste'),
+      action: async () => {
+        try {
+          term.paste(await navigator.clipboard.readText())
+          term.focus()
+        } catch {
+          toast(t('The browser refused to read the clipboard'), 'warn')
+        }
+      },
+    },
+    { label: t('Select all'), action: () => term.selectAll() },
+  ])
+}
+
 /**
  * Shows a console in a container element and keeps it fitted. A console has one terminal per
  * window: shown in two places (the Console tool and a tile), the last one mounted has it and
@@ -309,7 +330,7 @@ export function TermView(props: { id: string; focus?: boolean }) {
       if (t.el.parentElement === host) t.el.remove()
     })
   })
-  return <div class="term-container" ref={host} data-elsewhere={t('Shown in another place: click to bring it here')} onPointerDown={() => claim()} />
+  return <div class="term-container" ref={host} data-elsewhere={t('Shown in another place: click to bring it here')} onPointerDown={() => claim()} onContextMenu={(e) => termMenu(e, props.id)} />
 }
 
 // ---------- actions ----------

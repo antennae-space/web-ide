@@ -9,6 +9,7 @@
   "Run a command": "Ejecutar un comando",
   "Delete the command “{name}”?": "¿Eliminar el comando «{name}»?",
   "New command": "Nuevo comando",
+  "The browser refused to read the clipboard": "El navegador rechazó leer el portapapeles",
   "The commands have unsaved changes. Close anyway?": "Los comandos tienen cambios sin guardar. ¿Cerrar de todos modos?",
   "Project commands": "Comandos del proyecto",
   "Filter…": "Filtrar…",

@@ -1,13 +1,11 @@
 {
   "Binary or too large file: no preview.": "Archivo binario o demasiado grande: sin vista previa.",
   "Cannot read: {error}": "No se puede leer: {error}",
-  "Cut": "Cortar",
   "Go to line": "Ir a la línea",
   "Keep my version": "Conservar mi versión",
   "Line[:column] (1 – {n})": "Línea[:columna] (1 – {n})",
   "No related file": "Ningún archivo relacionado",
   "No test found for this file": "No se encontró ninguna prueba para este archivo",
-  "Paste": "Pegar",
   "Read-only: file outside the project ({path})": "Solo lectura: archivo fuera del proyecto ({path})",
   "Show in the explorer": "Mostrar en el explorador",
   "Source of the test not found": "Código fuente de la prueba no encontrado",
