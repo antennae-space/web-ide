@@ -153,7 +153,7 @@ run(async ({ ctx, page }) => {
   await page.click('[data-tool=git] [data-testid=tile-menu]')
   await page.waitForSelector('.ctx-menu')
   const gitMenu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
-  assert(gitMenu.at(-1) === 'Refresh', 'the ⋮ of the Git tile, its contributed item last: ' + JSON.stringify(gitMenu))
+  assert(gitMenu.slice(-4).join() === 'Refresh,Open in a tab,Open in a window,Close', 'the ⋮ of the Git tile, its contributed item before the core ones: ' + JSON.stringify(gitMenu))
   await page.keyboard.press('Escape')
   await page.waitForSelector('.ctx-menu', { state: 'detached' })
   await launch('New terminal')
@@ -166,7 +166,7 @@ run(async ({ ctx, page }) => {
   await page.click('.tile-console [data-testid=tile-menu]')
   await page.waitForSelector('.ctx-menu')
   const tileMenu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
-  assert(tileMenu[0] === 'Open in a tab' && tileMenu[1] === 'Open in a window' && tileMenu[2] === 'Close', 'the menu of a tile of a Grid desk: ' + JSON.stringify(tileMenu))
+  assert(tileMenu.slice(-3).join() === 'Open in a tab,Open in a window,Close', 'the menu of a tile of a Grid desk: ' + JSON.stringify(tileMenu))
   // Open in a window: the console alone in a popup, with no head of its own.
   const [conWin] = await Promise.all([ctx.waitForEvent('page'), page.click('.ctx-menu >> text=Open in a window')])
   await conWin.waitForSelector('.detached .xterm')
@@ -189,13 +189,13 @@ run(async ({ ctx, page }) => {
   await page.waitForSelector('.ctx-menu')
   const helloTile = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
   assert(
-    helloTile.slice(0, 3).join() === 'Open in a tab,Open in a window,Close' && helloTile.slice(-2).join() === 'Say hello from the menu,Greet twice',
-    'the menu of a tile of the plugin tool, its contributed items last: ' + JSON.stringify(helloTile),
+    helloTile.slice(-5).join() === 'Say hello from the menu,Greet twice,Open in a tab,Open in a window,Close',
+    'the menu of a tile of the plugin tool, its contributed items, then the core ones last: ' + JSON.stringify(helloTile),
   )
   // No ✕ in the corner any more: the Close item of the ⋮ closes the tile (#176).
   await page.click('[data-tool=hello] [data-testid=tile-menu]')
   await page.waitForSelector('.ctx-menu')
-  await page.click('.ctx-menu >> text=Close')
+  await page.click('.ctx-menu >> text="Close"')
   await page.waitForSelector('[data-tool=hello]', { state: 'detached' })
   // The Explorer as a tile: its corner holds its buttons, its ⋮ its options (#176).
   await launch('Explorer')
@@ -209,14 +209,14 @@ run(async ({ ctx, page }) => {
   await page.waitForSelector('.ctx-menu')
   const explorerMenu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
   assert(
-    explorerMenu.slice(0, 3).join() === 'Open in a tab,Open in a window,Close' && explorerMenu.slice(-3).join() === 'Always select the opened file,Row tints,Refresh all',
-    'the ⋮ of the Explorer tile, its options last: ' + JSON.stringify(explorerMenu),
+    explorerMenu.slice(-6).join() === 'Always select the opened file,Row tints,Refresh all,Open in a tab,Open in a window,Close',
+    'the ⋮ of the Explorer tile, its options, then the core items last: ' + JSON.stringify(explorerMenu),
   )
   await page.keyboard.press('Escape')
   await page.waitForSelector('.ctx-menu', { state: 'detached' })
   await page.click('.tile-tool[data-tool=explorer] [data-testid=tile-menu]')
   await page.waitForSelector('.ctx-menu')
-  await page.click('.ctx-menu >> text=Close')
+  await page.click('.ctx-menu >> text="Close"')
   await page.waitForSelector('.tile-tool[data-tool=explorer]', { state: 'detached' })
   await page.click('.pane .tile-console .xterm')
   const xOf = (sel) => page.$eval(sel, (e) => e.getBoundingClientRect().left)
@@ -439,7 +439,7 @@ run(async ({ ctx, page }) => {
   // The consoles are those of the project: close them until a tile of this desk loses its own.
   for (let i = 0; i < 10 && !(await page.$('[data-testid=tile-gone]')); i++) {
     await page.click('.pane.active [data-tool=console] .tab', { button: 'right' })
-    await page.click('.ctx-menu >> text=Close')
+    await page.click('.ctx-menu >> text="Close"')
     await page.waitForTimeout(300)
   }
   await page.waitForSelector('[data-testid=tile-gone]')

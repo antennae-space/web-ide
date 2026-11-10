@@ -139,7 +139,7 @@ The group of buttons at the top right of a tool zone or of a tile: the buttons o
 _Avoid_: toolbar, header buttons
 
 **Options menu**
-The **⋮** of a tool's zone or of its tile (and the menu of a tab, and a right click on either): the core items (*Open in a tab*, *Open in a window*, *Close*), then the items of the tab, then the items the tool's plugin contributes (`toolMenu`).
+The **⋮** of a tool's zone or of its tile (and the menu of a tab, and a right click on either): the items of the tab, then the items the tool's plugin contributes (`toolMenu`), then the core items, always last (*Open in a tab*, *Open in a window*, *Close*).
 _Avoid_: context menu, kebab menu
 
 **Menus button**

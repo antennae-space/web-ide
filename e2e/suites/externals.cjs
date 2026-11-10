@@ -556,13 +556,13 @@ run(async ({ page, errors }) => {
   await page.click('.modal-plugin .modal-head button')
   assert((await result()) === 'null', 'closed by the user: null')
 
-  // The options menu of a tool (#175, #176): the core items, then those its plugin contributes.
+  // The options menu of a tool (#175, #176): the items its plugin contributes, then the core ones.
   const menuLabels = () => page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
   await page.click('[data-tool=explorer] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')
   assert(
-    JSON.stringify(await menuLabels()) === JSON.stringify(['Open in a window', 'Close', 'New file…', 'New folder…', 'Show the hidden files', 'Show the excluded folders', 'Open files with a single click', 'Always select the opened file', 'Row tints', 'Refresh all']),
-    'the items of the Explorer, after the core ones: ' + JSON.stringify(await menuLabels()),
+    JSON.stringify(await menuLabels()) === JSON.stringify(['New file…', 'New folder…', 'Show the hidden files', 'Show the excluded folders', 'Open files with a single click', 'Always select the opened file', 'Row tints', 'Refresh all', 'Open in a window', 'Close']),
+    'the items of the Explorer, before the core ones: ' + JSON.stringify(await menuLabels()),
   )
   await page.keyboard.press('Escape')
   await page.waitForSelector('.ctx-menu', { state: 'detached' })
@@ -583,8 +583,8 @@ run(async ({ page, errors }) => {
   await page.click('[data-tool=greet] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')
   const greetMenu = await menuLabels()
-  assert(greetMenu.slice(0, 2).join() === 'Ouvrir dans une fenêtre,Fermer', 'the core items first: ' + JSON.stringify(greetMenu))
-  assert(greetMenu.slice(2).join() === 'Saluer depuis le menu,En silence', 'the items of the frame, translated: ' + JSON.stringify(greetMenu))
+  assert(greetMenu.slice(-2).join() === 'Ouvrir dans une fenêtre,Fermer', 'the core items last: ' + JSON.stringify(greetMenu))
+  assert(greetMenu.slice(0, -2).join() === 'Saluer depuis le menu,En silence', 'the items of the frame, translated: ' + JSON.stringify(greetMenu))
   await page.click('.ctx-menu >> text=Saluer depuis le menu')
   await g.locator('#menu-choice:not(:empty)').waitFor()
   assert((await g.locator('#menu-choice').textContent()) === 'louder', 'the choice reaches the frame')
