@@ -1,6 +1,6 @@
 # Explorer roots
 
-The Explorer as the navigator of the project, as in PhpStorm (a foldable project root, *Scratches and Consoles*), but open to every tool: it shows a list of foldable **roots**, one per tool, each a tree of **nodes**. Decided with the user on 2026-11-10, milestone 20; the base (the contribution, the project root, the order) is done in #239, the terminals and tasks in #240.
+The Explorer as the navigator of the project, as in PhpStorm (a foldable project root, *Scratches and Consoles*), but open to every tool: it shows a list of foldable **roots**, one per tool, each a tree of **nodes**. Decided with the user on 2026-11-10, milestone 20; the base (the contribution, the project root, the order) is done in #239, the terminals and tasks in #240, the debug sessions in #241.
 
 ## Choices
 
@@ -20,7 +20,7 @@ In their order by default:
 | The project (its name) | Files | the file tree of the worktree shown; a folder icon | #239 |
 | Scratches and Consoles | Files (empty) | the SQL consoles (plugin-database), by connection | #244, #245 |
 | Terminals and tasks | Exec | the consoles of the Console tool: a terminal or a task icon, the tags of their desk and worktree, an ended one dimmed (with its exit code when it is not 0); a double click shows it in the Console (it comes to the desk shown, as when the assistant shows it); its menu renames, moves or closes it | #240, done |
-| Debug sessions | Debug | the debug sessions, with their state | #241 |
+| Debug sessions | Debug | the debug sessions of every attached worktree, with their state (*Paused*, *Starting*), an ended one dimmed; a double click shows it in the Debug tool (the Explorer asks before switching its worktree); its menu stops or restarts it | #241, done |
 
 A root with no node is hidden; the project root always shows.
 
