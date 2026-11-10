@@ -175,7 +175,7 @@ export function AgentComposer(props: { id: string; onSent?: () => void; head?: J
   })
   onCleanup(off)
 
-  const placeholder = () => (busy() ? t('Queued message…') : t('Ask the agent… (Ctrl+Enter sends)'))
+  const placeholder = () => (busy() ? t('Queued message…') : t('Ask the agent…'))
 
   return (
     <div class={`ai-composer-wrap agent-composer mode-${modeTone(modeOption()?.currentValue)}`} classList={{ full: agentFull(), busy: busy() }} data-testid="agent-composer">
@@ -316,7 +316,7 @@ export function AgentComposer(props: { id: string; onSent?: () => void; head?: J
           <Show
             when={busy()}
             fallback={
-              <button class="ai-send" disabled={!canSend()} onClick={() => void submit()} aria-label={t('Send')} title={t('Send (Ctrl+S or Ctrl+Enter)')} data-testid="agent-send">
+              <button class="ai-send" disabled={!canSend()} onClick={() => void submit()} aria-label={t('Send')} title={t('Send (Enter or Ctrl+S)')} data-testid="agent-send">
                 <Icon name="arrowUp" size={16} />
               </button>
             }

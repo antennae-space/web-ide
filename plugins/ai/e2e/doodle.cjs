@@ -234,7 +234,7 @@ run(async ({ page }) => {
 
     // Sent: image and description.
     await page.fill('.ai-composer .ed-content', 'Here is my sketch')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Got Here is my sketch")', { timeout: 15000 })
     let user = requests[requests.length - 1].messages.find((m) => m.role === 'user')
     const kinds = user.content.map((p) => p.type)
@@ -267,7 +267,7 @@ run(async ({ page }) => {
     assert((await page.textContent('[data-testid=doodle] .dd-head h2')) === 'Doodle 1', 'Ctrl+Shift+D opens a new doodle')
     await stroke(page, 0.3, 0.3, 0.5, 0.5)
     await page.fill('[data-testid=doodle] .ai-composer .ed-content', 'Second sketch')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=doodle]', { state: 'detached' })
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Got Second sketch")', { timeout: 15000 })
     user = [...requests[requests.length - 1].messages].reverse().find((m) => m.role === 'user')
@@ -298,7 +298,7 @@ run(async ({ page }) => {
     await page.waitForSelector('[data-testid=doodle]')
     await stroke(page, 0.6, 0.6, 0.8, 0.7)
     await page.fill('[data-testid=doodle] .ai-composer .ed-content', 'Third sketch')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=doodle]', { state: 'detached' })
     await page.click('[data-testid=ai-view-chat]')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Got Third sketch")', { timeout: 15000 })
@@ -500,7 +500,7 @@ run(async ({ page }) => {
 
     // Description: numbered shapes, label, arrow ends.
     await page.fill('.ai-composer .ed-content', 'Shapes')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Got Shapes")', { timeout: 15000 })
     user = [...requests[requests.length - 1].messages].reverse().find((m) => m.role === 'user')
     const d2 = text(user)
@@ -543,7 +543,7 @@ run(async ({ page }) => {
     await page.click('[data-testid=dd-attach]')
     await page.waitForSelector('[data-testid=doodle]', { state: 'detached' })
     await page.fill('.ai-composer .ed-content', 'Layout')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Got Layout")', { timeout: 15000 })
     user = [...requests[requests.length - 1].messages].reverse().find((m) => m.role === 'user')
     const d3 = text(user)
@@ -591,7 +591,7 @@ run(async ({ page }) => {
 
     // A ticket created by the model gets the doodles of the conversation.
     await page.fill('.ai-composer .ed-content', 'Make a ticket of it')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Ticket made.")', { timeout: 15000 })
     const toolMsg = requests[requests.length - 1].messages.find((m) => m.role === 'tool')
     assert(/Ticket #\d+ created in the backlog \(status New\)\. \d+ doodles of the conversation attached to it as PNG files\./.test(text(toolMsg)), `doodles attached to the ticket: ${text(toolMsg)}`)
@@ -601,7 +601,7 @@ run(async ({ page }) => {
     // the model; the board says so; the pages go to the tickets.
     await page.click('.ai-panel button[title="New conversation"]')
     await page.fill('.ai-composer .ed-content', 'Draw: the login flow')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Drawn.")', { timeout: 20000 })
     const msgs = requests[requests.length - 1].messages
     const d = (id) => text(msgs.find((m) => m.role === 'tool' && m.tool_call_id === id))
@@ -625,7 +625,7 @@ run(async ({ page }) => {
     await page.screenshot({ path: OUT + '/board-model.png' })
     await page.click('[data-testid=ai-view-chat]')
     await page.fill('.ai-composer .ed-content', 'Make a ticket of it')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Ticket made.") >> nth=-1', { timeout: 15000 })
     const tk = text([...requests[requests.length - 1].messages].reverse().find((m) => m.role === 'tool'))
     assert(tk.includes('2 doodles of the conversation attached'), 'the pages of the model go to the ticket: ' + tk)
@@ -639,7 +639,7 @@ run(async ({ page }) => {
     await page.setInputFiles('.ai-composer input[type=file]', { name: 'shot.png', mimeType: 'image/png', buffer: PNG })
     await page.waitForSelector('.ai-composer .ai-att[data-kind=image]')
     await page.fill('.ai-composer .ed-content', 'Back: annotate')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=ai-capture]', { timeout: 30000 })
     assert(true, 'the capture of the screen waits for the user')
     await page.click('[data-testid=ai-capture-refuse]')
@@ -694,7 +694,7 @@ run(async ({ page }) => {
     await page.click('.ai-servers .modal-head button')
     await page.click('.ai-panel button[title="New conversation"]')
     await page.fill('.ai-composer .ed-content', 'Imagine: a fox')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Imagined.")', { timeout: 20000 })
     const gm = requests[requests.length - 1].messages
     const g = (id) => text(gm.find((m) => m.role === 'tool' && m.tool_call_id === id))

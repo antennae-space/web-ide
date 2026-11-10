@@ -1,5 +1,5 @@
-// Message box of the assistant: a Markdown editor that grows with its content (Enter adds a
-// line, Ctrl+S or Ctrl+Enter sends), attachments, dictation, model picker, options menu,
+// Message box of the assistant: a Markdown editor that grows with its content (Shift+Enter adds a
+// line, Enter or Ctrl+S sends), attachments, dictation, model picker, options menu,
 // context gauge, send / stop. The draft survives panel switches.
 import { createEffect, createSignal, For, on, onCleanup, onMount, Show, type JSX } from 'solid-js'
 import { loadPromptContext, promptContext } from './prompt'
@@ -255,7 +255,7 @@ function HelpCard() {
         </For>
       </Show>
       <div class="ai-help-foot muted">{t('@path designates a file or folder of the project (completion when typing @).')}</div>
-      <div class="ai-help-foot muted">{t('Enter adds a line and continues the lists; Ctrl+S or Ctrl+Enter sends.')}</div>
+      <div class="ai-help-foot muted">{t('Enter (or Ctrl+S) sends; Shift+Enter adds a line and continues the lists.')}</div>
     </div>
   )
 }
@@ -776,14 +776,14 @@ export function Composer(props: {
           </Show>
           <ModelPicker onSettings={props.onSettings} />
           <Show when={live.busy && canSend()}>
-            <button class="ai-send queue" onClick={submit} aria-label={t('Queue')} title={t('Queue (Ctrl+S or Ctrl+Enter): sent at the next step')} data-testid="enqueue">
+            <button class="ai-send queue" onClick={submit} aria-label={t('Queue')} title={t('Queue (Enter or Ctrl+S): sent at the next step')} data-testid="enqueue">
               <Icon name="arrowUp" size={16} />
             </button>
           </Show>
           <Show
             when={live.busy}
             fallback={
-              <button class="ai-send" disabled={!canSend()} onClick={submit} aria-label={t('Send')} title={t('Send (Ctrl+S or Ctrl+Enter)')} data-testid="send">
+              <button class="ai-send" disabled={!canSend()} onClick={submit} aria-label={t('Send')} title={t('Send (Enter or Ctrl+S)')} data-testid="send">
                 <Icon name="arrowUp" size={16} />
               </button>
             }

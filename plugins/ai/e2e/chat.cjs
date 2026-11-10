@@ -94,7 +94,7 @@ const fake = http.createServer(async (req, res) => {
 async function ask(page, message, expect) {
   await page.click('.ai-composer .ed-content')
   await page.fill('.ai-composer .ed-content', message)
-  await page.keyboard.press('Control+Enter')
+  await page.keyboard.press('Enter')
   await page.waitForSelector(`.ai-msg.assistant:not(.live) .md:has-text("${expect}")`, { timeout: 20000 })
   await page.waitForSelector('[data-testid=send]', { timeout: 10000 })
 }
@@ -144,14 +144,17 @@ run(async ({ page, ctx }) => {
     assert(new Set(leds).size === 4, 'a LED color per mode ' + leds.join(' '))
     await page.click('.ai-composer .ed-content')
     for (const k of ['Steps:', 'Enter', '- one', 'Enter', 'two', 'Enter', 'Enter', '1. a', 'Enter', 'b', 'Enter', 'Enter', '- [x] done', 'Enter', 'next', 'Enter', 'Enter', 'see @src/main.go']) {
-      if (k === 'Enter') await page.keyboard.press('Enter')
+      if (k === 'Enter') await page.keyboard.press('Shift+Enter')
       else await page.keyboard.type(k)
     }
     await page.keyboard.press('Escape')
     const listed = 'Steps:\n- one\n- two\n1. a\n2. b\n- [x] done\n- [ ] next\nsee @src/main.go'
-    assert((await composerText(page)) === listed, 'Enter adds a line and continues the lists ' + JSON.stringify(await composerText(page)))
+    assert((await composerText(page)) === listed, 'Shift+Enter adds a line and continues the lists ' + JSON.stringify(await composerText(page)))
     assert(await page.waitForFunction(() => CSS.highlights.get('ai-ref')?.size === 1, null, { timeout: 3000 }).then(() => true, () => false), 'the @path is highlighted')
     await page.screenshot({ path: OUT + '/chat-composer-editor.png' })
+    await page.keyboard.press('Control+Enter')
+    await page.waitForTimeout(300)
+    assert((await composerText(page)) === listed && !(await page.$('.ai-msg.user')), 'Ctrl+Enter no longer sends')
     await page.keyboard.press('Control+s')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Answer to Steps:")', { timeout: 20000 })
     assert(!(await page.$('[data-testid=ai-cost]')), 'a model without a price: the time alone, no cost')
@@ -184,7 +187,7 @@ run(async ({ page, ctx }) => {
     assert(!(await page.$('[data-testid=ai-quota]')), 'a local model without a price: no budget on its conversation')
     await page.click('.ai-composer .ed-content')
     await page.keyboard.type('paid answer please')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=ai-cost]', { timeout: 20000 })
     // The panel is narrow: the number alone; $2.50 of $10 spent.
     await page.waitForSelector('[data-testid=ai-topbar] [data-testid=ai-quota][data-source=budget] [data-testid=ai-quota-day]:text-is("75%")')
@@ -211,7 +214,7 @@ run(async ({ page, ctx }) => {
     await page.keyboard.press('Control+Shift+KeyE')
     await page.waitForSelector('.ai-messages', { state: 'hidden' })
     await page.screenshot({ path: OUT + '/chat-composer-full.png' })
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Answer to A long message")', { timeout: 20000 })
     await page.waitForSelector('[data-testid=send]', { timeout: 10000 })
     assert(await page.isVisible('.ai-messages'), 'the shortcut opens the full screen, sending leaves it')
@@ -227,10 +230,10 @@ run(async ({ page, ctx }) => {
 
     // Queue: a message written during an answer is sent after it.
     await page.fill('.ai-composer .ed-content', 'wait a bit')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=stop]')
     await page.fill('.ai-composer .ed-content', 'next')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=ai-queue]:has-text("next")')
     assert(true, 'message queued during the answer')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Answer to next")', { timeout: 15000 })
@@ -238,10 +241,10 @@ run(async ({ page, ctx }) => {
 
     // Queue between tool steps: the message joins the conversation after the tool result.
     await page.fill('.ai-composer .ed-content', 'tool then')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-tool.running', { timeout: 10000 })
     await page.fill('.ai-composer .ed-content', 'and this too')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Seen: and this too")', { timeout: 15000 })
     const inj = requests[requests.length - 1].messages.slice(-2)
     assert(inj[0].role === 'tool' && inj[1].role === 'user' && text(inj[1]) === 'and this too', 'message injected between two tool steps')
@@ -307,7 +310,7 @@ run(async ({ page, ctx }) => {
     // Reload during an answer: the page attaches to the completion running in the pod.
     await page.waitForSelector('[data-testid=send]')
     await page.fill('.ai-composer .ed-content', 'slow stream')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.live .md:has-text("Part 1. x x")', { timeout: 10000 })
     await page.reload()
     await page.waitForSelector('.ai-msg.live .md:has-text("Part 1.")', { timeout: 10000 })
@@ -361,7 +364,7 @@ run(async ({ page, ctx }) => {
     // Reload during a tool: the agent runs in the pod, the tool goes on and so does the agent.
     await page.waitForSelector('[data-testid=send]')
     await page.fill('.ai-composer .ed-content', 'slow-tool now')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-tool.running', { timeout: 10000 })
     const streamed = await page.waitForSelector('.ai-tool.running .ai-term:has-text("started")', { timeout: 2500 }).then(() => true, () => false)
     assert(streamed, 'the running block is open and follows the output of the command')
@@ -382,11 +385,11 @@ run(async ({ page, ctx }) => {
     const slowBefore = byScenario.slow
     await page.click('.ai-composer .ed-content')
     await page.fill('.ai-composer .ed-content', 'slow one')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await other.waitForSelector('.ai-msg.live .md:has-text("Part 1. x")', { timeout: 10000 })
     assert(true, 'the other window follows the running answer')
     await other.fill('.ai-composer .ed-content', 'from the other window')
-    await other.keyboard.press('Control+Enter')
+    await other.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=ai-queue]:has-text("from the other window")', { timeout: 5000 })
     assert(true, 'the other window writes too: its message is queued for the next step')
     await other.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("End.")', { timeout: 15000 })
@@ -396,7 +399,7 @@ run(async ({ page, ctx }) => {
     // Stop from the window that follows.
     await page.waitForSelector('[data-testid=send]')
     await page.fill('.ai-composer .ed-content', 'slow two')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await other.waitForSelector('.ai-msg.live .md:has-text("Part 1. x")', { timeout: 10000 })
     await other.click('[data-testid=stop]')
     await page.waitForSelector('.ai-error:has-text("Stopped")', { timeout: 10000 })
@@ -406,7 +409,7 @@ run(async ({ page, ctx }) => {
     await page.waitForSelector('[data-testid=send]')
     await other.waitForSelector('[data-testid=send]', { timeout: 10000 })
     await page.fill('.ai-composer .ed-content', 'slow three')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await other.waitForSelector('.ai-msg.live .md:has-text("Part 1. x")', { timeout: 10000 })
     await page.close()
     await other.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("End.")', { timeout: 15000 })
@@ -418,7 +421,7 @@ run(async ({ page, ctx }) => {
     await other.waitForSelector('[data-testid=send]', { timeout: 10000 })
     const slowFour = byScenario.slow
     await other.fill('.ai-composer .ed-content', 'slow four')
-    await other.keyboard.press('Control+Enter')
+    await other.keyboard.press('Enter')
     await other.waitForSelector('.ai-msg.live .md:has-text("Part 1. x")', { timeout: 10000 })
     await other.close()
     await sleep(4000)

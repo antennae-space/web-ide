@@ -1,8 +1,9 @@
 // The editor of a message box, shared by the assistant (Composer) and the Agents tool: a
-// Markdown editor that grows with its content, Ctrl+S or Ctrl+Enter sends, completion of
+// Markdown editor that grows with its content, Enter (or Ctrl+S) sends, Shift+Enter adds a line
+// (a phone: Enter adds a line, the button sends), completion of
 // /commands (at the start) and @paths (anywhere), pasted files handed to the owner.
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js'
-import { fuzzy, Icon, newDoc, newEditorView, registerAction, relPath, request, tabSize } from '../plugin'
+import { fuzzy, Icon, newDoc, newEditorView, phone, registerAction, relPath, request, tabSize } from '../plugin'
 import type { EditorView } from '../plugin'
 import type { DictationSink } from './transcribe'
 
@@ -159,7 +160,7 @@ export function MessageBox(props: {
       }
       const it = items()[selIndex()]
       const qy = query()!
-      // Enter on a token already complete (e.g. "/clear") goes to the next line.
+      // Enter on a token already complete (e.g. "/clear") sends.
       const complete = it.insert.trimEnd() === props.draft().slice(qy.start, qy.end)
       if ((e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !complete) || (e.key === 'Tab' && !e.shiftKey)) {
         accept(it)
@@ -170,7 +171,8 @@ export function MessageBox(props: {
         return true
       }
     }
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && !e.isComposing) {
+    // Shift+Enter goes to the editor: a line break, which continues the lists.
+    if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && !e.isComposing && !phone()) {
       props.onSubmit()
       return true
     }

@@ -152,7 +152,7 @@ run(async ({ page }) => {
     // An update of the keeper while an answer is written waits for its end.
     await page.click('.ai-panel button[title="New conversation"]')
     await page.fill('.ai-composer .ed-content', 'Write slowly again')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForFunction(() => /word3 /.test(document.querySelector('.ai-msg.live')?.textContent ?? ''), null, { timeout: 10000 })
     const waited = await upgrade()
     assert(!waited.err && /waiting for HTTP request/.test(waited.out) && /updated in place/.test(waited.out), 'the update waits for the answer being written: ' + waited.out.trim().split('\n').join(' / '))

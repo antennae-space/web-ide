@@ -16,7 +16,7 @@ async function prompt(page, text) {
   await page.keyboard.press('Control+a')
   await page.keyboard.press('Delete')
   await page.keyboard.type(text)
-  await page.keyboard.press('Control+Enter')
+  await page.keyboard.press('Enter')
 }
 const showAgents = (page) => page.click('.rail-btn[data-id=agents]')
 const showQuestions = (page) => page.click('.rail-btn[data-id=questions]')

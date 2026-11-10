@@ -36,7 +36,7 @@ async function side(page, button, selector) {
 async function ask(page, message) {
   await page.click('.ai-composer .ed-content')
   await page.fill('.ai-composer .ed-content', message)
-  await page.keyboard.press('Control+Enter')
+  await page.keyboard.press('Enter')
   await page.waitForSelector(`.ai-msg.assistant:not(.live) .md:has-text("Answer to ${message}")`, { timeout: 20000 })
   await page.waitForSelector('[data-testid=send]', { timeout: 10000 })
 }

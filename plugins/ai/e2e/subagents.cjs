@@ -89,7 +89,7 @@ run(async ({ page }) => {
 
     fs.writeFileSync(WS + '/greeting.txt', 'Bonjour\n') // out of the project: its change asks
     await page.fill('.ai-composer .ed-content', 'Delegate the greeting')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=ai-child]:has-text("Change the greeting")', { timeout: 20000 })
     assert(true, 'a card for the sub-agent in the parent thread')
     const childReq = () => requests.find((r) => text(r.messages[0]).includes('# You are a sub-agent'))
@@ -175,7 +175,7 @@ run(async ({ page }) => {
 
     await page.click('.ai-panel button[title="New conversation"]')
     await page.fill('.ai-composer .ed-content', 'Review in the cloud')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant .md:has-text("The cloud reviewed it.")', { timeout: 20000 })
     const usage = await page.textContent('[data-testid=ai-child]:has-text("Cloud review") [data-testid=ai-child-usage]')
     assert(usage.includes('cloud-coder') && usage.includes('120') && usage.includes('0.50'), 'the card of the child shows its model, tokens and cost: ' + usage)

@@ -203,7 +203,7 @@ run(async ({ page, ctx }) => {
     // confirmed → answer.
     fs.writeFileSync(WS + '/notes.txt', 'Bonjour\n')
     await page.fill('.ai-composer .ed-content', 'Replace Bonjour with Salut in main.go and in the notes')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=ai-approval]', { timeout: 20000 })
     const diff = await page.textContent('[data-testid=ai-approval] .ai-diff')
     assert(diff.includes('- Bonjour') && diff.includes('+ Salut'), 'diff preview before a change out of the project: ' + diff)
@@ -345,7 +345,7 @@ run(async ({ page, ctx }) => {
 
     // The live reasoning box follows the end of the text.
     await page.fill('.ai-composer .ed-content', 'think long')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.live [data-testid=ai-reasoning-text]:has-text("step 40 ")', { timeout: 10000 })
     const follows = await page.$eval('.ai-msg.live [data-testid=ai-reasoning-text]', (b) => b.scrollHeight > b.clientHeight && b.scrollHeight - b.scrollTop - b.clientHeight < 30)
     assert(follows, 'the live reasoning scrolls to its end')
@@ -353,7 +353,7 @@ run(async ({ page, ctx }) => {
 
     // Stop a slow answer.
     await page.fill('.ai-composer .ed-content', 'answer slowly')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     const reading = await page.waitForFunction(() => /Reading the prompt · 60 % .* · prompt 700 tokens\/s · cache 25 %/.test(document.querySelector('[data-testid=ai-live-stats]')?.textContent ?? ''), null, { timeout: 5000 }).then(() => true, () => false)
     assert(reading, 'prompt reading speed and cache ratio while the prompt is read: ' + (await page.textContent('[data-testid=ai-live-stats]').catch(() => '')))
     await page.waitForSelector('.ai-msg.live .md:has-text("Starting")', { timeout: 5000 })
@@ -374,7 +374,7 @@ run(async ({ page, ctx }) => {
     // A crash after a step: Resume keeps the step and asks only the failed answer again.
     const before = requests.length
     await page.fill('.ai-composer .ed-content', 'crash after a step')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=ai-resume]', { timeout: 10000 })
     assert(await page.isVisible('.ai-error:has-text("model server crashed")'), 'error of the model server shown')
     await page.click('.ai-panel button[title="Conversations of the project"]')
@@ -390,7 +390,7 @@ run(async ({ page, ctx }) => {
 
     // A stream closed without its end (the model server stopped): an error, with Resume.
     await page.fill('.ai-composer .ed-content', 'cut after a step')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=ai-resume]', { timeout: 10000 })
     assert(cut && (await page.isVisible('.ai-error:has-text("closed the answer before its end")')), 'a cut stream shown as an error')
     await page.click('[data-testid=ai-resume]')
@@ -402,7 +402,7 @@ run(async ({ page, ctx }) => {
     // A crash, then another model chosen: offered to resume with it, under the two buttons.
     const beforeOther = requests.length
     await page.fill('.ai-composer .ed-content', 'crash until another model')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=ai-resume]', { timeout: 10000 })
     assert(crashedOther && !(await page.isVisible('[data-testid=ai-resume-other]')), 'no resume with another model while the model chosen is the one of the conversation')
     await page.click('[data-testid=model-pill]')
@@ -421,7 +421,7 @@ run(async ({ page, ctx }) => {
     await page.click('.ai-model-item:has-text("fake-model")')
     await page.click('.ai-panel button[title="New conversation"]')
     await page.fill('.ai-composer .ed-content', 'crash until another model')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=ai-dismiss]', { timeout: 10000 })
     await page.click('[data-testid=ai-dismiss]')
     await page.waitForSelector('[data-testid=ai-resume]', { state: 'detached', timeout: 5000 })
@@ -438,7 +438,7 @@ run(async ({ page, ctx }) => {
     await w.click('[data-testid=ai-stats-toggle]')
     await w.waitForSelector('[data-testid=st-view]')
     await w.fill('.ai-composer .ed-content', 'Explain the greeter')
-    await w.keyboard.press('Control+Enter')
+    await w.keyboard.press('Enter')
     const followed = await w.waitForSelector('[data-testid=st-tools] td:has-text("lsp_symbols")', { timeout: 8000 }).then(() => true, () => false)
     assert(followed && (await w.isVisible('.ai-composer')) && !!(await w.$('[data-testid=stop]')), 'the statistics follow the answer running next to them')
     await w.screenshot({ path: OUT + '/llm-stats-wide.png' })

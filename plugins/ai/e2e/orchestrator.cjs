@@ -111,7 +111,7 @@ run(
 
       // 1. What next: a card; nothing runs before the click.
       await page.fill('.ai-composer .ed-content', 'What do we work on today?')
-      await page.keyboard.press('Control+Enter')
+      await page.keyboard.press('Enter')
       await page.waitForSelector('.ai-msg.assistant .md:has-text("Click the card to start it.")', { timeout: 20000 })
       assert(outputs.next.includes('#1 [To do] (Normal) Login page') && outputs.next.includes('#2 [To do] (Normal) Dark theme'), 'kanban_next lists the tickets that can start: ' + outputs.next)
       assert(outputs.tools.includes('edit_file') && outputs.tools.includes('open_conversation'), 'the Orchestrator has its tools (file changes in the scratch folder only)')
@@ -128,14 +128,14 @@ run(
       // 2. What did we do: the history of the kanban.
       await page.click('.ai-panel button[title="New conversation"]')
       await page.fill('.ai-composer .ed-content', 'What did we do yesterday?')
-      await page.keyboard.press('Control+Enter')
+      await page.keyboard.press('Enter')
       await page.waitForSelector('.ai-msg.assistant .md:has-text("Two tickets were planned.")', { timeout: 20000 })
       assert(outputs.history.includes('Login page') && outputs.history.includes('In progress'), 'kanban_history lists the moves of the period: ' + outputs.history)
 
       // 3. An idea: a Briefing conversation opens for the user, the idea sent.
       await page.click('.ai-panel button[title="New conversation"]')
       await page.fill('.ai-composer .ed-content', 'I have an idea: a dark mode')
-      await page.keyboard.press('Control+Enter')
+      await page.keyboard.press('Enter')
       await page.waitForSelector('.ai-msg.assistant .md:has-text("Let\'s clarify the dark mode.")', { timeout: 20000 })
       assert((await page.textContent('.ai-mode')).includes('Briefing'), 'the view moved to a Briefing conversation')
       assert(await page.isVisible('.ai-msg.user:has-text("Idea: a dark mode")'), 'the idea was sent in it')
@@ -153,11 +153,11 @@ run(
       await page.keyboard.press('Shift+Tab') // Plan
       await page.keyboard.press('Shift+Tab') // Build
       await page.fill('.ai-composer .ed-content', 'Work on the footer')
-      await page.keyboard.press('Control+Enter')
+      await page.keyboard.press('Enter')
       await page.waitForSelector('.ai-msg.assistant .md:has-text("Developing.")', { timeout: 20000 })
       await page.click('.ai-panel button[title="New conversation"]')
       await page.fill('.ai-composer .ed-content', 'Follow the footer')
-      await page.keyboard.press('Control+Enter')
+      await page.keyboard.press('Enter')
       await page.waitForSelector('.ai-msg.assistant .md:has-text("I follow the footer now.")', { timeout: 20000 })
       await page.waitForSelector('[data-testid=ai-child]:has-text("footer")', { timeout: 10000 })
       assert(true, 'the adopted conversation shows as a sub-agent card')
@@ -181,11 +181,11 @@ run(
       await page.keyboard.press('Shift+Tab') // Plan
       await page.keyboard.press('Shift+Tab') // Build
       await page.fill('.ai-composer .ed-content', 'Break please')
-      await page.keyboard.press('Control+Enter')
+      await page.keyboard.press('Enter')
       await page.waitForSelector('[data-testid=ai-dismiss]', { timeout: 20000 })
       await page.click('.ai-panel button[title="New conversation"]')
       await page.fill('.ai-composer .ed-content', 'Resume the broken one')
-      await page.keyboard.press('Control+Enter')
+      await page.keyboard.press('Enter')
       await page.waitForSelector('.ai-msg.assistant .md:has-text("Resumed it.")', { timeout: 20000 })
       assert(outputs.failedLine.includes('failed (agent_resume)'), 'list_conversations tells the failed conversation: ' + outputs.failedLine)
       await page.waitForSelector('[data-testid=ai-child]:has-text("Break please")', { timeout: 10000 })

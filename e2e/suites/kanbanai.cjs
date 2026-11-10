@@ -253,7 +253,7 @@ run(async ({ page }) => {
     await kp.waitForSelector('[data-testid=model-pill]:has-text("fake-model")')
 
     await kp.fill('.ai-composer .ed-content', 'Write down a ticket for the export')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await kp.waitForSelector('[data-testid=ai-ask-question]', { timeout: 10000 })
     const names = toolNames(requests[0])
     assert(['kanban_list', 'kanban_get', 'kanban_create', 'ask_user'].every((n) => names.includes(n)), 'reading kanban tools and ask_user offered')
@@ -381,7 +381,7 @@ run(async ({ page }) => {
     // a note, "I don't know", and an invalid call (compare with three options) refused.
     await kp.click('.ai-panel button[title="New conversation"]')
     await kp.fill('.ai-composer .ed-content', 'Types: which widgets')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Which color?")', { timeout: 10000 })
     // Q1 choice: a note, then the pick (a single choice moves on by itself).
     await kp.click('[data-testid=ai-ask-note]')
@@ -439,7 +439,7 @@ run(async ({ page }) => {
     assert(true, 'Shift+Tab twice from Build: Briefing mode')
     const before3 = requests.length
     await kp.fill('.ai-composer .ed-content', 'Brief: an export for accounting')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Who uses the export")', { timeout: 10000 })
     const rb = requests[before3]
     const bn = toolNames(rb)
@@ -491,7 +491,7 @@ run(async ({ page }) => {
     // Mobile: the idea is answered by swiping the card (right = Yes), and the compare stacks.
     await kp.click('.ai-panel button[title="New conversation"]')
     await kp.fill('.ai-composer .ed-content', 'TypesM: swipe')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await kp.waitForSelector('[data-testid=ai-ask-idea]', { timeout: 10000 })
     await kp.$eval('[data-testid=ai-ask-idea]', (el) => {
       const target = el.querySelector('.ai-ask-idea-proposal')
@@ -529,7 +529,7 @@ run(async ({ page }) => {
     // answer changing the path, invalid graphs refused.
     await kp.click('.ai-panel button[title="New conversation"]')
     await kp.fill('.ai-composer .ed-content', 'Graph: a game')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Mode?")', { timeout: 10000 })
     await kp.click('.ai-ask-option:has-text("Solo")')
     await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Difficulty?")')
@@ -560,7 +560,7 @@ run(async ({ page }) => {
     // Leaving the path: a free answer on a question with branches sends the round at once.
     await kp.click('.ai-panel button[title="New conversation"]')
     await kp.fill('.ai-composer .ed-content', 'GraphOff: a game')
-    await page.keyboard.press('Control+Enter')
+    await page.keyboard.press('Enter')
     await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Mode?")', { timeout: 10000 })
     await kp.click('.ai-ask-option:has-text("Solo")')
     await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Difficulty?")')

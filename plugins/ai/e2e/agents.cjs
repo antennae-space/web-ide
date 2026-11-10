@@ -19,13 +19,16 @@ const waitState = (page, s) => page.waitForSelector(`${tab}[data-state=${s}]`, {
 const box = '[data-testid=agent-input] .ed-content'
 const draft = (page) => page.$eval(box, (e) => e.textContent.replace(/\n$/, ''))
 
-/** Types in the message box (an editor: Enter adds a line) and sends with Ctrl+Enter. */
+/** Types in the message box (an editor: Shift+Enter adds a line) and sends with Enter. */
 async function prompt(page, text) {
   await page.click(box)
   await page.keyboard.press('Control+a')
   await page.keyboard.press('Delete')
-  await page.keyboard.type(text)
-  await page.keyboard.press('Control+Enter')
+  for (const [i, line] of text.split('\n').entries()) {
+    if (i) await page.keyboard.press('Shift+Enter')
+    await page.keyboard.type(line)
+  }
+  await page.keyboard.press('Enter')
 }
 
 // A 1×1 PNG.
