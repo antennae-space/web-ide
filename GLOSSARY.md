@@ -283,6 +283,14 @@ _Avoid_: gutter icon (one kind of them), overlay
 The shared row component (`web/src/ui/FileRow.tsx`, `api.ui.FileRow`) every tree draws its files with (#183): twist, icon, name colored by its state, label, error sign, status letter, then the slots of the tree. A tree keeps its own handlers and slots, none draws a name by hand.
 _Avoid_: tree item, file item
 
+**Explorer root** ([explorer](docs/design/explorer.md))
+A foldable row at the top level of the Explorer and the tree below it, one per tool: the project (its files), Conversations & Agents, Scratches and Consoles, Terminals and tasks, Debug sessions. The user orders them per desk.
+_Avoid_: section, group, content root
+
+**Explorer node** ([explorer](docs/design/explorer.md))
+An item a plugin puts in an Explorer root: a console, a session, a thread, a file a thread changed. A double click shows it in its tool.
+_Avoid_: entry (an entry is a file or a folder of the tree), item
+
 **Kind** ([plugins](docs/design/plugins.md#what-explorer-decorations-added-to-the-api))
 The category of a path in a tree: `test`, `library`, `manifest`, `ignored`, `marked`. A symbol kind is another thing (see *Glyph family*).
 _Avoid_: category, type (for a path)

@@ -5,5 +5,8 @@
   "Hello from the menu": "Hola desde el menú",
   "Greet twice": "Saludar dos veces",
   "Say hello": "Saludar",
-  "Hello from the corner": "Hola desde el rincón"
+  "Hello from the corner": "Hola desde el rincón",
+  "Show the Explorer nodes": "Mostrar los nodos del Explorador",
+  "Hello nodes": "Nodos Hello",
+  "Hello from the Explorer": "Hola desde el Explorador"
 }

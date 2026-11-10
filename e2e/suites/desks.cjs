@@ -189,7 +189,7 @@ run(async ({ ctx, page }) => {
   await page.waitForSelector('.ctx-menu')
   const helloTile = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
   assert(
-    helloTile.slice(-5).join() === 'Say hello from the menu,Greet twice,Open in a tab,Open in a window,Close',
+    helloTile.slice(-6).join() === 'Say hello from the menu,Greet twice,Show the Explorer nodes,Open in a tab,Open in a window,Close',
     'the menu of a tile of the plugin tool, its contributed items, then the core ones last: ' + JSON.stringify(helloTile),
   )
   // No ✕ in the corner any more: the Close item of the ⋮ closes the tile (#176).

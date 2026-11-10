@@ -36,6 +36,7 @@ How the IDE is built and why, kept up to date with the code.
 - [Load](design/load.md): what a relay costs per session.
 - [Doodle](design/doodle.md): drawings attached for the assistant.
 - [Plugins](design/plugins.md): the plugin system, phase 1 decided.
+- [Explorer roots](design/explorer.md): the Explorer as the navigator of the project, a foldable root per tool (the project, the consoles, the sessions).
 - [Debug](design/debug.md): the debug host, the adapters of the language packs, the Debug tool (planned).
 - [Consolidation](design/consolidation.md): the lessons of the tickets moved into the instructions, reviewed and rolled back (#235 to #237 done).
 - Drafts under discussion: [Desks](design/desks.md).

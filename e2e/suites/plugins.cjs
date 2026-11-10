@@ -62,12 +62,65 @@ run(async ({ page }) => {
   await page.waitForSelector('.ctx-menu')
   const helloMenu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
   assert(
-    JSON.stringify(helloMenu) === JSON.stringify(['Say hello from the menu', 'Greet twice', 'Open in a window', 'Close']),
+    JSON.stringify(helloMenu) === JSON.stringify(['Say hello from the menu', 'Greet twice', 'Show the Explorer nodes', 'Open in a window', 'Close']),
     'the menu of the plugin tool: ' + JSON.stringify(helloMenu),
   )
   await page.click('.ctx-menu >> text=Greet twice')
   await page.waitForFunction(() => document.querySelector('[data-testid=hello-text]')?.textContent === 'Hello plugin from demo Hello plugin from demo')
   assert(true, 'the contributed item changed the tool')
+
+  // The roots of the Explorer (docs/design/explorer.md): hello gives one, and a node into
+  // Scratches and Consoles, once its menu turns them on.
+  const rootRow = (id) => `.explorer .tree-row[data-path="root:${id}"]`
+  const nodeRow = (key) => `.explorer .tree-row[data-path="node:${key}"]`
+  const rootOrder = () => page.$$eval('.explorer .tree-row.explorer-root', (l) => l.map((r) => r.dataset.path.slice(5)))
+  const helloNodes = async () => {
+    await page.click('[data-tool=hello] [data-testid=zone-menu]')
+    await page.click('.ctx-menu >> text=Show the Explorer nodes')
+    await page.waitForSelector(rootRow('hello'))
+  }
+  if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
+  await page.waitForSelector(rootRow('files'))
+  assert(JSON.stringify(await rootOrder()) === JSON.stringify(['files']), 'only the root of the project without nodes: ' + (await rootOrder()))
+  await helloNodes()
+  assert(JSON.stringify(await rootOrder()) === JSON.stringify(['files', 'scratches', 'hello']), 'the roots in their order by default: ' + (await rootOrder()))
+  assert(await page.isVisible(nodeRow('scratches/hello-console')), 'a node put into Scratches and Consoles by another plugin')
+  assert((await page.textContent(nodeRow('hello/greet') + ' .tree-tag')) === 'new', 'the badge of a node at the right of its row')
+  // A node with children is closed; its twist opens it.
+  assert(!(await page.$(nodeRow('hello/group/deco'))), 'a node with children starts closed')
+  await page.click(nodeRow('hello/group') + ' .tree-twist')
+  await page.waitForSelector(nodeRow('hello/group/deco'))
+  const done = nodeRow('hello/group/done')
+  assert((await page.$eval(done, (e) => e.classList.contains('dimmed'))) && (await page.textContent(done + ' [data-testid=explorer-desk-tag]')) === 'Desk 2', 'a finished node is dimmed, the tag of its desk at the right')
+  await page.dblclick(nodeRow('hello/group/deco'))
+  await page.waitForSelector('.pane.active .tab.active:has-text("deco.txt")')
+  assert(true, 'a file node opens its file')
+  await page.click(nodeRow('hello/group'), { button: 'right' })
+  await page.click('.ctx-menu >> text=Say hello')
+  await page.waitForSelector('.toast:has-text("Hello from the Explorer")')
+  assert(true, 'the context menu of a node is the plugin\'s')
+  // A root moved by its menu, kept by the desk after a reload.
+  await page.click(rootRow('files'), { button: 'right' })
+  await page.click('.ctx-menu >> text=Move down')
+  await page.waitForFunction(() => [...document.querySelectorAll('.explorer .tree-row.explorer-root')].map((r) => r.dataset.path).join() === 'root:scratches,root:files,root:hello')
+  assert(true, 'Move down puts the project after Scratches and Consoles')
+  // Folded, the root of the project hides its files.
+  await page.click(rootRow('files') + ' .tree-twist')
+  await page.waitForFunction(() => !document.querySelector('.explorer .tree-row[data-path$="/go.mod"]'))
+  assert(true, 'the root of the project folds')
+  await page.click(rootRow('files') + ' .tree-twist')
+  await page.waitForSelector('.explorer .tree-row[data-path$="/go.mod"]')
+  await page.reload()
+  await page.waitForSelector(rootRow('files'))
+  await page.waitForSelector('[data-tool=hello] [data-testid=zone-menu]')
+  await helloNodes()
+  assert(JSON.stringify(await rootOrder()) === JSON.stringify(['scratches', 'files', 'hello']), 'the order of the roots kept after a reload: ' + (await rootOrder()))
+  await page.click(rootRow('scratches'), { button: 'right' })
+  await page.click('.ctx-menu >> text=Move down')
+  await page.waitForFunction(() => document.querySelector('.explorer .tree-row.explorer-root')?.dataset.path === 'root:files')
+  await page.dblclick(nodeRow('hello/greet'))
+  await page.waitForSelector('[data-testid=hello-text]')
+  assert(true, 'a node opens its tool')
 
   // Its assistant tool in the MCP, run on the project of the cwd.
   assert((await tools()).includes('hello_greet'), 'hello_greet listed by the MCP')

@@ -25,6 +25,19 @@ run(async ({ page }) => {
   await page.waitForSelector('.explorer .tree-row')
   const row = (name) => `.explorer .tree-row[data-path="${demo}/${name}"]`
 
+  // The root of the project (docs/design/explorer.md): a folder row with the name of the project,
+  // its files below; ArrowLeft from a file at the top goes up to it, and ArrowLeft folds it.
+  const projectRow = '.explorer .tree-row[data-path="root:files"]'
+  assert((await page.textContent(projectRow + ' .tree-name')) === 'demo' && (await page.getAttribute(projectRow, 'aria-expanded')) === 'true', 'the root of the project, open')
+  await page.click(row('go.mod'))
+  await page.keyboard.press('ArrowLeft')
+  await page.waitForFunction(() => document.activeElement?.getAttribute('data-path') === 'root:files')
+  await page.keyboard.press('ArrowLeft')
+  await page.waitForSelector(row('go.mod'), { state: 'detached' })
+  await page.keyboard.press('ArrowRight')
+  await page.waitForSelector(row('go.mod'))
+  assert(true, 'ArrowLeft goes up to the root of the project and folds it, ArrowRight unfolds it')
+
   // File type icons.
   await page.click(row('src'))
   await page.dblclick(row('src'))
@@ -163,7 +176,7 @@ run(async ({ page }) => {
   await keepsActive('node_modules')
   await page.screenshot({ path: OUT + '/explorer.png' })
   await page.click('[data-testid=explorer-collapse]')
-  await page.waitForFunction(() => !document.querySelector('.explorer .tree-row[aria-expanded=true]'))
+  await page.waitForFunction(() => !document.querySelector('.explorer .tree-row:not(.explorer-root)[aria-expanded=true]'))
   assert(true, 'collapse all')
 
   // Locate the active file.
@@ -183,7 +196,7 @@ run(async ({ page }) => {
   await page.waitForSelector('.ctx-menu')
   const menu = await labels()
   assert(
-    JSON.stringify(menu) === JSON.stringify(['Open in a window', 'Close', 'New file…', 'New folder…', 'Show the hidden files', 'Show the excluded folders', 'Open files with a single click', 'Always select the opened file', 'Row tints', 'Refresh all']),
+    JSON.stringify(menu) === JSON.stringify(['New file…', 'New folder…', 'Show the hidden files', 'Show the excluded folders', 'Open files with a single click', 'Always select the opened file', 'Row tints', 'Refresh all', 'Open in a window', 'Close']),
     'the items of the ⋮ of the Explorer: ' + JSON.stringify(menu),
   )
   await page.keyboard.press('Escape')

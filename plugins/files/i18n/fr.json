@@ -26,5 +26,9 @@
   "Library roots": "Racines de bibliothèque",
   "Manifests": "Manifestes",
   "Marked folders": "Dossiers marqués",
-  "Ignored files": "Fichiers ignorés"
+  "Ignored files": "Fichiers ignorés",
+  "Fold": "Replier",
+  "Unfold": "Déplier",
+  "Scratches and Consoles": "Brouillons et consoles",
+  "“{name}” is in the worktree {worktree}. Show this worktree?": "« {name} » est dans le worktree {worktree}. Afficher ce worktree ?"
 }
