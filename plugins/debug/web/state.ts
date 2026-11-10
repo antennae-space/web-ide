@@ -3,7 +3,7 @@
 // thread, the scopes and the variables of the selected frame, its console. The threads, the
 // frames and the variables stay lazy: a row asks for its children when it opens, and all of it is
 // dropped when the program runs again.
-import { batch } from 'solid-js'
+import { batch, createSignal } from 'solid-js'
 import { createStore, produce } from 'solid-js/store'
 import { api, errorToast, relOf, t } from './plugin'
 import { onEnd } from './focus'
@@ -87,8 +87,60 @@ const ensureView = (id: string) => {
 /** The sessions the pod said ended: an answer of start arriving after the end does not bring one back. */
 const ended = new Set<string>()
 
+/** A session and the worktree whose pod runs it. */
+export interface Known {
+  project: string
+  session: Session
+}
+
+/**
+ * Every session the window knows, whatever its worktree (docs/design/explorer.md): the Debug tool
+ * shows those of the worktree shown, the Explorer root lists them all, the ended ones dimmed.
+ */
+const [known, setKnown] = createSignal<Known[]>([])
+export { known }
+
+const isKnown = (k: Known, project: string, id: string) => k.project === project && k.session.id === id
+
+/** Records what a pod says of one of its sessions. */
+export function trackSession(project: string, s: Session) {
+  const list = known()
+  const i = list.findIndex((k) => isKnown(k, project, s.id))
+  if (i < 0) {
+    setKnown([...list, { project, session: s }])
+    return
+  }
+  if (list[i].session.state === 'ended' && s.state !== 'ended') return
+  setKnown([...list.slice(0, i), { project, session: s }, ...list.slice(i + 1)])
+}
+
+/**
+ * The sessions one worktree lists, taken from its own pod: the ones it no longer has go (the pod
+ * drops an ended session it never told us about); those we saw end stay dimmed.
+ */
+export function setSessionsOf(project: string, list: Session[]) {
+  const kept = known().filter((k) => k.project !== project || k.session.state === 'ended' || list.some((s) => s.id === k.session.id))
+  const fresh = list.filter((s) => !kept.some((k) => isKnown(k, project, s.id))).map((s) => ({ project, session: s }))
+  setKnown([...kept, ...fresh])
+}
+
+/** A worktree detached from the window: its sessions go with it. */
+export function forgetSessionsOf(project: string) {
+  setKnown(known().filter((k) => k.project !== project))
+}
+
+/** A stop in another worktree: its node takes its state and its place (no Debug tool shows it). */
+export function trackStop(project: string, e: { session: string; thread: number; file: string; line: number }) {
+  const k = known().find((x) => isKnown(x, project, e.session))
+  if (k) trackSession(project, { ...k.session, state: 'stopped', thread: e.thread, file: e.file, line: e.line })
+}
+
+/** The worktree shown, whose pod answers the plugin's requests ('' before the window opens one). */
+const shownProject = () => api.project.current() ?? ''
+
 /** Puts a session in the list, or ends it there. */
 export function upsertSession(s: Session) {
+  trackSession(shownProject(), s)
   if (s.state !== 'ended' && ended.has(s.id)) return
   batch(() => {
     if (s.state === 'ended') {
@@ -194,8 +246,11 @@ export async function evaluate(id: string, expression: string) {
 
 /** The sessions of the worktree shown, read again (a reconnection, another worktree shown). */
 export async function refreshSessions() {
+  // The worktree asked, not the one shown when the answer comes (the user may switch meanwhile).
+  const pid = shownProject()
   try {
     const list = await api.rpc<Session[]>('sessions')
+    setSessionsOf(pid, list)
     batch(() => {
       const ids = new Set(list.map((s) => s.id))
       setDebug('sessions', (l) => l.filter((s) => ids.has(s.id)))

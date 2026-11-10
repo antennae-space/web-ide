@@ -17,6 +17,7 @@
   "the host does not answer %s": "l’hôte ne répond pas à %s",
   "the adapter never listened on %s: %w": "l’adaptateur n’a jamais écouté sur %s : %w",
   "Debug": "Débogage",
+  "Debug sessions": "Sessions de débogage",
   "Debug…": "Déboguer…",
   "No debug session. Run › Debug… starts a configuration of .ide/debug.json.": "Aucune session de débogage. Exécuter › Déboguer… lance une configuration de .ide/debug.json.",
   "Threads & Variables": "Threads et variables",

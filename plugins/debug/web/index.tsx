@@ -5,7 +5,8 @@
 import { createEffect, createRoot, on } from 'solid-js'
 import type { PluginModule } from '@ide/types'
 import { bindApi, relOf } from './plugin'
-import { act, addOutput, debug, loadStop, refreshSessions, setDebug, upsertSession, type Session } from './state'
+import { act, addOutput, debug, loadStop, refreshSessions, setDebug, trackSession, trackStop, upsertSession, type Session } from './state'
+import { debugSessionsRoot, refreshForeignSessions, watchForeignSessions } from './explorer'
 import { decorations, refreshBreakpoints, setBreakpoints, setFileVerified, toggleBreakpoint, watchSaves, type Breakpoint } from './gutter'
 import { onEnd, onStop, watchVisibility } from './focus'
 import { DebugTool, debugCorner } from './DebugTool'
@@ -15,10 +16,15 @@ import './debug.css'
 export const debug_: PluginModule = {
   activate(api) {
     bindApi(api)
-    // Events of another worktree attached to the window are not the sessions shown.
+    // Events of another worktree attached to the window are not the sessions shown: the Explorer's
+    // root lists them all (docs/design/explorer.md).
     const shown = (from?: string) => !from || from === api.project.current()
+    const pidOf = (from?: string) => from ?? api.project.current() ?? ''
     api.on('debug.session', (s: Session, from) => {
-      if (!shown(from)) return
+      if (!shown(from)) {
+        trackSession(pidOf(from), s)
+        return
+      }
       upsertSession(s)
       if (s.state === 'ended') onEnd()
     })
@@ -30,7 +36,10 @@ export const debug_: PluginModule = {
       if (file) setFileVerified(file, [{ line: b.line, verified: !!b.verified, message: b.message }], true)
     })
     api.on('debug.stopped', (e: { session: string; thread: number; file: string; line: number }, from) => {
-      if (!shown(from)) return
+      if (!shown(from)) {
+        trackStop(pidOf(from), e)
+        return
+      }
       const s = debug.sessions.find((x) => x.id === e.session)
       if (s) upsertSession({ ...s, state: 'stopped', thread: e.thread, file: e.file, line: e.line })
       void loadStop(e.session, e.thread).then(() => onStop(e.session, e.file, e.line))
@@ -54,10 +63,12 @@ export const debug_: PluginModule = {
     const reload = () => {
       setDebug({ sessions: [], selected: undefined, views: {} })
       void refreshSessions()
+      void refreshForeignSessions()
       void refreshBreakpoints()
     }
     // Another worktree shown in the window: its own sessions and breakpoints.
     createRoot(() => createEffect(on(() => api.project.current(), (id, prev) => id && prev && reload(), { defer: true })))
+    watchForeignSessions()
     // Run actions answer false when there is nothing to act on: the key goes on to the others.
     const run = (m: Parameters<typeof act>[0]) => () => {
       const s = debug.sessions.find((x) => x.id === debug.selected) ?? debug.sessions[debug.sessions.length - 1]
@@ -69,6 +80,7 @@ export const debug_: PluginModule = {
       tools: { debug: { component: DebugTool } },
       toolCorner: { debug: debugCorner },
       editorDecorations: decorations,
+      explorerRoots: [debugSessionsRoot],
       opened: reload,
       commands: {
         'debug.run': () => void runDebug(),

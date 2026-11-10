@@ -3,9 +3,12 @@
 // empty, then starts a configuration; the tool opens focused on the stop with the execution line,
 // a frame opens its line, a struct variable expands, F8 steps over, the console evaluates in the
 // frame, Stop ends the session and closes the tool; the breakpoint follows an edit and is saved
-// with the file. Skipped when dlv is not installed.
+// with the file. The root Debug sessions of the Explorer (#241) lists the session with its state:
+// a double click shows it, its menu stops it or restarts it, an ended one stays dimmed.
+// Skipped when dlv is not installed.
 const fs = require('fs')
 const path = require('path')
+const { execSync } = require('child_process')
 const { run, openProject, open, assert, WS, OUT, openMenu } = require('../../../e2e/common.cjs')
 const { hasDlv, installLangGo } = require('./lib/langgo.cjs')
 
@@ -143,11 +146,66 @@ run(async ({ page }) => {
   assert(true, 'the console evaluates in the selected frame')
   await page.screenshot({ path: OUT + '/debugtool-console.png' })
 
-  // Stop: the session ends and the tool closes.
-  await page.click('[data-testid="debug-stop"]')
+  // The root Debug sessions of the Explorer (#241): the session of the worktree shown, Paused.
+  const nodeRows = () =>
+    page.$$eval('.explorer .tree-row[data-path^="node:debug/"]', (l) =>
+      l.map((e) => ({
+        path: e.dataset.path,
+        name: e.querySelector('.tree-name')?.textContent,
+        tag: e.querySelector('.tree-tag')?.textContent,
+        chip: e.querySelector('[data-testid=worktree-chip]')?.textContent,
+        dimmed: e.classList.contains('dimmed'),
+      })),
+    )
+  const row = (path) => `.explorer .tree-row[data-path="${path}"]`
+  if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
+  await page.waitForSelector('.explorer .tree-row[data-path="root:debug"]')
+  await page.waitForSelector('.explorer .tree-row[data-path^="node:debug/"]')
+  const first = await nodeRows()
+  assert(first.length === 1 && first[0].name === 'Debug dbg' && first[0].tag === 'Paused', 'the Explorer lists the session of the worktree shown, Paused: ' + JSON.stringify(first))
+
+  // A double click shows it in the Debug tool (its zone closed before).
+  await page.click('.rail-left .rail-btn[data-id=debug]')
+  await page.waitForSelector('[data-testid="debug-tool"]', { state: 'detached', timeout: 10000 })
+  await page.dblclick(row(first[0].path))
+  await page.waitForSelector('[data-testid="debug-tool"]')
+  assert(((await page.textContent('[data-testid="debug-session-tab"].active')) || '').includes('Debug dbg'), 'a double click on the node shows the Debug tool on that session')
+
+  // Stop in the menu of the node: the tool closes, the execution line goes, the node stays dimmed.
+  await page.click(row(first[0].path), { button: 'right' })
+  await page.click('.ctx-menu >> text=Stop')
   await page.waitForSelector('[data-testid="debug-tool"]', { state: 'detached', timeout: 10000 })
   const gone = await page.waitForSelector('.pane.active .ed-lineclass[data-lineclass="debug:exec"]', { state: 'detached', timeout: 3000 }).then(() => true, () => false)
   assert(gone, 'the execution line goes with the session')
+  await page.waitForSelector(row(first[0].path) + '.dimmed')
+  assert(true, 'an ended session stays in the root, dimmed')
+
+  // A new session, stopped: Restart in the menu of its node ends it and takes a fresh one.
+  await page.click('.pane.active .ed-content')
+  await page.keyboard.press('Shift+F9')
+  await page.waitForSelector('.pick .pick-item:has-text("Debug dbg")')
+  await page.click('.pick .pick-item:has-text("Debug dbg")')
+  await page.waitForSelector('[data-testid="debug-status"]:has-text("Paused")', { timeout: 60000 })
+  const second = (await nodeRows()).find((x) => !x.dimmed)
+  assert(second?.tag === 'Paused' && (await nodeRows()).filter((x) => x.dimmed).length === 1, 'the root lists the new session, the ended one still dimmed: ' + JSON.stringify(await nodeRows()))
+  await page.click(row(second.path), { button: 'right' })
+  await page.click('.ctx-menu >> text=Restart')
+  await page.waitForFunction(
+    () => {
+      const l = [...document.querySelectorAll('.explorer .tree-row[data-path^="node:debug/"]')]
+      return l.filter((e) => e.classList.contains('dimmed')).length === 2 && l.filter((e) => !e.classList.contains('dimmed')).length === 1
+    },
+    null,
+    { timeout: 60000 },
+  )
+  const third = (await nodeRows()).find((x) => !x.dimmed)
+  assert(!!third && (await nodeRows()).filter((x) => x.dimmed).length === 2, 'Restart in the menu of a node ends it and starts a fresh session: ' + JSON.stringify(await nodeRows()))
+
+  // Stop: the session ends and the tool closes.
+  await page.click('[data-testid="debug-stop"]')
+  await page.waitForSelector('[data-testid="debug-tool"]', { state: 'detached', timeout: 10000 })
+  const nodes = await nodeRows()
+  assert(nodes.length === 3 && nodes.every((x) => x.dimmed), 'every ended session stays in the root, dimmed: ' + JSON.stringify(nodes))
 
   // The breakpoint follows an edit and is saved with the file.
   await page.click('.pane.active .ed-content')
@@ -158,4 +216,31 @@ run(async ({ page }) => {
   await page.keyboard.press('Control+s')
   for (let i = 0; i < 30 && readBps()[0]?.line !== BREAK_LINE + 1; i++) await page.waitForTimeout(100)
   assert(readBps()[0]?.line === BREAK_LINE + 1, 'saved with the file at its new line: ' + JSON.stringify(readBps()))
+
+  // The root of the Explorer lists the sessions of every attached worktree: a branch opened in its
+  // worktree shows the session of the main folder, with the chip of its worktree.
+  const git = (cmd) => execSync(`git ${cmd}`, { cwd: demo, env: process.env, encoding: 'utf8' }).trim()
+  git('add -A')
+  git('commit -q --allow-empty -m init')
+  git('branch feature')
+  await page.click('.pane.active .ed-content')
+  await page.keyboard.press('Shift+F9')
+  await page.waitForSelector('.pick .pick-item:has-text("Debug dbg")')
+  await page.click('.pick .pick-item:has-text("Debug dbg")')
+  await page.waitForSelector('[data-testid="debug-status"]:has-text("Paused")', { timeout: 60000 })
+  const liveHere = (await nodeRows()).find((x) => !x.dimmed)
+  assert(!!liveHere && !liveHere.chip, 'a session of the worktree shown has no worktree chip: ' + JSON.stringify(liveHere))
+  await page.click('[data-testid=branch-selector]')
+  await page.waitForSelector('.pick-item:has-text("Open a branch")')
+  await page.click('.pick-item:has-text("Open a branch")')
+  await page.waitForSelector('.pick-item:has-text("feature")')
+  await page.click('.pick-item:has-text("feature")')
+  await page.waitForFunction(() => (document.querySelector('[data-testid=branch-selector]')?.textContent || '').includes('feature'), null, { timeout: 20000 })
+  await page.waitForFunction(() => document.querySelectorAll('.explorer .tree-row[data-path^="node:debug/"]').length === 4, null, { timeout: 20000 })
+  const rows = await nodeRows()
+  const shownElsewhere = rows.filter((x) => !x.dimmed)
+  assert(
+    shownElsewhere.length === 1 && shownElsewhere[0].tag === 'Paused' && shownElsewhere[0].chip === 'demo' && rows.filter((x) => x.dimmed).length === 3,
+    'the worktree shown lists the session of the main folder (Paused, its chip) and the ended ones, dimmed: ' + JSON.stringify(rows),
+  )
 })

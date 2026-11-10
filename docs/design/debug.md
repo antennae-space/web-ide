@@ -61,6 +61,7 @@ Done in #189 (`plugins/debug/web`, the page of the plugin):
 - **Console**: the output of the session (the adapter's error output in red) and a line that evaluates in the selected frame (↑ ↓ for its history).
 - **Run › Debug…**: the configurations of `.ide/debug.json`; an empty file offers the templates of the packs, the one chosen is written into the file (`debug.addConfiguration`, its name made unique) then started. *Edit configurations…* opens the file.
 - **The pod**: a step or a continue puts the session in `running` from its request on (the stop that ends a step may come before its answer); `debug.setBreakpoints` sends `debug.breakpoints` to the other windows; a stop sends the push notification of the kind `debug`.
+- **In the Explorer** (#241): the root *Debug sessions* lists the sessions of every worktree attached to the window (the tool keeps those of the one shown), with their state at the right of the row (*Paused*, *Starting*) and the ended ones dimmed; a double click shows a session in the tool, its menu stops or restarts it. See [explorer.md](explorer.md).
 
 ## In the editor
 
