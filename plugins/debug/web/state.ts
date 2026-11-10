@@ -246,9 +246,11 @@ export async function evaluate(id: string, expression: string) {
 
 /** The sessions of the worktree shown, read again (a reconnection, another worktree shown). */
 export async function refreshSessions() {
+  // The worktree asked, not the one shown when the answer comes (the user may switch meanwhile).
+  const pid = shownProject()
   try {
     const list = await api.rpc<Session[]>('sessions')
-    setSessionsOf(shownProject(), list)
+    setSessionsOf(pid, list)
     batch(() => {
       const ids = new Set(list.map((s) => s.id))
       setDebug('sessions', (l) => l.filter((s) => ids.has(s.id)))
