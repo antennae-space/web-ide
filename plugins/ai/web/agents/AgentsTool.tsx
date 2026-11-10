@@ -28,7 +28,9 @@ import {
 } from './state'
 import '../llm/assistant.css'
 import { ProjectAgentStats, statsTitle } from './stats'
-import { AgentComposer, agentFull } from './Composer'
+import { AgentComposer, agentFull, targetOf } from './Composer'
+import { suggest } from '../llm/ComposerShell'
+import { projectSuggestions, Suggestions } from '../llm/Thread'
 import { AgentStatusBar } from './StatusBar'
 import { AgentStats } from './AgentStats'
 import { sessionBoard } from './pages'
@@ -241,6 +243,9 @@ function SessionView(props: { id: string }) {
             <div class="ai-thread agent-thread" data-testid="agent-thread">
               <Show when={info()?.state === 'starting' && entries().length === 0}>
                 <div class="muted small">{t('Starting {name}…', { name: info()?.name ?? '' })}</div>
+              </Show>
+              <Show when={info()?.state === 'ready' && entries().length === 0}>
+                <Suggestions items={projectSuggestions()} onSuggest={(text) => suggest(text, targetOf(props.id).key)} />
               </Show>
               <For each={entries()}>{(e, i) => <EntryView id={props.id} entry={e} index={i()} live={busy() && i() === entries().length - 1} />}</For>
               <Show when={busy()}>

@@ -66,6 +66,28 @@ run(async ({ page }) => {
   await waitState(page, 'ready')
   assert((await page.textContent(`${tab} .tab-title`)) === 'Claude Code', 'tab named after the agent')
 
+  // The empty thread offers requests (#238): a chip puts its text in the box, not sent.
+  await page.click('[data-testid=agent-thread] .ai-suggestion >> nth=0')
+  assert((await draft(page)) === 'Explain the architecture of this project to me', 'a suggestion fills the box of the agent: ' + (await draft(page)))
+  assert(!(await page.$('[data-testid=agent-user]')), 'a suggestion is not sent')
+  // The draft of a session survives a reload.
+  await page.waitForTimeout(300)
+  await page.reload()
+  await page.waitForSelector(box)
+  await page.waitForFunction((b) => document.querySelector(b)?.textContent.includes('Explain the architecture'), box, { timeout: 10000 }).catch(() => {})
+  assert((await draft(page)) === 'Explain the architecture of this project to me', 'the draft of a session after a reload: ' + (await draft(page)))
+  // Multiple carets: Alt+J twice, then one letter typed at both.
+  await page.click(box)
+  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Delete')
+  await page.keyboard.type('ab ab')
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Alt+j')
+  await page.keyboard.press('Alt+j')
+  await page.keyboard.type('X')
+  assert((await draft(page)) === 'X X', 'Alt+J puts a caret on each occurrence in the box of the agent: ' + (await draft(page)))
+  await page.keyboard.press('Escape')
+
   // A prompt: the turn streams, then the tab is ready again.
   await prompt(page, 'hello')
   await page.waitForSelector('[data-testid=agent-user]:has-text("hello")')

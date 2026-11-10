@@ -39,22 +39,45 @@ function useNow(active: () => boolean, ms = 250) {
 
 // ---------- welcome ----------
 
+type Suggestion = { icon: Parameters<typeof Icon>[0]['name']; text: string }
+
+/** The first requests offered on a project: about its code and the file open. */
+export function projectSuggestions(): Suggestion[] {
+  const active = activeFile() ? relPath(activeFile()!) : ''
+  return [
+    { icon: 'outline', text: t('Explain the architecture of this project to me') },
+    active ? { icon: 'file', text: t('Review {file} and suggest improvements', { file: active }) } : { icon: 'search', text: t('Where is the configuration of the project handled?') },
+    { icon: 'conflict', text: t('Find and fix the errors reported by the language servers') },
+    active ? { icon: 'check', text: t('Write tests for {file}', { file: active }) } : { icon: 'terminal', text: t('Run the tests and explain the failures') },
+  ]
+}
+
+/** The chips of the requests offered: a click puts the text in the message box, not sent. */
+export function Suggestions(props: { items: Suggestion[]; onSuggest: (text: string) => void }) {
+  return (
+    <div class="ai-suggestions" data-testid="ai-suggestions">
+      <For each={props.items}>
+        {(s) => (
+          <button class="ai-suggestion" onClick={() => props.onSuggest(s.text)}>
+            <Icon name={s.icon} size={14} />
+            <span>{s.text}</span>
+          </button>
+        )}
+      </For>
+    </div>
+  )
+}
+
 function Welcome(props: { onSuggest: (t: string) => void; onSettings: () => void }) {
-  const active = () => (activeFile() ? relPath(activeFile()!) : '')
   const orchestrator = () => currentMode() === 'orchestrator'
-  const suggestions = () =>
+  const suggestions = (): Suggestion[] =>
     orchestrator()
       ? [
           { icon: 'play', text: t('What do we work on today?') },
           { icon: 'history', text: t('What did we do yesterday?') },
           { icon: 'sparkle', text: t('I have an idea: ') },
         ]
-      : [
-    { icon: 'outline', text: t('Explain the architecture of this project to me') },
-    active() ? { icon: 'file', text: t('Review {file} and suggest improvements', { file: active() }) } : { icon: 'search', text: t('Where is the configuration of the project handled?') },
-    { icon: 'conflict', text: t('Find and fix the errors reported by the language servers') },
-    active() ? { icon: 'check', text: t('Write tests for {file}', { file: active() }) } : { icon: 'terminal', text: t('Run the tests and explain the failures') },
-        ]
+      : projectSuggestions()
   return (
     <div class="ai-empty ai-welcome">
       <div class="ai-welcome-icon">
@@ -74,19 +97,10 @@ function Welcome(props: { onSuggest: (t: string) => void; onSettings: () => void
           </button>
         }
       >
-        <div class="ai-suggestions">
-          <For each={suggestions()}>
-            {(s) => (
-              <button class="ai-suggestion" onClick={() => props.onSuggest(s.text)}>
-                <Icon name={s.icon} size={14} />
-                <span>{s.text}</span>
-              </button>
-            )}
-          </For>
-        </div>
+        <Suggestions items={suggestions()} onSuggest={props.onSuggest} />
       </Show>
       <p class="ai-hint">
-        {t('Drop or paste images, videos, PDF')} · <kbd>Ctrl</kbd>+<kbd>{t('Space')}</kbd> {t('to dictate')} · <kbd>Ctrl</kbd>+<kbd>S</kbd> {t('to send')}
+        {t('Drop or paste images, videos, PDF')} · <kbd>Ctrl</kbd>+<kbd>{t('Space')}</kbd> {t('to dictate')} · <kbd>{t('Enter')}</kbd> {t('to send')}
       </p>
     </div>
   )

@@ -160,6 +160,13 @@ run(async ({ page, ctx }) => {
     assert(!(await page.$('[data-testid=ai-cost]')), 'a model without a price: the time alone, no cost')
     await page.waitForSelector('[data-testid=send]', { timeout: 10000 })
     assert(text(requests.at(-1).messages.at(-1)) === listed && (await composerText(page)) === '', 'Ctrl+S sends the message, the box is emptied')
+    // ↑ in the empty box brings the last message sent back, ↓ empties it again (#238).
+    await page.click('.ai-composer .ed-content')
+    await page.keyboard.press('ArrowUp')
+    assert((await composerText(page)) === listed, '↑ brings the last message back: ' + JSON.stringify(await composerText(page)))
+    await page.keyboard.press('Escape') // the @path at the end opens its completion
+    await page.keyboard.press('ArrowDown')
+    assert((await composerText(page)) === '', '↓ empties the box again')
 
     // The daily quota (llm/QuotaPart.tsx): never the Claude subscription on the assistant; the
     // budget of the plugin's settings once the conversation has a price, against what the
