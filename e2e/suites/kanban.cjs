@@ -235,11 +235,11 @@ run(async ({ page, ctx }) => {
   await kp.click(':is(.modal, .ide-modal) button:has-text("Cancel")')
   await kp.click('.rail-left .rail-btn[title^="Kanban"]')
   await kp.click('.rail-left .rail-btn[title^="Kanban"]')
-  // The ⋮ of its zone takes the items of the Kanban's frame (setToolMenu), after the core's.
+  // The ⋮ of its zone takes the items of the Kanban's frame (setToolMenu), before the core's.
   await page.click('[data-tool=kanban] [data-testid=zone-menu]')
   await page.waitForSelector('.ctx-menu')
   const menu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
-  assert(menu.slice(-2).join() === 'New ticket,Refresh', 'the ⋮ of the Kanban, its items last: ' + JSON.stringify(menu))
+  assert(menu.join() === 'New ticket,Refresh,Open in a window,Close', 'the ⋮ of the Kanban, its items before the core ones: ' + JSON.stringify(menu))
   await page.click('.ctx-menu .ctx-item:has-text("New ticket")')
   await kp.fill('[data-testid=kanban-title]', 'Second ticket')
   await kp.click('[data-testid=kanban-create]')
@@ -353,5 +353,28 @@ run(async ({ page, ctx }) => {
   await page.goto(page.url().replace(/[?#].*$/, '') + '?ticket=1')
   await kp.waitForSelector('[data-testid=ticket-view] [data-testid=ticket-title]:has-text("CSV export")')
   assert(!page.url().includes('ticket='), 'a ticket link opens the ticket, then leaves the address clean')
+
+  // The resizer between the ticket (a frame) and the Assistant, moved with a sharp jerk: it is
+  // released over the frame and stops following the mouse.
+  await page.keyboard.press('Alt+5')
+  await page.waitForSelector('.ai-composer')
+  const jerk = await page.evaluate(() => {
+    const zone = document.querySelector('.ai-composer').closest('.zone')
+    const r = [zone.previousElementSibling, zone.nextElementSibling].find((x) => x?.classList.contains('resizer'))
+    const b = r.getBoundingClientRect()
+    const f = document.querySelector('iframe.plugin-frame:not([hidden])').getBoundingClientRect()
+    zone.dataset.dragged = '1'
+    return { x: b.left + b.width / 2, y: b.top + b.height / 2, fx: f.left + 30, fy: f.top + f.height / 2 }
+  })
+  const aiWidth = () => page.$eval('.zone[data-dragged]', (z) => Math.round(z.getBoundingClientRect().width))
+  await page.mouse.move(jerk.x, jerk.y)
+  await page.mouse.down()
+  await page.mouse.move(jerk.x + 400, jerk.y, { steps: 1 })
+  await page.mouse.move(jerk.fx, jerk.fy, { steps: 1 })
+  await page.mouse.up()
+  const released = await aiWidth()
+  await page.mouse.move(jerk.fx + 200, jerk.fy, { steps: 3 })
+  await page.waitForTimeout(100)
+  assert((await aiWidth()) === released, 'a resizer jerked and released over the frame of a ticket stops following the mouse: ' + released + ' then ' + (await aiWidth()))
   await page2.close()
 })
