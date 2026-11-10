@@ -185,6 +185,7 @@ func (s *A) assistantTool(r *assistantRun, ref *runtimeRef, call engine.ToolCall
 		return fail(r, err)
 	}
 	s.addNested(r, ref, name, a, &res)
+	s.addChanged(r, ref, name, a, &res)
 	return res
 }
 

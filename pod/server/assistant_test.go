@@ -219,6 +219,17 @@ func TestAssistantLoop(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(dir, "p", "a.txt")); string(got) != "trois\n" {
 		t.Fatalf("change in the project: %q", got)
 	}
+	// Each conversation keeps the files its write tools changed, absolute (the Explorer, #242).
+	filesOf := map[string]string{}
+	for _, c := range a.call("llm.chats.list", nil)["result"].([]any) {
+		c := c.(map[string]any)
+		if f, ok := c["files"].([]any); ok {
+			filesOf[c["id"].(string)] = fmt.Sprint(f...)
+		}
+	}
+	if filesOf["c1"] != filepath.Join(dir, "a.txt") || filesOf["c1b"] != filepath.Join(dir, "p", "a.txt") {
+		t.Fatalf("files changed: %v", filesOf)
+	}
 
 	// Questions: the turn stops, the answers start it again.
 	model.answer = func(req map[string]any) []string {

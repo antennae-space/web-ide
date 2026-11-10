@@ -16,7 +16,7 @@ In their order by default:
 
 | Root | Plugin | Nodes | Ticket |
 |---|---|---|---|
-| Conversations & Agents | AI | the active threads of the assistant and the active sessions of the Agents tool, merged; their children: the sub-agents, then the files the thread changed | #242, #243 |
+| Conversations & Agents | AI | the active threads of the assistant and the active sessions of the Agents tool, merged; their children: the sub-agents, then the files the thread changed (those of its `edit_file` / `write_file`, of the `edit`, `delete`, `move` tool calls of an agent, kept since #242; not those a command changes; an agent tells no sub-agents) | #242 done, #243 |
 | The project (its name) | Files | the file tree of the worktree shown; a folder icon | #239 |
 | Scratches and Consoles | Files (empty) | the SQL consoles (plugin-database), by connection | #244, #245 |
 | Terminals and tasks | Exec | the consoles of the Console tool | #240 |

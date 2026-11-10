@@ -41,6 +41,8 @@ type ChatInfo struct {
 	Failed  bool `json:"failed,omitempty"`
 	// GenMs: time this conversation spent generating its answers (engine.Chat.GenMs).
 	GenMs int64 `json:"genMs,omitempty"`
+	// Files: the files its write tools changed (engine.Chat.Files).
+	Files []string `json:"files,omitempty"`
 }
 
 // ChatLocation says where the conversations of a project live.
@@ -152,7 +154,7 @@ func (m *Manager) ListChats(loc ChatLocation) ([]ChatInfo, error) {
 	}
 	rows, err := db.Query(`SELECT id, title, updated, model, coalesce(json_extract(extra, '$.parent'), ''), coalesce(json_extract(extra, '$.agent.status'), ''),
 		coalesce(json_extract(extra, '$.agent.tokens'), 0), coalesce(json_extract(extra, '$.cost'), json_extract(extra, '$.agent.cost'), 0),
-		coalesce(json_extract(extra, '$.mode'), ''), coalesce(json_extract(extra, '$.ticket.id'), 0), coalesce(json_extract(extra, '$.genMs'), 0),
+		coalesce(json_extract(extra, '$.mode'), ''), coalesce(json_extract(extra, '$.ticket.id'), 0), coalesce(json_extract(extra, '$.genMs'), 0), coalesce(json_extract(extra, '$.files'), ''),
 		json_extract(extra, '$.approval') IS NOT NULL OR EXISTS (SELECT 1 FROM messages m WHERE m.chat_id = chats.id AND m.role = 'tool'
 			AND m.seq > (SELECT coalesce(max(seq), -1) FROM messages WHERE chat_id = chats.id AND role != 'tool')
 			AND (json_extract(m.data, '$.askState') = 'pending' OR json_extract(m.data, '$.planState') = 'pending'
@@ -167,8 +169,12 @@ func (m *Manager) ListChats(loc ChatLocation) ([]ChatInfo, error) {
 	list := []ChatInfo{}
 	for rows.Next() {
 		var c ChatInfo
-		if err := rows.Scan(&c.ID, &c.Title, &c.Updated, &c.Model, &c.Parent, &c.Status, &c.Tokens, &c.Cost, &c.Mode, &c.Ticket, &c.GenMs, &c.Waiting, &c.Failed); err != nil {
+		var files string
+		if err := rows.Scan(&c.ID, &c.Title, &c.Updated, &c.Model, &c.Parent, &c.Status, &c.Tokens, &c.Cost, &c.Mode, &c.Ticket, &c.GenMs, &files, &c.Waiting, &c.Failed); err != nil {
 			return nil, err
+		}
+		if files != "" {
+			_ = json.Unmarshal([]byte(files), &c.Files)
 		}
 		list = append(list, c)
 	}
