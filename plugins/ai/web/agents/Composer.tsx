@@ -1,36 +1,27 @@
-// Message box of an agent session: the editor of the assistant (MessageBox) with @paths, the
-// /commands the agent announces, files, images, doodles and dictation, the settings of the
-// agent in its bar. A prompt sent during a turn is queued by the pod. Drafts are kept per
-// session while the page lives.
-import { createSignal, For, onCleanup, Show, type JSX } from 'solid-js'
-import { createStore, produce } from 'solid-js/store'
+// Message box of an agent session: the shared frame of the assistant (ComposerShell: the editor
+// with @paths, files, images, doodles and dictation) with the /commands the agent announces and
+// its settings in the bar. A prompt sent during a turn is queued by the pod. The draft is kept
+// per session (drafts.ts), after a reload too.
+import { createSignal, For, Show, type JSX } from 'solid-js'
 import { aliasItems } from '../llm/aliases'
-import { liveDictation, MessageBox, type CompletionItem } from '../llm/MessageBox'
-import { prepare, type Prepared } from '../llm/attachments'
-import { prepareDoodle } from '../llm/doodle/export'
-import { cloneDoc, newDoc, type DoodleDoc } from '../llm/doodle/model'
-import { doodleSession, openDoodle } from '../llm/doodle/session'
-import { canCapture, captureScreen, type Picture } from '../llm/doodle/background'
-import { cancelDictation, canRecord, speech, startDictation, stopDictation } from '../llm/transcribe'
-import { AttachmentChip, formatTokens, Popover } from '../llm/parts'
+import type { CompletionItem } from '../llm/MessageBox'
+import type { Prepared } from '../llm/attachments'
+import type { Picture } from '../llm/doodle/background'
+import { ComposerShell } from '../llm/ComposerShell'
+import { newDoodleFor, type DoodleTarget } from '../llm/drafts'
+import { formatTokens, Popover } from '../llm/parts'
 import type { Caps } from '../llm/state'
 import { cancelAgent, configAgent, followAgent, promptAgent, sessions, threads, unqueueAgent, type AgentPart, type ConfigOption } from './state'
-import { contextMenu, errorToast, Icon, phone, registerAction, shortcutOf, t, tn, toast } from '../plugin'
-import type { EditorView } from '../plugin'
-
-interface Box {
-  draft: string
-  pending: Prepared[]
-}
-const [boxes, setBoxes] = createStore<Record<string, Box>>({})
-const box = (id: string): Box => boxes[id] ?? { draft: '', pending: [] }
-const setBox = (id: string, f: (b: Box) => void) => setBoxes(produce((all) => f((all[id] ??= { draft: '', pending: [] }))))
+import { errorToast, Icon, t } from '../plugin'
 
 /** The message box over the whole session (the thread hidden), as in the assistant. */
 export const [agentFull, setAgentFull] = createSignal(false)
 
 /** What the agent reads, in the terms of the attachments of the assistant. */
 const capsOf = (id: string): Caps => ({ vision: !!sessions().find((s) => s.id === id)?.caps?.image, video: false, audio: false, tools: true, thinking: false, known: true })
+
+/** The draft and the doodles of a session: drawn in the host of the project window (the assistant may be closed). */
+export const targetOf = (id: string): DoodleTarget => ({ key: 'agents.draft.' + id, caps: () => capsOf(id), external: true })
 
 /** The parts of the prepared attachments, as the pod takes them. */
 function partsOf(list: Prepared[]): AgentPart[] {
@@ -45,122 +36,36 @@ function partsOf(list: Prepared[]): AgentPart[] {
   return out
 }
 
-/** Joins a doodle to the message box of a session (in place of `replace`, edited). */
-async function attachDoodleTo(id: string, doc: DoodleDoc, name: string, replace?: Prepared) {
-  const p = await prepareDoodle(doc, name, capsOf(id))
-  setBox(id, (b) => {
-    const i = replace ? b.pending.indexOf(replace) : -1
-    if (i >= 0) b.pending[i] = p
-    else b.pending.push(p)
-  })
-}
-
 /** Opens a new doodle for a session, on a picture (a page of its board, a screenshot) or blank. */
 export function doodleFor(id: string, background?: Picture) {
-  if (doodleSession()) return
-  const name = t('Doodle {n}', { n: box(id).pending.filter((p) => p.attachment.kind === 'doodle').length + 1 })
-  openDoodle({ doc: newDoc(background), name, external: true, onAttach: (doc) => attachDoodleTo(id, doc, name) })
+  newDoodleFor(targetOf(id), background)
 }
 
 export function AgentComposer(props: { id: string; onSent?: () => void; head?: JSX.Element }) {
-  let fileInput!: HTMLInputElement
-  const [view, setView] = createSignal<EditorView>()
-  const [preparing, setPreparing] = createSignal(0)
   const info = () => sessions().find((s) => s.id === props.id)
   const busy = () => info()?.state === 'busy' || info()?.state === 'asking'
-  const draft = () => box(props.id).draft
-  const pending = () => box(props.id).pending
-  const setDraft = (text: string) => setBox(props.id, (b) => (b.draft = text))
-
-  const addFiles = async (files: Iterable<File>) => {
-    const id = props.id
-    for (const f of files) {
-      setPreparing((n) => n + 1)
-      try {
-        const p = await prepare(f, capsOf(id))
-        if (p.warning) toast(`${f.name}: ${p.warning}`, 'warn')
-        setBox(id, (b) => b.pending.push(p))
-      } catch (e) {
-        toast(`${f.name}: ${(e as Error).message}`, 'error')
-      } finally {
-        setPreparing((n) => n - 1)
-      }
-    }
-  }
-
-  // Doodles: drawn in the host of the project window (the assistant may be closed).
-  const doodle = (background?: Picture) => doodleFor(props.id, background)
-  const editDoodle = (p: Prepared) => openDoodle({ doc: cloneDoc(p.attachment.doodle!), name: p.attachment.name, external: true, onAttach: (doc) => attachDoodleTo(props.id, doc, p.attachment.name, p) })
-  const screenshot = async () => {
-    try {
-      doodle(await captureScreen())
-    } catch (e) {
-      if ((e as Error).name !== 'NotAllowedError' && (e as Error).name !== 'AbortError') errorToast(e)
-    }
-  }
-
-  const dictate = async () => {
-    try {
-      const v = view()
-      if (speech.phase === 'recording') await stopDictation()
-      else if (speech.phase === 'idle' && v) await startDictation(liveDictation(v))
-    } catch (e) {
-      toast(t('Dictation: {message}', { message: (e as Error).message }), 'error')
-    }
-  }
-  onCleanup(cancelDictation)
 
   // The commands the agent announces (its own commands and skills), then the aliases.
   const agentItems = (): CompletionItem[] => (info()?.commands ?? []).map((c) => ({ kind: 'command', label: `/${c.name}`, detail: c.input?.hint ? `${c.description} · ${c.input.hint}` : c.description, insert: `/${c.name} ` }))
   const slashItems = (): CompletionItem[] => [...agentItems(), ...aliasItems(agentItems())]
-
-  // ↑ / ↓ in an empty box (or one showing a prompt of the history) go through the prompts sent.
-  let back = -1
   const history = () => (threads[props.id]?.entries ?? []).filter((e) => e.kind === 'user').map((e) => e.text ?? '')
-  const browse = (dir: 1 | -1): boolean => {
-    const list = history()
-    if (draft() && (back < 0 || draft() !== list[list.length - 1 - back])) return false
-    const next = back + dir
-    if (next < -1 || next >= list.length) return true
-    back = next
-    setDraft(back < 0 ? '' : list[list.length - 1 - back])
-    return true
-  }
 
-  const canSend = () => (!!draft().trim() || pending().length > 0) && !preparing() && info()?.state !== 'error'
-  const submit = async () => {
-    if (!canSend()) return
-    const id = props.id
-    const text = draft().trim()
-    const atts = pending()
+  const submit = async (text: string, atts: Prepared[], clear: () => void) => {
     props.onSent?.()
     try {
-      await promptAgent(id, text, partsOf(atts))
-      setBox(id, (b) => ((b.draft = ''), (b.pending = [])))
-      back = -1
+      await promptAgent(props.id, text, partsOf(atts))
+      clear()
     } catch (e) {
       errorToast(e)
     }
   }
+  /** Shift+Tab: the next mode of the agent. */
   const onKey = (e: KeyboardEvent): boolean => {
-    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) return browse(e.key === 'ArrowUp' ? 1 : -1)
     if (e.key === 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && modeOption()) {
       const o = modeOption()!
       const list = flatOptions(o)
       const next = list[(list.findIndex((x) => x.value === o.currentValue) + 1) % list.length]
       if (next) void configAgent(props.id, o.id, next.value).catch(errorToast)
-      return true
-    }
-    if (e.key === 'Escape' && agentFull() && !view()?.hasCarets()) {
-      setAgentFull(false)
-      return true
-    }
-    if (e.key === 'Escape' && busy()) {
-      void cancelAgent(props.id).catch(errorToast)
-      return true
-    }
-    if (e.key === ' ' && e.ctrlKey && !e.shiftKey && !e.altKey) {
-      void dictate()
       return true
     }
     return false
@@ -169,119 +74,18 @@ export function AgentComposer(props: { id: string; onSent?: () => void; head?: J
   const modeOption = () => config().find((c) => c.category === 'mode')
   const modelOption = () => config().find((c) => c.category === 'model')
   const otherOptions = () => config().filter((c) => c !== modeOption() && c !== modelOption())
-  const off = registerAction('assistant.fullComposer', () => {
-    if (!view()?.hasFocus()) return false
-    setAgentFull(!agentFull())
-  })
-  onCleanup(off)
-
-  const placeholder = () => (busy() ? t('Queued message…') : t('Ask the agent…'))
 
   return (
-    <div class={`ai-composer-wrap agent-composer mode-${modeTone(modeOption()?.currentValue)}`} classList={{ full: agentFull(), busy: busy() }} data-testid="agent-composer">
-      <div class="ai-led" />
-      {props.head}
-      <Show when={props.head}>
-        <div class="ai-led" />
-      </Show>
-      <div class="ai-composer">
-        <Show when={info()?.queue?.length}>
-          <div class="ai-queue" data-testid="agent-queue">
-            <div class="ai-queue-title">
-              <Icon name="history" size={12} /> {t('Queued: sent at the end of the turn')}
-            </div>
-            <For each={info()!.queue}>
-              {(q, i) => (
-                <div class="ai-queue-item">
-                  <span class="ellipsis">{q.text}</span>
-                  <Show when={q.attachments}>
-                    <span class="muted small">+{tn(q.attachments!, '{n} attachment', '{n} attachments')}</span>
-                  </Show>
-                  <span class="grow" />
-                  <button
-                    class="ai-act"
-                    title={t('Back to the message box')}
-                    onClick={() =>
-                      void unqueueAgent(props.id, i())
-                        .then((r) => (setDraft(r.text), view()?.focus()))
-                        .catch(errorToast)
-                    }
-                  >
-                    <Icon name="edit" size={12} />
-                  </button>
-                  <button class="ai-act" title={t('Remove from the queue')} onClick={() => void unqueueAgent(props.id, i()).catch(errorToast)}>
-                    <Icon name="close" size={12} />
-                  </button>
-                </div>
-              )}
-            </For>
-          </div>
-        </Show>
-        <Show when={pending().length || preparing()}>
-          <div class="ai-atts" data-testid="agent-atts">
-            <For each={pending()}>
-              {(p, i) => (
-                <AttachmentChip
-                  a={p.attachment}
-                  onOpen={p.attachment.doodle ? () => editDoodle(p) : undefined}
-                  onRemove={() => setBox(props.id, (b) => b.pending.splice(i(), 1))}
-                />
-              )}
-            </For>
-            <Show when={preparing()}>
-              <span class="ai-att muted">
-                <span class="spinner" /> {t('preparing…')}
-              </span>
-            </Show>
-          </div>
-        </Show>
-        <MessageBox
-          draft={draft}
-          setDraft={setDraft}
-          placeholder={placeholder}
-          slashItems={slashItems}
-          onSubmit={() => void submit()}
-          onKey={onKey}
-          onFiles={(f) => void addFiles(f)}
-          onView={(v) => (setView(v), !phone() && queueMicrotask(() => v.focus()))}
-          testid="agent-input"
-        />
-        <button
-          class="ai-act ai-full-btn"
-          title={agentFull() ? t('Leave the full screen (Esc)') : `${t('Full screen')} (${shortcutOf('assistant.fullComposer')})`}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => (setAgentFull(!agentFull()), view()?.focus())}
-          data-testid="agent-full"
-        >
-          <Icon name={agentFull() ? 'minimize' : 'maximize'} size={13} />
-        </button>
-        <div class="ai-composer-bar">
-          <Show when={modeOption()}>{(o) => <ModePill id={props.id} option={o()} />}</Show>
-          <button
-            class="ai-icon ai-mic"
-            classList={{ rec: speech.phase === 'recording' }}
-            title={canRecord() ? (speech.phase === 'recording' ? t('End the dictation (Ctrl+Space)') : t('Dictate: local transcription, the sound stays on this machine (Ctrl+Space)')) : t('Microphone unavailable (https or localhost required)')}
-            disabled={!canRecord() || speech.phase === 'loading' || speech.phase === 'transcribing'}
-            onClick={() => void dictate()}
-          >
-            <Icon name="mic" size={16} />
-          </button>
-          <button
-            class="ai-icon"
-            title={t('Attach a file or a doodle')}
-            aria-haspopup="menu"
-            data-testid="agent-attach"
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect()
-              contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.top - 4 }), [
-                { label: t('File…'), hint: t('image, video, audio, PDF, text'), action: () => fileInput.click() },
-                { label: t('Doodle…'), hint: shortcutOf('assistant.doodle'), action: () => doodle() },
-                ...(canCapture() ? [{ label: t('Screenshot…'), hint: t('to annotate'), action: () => void screenshot() }] : []),
-              ])
-            }}
-          >
-            <Icon name="paperclip" size={16} />
-          </button>
+    <ComposerShell
+      target={targetOf(props.id)}
+      class={`agent-composer mode-${modeTone(modeOption()?.currentValue)}`}
+      classList={{ busy: busy() }}
+      testid="agent-composer"
+      ids={{ queue: 'agent-queue', atts: 'agent-atts', input: 'agent-input', full: 'agent-full', attach: 'agent-attach', enqueue: 'agent-enqueue', send: 'agent-send', stop: 'agent-stop' }}
+      head={props.head}
+      barStart={<Show when={modeOption()}>{(o) => <ModePill id={props.id} option={o()} />}</Show>}
+      barTools={
+        <>
           <button
             class="ai-icon"
             classList={{ on: !!info()?.follow }}
@@ -292,42 +96,33 @@ export function AgentComposer(props: { id: string; onSent?: () => void; head?: J
           >
             <Icon name="eye" size={16} />
           </button>
-          <input
-            ref={fileInput}
-            type="file"
-            multiple
-            hidden
-            onChange={(e) => {
-              void addFiles([...(e.currentTarget.files ?? [])])
-              e.currentTarget.value = ''
-            }}
-          />
           <Show when={otherOptions().length}>
             <AgentOptions id={props.id} options={otherOptions()} />
           </Show>
-          <span class="grow" />
+        </>
+      }
+      barEnd={
+        <>
           <Show when={info()?.usage}>{(u) => <ContextPop id={props.id} used={u().used} size={u().size} />}</Show>
           <Show when={modelOption()}>{(o) => <ModelPill id={props.id} option={o()} />}</Show>
-          <Show when={busy() && canSend()}>
-            <button class="ai-send queue" onClick={() => void submit()} aria-label={t('Queue')} title={t('Queue: sent at the end of the turn')} data-testid="agent-enqueue">
-              <Icon name="arrowUp" size={16} />
-            </button>
-          </Show>
-          <Show
-            when={busy()}
-            fallback={
-              <button class="ai-send" disabled={!canSend()} onClick={() => void submit()} aria-label={t('Send')} title={t('Send (Enter or Ctrl+S)')} data-testid="agent-send">
-                <Icon name="arrowUp" size={16} />
-              </button>
-            }
-          >
-            <button class="ai-send stop" onClick={() => void cancelAgent(props.id).catch(errorToast)} aria-label={t('Stop')} title={t('Stop (Esc)')} data-testid="agent-stop">
-              <span class="ai-stop-square" />
-            </button>
-          </Show>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+      busy={busy}
+      queue={() => info()?.queue ?? []}
+      queueTitle={() => t('Queued: sent at the end of the turn')}
+      queueHint={() => t('Queue: sent at the end of the turn')}
+      unqueue={(i, edit) => unqueueAgent(props.id, i).then((r) => (edit ? r.text : undefined))}
+      stop={() => void cancelAgent(props.id).catch(errorToast)}
+      submit={submit}
+      canSend={() => info()?.state !== 'error'}
+      slashItems={slashItems}
+      placeholder={() => (busy() ? t('Queued message…') : t('Ask the agent…'))}
+      history={history}
+      onKey={onKey}
+      full={agentFull}
+      setFull={setAgentFull}
+      autofocus
+    />
   )
 }
 

@@ -89,6 +89,21 @@ run(
     await page.waitForSelector('[data-testid=speech-settings] .ai-server-row:has-text("onnx-community/whisper-tiny")', { timeout: 5000 }).catch(() => {})
     assert(await page.isVisible('[data-testid=speech-settings] .ai-server-row:has-text("onnx-community/whisper-tiny")'), 'model listed in the cache of the pod')
     await page.screenshot({ path: OUT + '/speech-settings.png' })
+    await page.click('.ai-servers .modal-head button')
+
+    // An agent session: the same dictation line above its box, the text in its box (#238).
+    await page.click('.rail-btn[data-id=agents]')
+    await page.click('[data-testid=agent-card-claude] button:has-text("Open")')
+    await page.waitForSelector('[data-testid=agent-tab][data-state=ready]')
+    await page.click('[data-testid=agent-composer] .ai-mic')
+    await page.waitForSelector('[data-testid=agent-composer] [data-testid=ai-speech].rec')
+    assert(true, 'the dictation line shows in an agent session')
+    await page.waitForTimeout(11500)
+    await page.click('[data-testid=agent-composer] .ai-mic')
+    const agentOk = await page
+      .waitForFunction(() => /ask not what.*can do for your country/i.test(document.querySelector('[data-testid=agent-input] .ed-content').textContent), null, { timeout: 120000, polling: 500 })
+      .then(() => true, () => false)
+    assert(agentOk, 'the dictation is transcribed into the box of the agent')
 
     assert(outside.length === 0, 'no request outside the pod: ' + JSON.stringify(outside.slice(0, 5)))
     assert(uploads.length === 0, 'no HTTP upload (the sound stays in the page): ' + JSON.stringify(uploads.slice(0, 5)))

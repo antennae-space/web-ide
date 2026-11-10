@@ -1,7 +1,7 @@
-// Message box of the assistant: a Markdown editor that grows with its content (Shift+Enter adds a
-// line, Enter or Ctrl+S sends), attachments, dictation, model picker, options menu,
-// context gauge, send / stop. The draft survives panel switches.
-import { createEffect, createSignal, For, on, onCleanup, onMount, Show, type JSX } from 'solid-js'
+// Message box of the assistant: the shared frame (ComposerShell: the editor, attachments,
+// dictation, send / stop) with the pills of the Assistant: mode, options, context gauge, model
+// picker; the /commands and the help card. The draft survives panel switches and reloads.
+import { createEffect, createSignal, For, onMount, Show, type JSX } from 'solid-js'
 import { loadPromptContext, promptContext } from './prompt'
 import {
   chat,
@@ -27,17 +27,14 @@ import {
   type Model,
 } from './state'
 import { compactNow, currentMode, nextMode, send, setMode, stop, unqueue } from './assistant'
-import { prepare, type Prepared } from './attachments'
-import { prepareDoodle } from './doodle/export'
-import { cloneDoc, newDoc, type DoodleDoc } from './doodle/model'
-import { doodleSession, openDoodle } from './doodle/session'
-import { canCapture, captureScreen, type Picture } from './doodle/background'
+import type { Prepared } from './attachments'
+import type { Picture } from './doodle/background'
 import { aliasItems } from './aliases'
-import { liveDictation, MessageBox, type CompletionItem } from './MessageBox'
-import { cancelDictation, canRecord, modelById, speech, startDictation, stopDictation } from './transcribe'
-import { AttachmentChip, formatSize, formatTokens, Popover, Switch } from './parts'
-import { contextMenu, errorToast, home, Icon, registerAction, shortcutOf, t, tn, toast } from '../plugin'
-import type { EditorView } from '../plugin'
+import type { CompletionItem } from './MessageBox'
+import { ComposerShell, focusComposer, suggest } from './ComposerShell'
+import { addFiles as addDraftFiles, newDoodleFor, reuseDoodleFor, setDraftText, type DoodleTarget } from './drafts'
+import { formatSize, formatTokens, Popover, Switch } from './parts'
+import { errorToast, home, Icon, t, toast } from '../plugin'
 
 const modeIcons = { build: 'edit', plan: 'outline', briefing: 'kanban', orchestrator: 'locate' } as const
 const modeLabels = { build: () => t('Build'), plan: () => t('Plan'), briefing: () => t('Briefing'), orchestrator: () => t('Orchestrator') }
@@ -48,99 +45,24 @@ const modeTitles = {
   briefing: () => t('Briefing mode: questions you to clarify an idea and writes it in kanban tickets, without changing files (Shift+Tab for Plan)'),
 }
 
-const [draft, setDraft] = createSignal('')
-// The draft is also kept in the session of the tab (#76): a phone that discards a tab in the
-// background reloads it whole, and what was being typed must still be there.
-const draftKey = () => 'webide.llm.draft.' + (home()?.id ?? '')
-function keepDraft(text: string) {
-  try {
-    if (text) sessionStorage.setItem(draftKey(), text)
-    else sessionStorage.removeItem(draftKey())
-  } catch {
-    /* storage unavailable */
-  }
+// The draft of the Assistant: one per project (its home), shared by the panel and the doodle modal.
+const target: DoodleTarget = {
+  get key() {
+    return 'llm.draft.' + (home()?.id ?? '')
+  },
+  caps: () => currentModel()?.caps,
 }
-function savedDraft() {
-  try {
-    return sessionStorage.getItem(draftKey()) ?? ''
-  } catch {
-    return ''
-  }
-}
-const [pending, setPending] = createSignal<Prepared[]>([])
-const [preparing, setPreparing] = createSignal(0)
-/** The editor of the message box last shown (the doodle modal has its own over the panel's). */
-let composerView: EditorView | undefined
 
 /** Converts files (picked, pasted or dropped) into attachments of the next message. */
-export async function addFiles(files: Iterable<File>) {
-  for (const f of files) {
-    setPreparing((n) => n + 1)
-    try {
-      const p = await prepare(f, currentModel()?.caps)
-      if (p.warning) toast(`${f.name}: ${p.warning}`, 'warn')
-      setPending([...pending(), p])
-    } catch (e) {
-      toast(`${f.name}: ${(e as Error).message}`, 'error')
-    } finally {
-      setPreparing((n) => n - 1)
-    }
-  }
-}
+export const addFiles = (files: Iterable<File>) => addDraftFiles(target, files)
 
 /** Opens a new doodle; Attach joins it to the draft. */
-export function newDoodle(background?: Picture) {
-  if (doodleSession()) return
-  const n = pending().filter((p) => p.attachment.kind === 'doodle').length + 1
-  const name = t('Doodle {n}', { n })
-  openDoodle({ doc: newDoc(background), name, onAttach: (doc) => attachDoodle(doc, name) })
-}
+export const newDoodle = (background?: Picture) => newDoodleFor(target, background)
 
 /** Opens an editable copy of a doodle sent earlier: Attach joins it as a new one. */
-export function reuseDoodle(a: Attachment) {
-  if (doodleSession() || !a.doodle) return
-  const n = pending().filter((p) => p.attachment.kind === 'doodle').length + 1
-  const name = t('Doodle {n}', { n })
-  openDoodle({ doc: cloneDoc(a.doodle), name, onAttach: (doc) => attachDoodle(doc, name) })
-}
+export const reuseDoodle = (a: Attachment) => reuseDoodleFor(target, a)
 
-/** A screenshot chosen by the user, opened as the background of a new doodle. */
-async function screenshotDoodle() {
-  try {
-    newDoodle(await captureScreen())
-  } catch (e) {
-    if ((e as Error).name !== 'NotAllowedError' && (e as Error).name !== 'AbortError') errorToast(e)
-  }
-}
-
-/** Opens a doodle of the draft again; Attach replaces it. */
-function editDoodle(p: Prepared) {
-  const { name, doodle } = p.attachment
-  openDoodle({ doc: cloneDoc(doodle!), name, onAttach: (doc) => attachDoodle(doc, name, p) })
-}
-
-async function attachDoodle(doc: DoodleDoc, name: string, replace?: Prepared) {
-  setPreparing((n) => n + 1)
-  try {
-    const p = await prepareDoodle(doc, name, currentModel()?.caps)
-    const list = pending()
-    const i = replace ? list.indexOf(replace) : -1
-    setPending(i >= 0 ? list.map((x, j) => (j === i ? p : x)) : [...list, p])
-  } finally {
-    setPreparing((n) => n - 1)
-  }
-}
-
-export function focusComposer() {
-  queueMicrotask(() => composerView?.focus())
-}
-
-/** Puts a suggestion in the box (not sent). */
-export function suggest(text: string) {
-  setDraft(text)
-  focusComposer()
-}
-
+export { focusComposer, suggest }
 
 // ---------- commands and mentions ----------
 
@@ -516,68 +438,23 @@ export function Composer(props: {
   /** Above the box, inside its frame (the bar of the conversation). */
   head?: JSX.Element
 }) {
-  let fileInput!: HTMLInputElement
-  const [view, setView] = createSignal<EditorView>()
-  if (!draft()) setDraft(savedDraft())
-  createEffect(on(draft, keepDraft, { defer: true }))
   // A message prepared by the Orchestrator for the conversation it opened.
   createEffect(() => {
     const text = incomingDraft()
     if (!text) return
-    setDraft(text)
+    setDraftText(target.key, text)
     setIncomingDraft('')
-    queueMicrotask(() => view()?.focus())
+    focusComposer()
   })
-
-  const dictate = async () => {
-    try {
-      const v = view()
-      if (speech.phase === 'recording') await stopDictation()
-      else if (speech.phase === 'idle' && v) await startDictation(liveDictation(v))
-    } catch (e) {
-      toast(t('Dictation: {message}', { message: (e as Error).message }), 'error')
-    }
-  }
-  onCleanup(cancelDictation)
-
-  const [now, setNow] = createSignal(Date.now())
-  const tick = setInterval(() => speech.phase === 'recording' && setNow(Date.now()), 250)
-  onCleanup(() => clearInterval(tick))
-  const loadingLabel = () =>
-    speech.total
-      ? t('Downloading the model {name}: {pct} % ({done} / {total})', { name: modelById(prefs.whisperModel).repo.split('/')[1], pct: Math.round((speech.loaded / speech.total) * 100), done: formatSize(speech.loaded), total: formatSize(speech.total) })
-      : t('Loading the transcription model…')
-  const speechLabel = () => {
-    switch (speech.phase) {
-      case 'recording': {
-        const s = Math.max(0, Math.floor((now() - speech.startedAt) / 1000))
-        const rec = t('Recording {time} · click the microphone to finish', { time: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` })
-        // Live dictation: the words wait for the model.
-        return speech.modelLoading ? `${rec} · ${loadingLabel()}` : rec
-      }
-      case 'loading':
-        return loadingLabel()
-      case 'transcribing':
-        return t('Local transcription…')
-    }
-    return ''
-  }
 
   onMount(() => {
     if (!promptContext()) loadPromptContext().catch(() => {})
   })
   const slashItems = (): CompletionItem[] => [...commandItems(), ...aliasItems(commandItems())]
 
-  const canSend = () => (!!draft().trim() || pending().length > 0 || !!props.sendable?.()) && !preparing()
-
-  const submit = async () => {
-    if (!canSend()) return
-    if (props.beforeSend) await props.beforeSend()
-    const text = draft().trim()
-    const atts = pending()
-    if (!canSend()) return
+  const submit = async (text: string, atts: Prepared[], clear: () => void) => {
     if (text.startsWith('/') && !atts.length) {
-      setDraft('')
+      setDraftText(target.key, '')
       setHelp(false)
       try {
         if (await runCommand(text, props.onSettings)) {
@@ -594,8 +471,7 @@ export function Composer(props: {
       return
     }
     setHelp(false)
-    setDraft('')
-    setPending([])
+    clear()
     setFullComposer(false)
     props.onSent()
     try {
@@ -609,191 +485,75 @@ export function Composer(props: {
     }
   }
 
-  /** Keys of the assistant, after the completion and before the editor; true when consumed. */
+  /** Shift+Tab cycles through the modes. */
   const onKey = (e: KeyboardEvent): boolean => {
-    if (e.key === 'Escape' && live.busy) {
-      stop()
-      return true
-    }
-    if (e.key === 'Escape' && fullComposer() && !props.inDoodle && !view()?.hasCarets()) {
-      setFullComposer(false)
-      return true
-    }
     if (e.key === 'Tab' && e.shiftKey && !e.ctrlKey && !e.altKey) {
-      // Shift+Tab cycles through the modes.
       setMode(nextMode())
-      return true
-    }
-    if (e.key === ' ' && e.ctrlKey && !e.shiftKey && !e.altKey) {
-      dictate()
       return true
     }
     return false
   }
 
   const placeholder = () => (!config.model ? t('Choose a model…') : live.busy ? t('Queued message…') : t('Message…'))
-  const onView = (v: EditorView) => {
-    setView(v)
-    const prev = composerView
-    composerView = v
-    onCleanup(() => {
-      if (composerView === v) composerView = prev
-    })
-  }
-  if (!props.inDoodle) {
-    const off = registerAction('assistant.fullComposer', () => {
-      if (!view()?.hasFocus()) return false
-      setFullComposer(!fullComposer())
-    })
-    onCleanup(off)
-  }
+  // The messages typed in this conversation, for ↑ / ↓.
+  const sent = () => chat.messages.flatMap((m) => (m.role !== 'user' ? [] : [m.display ?? (typeof m.content === 'string' ? m.content : '')])).filter(Boolean)
 
   return (
-    <div
-      class="ai-composer-wrap"
-      classList={{ full: fullComposer() && !props.inDoodle, [currentMode()]: true, busy: live.busy && live.state !== 'waiting_user', compacting: live.compacting }}
-    >
-      <div class="ai-led" data-testid="ai-led" />
-      {props.head}
-      <div class="ai-led" />
-      <div class="ai-composer">
-        <Show when={chat.queue?.length}>
-          <div class="ai-queue" data-testid="ai-queue">
-            <div class="ai-queue-title">
-              <Icon name="history" size={12} /> {live.busy ? t('Queued: sent at the next step of the answer') : t('Queued: sent with the next message')}
-            </div>
-            <For each={chat.queue}>
-              {(q) => (
-                <div class="ai-queue-item">
-                  <span class="ellipsis">{q.display ?? q.text}</span>
-                  <Show when={q.attachments?.length}>
-                    <span class="muted small">+{tn(q.attachments!.length, '{n} attachment', '{n} attachments')}</span>
-                  </Show>
-                  <span class="grow" />
-                  <button
-                    class="ai-act"
-                    title={t('Back to the message box')}
-                    onClick={() => {
-                      unqueue(q.id)
-                      setDraft(q.display ?? q.text)
-                      focusComposer()
-                    }}
-                  >
-                    <Icon name="edit" size={12} />
-                  </button>
-                  <button class="ai-act" title={t('Remove from the queue')} onClick={() => unqueue(q.id)}>
-                    <Icon name="close" size={12} />
-                  </button>
-                </div>
-              )}
-            </For>
-          </div>
-        </Show>
-        <Show when={pending().length || preparing()}>
-          <div class="ai-atts">
-            <For each={pending()}>{(p, i) => <AttachmentChip a={p.attachment} onOpen={p.attachment.doodle && !props.inDoodle ? () => editDoodle(p) : undefined} onRemove={() => setPending(pending().filter((_, j) => j !== i()))} />}</For>
-            <Show when={preparing()}>
-              <span class="ai-att muted">
-                <span class="spinner" /> {t('preparing…')}
-              </span>
-            </Show>
-          </div>
-        </Show>
-        <Show when={speech.phase !== 'idle'}>
-          <div class="ai-speech small" classList={{ rec: speech.phase === 'recording' }} data-testid="ai-speech">
-            {speech.phase === 'recording' ? <span class="rec-dot" /> : <span class="spinner" />}
-            <span class="ellipsis">{speechLabel()}</span>
-          </div>
-        </Show>
+    <ComposerShell
+      target={target}
+      classList={{ [currentMode()]: true, busy: live.busy && live.state !== 'waiting_user', compacting: live.compacting }}
+      ledTestid="ai-led"
+      ids={{ queue: 'ai-queue', full: 'ai-full', attach: 'ai-attach', enqueue: 'enqueue', send: 'send', stop: 'stop' }}
+      head={props.head}
+      above={
         <Show when={help()}>
           <HelpCard />
         </Show>
-        <MessageBox draft={draft} setDraft={setDraft} placeholder={placeholder} slashItems={slashItems} onSubmit={() => void submit()} onKey={onKey} onFiles={(f) => void addFiles(f)} onView={onView} />
-        <Show when={!props.inDoodle}>
-          <button
-            class="ai-act ai-full-btn"
-            title={fullComposer() ? t('Leave the full screen (Esc)') : `${t('Full screen')} (${shortcutOf('assistant.fullComposer')})`}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => (setFullComposer(!fullComposer()), view()?.focus())}
-            data-testid="ai-full"
-          >
-            <Icon name={fullComposer() ? 'minimize' : 'maximize'} size={13} />
-          </button>
-        </Show>
-        <div class="ai-composer-bar">
-          <button
-            class="ai-mode"
-            classList={{ plan: currentMode() === 'plan', briefing: currentMode() === 'briefing', orchestrator: currentMode() === 'orchestrator' }}
-            title={modeTitles[currentMode()]()}
-            onClick={() => setMode(nextMode())}
-            data-testid="ai-mode"
-          >
-            <Icon name={modeIcons[currentMode()]} size={13} />
-            <span class="ai-mode-label">{modeLabels[currentMode()]()}</span>
-            <Show when={currentMode() === 'plan' && prefs.planServer && prefs.planModel}>
-              <span class="ai-mode-model ellipsis">· {prefs.planModel}</span>
-            </Show>
-          </button>
-          <button
-            class="ai-icon ai-mic"
-            classList={{ rec: speech.phase === 'recording' }}
-            title={canRecord() ? (speech.phase === 'recording' ? t('End the dictation (Ctrl+Space)') : t('Dictate: local transcription, the sound stays on this machine (Ctrl+Space)')) : t('Microphone unavailable (https or localhost required)')}
-            disabled={!canRecord() || speech.phase === 'loading' || speech.phase === 'transcribing'}
-            onClick={dictate}
-          >
-            <Icon name="mic" size={16} />
-          </button>
-          <button
-            class="ai-icon"
-            title={t('Attach a file or a doodle')}
-            aria-haspopup="menu"
-            data-testid="ai-attach"
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect()
-              contextMenu(new MouseEvent('contextmenu', { clientX: r.left, clientY: r.top - 4 }), [
-                { label: t('File…'), hint: t('image, video, audio, PDF, text'), action: () => fileInput.click() },
-                ...(props.inDoodle ? [] : [{ label: t('Doodle…'), hint: shortcutOf('assistant.doodle'), action: () => newDoodle() }]),
-                ...(props.inDoodle || !canCapture() ? [] : [{ label: t('Screenshot…'), hint: t('to annotate'), action: () => void screenshotDoodle() }]),
-              ])
-            }}
-          >
-            <Icon name="paperclip" size={16} />
-          </button>
-          <input
-            ref={fileInput}
-            type="file"
-            multiple
-            hidden
-            onChange={(e) => {
-              addFiles([...(e.currentTarget.files ?? [])])
-              e.currentTarget.value = ''
-            }}
-          />
-          <Options />
-          <span class="grow" />
+      }
+      barStart={
+        <button
+          class="ai-mode"
+          classList={{ plan: currentMode() === 'plan', briefing: currentMode() === 'briefing', orchestrator: currentMode() === 'orchestrator' }}
+          title={modeTitles[currentMode()]()}
+          onClick={() => setMode(nextMode())}
+          data-testid="ai-mode"
+        >
+          <Icon name={modeIcons[currentMode()]} size={13} />
+          <span class="ai-mode-label">{modeLabels[currentMode()]()}</span>
+          <Show when={currentMode() === 'plan' && prefs.planServer && prefs.planModel}>
+            <span class="ai-mode-model ellipsis">· {prefs.planModel}</span>
+          </Show>
+        </button>
+      }
+      barTools={<Options />}
+      barEnd={
+        <>
           <Show when={chat.messages.length}>
             <ContextMenu />
           </Show>
           <ModelPicker onSettings={props.onSettings} />
-          <Show when={live.busy && canSend()}>
-            <button class="ai-send queue" onClick={submit} aria-label={t('Queue')} title={t('Queue (Enter or Ctrl+S): sent at the next step')} data-testid="enqueue">
-              <Icon name="arrowUp" size={16} />
-            </button>
-          </Show>
-          <Show
-            when={live.busy}
-            fallback={
-              <button class="ai-send" disabled={!canSend()} onClick={submit} aria-label={t('Send')} title={t('Send (Enter or Ctrl+S)')} data-testid="send">
-                <Icon name="arrowUp" size={16} />
-              </button>
-            }
-          >
-            <button class="ai-send stop" onClick={stop} aria-label={t('Stop')} title={t('Stop (Esc)')} data-testid="stop">
-              <span class="ai-stop-square" />
-            </button>
-          </Show>
-        </div>
-      </div>
-    </div>
+        </>
+      }
+      busy={() => live.busy}
+      queue={() => (chat.queue ?? []).map((q) => ({ text: q.display ?? q.text, attachments: q.attachments?.length }))}
+      queueTitle={() => (live.busy ? t('Queued: sent at the next step of the answer') : t('Queued: sent with the next message'))}
+      queueHint={() => t('Queue (Enter or Ctrl+S): sent at the next step')}
+      unqueue={(i, edit) => {
+        const q = chat.queue![i]
+        unqueue(q.id)
+        if (edit) return q.display ?? q.text
+      }}
+      stop={stop}
+      submit={submit}
+      beforeSend={props.beforeSend}
+      sendable={props.sendable}
+      slashItems={slashItems}
+      placeholder={placeholder}
+      history={sent}
+      onKey={onKey}
+      full={fullComposer}
+      setFull={setFullComposer}
+      inDoodle={props.inDoodle}
+    />
   )
 }
