@@ -33,5 +33,7 @@
   "In {folder}": "En {folder}",
   "Edit the saved commands…": "Editar los comandos guardados…",
   "Console “{title}”": "Consola «{title}»",
-  "Console “{title}” (ended)": "Consola «{title}» (terminada)"
+  "Console “{title}” (ended)": "Consola «{title}» (terminada)",
+  "Terminals and tasks": "Terminales y tareas",
+  "code {code}": "código {code}"
 }

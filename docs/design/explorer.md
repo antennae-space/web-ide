@@ -1,6 +1,6 @@
 # Explorer roots
 
-The Explorer as the navigator of the project, as in PhpStorm (a foldable project root, *Scratches and Consoles*), but open to every tool: it shows a list of foldable **roots**, one per tool, each a tree of **nodes**. Decided with the user on 2026-11-10, milestone 20; the base (the contribution, the project root, the order) is done in #239.
+The Explorer as the navigator of the project, as in PhpStorm (a foldable project root, *Scratches and Consoles*), but open to every tool: it shows a list of foldable **roots**, one per tool, each a tree of **nodes**. Decided with the user on 2026-11-10, milestone 20; the base (the contribution, the project root, the order) is done in #239, the terminals and tasks in #240.
 
 ## Choices
 
@@ -19,7 +19,7 @@ In their order by default:
 | Conversations & Agents | AI | the active threads of the assistant and the active sessions of the Agents tool, merged; their children: the sub-agents, then the files the thread changed | #242, #243 |
 | The project (its name) | Files | the file tree of the worktree shown; a folder icon | #239 |
 | Scratches and Consoles | Files (empty) | the SQL consoles (plugin-database), by connection | #244, #245 |
-| Terminals and tasks | Exec | the consoles of the Console tool | #240 |
+| Terminals and tasks | Exec | the consoles of the Console tool: a terminal or a task icon, the tags of their desk and worktree, an ended one dimmed (with its exit code when it is not 0); a double click shows it in the Console (it comes to the desk shown, as when the assistant shows it); its menu renames, moves or closes it | #240, done |
 | Debug sessions | Debug | the debug sessions, with their state | #241 |
 
 A root with no node is hidden; the project root always shows.
