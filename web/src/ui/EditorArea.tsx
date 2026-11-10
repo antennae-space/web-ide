@@ -31,6 +31,7 @@ import { capability } from '../plugins/capabilities'
 import { Dynamic } from 'solid-js/web'
 import { DocView } from './DocView'
 import { CornerButtons, toolMenuItems } from './toolMenu'
+import { dragPointer } from './drag'
 
 export function EditorArea(props: { detached?: boolean; statusBar?: boolean }) {
   return (
@@ -60,7 +61,6 @@ function Node(props: { node: LayoutNode; detached?: boolean }) {
 function Split(props: { node: Extract<LayoutNode, { type: 'split' }> }) {
   let el!: HTMLDivElement
   const drag = (i: number, e: PointerEvent) => {
-    e.preventDefault()
     const rect = el.getBoundingClientRect()
     const row = props.node.dir === 'row'
     const total = row ? rect.width : rect.height
@@ -75,12 +75,7 @@ function Split(props: { node: Extract<LayoutNode, { type: 'split' }> }) {
       next[i + 1] = b
       setSplitSizes(props.node.id, next)
     }
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
+    dragPointer(e, move, { cursor: row ? 'col-resize' : 'row-resize' })
   }
   return (
     <div ref={el} class={`split split-${props.node.dir}`} data-split={props.node.id}>

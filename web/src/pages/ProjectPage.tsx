@@ -43,6 +43,7 @@ import { toast } from '../ui/toast'
 import { t, tn } from '../i18n'
 import { ProjectBar } from './ProjectBar'
 import { DeskSwitcher } from '../ui/DeskSwitcher'
+import { dragPointer } from '../ui/drag'
 import { SearchEverywhereHost, searchEverywhere } from '../popups/SearchEverywhere'
 import { RecentFilesHost, recentFiles } from '../popups/RecentFiles'
 import { ClipboardHistoryHost, pasteFromHistory } from '../popups/ClipboardHistory'
@@ -644,21 +645,13 @@ function RailGroup(props: { zone: Zone }) {
 
 function Resizer(props: { onDrag: (delta: number) => void; dir: 'x' | 'y' }) {
   const down = (e: PointerEvent) => {
-    e.preventDefault()
     let last = props.dir === 'x' ? e.clientX : e.clientY
     const move = (ev: PointerEvent) => {
       const cur = props.dir === 'x' ? ev.clientX : ev.clientY
       props.onDrag(cur - last)
       last = cur
     }
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      document.body.classList.remove('resizing')
-    }
-    document.body.classList.add('resizing')
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
+    dragPointer(e, move, { cursor: props.dir === 'x' ? 'col-resize' : 'row-resize' })
   }
   return <div class={`resizer resizer-${props.dir}`} onPointerDown={down} />
 }

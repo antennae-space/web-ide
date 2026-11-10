@@ -271,6 +271,28 @@ run(async ({ page, errors }) => {
   await frame(page, 'greet').locator('#desk:text-is("n=2")').waitFor()
   assert(true, 'the state of an external plugin in the desk: its own per desk, kept after a reload')
 
+  // A resizer released over the frame of a plugin: the drag ends, it does not stay stuck to the mouse.
+  await showGreet()
+  const handle = await page.evaluate(() => {
+    const zone = document.querySelector('iframe.plugin-frame[data-view=greet]').closest('.zone')
+    const r = [zone.previousElementSibling, zone.nextElementSibling].find((x) => x?.classList.contains('resizer'))
+    const b = r.getBoundingClientRect()
+    const f = zone.querySelector('iframe').getBoundingClientRect()
+    zone.dataset.dragged = '1'
+    return { x: b.left + b.width / 2, y: b.top + b.height / 2, fx: f.left + f.width / 2, fy: f.top + f.height / 2, vertical: b.height > b.width }
+  })
+  const zoneSize = () => page.$eval('.zone[data-dragged]', (z) => Math.round(z.getBoundingClientRect().width * 1000 + z.getBoundingClientRect().height))
+  await page.mouse.move(handle.x, handle.y)
+  await page.mouse.down()
+  const over = handle.vertical ? { x: handle.fx, y: handle.y } : { x: handle.x, y: handle.fy }
+  await page.mouse.move(over.x, over.y, { steps: 8 })
+  await page.mouse.up()
+  const released = await zoneSize()
+  await page.mouse.move(over.x + (handle.vertical ? 60 : 0), over.y + (handle.vertical ? 0 : 60), { steps: 6 })
+  await page.waitForTimeout(100)
+  assert((await zoneSize()) === released, 'a resizer released over the frame of a plugin stops following the mouse')
+  assert(!(await page.evaluate(() => document.body.classList.contains('dragging'))), 'the drag is over: the frames take the pointer again')
+
   // The shortcuts of the IDE from the frame: Search Everywhere, then its command.
   await showGreet()
   await frame(page, 'greet').locator('#checks').click()

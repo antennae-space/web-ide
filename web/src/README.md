@@ -74,6 +74,7 @@ Diagram edges are imports of the folders, checked with a script over the `import
 
 ## Invariants and pitfalls
 
+- **A drag goes through `dragPointer`** (`ui/drag.ts`): it captures the pointer on the handle and turns off the pointer events of the iframes (`body.dragging`). Listeners on `window` alone lose the release over the frame of a plugin or a preview, and the drag stays stuck to the mouse.
 - **Solid empties a container** whose only child is dynamic: a node mounted by hand (the editor view) needs its own element (`.editor-mount`).
 - **View callbacks run under `untrack`** (`useEditorView`), otherwise an effect calling `setSelection` subscribes to what the callback reads.
 - **Editor blocks use `width: max-content`**, otherwise lengthening the longest line re-lays out the whole file.

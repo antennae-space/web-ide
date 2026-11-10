@@ -29,7 +29,8 @@ html, body, #app { height: 100%; margin: 0; }
    The drawing surfaces (touch-action: none) zoom their own content in JavaScript. */
 html { touch-action: manipulation; }
 body { background: var(--bg); color: var(--fg); font: var(--font-size-ui)/1.4 var(--font-ui); overflow: hidden; }
-body.resizing { cursor: col-resize; user-select: none; }
+body.dragging { cursor: var(--drag-cursor, col-resize); user-select: none; }
+body.dragging iframe { pointer-events: none; }
 button, input, select, textarea { font: inherit; color: inherit; }
 code, .mono, kbd { font-family: var(--font-code); }
 kbd { font-size: max(12px, 0.85em); padding: 1px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--bg-2); color: var(--fg-muted); white-space: nowrap; }

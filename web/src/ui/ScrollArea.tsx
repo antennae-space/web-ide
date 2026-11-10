@@ -6,6 +6,7 @@ import { createEffect, createSignal, For, on, Show, type JSX } from 'solid-js'
 import { columnsOf, firstLeaf, findLeaf, session, setActivePane, setColumnWidth, type LayoutNode } from '../state/project'
 import { columnsInSight, columnWidth, focusPane } from '../state/tiles'
 import { t } from '../i18n'
+import { dragPointer } from './drag'
 
 export function ScrollArea(props: { cell: (node: LayoutNode) => JSX.Element }) {
   let strip!: HTMLDivElement
@@ -36,18 +37,12 @@ export function ScrollArea(props: { cell: (node: LayoutNode) => JSX.Element }) {
 
   // The right edge of a column changes its width.
   const drag = (c: LayoutNode, e: PointerEvent) => {
-    e.preventDefault()
     const col = (e.currentTarget as HTMLElement).parentElement!
     const start = e.clientX
     const from = col.offsetWidth
     const pane = firstLeaf(c).id
     const move = (ev: PointerEvent) => setColumnWidth(pane, Math.max(1 / columnsInSight(), Math.min(1, (from + ev.clientX - start) / strip.clientWidth)))
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
+    dragPointer(e, move)
   }
 
   return (

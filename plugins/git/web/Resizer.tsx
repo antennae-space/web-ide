@@ -10,6 +10,8 @@ export function Resizer(props: { height: number; set: (h: number) => void; min?:
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
     }
+    // Captured: an iframe under the cursor does not take the release.
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
   }
