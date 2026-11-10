@@ -356,7 +356,7 @@ export async function runTask() {
   await newConsole({ kind: 'task', command: ['sh', '-c', cmd], title: cmd })
 }
 
-async function closeConsole(id: string) {
+export async function closeConsole(id: string) {
   try {
     await api.rpcIn(projectOf(id), 'console.close', { id })
   } catch {
@@ -369,7 +369,7 @@ async function closeConsole(id: string) {
   if (!consoles().length) showNewTab()
 }
 
-async function renameConsole(c: ConsoleInfo) {
+export async function renameConsole(c: ConsoleInfo) {
   const title = await prompt({ title: t('Rename the console'), value: c.title })
   if (title) api.rpcIn(c.project, 'console.rename', { id: c.id, title }).catch(errorToast)
 }
@@ -439,7 +439,7 @@ export function consoleMenu(): MenuItem[] {
 let dragged: string | null = null
 
 /** Items of the menu of a console tab sending it to another desk, or to a new one. */
-function deskItems(id: string): MenuItem[] {
+export function deskItems(id: string): MenuItem[] {
   return [
     ...api.desks.list().filter((d) => d.n !== api.desks.current()).map((d) => ({ label: t('Move to desk {name}', { name: d.name || String(d.n) }), hint: api.keys.shortcut(`desk.send.${d.n}`), action: () => void moveToDesk(id, d.n) })),
     { label: t('Move to a new desk'), action: () => void api.desks.add().then((n) => moveToDesk(id, n)) },

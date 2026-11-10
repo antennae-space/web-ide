@@ -1,6 +1,7 @@
 // Consoles on desks (#197, #198): a console belongs to the desk it was opened on and only that desk
 // lists it; it moves to another desk from its tab and keeps running; removing a desk lists its
-// consoles in the confirmation and ends them.
+// consoles in the confirmation and ends them. The root Terminals and tasks of the Explorer (#240)
+// lists them all, with the tag of their desk; a double click shows one, an ended one is dimmed.
 const { run, openProject, assert, OUT } = require('../../../e2e/common.cjs')
 
 const consoleTabs = (page) => page.$$eval('.console-tabs .tab .tab-title', (l) => l.map((e) => e.textContent).filter((x) => x !== 'New tab'))
@@ -16,6 +17,12 @@ const newTerminal = async (page, title) => {
   await page.fill('.modal input', title)
   await page.keyboard.press('Enter')
   await page.waitForSelector(`.console-tabs .tab .tab-title:text-is("${title}")`)
+}
+// The root Terminals and tasks of the Explorer (#240): every console of the project, whatever its desk.
+const nodeRow = (title) => `.explorer .tree-row.explorer-node[data-path^="node:terminals/"]:has(.tree-name:text-is("${title}"))`
+const showExplorer = async (page) => {
+  if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
+  await page.waitForSelector('.explorer .tree-row[data-path="root:terminals"]')
 }
 const goDesk = async (page, n) => {
   await page.click(`[data-testid=desk-${n}]`)
@@ -39,6 +46,10 @@ run(async ({ page }) => {
   await newTerminal(page, 'Two')
   await goDesk(page, 1)
   assert((await consoleTabs(page)).join() === 'One', 'desk 1 lists its console only: ' + (await consoleTabs(page)))
+  await showExplorer(page)
+  await page.waitForSelector(nodeRow('Two'))
+  assert(!(await page.$(nodeRow('One') + ' [data-testid=explorer-desk-tag]')), 'a console of the desk shown has no desk tag')
+  assert((await page.textContent(nodeRow('Two') + ' [data-testid=explorer-desk-tag]')) === 'Desk 2', 'the Explorer lists the console of desk 2, with its tag')
 
   // A reload keeps each console on its desk.
   await goDesk(page, 2)
@@ -82,4 +93,20 @@ run(async ({ page }) => {
   await page.waitForFunction(() => !document.querySelector('[data-testid=desk-2]'))
   assert(!(await page.$('.modal .confirm-text')), 'no list when nothing ends with the desk')
   assert((await consoleTabs(page)).sort().join() === 'One,Two', 'desk 1 keeps its consoles: ' + (await consoleTabs(page)))
+
+  // In the Explorer: a double click shows the console, one that ended is dimmed with its code.
+  await showExplorer(page)
+  await page.click('.console-tabs .tab:has-text("One")')
+  await page.dblclick(nodeRow('Two'))
+  await page.waitForSelector('.console-tabs .tab.active .tab-title:text-is("Two")')
+  assert(true, 'a double click on a node shows its console')
+  await page.click('.console-tabs .tab:has-text("One")')
+  await page.click('.zone-bottomLeft .xterm')
+  await page.keyboard.type('exit 3\n')
+  await page.waitForSelector(nodeRow('One') + '.dimmed')
+  assert((await page.textContent(nodeRow('One') + ' .tree-tag')) === 'code 3', 'an ended console is dimmed, its exit code at the right')
+  await page.click(nodeRow('One'), { button: 'right' })
+  await page.click('.ctx-menu >> text=Close')
+  await page.waitForSelector(nodeRow('One'), { state: 'detached' })
+  assert((await consoleTabs(page)).join() === 'Two', 'Close in the menu of a node closes the console')
 })

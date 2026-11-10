@@ -5,6 +5,7 @@ import { bindApi } from './plugin'
 import { activeToDesk, allConsoles, ConsoleTool, consoleMenu, consoles, moveToDesk, navigateConsoles, newConsole, openNewTab, refreshConsoles, runTask, setConsoleList, TermView, watchConsoles } from './consoles'
 import { commands, loadCommands, show, watchCommands } from './commands'
 import { CommandsHost, openCommands } from './CommandsModal'
+import { terminalsRoot } from './explorer'
 
 export const exec: PluginModule = {
   activate(a) {
@@ -17,6 +18,7 @@ export const exec: PluginModule = {
       tools: { console: { component: ConsoleTool } },
       toolMenu: { console: consoleMenu },
       explorerItems: (e) => [{ label: a.t('Open a terminal here'), action: () => void newConsole({ cwd: e.folder }) }],
+      explorerRoots: [terminalsRoot],
       hosts: [CommandsHost],
       commands: {
         // The new tab of the Console: the launcher, which converts into a console.
