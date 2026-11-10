@@ -57,6 +57,9 @@ async function runSession(k: Known, method: 'stop' | 'restart') {
   }
 }
 
+/** The ended sessions the root keeps, the most recent ones. */
+const MAX_ENDED = 5
+
 /** Where a paused program is, else what it runs. */
 const titleOf = (s: Session) => (s.file ? `${relOf(s.file) ?? s.file}${s.line ? ':' + s.line : ''}` : `${s.type} · ${s.request}`)
 
@@ -86,9 +89,11 @@ export const debugSessionsRoot: ExplorerRoot = {
   nodes: () => {
     const current = api.project.current()
     const attached = new Set(api.project.attached())
-    return known()
-      .filter((k) => attached.has(k.project))
-      .slice()
+    const mine = known().filter((k) => attached.has(k.project))
+    // The ended ones only tell that they ran: the last few are enough.
+    const ended = mine.filter((k) => k.session.state === 'ended').slice(-MAX_ENDED)
+    return mine
+      .filter((k) => k.session.state !== 'ended' || ended.includes(k))
       .sort((a, b) => Number(b.project === current) - Number(a.project === current))
       .map(nodeOf)
   },

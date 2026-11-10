@@ -20,7 +20,7 @@ In their order by default:
 | The project (its name) | Files | the file tree of the worktree shown; a folder icon | #239 |
 | Scratches and Consoles | Files (empty) | the SQL consoles (plugin-database), by connection | #244, #245 |
 | Terminals and tasks | Exec | the consoles of the Console tool: a terminal or a task icon, the tags of their desk and worktree, an ended one dimmed (with its exit code when it is not 0); a double click shows it in the Console (it comes to the desk shown, as when the assistant shows it); its menu renames, moves or closes it | #240, done |
-| Debug sessions | Debug | the debug sessions of every attached worktree, with their state (*Paused*, *Starting*), an ended one dimmed; a double click shows it in the Debug tool (the Explorer asks before switching its worktree); its menu stops or restarts it | #241, done |
+| Debug sessions | Debug | the debug sessions of every attached worktree, with their state (*Paused*, *Starting*), an ended one dimmed (the last 5); a double click shows it in the Debug tool (the Explorer asks before switching its worktree); its menu stops or restarts it | #241, done |
 
 A root with no node is hidden; the project root always shows.
 
