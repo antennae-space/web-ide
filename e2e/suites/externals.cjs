@@ -43,6 +43,8 @@ ide.register({
       // The items this frame adds to the ⋮ menu of its tool (#175), and the choice it gets back.
       ide.setToolMenu([{ id: 'louder', label: ide.t('Greet from the menu'), hint: 'Ctrl+G' }, { id: 'quiet', label: ide.t('Quietly'), checked: true }])
       ide.onToolMenu((e) => (el.querySelector('#menu-choice').textContent = e.item))
+      // Its part of a node of the background frame (#244): one node, the children of both.
+      ide.setExplorerNodes('greetings', [{ id: 'g1', label: 'Not this label', children: [{ id: 'n2', label: 'From the tool', icon: 'sparkle' }] }])
       const show = (p) => p.then((r) => (el.querySelector('#answer').textContent = typeof r === 'string' ? r : JSON.stringify(r)), (e) => (el.querySelector('#answer').textContent = 'error: ' + e.message))
       ide.on('greet.said', (d) => (el.querySelector('#event').textContent = d))
       el.querySelector('#backend').onclick = () => show(ide.rpc('greet.hello'))
@@ -89,6 +91,25 @@ ide.register({
     },
   },
   commands: { hello: (ide) => ide.toast('Command of Greet') },
+  // Its roots of the Explorer (#244), pushed by its background frame; a root it does not own is refused.
+  background: (ide) => {
+    const g1 = { id: 'g1', label: 'Greeting one', icon: 'comment', badge: 'new', open: true, menu: [{ id: 'wave', label: 'Wave' }], children: [{ id: 'n1', label: 'notes.txt', path: 'notes.txt' }] }
+    ide.setExplorerNodes('greetings', [g1])
+    // Its tabs, listed though a hidden tab has no frame: a node each, its menu closes it.
+    let tabs = []
+    ide.onViewTabs((l) => {
+      tabs = l
+      ide.setExplorerNodes('greetings', [g1, ...l.map((x) => ({ id: 'tab:' + x.view + ':' + (x.key || ''), label: 'Tab ' + x.title, icon: 'file', open: true, menu: [{ id: 'close', label: 'Close the tab' }] }))])
+    })
+    ide.setExplorerNodes('scratches', [{ id: 'sc', label: 'Greet console', icon: 'terminal', open: true }])
+    ide.setExplorerNodes('terminals', [{ id: 'x', label: 'Not mine' }])
+    ide.onExplorer((e) => {
+      const tab = tabs.find((x) => e.node === 'tab:' + x.view + ':' + (x.key || ''))
+      if (tab && e.item === 'close') return ide.closeViewTab(tab.view, tab.key)
+      if (tab) return ide.openView(tab.view, tab.state, tab.title, tab.key)
+      ide.toast('explorer ' + e.root + ' ' + e.node + ' ' + (e.item || 'open'))
+    })
+  },
 })
 `
 
@@ -121,6 +142,8 @@ run(async ({ page, errors }) => {
     commands: [{ id: 'hello', label: 'Say hello from Greet' }],
     assistantTools: ['greet_hello'],
     toolSchemas: { greet_hello: { description: 'Says hello from the backend of Greet', properties: {} } },
+    explorerRoots: [{ id: 'greetings', label: 'Greetings', icon: 'comment', order: 45 }],
+    explorerNodes: ['scratches'],
   }
   // Its backend, a static Go program.
   const goBin = [process.env.GO, path.join(os.homedir(), 'sdk/go/bin/go'), 'go'].find((g) => g && (g === 'go' || fs.existsSync(g)))
@@ -302,6 +325,38 @@ run(async ({ page, errors }) => {
   await page.waitForSelector('.pick-item.selected:has-text("Say hello from Greet")')
   await page.keyboard.press('Enter')
   await page.waitForSelector('.toast:has-text("Command of Greet")')
+
+  // Its roots of the Explorer (#244): a root of its own and a node in Scratches and Consoles,
+  // pushed by its background frame; a double click and a choice of the menu go back to it.
+  if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
+  const greetNode = '.explorer .tree-row[data-path="node:greetings/greet:g1"]'
+  await page.waitForSelector(greetNode)
+  assert((await page.textContent('.explorer .tree-row[data-path="root:greetings"] .tree-name')) === 'Greetings' && (await page.textContent(greetNode + ' .tree-tag')) === 'new', 'the root of an external plugin, its node and its badge')
+  assert(await page.isVisible('.explorer .tree-row[data-path="node:scratches/greet:sc"]'), 'a node of an external plugin in Scratches and Consoles')
+  assert(!(await page.$('.explorer .tree-row[data-path^="node:terminals/greet:"]')), 'a root it does not name in its manifest is refused')
+  await page.dblclick(greetNode)
+  await page.waitForSelector('.toast:has-text("explorer greetings g1 open")')
+  assert(true, 'a double click on its node goes back to its frame')
+  await page.click(greetNode, { button: 'right' })
+  await page.click('.ctx-menu >> text=Wave')
+  await page.waitForSelector('.toast:has-text("explorer greetings g1 wave")')
+  assert(true, 'a choice of the menu of its node goes back to its frame')
+  await page.click(greetNode + ' .tree-twist')
+  await page.waitForSelector('.explorer .tree-row[data-path="node:greetings/greet:g1/greet:n2"]')
+  assert((await page.$$('.explorer .tree-row[data-path="node:greetings/greet:g1"]')).length === 1 && (await page.textContent(greetNode + ' .tree-name')) === 'Greeting one', 'two frames pushing one node id give one node, the children of both')
+  await page.dblclick('.explorer .tree-row[data-path="node:greetings/greet:g1/greet:n1"]')
+  await page.waitForSelector('.pane.active .tab.active:has-text("notes.txt")')
+  assert(true, 'a file node of an external plugin opens the file of the project')
+  // Its tabs (onViewTabs): the Note tab, hidden behind notes.txt, has its node; Close the tab closes it.
+  const noteNode = '.explorer .tree-row[data-path="node:greetings/greet:tab:note:"]'
+  await page.waitForSelector(noteNode)
+  assert((await page.textContent(noteNode + ' .tree-name')) === 'Tab Note', 'the background frame lists a hidden tab of its views')
+  await page.click(noteNode, { button: 'right' })
+  await page.click('.ctx-menu >> text=Close the tab')
+  // has-text ignores the case: notes.txt would match "Note".
+  await page.waitForFunction(() => ![...document.querySelectorAll('.pane .tab')].some((x) => /^Note\b/.test(x.textContent.trim())))
+  await page.waitForSelector(noteNode, { state: 'detached' })
+  assert(true, 'closeViewTab closes a hidden tab of its views, its node goes')
 
   // A new version asks the network and fs.list: the update asks only those.
   release('1.1.0', { ide: '^1.0', permissions: ['files:read', 'net', 'core:fs.list'] })

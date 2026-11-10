@@ -55,6 +55,9 @@ export interface PluginManifest {
     mcpTools?: string[]
     /** Actions <plugin>.<id> (or the id as written when it has a prefix of the plugin's namespaces); keys: default shortcuts; replaces: the id of the action before it moved to a plugin. */
     commands?: { id: string; label: string; category?: string; keys?: string[]; replaces?: string; inTerminal?: boolean }[]
+    /** An external plugin's roots of the Explorer and the roots of others it fills (#244); its frames push the nodes. */
+    explorerRoots?: { id: string; label: string; icon?: string; order?: number }[]
+    explorerNodes?: string[]
   }
 }
 

@@ -16,6 +16,7 @@ import { frameDoc, projectInfo, serveFrame, type FrameEditor } from './sandbox'
 import { pluginSettingValues } from './settings'
 import type { PageMessage, SandboxModalSize, SandboxStatusItem, SandboxToolMenuItem } from './sandbox-api'
 import { claim, serve, setModalOpener } from './services'
+import { explorerContributions, explorerHost } from './externalExplorer'
 import './adapters'
 import type { PluginContributions, PluginManifest, PluginModule, PluginState, StatusItem } from './types'
 import type { MenuItem } from '../ui/overlay'
@@ -141,6 +142,7 @@ function SandboxFrame(props: {
 }) {
   let frame!: HTMLIFrameElement
   let served: Served | undefined
+  const explorer = explorerHost(props.state.manifest, () => served!.send)
   // Served once: the frame keeps its port for its life (a new state is its own business).
   onMount(() => {
     served = serveFrame(frame, {
@@ -169,6 +171,7 @@ function SandboxFrame(props: {
           ? setFrameTabMenu((all) => ({ ...all, [props.tab!.id]: { items, send: served!.send } }))
           : setFrameToolMenu((all) => ({ ...all, [props.view]: { items, send: served!.send } })),
       setTitle: props.tab ? (title) => setTabTitles((all) => ({ ...all, [props.tab!.id]: title })) : undefined,
+      setExplorerNodes: explorer.set,
     })
     props.served?.(served)
   })
@@ -187,6 +190,7 @@ function SandboxFrame(props: {
   createEffect(onSignal(() => JSON.stringify(pluginSettingValues(props.state.manifest)), () => served?.settings(), { defer: true }))
   onCleanup(() => {
     served?.stop()
+    explorer.drop()
     const id = props.tab?.id
     if (id) setTabStatus(({ [id]: _, ...rest }) => rest)
     else setFrameToolMenu(({ [props.view]: _, ...rest }) => rest)
@@ -292,6 +296,7 @@ function backgroundFrame(state: PluginState, grants: () => string[], bundle: Bun
   let ready: Promise<Served> | undefined
   let frame: HTMLIFrameElement | undefined
   let served: Served | undefined
+  const explorer = explorerHost(state.manifest, () => served!.send)
   const start = () =>
     (ready ??= new Promise((resolve) => {
       frame = document.createElement('iframe')
@@ -308,6 +313,7 @@ function backgroundFrame(state: PluginState, grants: () => string[], bundle: Bun
         catalogs: bundle.catalogs,
         view: '',
         settings: () => pluginSettingValues(state.manifest),
+        setExplorerNodes: explorer.set,
         onReady: () => resolve(served!),
       })
       document.body.append(frame)
@@ -317,6 +323,7 @@ function backgroundFrame(state: PluginState, grants: () => string[], bundle: Bun
     command: (command: string) => void start().then((s) => s.send({ command })),
     stop: () => {
       served?.stop()
+      explorer.drop()
       frame?.remove()
     },
   }
@@ -340,7 +347,12 @@ export async function externalModule(state: PluginState, current: () => PluginSt
         provides.forEach((cap) => claim(cap, id))
         void bg.start().then((s) => provides.forEach((cap) => serve(cap, id, (method, args) => s.request(cap, method, args))))
       }
+      // Its roots of the Explorer: its background frame runs from the start to push their nodes.
+      const explorer = explorerContributions(state.manifest, bundle.catalogs)
+      if (explorer.any) void bg.start()
       return {
+      explorerRoots: explorer.roots,
+      explorerNodes: explorer.nodes,
       tools: Object.fromEntries((c.tools ?? []).map((x) => [x.id, { component: () => <SandboxFrame state={state} grants={grants} bundle={bundle} view={x.id} /> }])),
       views: Object.fromEntries(
         (c.tabViews ?? []).map((v) => [

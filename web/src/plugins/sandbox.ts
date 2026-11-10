@@ -16,7 +16,7 @@ import { keepScroll, saveScrollSpots, scrollSpots } from '../ui/scrollMemory'
 import { docTarget, openDoc, type HelpTopic } from '../state/docs'
 import topics from '../help/topics.json'
 import { lang, t } from '../i18n'
-import type { FrameCall, PageMessage, SandboxEditorState, SandboxModalSize, SandboxProject, SandboxStatusItem, SandboxTheme, SandboxToolMenuItem } from './sandbox-api'
+import type { FrameCall, PageMessage, SandboxEditorState, SandboxExplorerNode, SandboxModalSize, SandboxProject, SandboxStatusItem, SandboxTheme, SandboxToolMenuItem } from './sandbox-api'
 
 /** The CSP of a frame: inline scripts and styles, images as data, no network at all. */
 export const frameCSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'"
@@ -28,14 +28,14 @@ export const frameCSP = "default-src 'none'; script-src 'unsafe-inline'; style-s
  */
 export const bootstrap = `(() => {
   let port, info = null, registered = false, mounted = false
-  let views = {}, commands = {}, services = {}
+  let views = {}, commands = {}, services = {}, background = null
   // The capabilities of other plugins it uses: their values pushed by the page, its listeners.
   const used = {}
   const pending = new Map(), handlers = {}, themeFns = []
   // The editor of the tab: its state pushed by the page, and the listeners of the view.
   let ed = null
   const edFns = { change: [], selection: [], keys: {} }
-  const settingsFns = [], statusFns = [], toolMenuFns = [], deskFns = []
+  const settingsFns = [], statusFns = [], toolMenuFns = [], deskFns = [], explorerFns = [], viewTabsFns = []
   let next = 1
   // What the module sends before the page gives the channel (a call at load) waits for it.
   const queue = []
@@ -49,7 +49,7 @@ export const bootstrap = `(() => {
     themeFns.forEach((f) => f(th))
   }
   const ide = {
-    register(c) { views = (c && c.views) || {}; commands = (c && c.commands) || {}; services = (c && c.services) || {}; registered = true; start() },
+    register(c) { views = (c && c.views) || {}; commands = (c && c.commands) || {}; services = (c && c.services) || {}; background = (c && c.background) || null; registered = true; start() },
     get view() { return info && info.view },
     get lang() { return info && info.lang },
     get theme() { return info && info.theme },
@@ -87,6 +87,10 @@ export const bootstrap = `(() => {
     onStatus: (f) => statusFns.push(f),
     setToolMenu: (items) => send({ call: 'setToolMenu', items: plain(items || []) }),
     onToolMenu: (f) => toolMenuFns.push(f),
+    setExplorerNodes: (root, nodes) => send({ call: 'setExplorerNodes', root: String(root), nodes: plain(nodes || []) }),
+    onExplorer: (f) => explorerFns.push(f),
+    onViewTabs(f) { if (!viewTabsFns.length) send({ call: 'watchViewTabs' }); viewTabsFns.push(f) },
+    closeViewTab: (view, key) => send({ call: 'closeViewTab', view: String(view), key: key === undefined ? undefined : String(key) }),
     markdown: (text) => call({ call: 'markdown', text: String(text) }),
     openLink: (url) => send({ call: 'openLink', url: String(url) }),
     help: (topic) => send({ call: 'help', topic: String(topic) }),
@@ -125,6 +129,8 @@ export const bootstrap = `(() => {
     mounted = true
     const v = info.view && views[info.view.id]
     if (v) v(document.getElementById('root'), ide)
+    // The background frame (no view): what the plugin runs with the project.
+    if (info.view && info.view.id === '' && !info.modal && background) background(ide)
     // A tool or a tab view shown again is where it was: the page keeps its scroll meanwhile.
     if (info.scroll) keepScroll(document.getElementById('root'), info.scroll, (spots) => send({ call: 'scroll', spots }))
     send({ call: 'ready' })
@@ -151,6 +157,8 @@ export const bootstrap = `(() => {
     if (m.settings) { info.settings = m.settings; settingsFns.forEach((f) => f(m.settings)) }
     if (m.status) statusFns.forEach((f) => f(m.status))
     if (m.toolMenu) toolMenuFns.forEach((f) => f(m.toolMenu))
+    if (m.explorer) explorerFns.forEach((f) => f(m.explorer))
+    if (m.viewTabs) viewTabsFns.forEach((f) => f(m.viewTabs))
     if (m.project && info) info.project = m.project
     if (m.desk && info) { info.desk = m.desk.state; deskFns.forEach((f) => f(m.desk.state)) }
     // A method of a capability it provides, asked by the page for another plugin.
@@ -251,6 +259,8 @@ export type FrameHost = {
   setStatus?: (items: SandboxStatusItem[]) => void
   /** Its tool or its tab: the items it adds to the options menu (the ⋮) of the zone or tile. */
   setToolMenu?: (items: SandboxToolMenuItem[]) => void
+  /** The nodes it gives a root of the Explorer (#244), clamped. */
+  setExplorerNodes?: (root: string, nodes: SandboxExplorerNode[]) => void
 }
 
 /**
@@ -285,6 +295,38 @@ export interface FrameEditor {
   mark(range: [number, number] | null): void
   focus(): void
   setWords(words: string[]): void
+}
+
+/** The Explorer nodes of a frame, as plain data of a bounded size: 200 nodes, 4 levels, short texts. */
+function clampNodes(list: unknown[]): SandboxExplorerNode[] {
+  let left = 200
+  const menu = (items: unknown) =>
+    Array.isArray(items)
+      ? items.slice(0, 12).map((it) => ({ id: clip(it?.id, 100), label: clip(it?.label, 200), hint: clip(it?.hint, 60) || undefined, title: clip(it?.title, 300) || undefined, checked: !!it?.checked, disabled: !!it?.disabled, separator: !!it?.separator }))
+      : undefined
+  const walk = (l: unknown[], depth: number): SandboxExplorerNode[] => {
+    const out: SandboxExplorerNode[] = []
+    for (const n of l as Record<string, any>[]) {
+      if (left <= 0 || !n || typeof n.id !== 'string' || !n.id) break
+      left--
+      out.push({
+        id: clip(n.id, 100),
+        label: clip(n.label, 200),
+        icon: clip(n.icon, 40) || undefined,
+        title: clip(n.title, 300) || undefined,
+        path: clip(n.path, 1000) || undefined,
+        project: clip(n.project, 200) || undefined,
+        desk: Number.isInteger(n.desk) && n.desk > 0 ? n.desk : undefined,
+        badge: clip(n.badge, 40) || undefined,
+        dimmed: !!n.dimmed,
+        open: !!n.open,
+        children: depth < 4 && Array.isArray(n.children) && n.children.length ? walk(n.children, depth + 1) : undefined,
+        menu: menu(n.menu),
+      })
+    }
+    return out
+  }
+  return walk(list, 1)
 }
 
 /** The project of the window, for a frame. */
@@ -521,6 +563,37 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
             })),
           )
         return
+      case 'watchViewTabs': {
+        // The tabs of its views on the desk shown, sent again when they change (#244).
+        const prefix = `plugin:${host.plugin}/`
+        let last = ''
+        const dispose = createRoot((d) => {
+          createEffect(() => {
+            const tabs = Object.values(session.tabs)
+              .filter((x) => x.kind.startsWith(prefix))
+              .map((x) => ({ view: x.kind.slice(prefix.length), key: x.key, title: x.title, state: x.state }))
+            const json = JSON.stringify(tabs)
+            if (json === last || json.length > maxDeskState * 4) return
+            last = json
+            port.postMessage({ viewTabs: JSON.parse(json) } satisfies PageMessage)
+          })
+          return d
+        })
+        offs.push(dispose)
+        return
+      }
+      case 'closeViewTab': {
+        const kind = `plugin:${host.plugin}/${String(m.view)}`
+        for (const l of leaves())
+          for (const id of l.tabs) {
+            const x = session.tabs[id]
+            if (x?.kind === kind && x.key === m.key) closeTab(l.id, id, true)
+          }
+        return
+      }
+      case 'setExplorerNodes':
+        if (typeof m.root === 'string' && Array.isArray(m.nodes)) host.setExplorerNodes?.(m.root.slice(0, 100), clampNodes(m.nodes))
+        return
       case 'markdown':
         reply(m.id, typeof m.text === 'string' && m.text.length <= maxEditorText ? { result: renderMarkdown(m.text) } : { error: 'markdown: a text of 1 MB at most' })
         return
@@ -584,7 +657,7 @@ export function serveFrame(frame: HTMLIFrameElement, host: FrameHost) {
     }
   }
   const send = (m: PageMessage) => {
-    if ('status' in m || 'toolMenu' in m) dialogDone = Date.now()
+    if ('status' in m || 'toolMenu' in m || 'explorer' in m) dialogDone = Date.now()
     port?.postMessage(m)
   }
   // The theme, and the room of the buttons over its corner (headInset), last sent.
