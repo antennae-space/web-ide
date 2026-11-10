@@ -232,6 +232,7 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
    wavy below, which a rule of this weight would otherwise beat. */
 .tree-row.current:not(.selected) .tree-name:not(.has-error) { text-decoration: underline; text-decoration-color: var(--fg-faint); text-underline-offset: 3px; }
 .tree-row.excluded .tree-name { opacity: 0.6; }
+.tree-row.cut :is(.tree-name, .file-icon) { opacity: 0.5; }
 .file-icon { flex: none; }
 .file-icon.folder { color: var(--fg-muted); }
 .file-icon.mark-source { color: var(--mark-source); fill: color-mix(in srgb, var(--mark-source) 30%, transparent); }

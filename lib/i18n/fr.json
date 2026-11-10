@@ -1,9 +1,11 @@
 {
+  "a folder cannot be copied into itself": "un dossier ne peut pas être copié dans lui-même",
   "already exists": "existe déjà",
   "branch not found: %s": "branche introuvable : %s",
   "canceled": "annulé",
   "cannot download %s: %v": "téléchargement de %s impossible : %v",
   "console not found": "console introuvable",
+  "copy refused outside the project": "copie refusée hors du projet",
   "deletion refused outside the project": "suppression refusée hors du projet",
   "Done": "Terminé",
   "download of %s: HTTP %d": "téléchargement de %s : HTTP %d",

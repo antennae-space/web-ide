@@ -111,4 +111,38 @@ run(async ({ page }) => {
   assert((await page.evaluate(() => getSelection().toString())) === 'select me entirely', 'Ctrl+A selects the draft of the assistant')
   await page.keyboard.press('Backspace')
   assert((await page.textContent('.ai-composer .ed-content')).trim() === '', 'the selection is replaced by one keystroke')
+
+  // Cut, Copy and Paste in the Explorer: a file copied into a folder, a copy beside it, a move.
+  const demo = WS + '/demo'
+  const row = (name) => `.explorer .tree-row:has(.tree-name:text-is("${name}"))`
+  const menuItem = async (name, item) => {
+    await page.click(row(name), { button: 'right' })
+    await page.click(`.ctx-menu >> text="${item}"`)
+  }
+  await page.keyboard.press('Alt+1')
+  await page.waitForSelector(row('notes.txt'))
+  await page.click(row('notes.txt'), { button: 'right' })
+  const rowMenu = await page.$$eval('.ctx-menu .ctx-item .ctx-label', (els) => els.map((e) => e.textContent.trim()))
+  assert(rowMenu.slice(2, 5).join() === 'Cut,Copy,Paste', 'the menu of a row: ' + JSON.stringify(rowMenu))
+  assert(await page.isDisabled('.ctx-menu .ctx-item:has(.ctx-label:text-is("Paste"))'), 'Paste is off with nothing copied')
+  await page.keyboard.press('Escape')
+  await menuItem('notes.txt', 'Copy')
+  await menuItem('src', 'Paste')
+  for (let i = 0; i < 20 && !fs.existsSync(demo + '/src/notes.txt'); i++) await page.waitForTimeout(100)
+  assert(fs.readFileSync(demo + '/src/notes.txt', 'utf8') === fs.readFileSync(demo + '/notes.txt', 'utf8'), 'Copy then Paste on a folder copies the file into it')
+  await page.click(row('go.mod'))
+  await page.keyboard.press('Control+v')
+  await page.waitForSelector(row('notes copy.txt'))
+  assert(fs.existsSync(demo + '/notes copy.txt'), 'a copy in the same folder is named “notes copy.txt”')
+  await page.click(row('notes copy.txt'))
+  await page.keyboard.press('Control+x')
+  await page.waitForSelector(row('notes copy.txt') + '.cut')
+  assert(true, 'a cut row is dimmed')
+  await page.click(row('src'))
+  await page.keyboard.press('Control+v')
+  await page.waitForSelector(row('notes copy.txt'), { state: 'detached' }).catch(() => {})
+  for (let i = 0; i < 20 && !fs.existsSync(demo + '/src/notes copy.txt'); i++) await page.waitForTimeout(100)
+  assert(fs.existsSync(demo + '/src/notes copy.txt') && !fs.existsSync(demo + '/notes copy.txt'), 'Cut then Paste moves the file into the folder')
+  fs.rmSync(demo + '/src/notes.txt')
+  fs.rmSync(demo + '/src/notes copy.txt')
 })

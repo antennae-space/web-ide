@@ -190,6 +190,41 @@ async function remove(e: Entry) {
   }
 }
 
+// The file or folder copied or cut (dimmed) in the Explorer: Paste puts it into a folder.
+const [clip, setClip] = createSignal<{ path: string; cut: boolean } | null>(null)
+
+/** A name free in a folder for a copy: “name”, else “name copy”, “name copy 2”… before the extension. */
+function copyName(name: string, dir: boolean, taken: Set<string>) {
+  const dot = dir ? -1 : name.lastIndexOf('.')
+  const [base, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, '']
+  let next = name
+  for (let n = 1; taken.has(next); n++) next = `${base} ${t('copy')}${n > 1 ? ' ' + n : ''}${ext}`
+  return next
+}
+
+/** Pastes the file or folder of the clipboard into dir: moved when it was cut, copied else. */
+async function paste(dir: string) {
+  const c = clip()
+  if (!c) return
+  const name = c.path.slice(c.path.lastIndexOf('/') + 1)
+  const from = c.path.slice(0, c.path.lastIndexOf('/'))
+  try {
+    if (c.cut) {
+      if (from !== dir) await api.rpc('fs.rename', { path: c.path, to: dir + '/' + name })
+      setClip(null)
+      load(from)
+    } else {
+      const list = await api.rpc<Entry[]>('fs.list', { path: dir })
+      const src = await api.rpc<Entry>('fs.stat', { path: c.path })
+      await api.rpc('fs.copy', { path: c.path, to: dir + '/' + copyName(name, src.dir, new Set(list.map((e) => e.name))) })
+    }
+    setExpanded(dir, true)
+    await load(dir)
+  } catch (err) {
+    errorToast(err)
+  }
+}
+
 function refreshAll() {
   for (const k of Object.keys(children)) if (children[k]) load(k)
   toast(t('Explorer refreshed'), 'info')
@@ -200,6 +235,10 @@ function menuFor(ev: MouseEvent, e: Entry) {
   const items: MenuItem[] = [
     { label: t('New file…'), action: () => createIn(dir, false) },
     { label: t('New folder…'), action: () => createIn(dir, true) },
+    { separator: true, label: '' },
+    { label: t('Cut'), hint: 'Ctrl+X', action: () => setClip({ path: e.path, cut: true }), disabled: e.path === root() },
+    { label: t('Copy'), hint: 'Ctrl+C', action: () => setClip({ path: e.path, cut: false }), disabled: e.path === root() },
+    { label: t('Paste'), hint: 'Ctrl+V', action: () => void paste(dir), disabled: !clip() },
     { separator: true, label: '' },
     { label: t('Rename…'), action: () => rename(e), disabled: e.path === root() },
     { label: t('Delete'), action: () => remove(e), danger: true, disabled: e.path === root() },
@@ -366,6 +405,7 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited; move: (
       title={mark() ? t(markLabels[mark()!]) : undefined}
       expanded={e.dir ? open() : undefined}
       chosen={selected() === e.path}
+      extraClass={clip()?.cut && clip()!.path === e.path ? 'cut' : undefined}
       after={e.link && <span class="tree-link" title={t('Symbolic link')}>↪</span>}
       onFocus={() => setSelected(e.path)}
       onClick={(ev) => {
@@ -393,6 +433,8 @@ function Row(props: { entry: Entry; depth: number; inherited: Inherited; move: (
         } else if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') props.move(e.path, ev.key === 'ArrowDown' ? 1 : -1)
         else if (ev.key === 'F2') rename(e)
         else if (ev.key === 'Delete') remove(e)
+        else if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && (ev.key === 'x' || ev.key === 'c')) setClip({ path: e.path, cut: ev.key === 'x' })
+        else if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && ev.key === 'v') void paste(e.dir ? e.path : e.path.slice(0, e.path.lastIndexOf('/')))
         else return
         ev.preventDefault()
       }}

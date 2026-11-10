@@ -369,6 +369,51 @@ func (r *Runtime) Rename(from, to string) error {
 	return r.FS.Rename(from, to)
 }
 
+// Copy copies a file or a folder and its content to a path that does not exist yet. It goes
+// through FS, so an SSH project copies on its host. A linked folder is skipped (no loop).
+func (r *Runtime) Copy(from, to string) error {
+	if !fsx.Within(r.Root, from) || !fsx.Within(r.Root, to) {
+		return i18n.New("copy refused outside the project")
+	}
+	if fsx.Within(from, to) {
+		return i18n.New("a folder cannot be copied into itself")
+	}
+	if _, err := r.FS.Stat(to); err == nil {
+		return i18n.New("the destination already exists")
+	}
+	e, err := r.FS.Stat(from)
+	if err != nil {
+		return err
+	}
+	return r.copyEntry(e, to)
+}
+
+func (r *Runtime) copyEntry(e fsx.Entry, to string) error {
+	if !e.Dir {
+		data, err := r.FS.Read(e.Path)
+		if err != nil {
+			return err
+		}
+		return r.FS.Write(to, data)
+	}
+	if err := r.FS.Mkdir(to); err != nil {
+		return err
+	}
+	list, err := r.FS.List(e.Path)
+	if err != nil {
+		return err
+	}
+	for _, c := range list {
+		if c.Link && c.Dir {
+			continue
+		}
+		if err := r.copyEntry(c, path.Join(to, c.Name)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *Runtime) watchLoop() {
 	for p := range r.watcher.Events() {
 		r.mu.Lock()

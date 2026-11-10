@@ -498,6 +498,14 @@ func (s *Server) registerProject() {
 		to, _ := rt.Abs(a.To)
 		return nil, rt.Rename(path, to)
 	}))
+	s.handle("fs.copy", withPath(func(ctx context.Context, c *Client, rt *runtime.Runtime, path string, p json.RawMessage) (any, error) {
+		a, err := bind[struct{ To string }](p)
+		if err != nil {
+			return nil, err
+		}
+		to, _ := rt.Abs(a.To)
+		return nil, rt.Copy(path, to)
+	}))
 	s.handle("buffer.sync", withPath(func(ctx context.Context, c *Client, rt *runtime.Runtime, path string, p json.RawMessage) (any, error) {
 		a, err := bind[struct{ Content *string }](p)
 		if err != nil {
