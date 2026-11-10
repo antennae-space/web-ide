@@ -243,6 +243,18 @@ run(async ({ page, ctx }) => {
     await page.waitForFunction(() => document.querySelector('.pane.active .ed-content')?.textContent.includes('Salut %s'), null, { timeout: 5000 }).catch(() => {})
     assert((await text(page)).includes('"Salut %s"'), 'the open editor follows the change')
 
+    // The root Conversations & Agents of the Explorer (#243): the conversation, the files it changed under it.
+    if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
+    const convo = '.explorer .tree-row.explorer-node[data-path^="node:conversations/chat:"]'
+    await page.waitForSelector(convo)
+    await page.click(convo + ' .tree-twist')
+    const fileNode = (p) => `.explorer .tree-row.explorer-node[data-path$="/f:${p}"]`
+    await page.waitForSelector(fileNode(WS + '/demo/src/main.go'))
+    assert(await page.isVisible(fileNode(WS + '/notes.txt')), 'the files a conversation changed are its children, in the project and out of it')
+    await page.dblclick(fileNode(WS + '/notes.txt'))
+    await page.waitForSelector('.pane.active .tab.active:has-text("notes.txt")')
+    assert(true, 'a double click on a file child opens the file')
+
     const tools = await page.$$eval('.ai-tool', (els) => els.map((e) => ({ cls: e.className, text: e.textContent })))
     assert(tools.length === 4 && tools.every((t) => t.cls.includes('ok')), 'four successful tool calls: ' + JSON.stringify(tools.map((t) => t.text)))
     assert(tools[0].text.includes('Reads') && tools[0].text.includes('src/main.go') && tools[0].text.includes('lines 1-'), 'read_file summary: ' + tools[0].text)
