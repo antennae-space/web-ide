@@ -311,6 +311,8 @@ export interface ChatInfo {
   failed?: boolean
   /** Time this conversation spent generating its answers (ms). */
   genMs?: number
+  /** The files its write tools changed, absolute (the Explorer, docs/design/explorer.md). */
+  files?: string[]
 }
 
 export const [config, setConfig] = createStore<{ servers: ServerView[]; server: string; model: string; childServer?: string; childModel?: string; imageServer?: string; imageModel?: string }>({ servers: [], server: '', model: '' })

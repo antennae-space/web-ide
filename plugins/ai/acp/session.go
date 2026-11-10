@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -78,6 +79,9 @@ type Info struct {
 	// Subscription: the agent runs on a plan (Claude's), not an API key; its bar shows the
 	// daily quota of the plan.
 	Subscription bool `json:"subscription,omitempty"`
+	// Files: the absolute paths its completed edits changed, in the order of the first change
+	// (changedFiles): the Explorer shows them under the session.
+	Files []string `json:"files,omitempty"`
 }
 
 // saved is the file of a session: what a restarted pod needs to go on.
@@ -176,6 +180,9 @@ func (s *Session) changed() {
 }
 
 func (s *Session) entry(i int) {
+	if s.addFiles(changedFiles(s.th.Entries[i], s.info.Cwd)) {
+		s.changed()
+	}
 	s.info.Seq++
 	s.m.emit("agents.entry", map[string]any{"id": s.info.ID, "seq": s.info.Seq, "index": i, "entry": s.th.Entries[i]})
 	s.m.save(s)
@@ -688,4 +695,16 @@ func removeQuiet(path string) {
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		log.Printf("acp: %v", err)
 	}
+}
+
+// addFiles adds to the files of the session the ones it does not have yet; whether one was new.
+func (s *Session) addFiles(paths []string) bool {
+	added := false
+	for _, p := range paths {
+		if !slices.Contains(s.info.Files, p) {
+			s.info.Files = append(s.info.Files, p)
+			added = true
+		}
+	}
+	return added
 }

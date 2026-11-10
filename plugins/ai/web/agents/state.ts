@@ -36,6 +36,8 @@ export interface AgentInfo {
   stats?: Totals
   /** It runs on a plan (Claude's), not an API key. */
   subscription?: boolean
+  /** The files its completed edits changed, absolute (the Explorer, docs/design/explorer.md). */
+  files?: string[]
   started: number
   /** Ticket the session develops (kanban), 0 or absent for none. */
   ticket?: number

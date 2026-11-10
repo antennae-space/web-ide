@@ -217,6 +217,11 @@ func (m *Manager) restore() {
 		s.reportedCost, s.subscription = sv.ReportedCost, sv.Subscription
 		s.info.Subscription = s.subscription
 		s.th.index()
+		if s.info.Files == nil { // saved before the files were kept
+			for _, e := range s.th.Entries {
+				s.addFiles(changedFiles(e, s.info.Cwd))
+			}
+		}
 		m.sessions[s.info.ID] = s
 		if p, ok := procs[sv.Proc]; ok {
 			delete(procs, sv.Proc)

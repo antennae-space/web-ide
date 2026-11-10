@@ -46,6 +46,9 @@ type Chat struct {
 	// Consoles: the ids of the consoles this conversation started (run_command,
 	// run_saved_command); the ones that ended are dropped (assistant_shells.go).
 	Consoles []string `json:"consoles,omitempty"`
+	// Files: the absolute paths its write tools changed, in the order of the first change
+	// (assistant_files.go); the Explorer shows them under the conversation.
+	Files []string `json:"files,omitempty"`
 	// GenMs: time spent generating its own answers (the sum of their elapsedMs), summed by
 	// the pod at each save (the top bar of the page adds the one of its children).
 	GenMs int64 `json:"genMs,omitempty"`

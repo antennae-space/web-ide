@@ -240,3 +240,22 @@ func (t *thread) setPlan(items []PlanItem) int {
 	t.Entries[t.plan].Plan = items
 	return t.plan
 }
+
+// changedFiles: the files a tool call changed once it completed, an edit, a deletion or a move
+// (the paths of its diffs and its locations, absolute from the cwd); none for another one.
+func changedFiles(e Entry, cwd string) []string {
+	if e.Kind != "tool" || e.Status != "completed" {
+		return nil
+	}
+	var out []string
+	for _, c := range e.Content {
+		if c.Type == "diff" && c.Path != "" {
+			out = append(out, absolute(c.Path, cwd))
+		}
+	}
+	switch e.ToolKind {
+	case "edit", "delete", "move":
+		out = append(out, e.Locations...)
+	}
+	return out
+}
