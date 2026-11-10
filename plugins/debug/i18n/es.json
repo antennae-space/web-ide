@@ -17,6 +17,7 @@
   "the host does not answer %s": "el host no responde a %s",
   "the adapter never listened on %s: %w": "el adaptador nunca escuchó en %s: %w",
   "Debug": "Depuración",
+  "Debug sessions": "Sesiones de depuración",
   "Debug…": "Depurar…",
   "No debug session. Run › Debug… starts a configuration of .ide/debug.json.": "Ninguna sesión de depuración. Ejecutar › Depurar… inicia una configuración de .ide/debug.json.",
   "Threads & Variables": "Hilos y variables",
