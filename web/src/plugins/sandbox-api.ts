@@ -209,6 +209,8 @@ export interface SandboxAPI {
   onViewTabs(f: (tabs: SandboxViewTab[]) => void): void
   /** Closes a tab of one of its views, by its view and its key. */
   closeViewTab(view: string, key?: string): void
+  /** Names a tab of one of its views, by its view and its key (#245). */
+  setViewTabTitle(view: string, title: string, key?: string): void
   /** The HTML of a Markdown text, rendered and sanitized by the IDE as its own. */
   markdown(text: string): Promise<string>
   /** Opens an http(s) address in a new tab of the browser, while the user is in the frame. */
@@ -269,6 +271,7 @@ export type FrameCall =
   | { call: 'setExplorerNodes'; root: string; nodes: SandboxExplorerNode[] }
   | { call: 'watchViewTabs' }
   | { call: 'closeViewTab'; view: string; key?: string }
+  | { call: 'setViewTabTitle'; view: string; key?: string; title: string }
   | { call: 'markdown'; id: number; text: string }
   | { call: 'openLink'; url: string }
   | { call: 'help'; topic: string }

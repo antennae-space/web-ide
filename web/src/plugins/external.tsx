@@ -6,7 +6,7 @@ import { render } from 'solid-js/web'
 import { request } from '../pod/rpc'
 import { lang, t } from '../i18n'
 import { Modal } from '../ui/overlay'
-import { mutate, setActivePane, type TabState } from '../state/project'
+import { leaves, mutate, session, setActivePane, type TabState } from '../state/project'
 import { Doc } from '../editor/doc'
 import type { EditorView } from '../editor/view'
 import { comboFromEvent } from '../keys/bindings'
@@ -78,6 +78,23 @@ const [tabTitles, setTabTitles] = createSignal<Record<string, string>>({})
 /** The title of a tab of an external plugin's view: the one its frame gave. */
 const viewTitle = (tab: TabState) => tabTitles()[tab.id]
 
+/**
+ * Names a tab of a plugin's views (a console renamed from its node in the Explorer, #245): the
+ * title its frame gave (viewTitle) and the tab's own, kept with the desk.
+ */
+function renameViewTab(plugin: string, view: string, key: string | undefined, title: string) {
+  const kind = `plugin:${plugin}/${view}`
+  for (const l of leaves())
+    for (const id of l.tabs) {
+      const x = session.tabs[id]
+      if (!x || x.kind !== kind || x.key !== key) continue
+      setTabTitles((all) => ({ ...all, [id]: title }))
+      mutate((s) => {
+        s.tabs[id]!.title = title
+      })
+    }
+}
+
 /** The items of the status bar of a tab of an external plugin's view. */
 function viewStatus(tab: TabState): StatusItem[] {
   const st = tabStatus()[tab.id]
@@ -142,7 +159,7 @@ function SandboxFrame(props: {
 }) {
   let frame!: HTMLIFrameElement
   let served: Served | undefined
-  const explorer = explorerHost(props.state.manifest, () => served!.send)
+  const explorer = explorerHost(props.state.manifest, () => served!)
   // Served once: the frame keeps its port for its life (a new state is its own business).
   onMount(() => {
     served = serveFrame(frame, {
@@ -171,6 +188,7 @@ function SandboxFrame(props: {
           ? setFrameTabMenu((all) => ({ ...all, [props.tab!.id]: { items, send: served!.send } }))
           : setFrameToolMenu((all) => ({ ...all, [props.view]: { items, send: served!.send } })),
       setTitle: props.tab ? (title) => setTabTitles((all) => ({ ...all, [props.tab!.id]: title })) : undefined,
+      setViewTabTitle: (view, key, title) => renameViewTab(props.state.manifest.id, view, key, title),
       setExplorerNodes: explorer.set,
     })
     props.served?.(served)
@@ -296,7 +314,7 @@ function backgroundFrame(state: PluginState, grants: () => string[], bundle: Bun
   let ready: Promise<Served> | undefined
   let frame: HTMLIFrameElement | undefined
   let served: Served | undefined
-  const explorer = explorerHost(state.manifest, () => served!.send)
+  const explorer = explorerHost(state.manifest, () => served!)
   const start = () =>
     (ready ??= new Promise((resolve) => {
       frame = document.createElement('iframe')
@@ -313,6 +331,7 @@ function backgroundFrame(state: PluginState, grants: () => string[], bundle: Bun
         catalogs: bundle.catalogs,
         view: '',
         settings: () => pluginSettingValues(state.manifest),
+        setViewTabTitle: (view, key, title) => renameViewTab(state.manifest.id, view, key, title),
         setExplorerNodes: explorer.set,
         onReady: () => resolve(served!),
       })
