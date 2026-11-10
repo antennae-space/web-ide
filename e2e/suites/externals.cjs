@@ -89,6 +89,13 @@ ide.register({
     },
   },
   commands: { hello: (ide) => ide.toast('Command of Greet') },
+  // Its roots of the Explorer (#244), pushed by its background frame; a root it does not own is refused.
+  background: (ide) => {
+    ide.setExplorerNodes('greetings', [{ id: 'g1', label: 'Greeting one', icon: 'comment', badge: 'new', open: true, menu: [{ id: 'wave', label: 'Wave' }], children: [{ id: 'n1', label: 'notes.txt', path: 'notes.txt' }] }])
+    ide.setExplorerNodes('scratches', [{ id: 'sc', label: 'Greet console', icon: 'terminal', open: true }])
+    ide.setExplorerNodes('terminals', [{ id: 'x', label: 'Not mine' }])
+    ide.onExplorer((e) => ide.toast('explorer ' + e.root + ' ' + e.node + ' ' + (e.item || 'open')))
+  },
 })
 `
 
@@ -121,6 +128,8 @@ run(async ({ page, errors }) => {
     commands: [{ id: 'hello', label: 'Say hello from Greet' }],
     assistantTools: ['greet_hello'],
     toolSchemas: { greet_hello: { description: 'Says hello from the backend of Greet', properties: {} } },
+    explorerRoots: [{ id: 'greetings', label: 'Greetings', icon: 'comment', order: 45 }],
+    explorerNodes: ['scratches'],
   }
   // Its backend, a static Go program.
   const goBin = [process.env.GO, path.join(os.homedir(), 'sdk/go/bin/go'), 'go'].find((g) => g && (g === 'go' || fs.existsSync(g)))
@@ -302,6 +311,26 @@ run(async ({ page, errors }) => {
   await page.waitForSelector('.pick-item.selected:has-text("Say hello from Greet")')
   await page.keyboard.press('Enter')
   await page.waitForSelector('.toast:has-text("Command of Greet")')
+
+  // Its roots of the Explorer (#244): a root of its own and a node in Scratches and Consoles,
+  // pushed by its background frame; a double click and a choice of the menu go back to it.
+  if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
+  const greetNode = '.explorer .tree-row[data-path="node:greetings/greet:g1"]'
+  await page.waitForSelector(greetNode)
+  assert((await page.textContent('.explorer .tree-row[data-path="root:greetings"] .tree-name')) === 'Greetings' && (await page.textContent(greetNode + ' .tree-tag')) === 'new', 'the root of an external plugin, its node and its badge')
+  assert(await page.isVisible('.explorer .tree-row[data-path="node:scratches/greet:sc"]'), 'a node of an external plugin in Scratches and Consoles')
+  assert(!(await page.$('.explorer .tree-row[data-path^="node:terminals/greet:"]')), 'a root it does not name in its manifest is refused')
+  await page.dblclick(greetNode)
+  await page.waitForSelector('.toast:has-text("explorer greetings g1 open")')
+  assert(true, 'a double click on its node goes back to its frame')
+  await page.click(greetNode, { button: 'right' })
+  await page.click('.ctx-menu >> text=Wave')
+  await page.waitForSelector('.toast:has-text("explorer greetings g1 wave")')
+  assert(true, 'a choice of the menu of its node goes back to its frame')
+  await page.click(greetNode + ' .tree-twist')
+  await page.dblclick('.explorer .tree-row[data-path="node:greetings/greet:g1/greet:n1"]')
+  await page.waitForSelector('.pane.active .tab.active:has-text("notes.txt")')
+  assert(true, 'a file node of an external plugin opens the file of the project')
 
   // A new version asks the network and fs.list: the update asks only those.
   release('1.1.0', { ide: '^1.0', permissions: ['files:read', 'net', 'core:fs.list'] })

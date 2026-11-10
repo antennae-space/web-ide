@@ -85,6 +85,20 @@ type Contributions struct {
 	// Debuggers are the debug adapters of a pack (#188, docs/design/debug.md): the debug host
 	// runs them, unconfined, on the grant debugger:<type>.
 	Debuggers []Debugger `json:"debuggers,omitempty"`
+	// ExplorerRoots are the roots an external plugin gives the Explorer, its frames pushing their
+	// nodes (#244, docs/design/explorer.md); ExplorerNodes the roots of others it puts nodes into
+	// (scratches). A built-in gives both in its page module.
+	ExplorerRoots []ExplorerRoot `json:"explorerRoots,omitempty"`
+	ExplorerNodes []string       `json:"explorerNodes,omitempty"`
+}
+
+// ExplorerRoot is a root of the Explorer of an external plugin: its label (a text of its
+// catalogs), its icon (a name of the icons of the core) and its place by default.
+type ExplorerRoot struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Icon  string `json:"icon,omitempty"`
+	Order int    `json:"order,omitempty"`
 }
 
 // Debugger is a debug adapter a pack contributes: its type (the key the configurations name,

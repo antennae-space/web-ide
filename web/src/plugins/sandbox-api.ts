@@ -21,6 +21,8 @@ export type SandboxContributions = {
   views?: Record<string, (el: HTMLElement, ide: SandboxAPI) => void>
   commands?: Record<string, (ide: SandboxAPI) => void>
   services?: Record<string, Record<string, (...args: never[]) => unknown>>
+  /** Run once in its background frame when it starts (#244): what lives with the project, not with a view (its Explorer nodes). */
+  background?: (ide: SandboxAPI) => void
 }
 
 /**
@@ -89,6 +91,31 @@ export type SandboxToolMenuItem = {
   disabled?: boolean
   /** A line between the items before and after it. */
   separator?: boolean
+}
+
+/**
+ * A node a frame puts in a root of the Explorer (#244, docs/design/explorer.md): plain data; a
+ * double click (with `open`) or a choice of its menu comes back through `onExplorer`. Its id is
+ * unique among the nodes the plugin gives that root, children included.
+ */
+export type SandboxExplorerNode = {
+  id: string
+  label: string
+  /** A name of the icons of the core (terminal, database, file…). */
+  icon?: string
+  title?: string
+  /** A file, relative to the project (or absolute): drawn and opened as a file. */
+  path?: string
+  /** The worktree it belongs to (an id of `ide.project`), the desk it belongs to. */
+  project?: string
+  desk?: number
+  /** A short state at the right of the row. */
+  badge?: string
+  dimmed?: boolean
+  /** A double click sends it back (`onExplorer` without `item`). */
+  open?: boolean
+  children?: SandboxExplorerNode[]
+  menu?: SandboxToolMenuItem[]
 }
 
 /** The global `ide` of a frame. */
@@ -163,6 +190,14 @@ export interface SandboxAPI {
   setToolMenu(items: SandboxToolMenuItem[]): void
   /** The user chose one of the items of this frame's tool menu. */
   onToolMenu(f: (e: { item: string }) => void): void
+  /**
+   * The nodes this frame gives a root of the Explorer: one of its manifest's `explorerRoots`, or
+   * a root named in its `explorerNodes` (scratches). Pushed: push them again when they change; an
+   * empty list takes them back. They go when the frame stops (#244).
+   */
+  setExplorerNodes(root: string, nodes: SandboxExplorerNode[]): void
+  /** A node of this frame opened (no item) or a choice of its menu. */
+  onExplorer(f: (e: { root: string; node: string; item?: string }) => void): void
   /** The HTML of a Markdown text, rendered and sanitized by the IDE as its own. */
   markdown(text: string): Promise<string>
   /** Opens an http(s) address in a new tab of the browser, while the user is in the frame. */
@@ -220,6 +255,7 @@ export type FrameCall =
   | { call: 'serviceEmit'; capability: string; event: string; data?: unknown }
   | { call: 'setStatus'; items: SandboxStatusItem[] }
   | { call: 'setToolMenu'; items: SandboxToolMenuItem[] }
+  | { call: 'setExplorerNodes'; root: string; nodes: SandboxExplorerNode[] }
   | { call: 'markdown'; id: number; text: string }
   | { call: 'openLink'; url: string }
   | { call: 'help'; topic: string }
@@ -253,4 +289,5 @@ export type PageMessage =
   | { serviceEvent: { capability: string; event: string; data: unknown } }
   | { status: { item: string; choice: string } }
   | { toolMenu: { item: string } }
+  | { explorer: { root: string; node: string; item?: string } }
   | { desk: { state: unknown } }
