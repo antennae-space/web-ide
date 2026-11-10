@@ -95,8 +95,9 @@ export type SandboxToolMenuItem = {
 
 /**
  * A node a frame puts in a root of the Explorer (#244, docs/design/explorer.md): plain data; a
- * double click (with `open`) or a choice of its menu comes back through `onExplorer`. Its id is
- * unique among the nodes the plugin gives that root, children included.
+ * double click (with `open`) or a choice of its menu comes back through `onExplorer`. Siblings
+ * with the same id, pushed by several frames, are one node with the children of all (a console
+ * under the node of its connection); the first one pushed gives its fields.
  */
 export type SandboxExplorerNode = {
   id: string

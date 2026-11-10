@@ -47,8 +47,26 @@ function toNode(n: SandboxExplorerNode, p: Pushed): ExplorerNode {
   }
 }
 
+/**
+ * Siblings with the same id are one node: the first one's, with the children of all. Each frame
+ * pushes its own part (a console tab its console under the node of its connection).
+ */
+function merge(list: ExplorerNode[]): ExplorerNode[] {
+  const out: ExplorerNode[] = []
+  for (const n of list) {
+    const i = out.findIndex((o) => o.id === n.id)
+    if (i < 0) out.push(n)
+    else if (n.children) {
+      const a = out[i].children
+      const b = n.children
+      out[i] = { ...out[i], children: () => merge([...(a?.() ?? []), ...b()]) }
+    }
+  }
+  return out.map((n) => (n.children ? { ...n, children: ((c) => () => merge(c()))(n.children) } : n))
+}
+
 /** The nodes the frames of a plugin gave a root. */
-const nodesOf = (plugin: string, root: string) => pushed().flatMap((p) => (p.plugin === plugin && p.root === root ? p.nodes.map((n) => toNode(n, p)) : []))
+const nodesOf = (plugin: string, root: string) => merge(pushed().flatMap((p) => (p.plugin === plugin && p.root === root ? p.nodes.map((n) => toNode(n, p)) : [])))
 
 /** The Explorer contributions of an external plugin, from its manifest: its roots, the nodes it puts into others. */
 export function explorerContributions(m: PluginManifest, catalogs: Record<string, Record<string, string>>) {

@@ -43,6 +43,8 @@ ide.register({
       // The items this frame adds to the ⋮ menu of its tool (#175), and the choice it gets back.
       ide.setToolMenu([{ id: 'louder', label: ide.t('Greet from the menu'), hint: 'Ctrl+G' }, { id: 'quiet', label: ide.t('Quietly'), checked: true }])
       ide.onToolMenu((e) => (el.querySelector('#menu-choice').textContent = e.item))
+      // Its part of a node of the background frame (#244): one node, the children of both.
+      ide.setExplorerNodes('greetings', [{ id: 'g1', label: 'Not this label', children: [{ id: 'n2', label: 'From the tool', icon: 'sparkle' }] }])
       const show = (p) => p.then((r) => (el.querySelector('#answer').textContent = typeof r === 'string' ? r : JSON.stringify(r)), (e) => (el.querySelector('#answer').textContent = 'error: ' + e.message))
       ide.on('greet.said', (d) => (el.querySelector('#event').textContent = d))
       el.querySelector('#backend').onclick = () => show(ide.rpc('greet.hello'))
@@ -328,6 +330,8 @@ run(async ({ page, errors }) => {
   await page.waitForSelector('.toast:has-text("explorer greetings g1 wave")')
   assert(true, 'a choice of the menu of its node goes back to its frame')
   await page.click(greetNode + ' .tree-twist')
+  await page.waitForSelector('.explorer .tree-row[data-path="node:greetings/greet:g1/greet:n2"]')
+  assert((await page.$$('.explorer .tree-row[data-path="node:greetings/greet:g1"]')).length === 1 && (await page.textContent(greetNode + ' .tree-name')) === 'Greeting one', 'two frames pushing one node id give one node, the children of both')
   await page.dblclick('.explorer .tree-row[data-path="node:greetings/greet:g1/greet:n1"]')
   await page.waitForSelector('.pane.active .tab.active:has-text("notes.txt")')
   assert(true, 'a file node of an external plugin opens the file of the project')
