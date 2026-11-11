@@ -397,6 +397,8 @@ button.ai-bar-item:hover { color: var(--accent); }
 .ai-page-card { display: flex; align-items: center; gap: 8px; margin: 2px 0 4px 22px; }
 .ai-page-card img { height: 40px; width: auto; border: 1px solid var(--line); border-radius: 4px; background: #fff; }
 .ai-capture { display: flex; align-items: center; gap: 8px; margin: 4px 0 4px 22px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: 10px; background: var(--bg-2); flex-wrap: wrap; }
+.ai-suspect { display: flex; align-items: center; gap: 8px; margin: 4px 0 4px 22px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--warn) 60%, var(--line)); border-radius: 10px; background: var(--bg-2); flex-wrap: wrap; }
+.ai-suspect.done { border-color: var(--line); color: var(--fg-muted); }
 .ai-action { display: flex; align-items: center; gap: 10px; margin: 4px 0 4px 22px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); border-radius: 10px; background: var(--bg-2); }
 .ai-action.used { border-color: var(--line); }
 .ai-child { display: grid; gap: 4px; margin: 4px 0 4px 22px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); }

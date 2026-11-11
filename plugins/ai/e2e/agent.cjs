@@ -98,6 +98,13 @@ const fake = http.createServer(async (req, res) => {
     sse(res, { content: 'Commands tried.' })
     return end(res, 'stop', { prompt_tokens: 600, completion_tokens: 5 })
   }
+  if (ask.includes('Stuck on errors')) {
+    // The same failing command three times: a stuck alert; the turn goes on, then ends.
+    const tries = msgs.length - 1 - msgs.lastIndexOf(lastUser)
+    if (tries < 8) return sse(res, { tool_calls: calls([['x' + tries, 'bash', { command: 'echo broken >&2; exit 3' }]]) }), end(res, 'tool_calls')
+    sse(res, { content: 'Gave up on errors.' })
+    return end(res, 'stop')
+  }
   if (ask.includes('Loop please')) {
     // The same line over and over, the stream left open: the pod stops it and asks again.
     if (nudge(last)) return sse(res, { content: 'Acted after the loop.' }), end(res, 'stop')
@@ -362,6 +369,9 @@ run(async ({ page }) => {
     const think = requests[requests.length - 1].messages
     const stuck = await page.$$eval('.ai-error:has-text("Answer ended in its reasoning")', (e) => e.map((x) => !!x.querySelector('.ai-resumed')))
     assert(stuck.length === 2 && stuck[0] && !stuck[1], 'an answer ended in its reasoning is asked again once, then the turn ends: ' + JSON.stringify(stuck))
+    assert(await page.isVisible('[data-testid=ai-suspect][data-state=open]:has-text("The reasoning went round in circles twice")'), 'stuck again: the turn ends on a stuck alert')
+    await page.click('[data-testid=ai-suspect]:has-text("round in circles twice") [data-testid=ai-suspect-ignore]')
+    await page.waitForSelector('[data-testid=ai-suspect][data-state=ignored]:has-text("round in circles twice")')
     assert(think[think.length - 1].role === 'user' && text(think[think.length - 1]).startsWith('Your previous answer was stopped'), 'asked again with a nudge to act')
     assert(think.some((m) => m.role === 'assistant' && m.reasoning_content === 'THINK-1 list first') && !think.some((m) => m.role === 'assistant' && m.reasoning_content && m.tool_calls === undefined), 'reasoning of the answer with a call sent back, the stuck ones left out')
     await ask(page, 'After the thought', 'Answer of fake-other.')
@@ -370,6 +380,22 @@ run(async ({ page }) => {
     assert(after.filter((m) => text(m).startsWith('Your previous answer was stopped')).length === 1, 'next turn: the nudge kept where it was sent')
     // The history only grows (the system prompt apart): the prompt cache of the server stays valid.
     assert(JSON.stringify(after.slice(1, think.length)) === JSON.stringify(think.slice(1)), 'next turn: the request starts with the messages of the one before')
+
+    // The same error three times: a stuck alert on the step, the turn goes on; not sent to
+    // the model; Ignore counts a false alert in the statistics.
+    await ask(page, 'Stuck on errors', 'Gave up on errors.')
+    const sus = await page.$$eval('[data-testid=ai-suspect]', (e) => e.map((x) => x.textContent).filter((x) => x.includes('error')))
+    assert(sus.length === 1 && sus[0].includes('The assistant seems stuck') && sus[0].includes('The same error 3 times: bash'), 'one stuck alert for the repeated error (4 failures): ' + JSON.stringify(sus))
+    assert(!JSON.stringify(requests[requests.length - 1].messages).includes('seems stuck'), 'the alert is not sent to the model')
+    await page.click('[data-testid=ai-suspect]:has-text("The same error") [data-testid=ai-suspect-ignore]')
+    await page.waitForSelector('[data-testid=ai-suspect][data-state=ignored]:has-text("The same error")')
+    const cards = await page.$$eval('[data-testid=ai-suspect]', (e) => e.map((x) => x.dataset.state))
+    await page.click('[data-testid=ai-stats-toggle]')
+    await page.waitForSelector('[data-testid=st-suspects]')
+    const hint = await page.getAttribute('[data-testid=st-suspects]', 'title')
+    // The compacted steps (Walk ten steps, before the compaction) keep their alerts in the count.
+    assert(Number(await page.textContent('[data-testid=st-suspects] .st-tile-value')) >= cards.length && hint.includes(`${cards.filter((c) => c === 'ignored').length} ignored`), 'the alerts of the thread counted: ' + JSON.stringify(cards) + ' / ' + hint + ' / ' + (await page.textContent('[data-testid=st-suspects] .st-tile-value')))
+    await page.click('[data-testid=ai-view-chat]')
 
     // A reasoning going round in circles: stopped by the pod, asked again to act.
     await ask(page, 'Loop please', 'Acted after the loop.')

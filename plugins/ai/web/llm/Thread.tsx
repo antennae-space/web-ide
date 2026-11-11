@@ -11,7 +11,7 @@ import { doodleSession } from './doodle/session'
 import { pages, showPage } from './board/pages'
 import { captureScreen, canCapture, type Picture } from './doodle/background'
 import { drawPage } from './uiTools'
-import { answerQuestions, dismissPlan, executePlan, send } from './assistant'
+import { answerQuestions, dismissPlan, executePlan, send, stop } from './assistant'
 import { PreviewCard } from './PreviewCard'
 import { ChildCard, EventCard, TaskCard } from './SubAgents'
 import { ActionCard, OpenedCard } from './Orchestrator'
@@ -193,6 +193,36 @@ function EditBox(props: { index: number; text: string }) {
           {t('Send')}
         </button>
       </div>
+    </div>
+  )
+}
+
+/**
+ * A stuck alert: the rules of the pod say the assistant may go round in circles. The turn
+ * goes on; Ignore marks a false alert, Stop ends the turn.
+ */
+function SuspectCard(props: { msg: ChatMessage; running: boolean }) {
+  const sp = () => props.msg.suspect!
+  const choose = (state: 'ignored' | 'stopped') => {
+    if (state === 'stopped') stop()
+    request('assistant.suspect', { id: chat.id, index: chat.messages.indexOf(props.msg), state }).catch(errorToast)
+  }
+  return (
+    <div class="ai-suspect" classList={{ done: sp().state !== 'open' }} data-testid="ai-suspect" data-state={sp().state}>
+      <Icon name="conflict" size={14} />
+      <span class="grow">
+        <b>{t('The assistant seems stuck')}</b> · {summaryText(sp().reason)}
+      </span>
+      <Show when={sp().state === 'open'} fallback={<span class="muted small">{sp().state === 'ignored' ? t('Ignored') : t('Stopped')}</span>}>
+        <button class="btn small" onClick={() => choose('ignored')} data-testid="ai-suspect-ignore">
+          {t('Ignore')}
+        </button>
+        <Show when={props.running}>
+          <button class="btn small" onClick={() => choose('stopped')} data-testid="ai-suspect-stop">
+            {t('Stop')}
+          </button>
+        </Show>
+      </Show>
     </div>
   )
 }
@@ -614,6 +644,12 @@ function AssistantMessage(props: { msg: ChatMessage; index: number; lastOfTurn: 
     for (let i = props.index + 1; i < chat.messages.length && chat.messages[i].role === 'tool'; i++) if (chat.messages[i].capture === 'pending') out.push(i)
     return out
   }
+  // Stuck alerts of this step (on the answer or a tool result): in sight.
+  const suspects = () => {
+    const out: number[] = props.msg.suspect ? [props.index] : []
+    for (let i = props.index + 1; i < chat.messages.length && chat.messages[i].role === 'tool'; i++) if (chat.messages[i].suspect) out.push(i)
+    return out
+  }
   // Actions offered by the Orchestrator, and the conversations it opened: in sight.
   const orchestration = () => {
     const out: number[] = []
@@ -658,6 +694,7 @@ function AssistantMessage(props: { msg: ChatMessage; index: number; lastOfTurn: 
       <For each={orchestration()}>{(i) => (chat.messages[i].card ? <ActionCard msg={chat.messages[i]} index={i} /> : <OpenedCard msg={chat.messages[i]} />)}</For>
       <For each={childCards()}>{(id) => <ChildCard id={id} />}</For>
       <For each={previewCards()}>{(i) => <PreviewCard spec={chat.messages[i].preview!} />}</For>
+      <For each={suspects()}>{(i) => <SuspectCard msg={chat.messages[i]} running={live.busy && props.lastTurn} />}</For>
       <For each={asks()}>{(i) => <AskCard msg={chat.messages[i]} index={i} scope={chat.id} onSend={(idx, answers, notes, path, off) => answerQuestions(idx, answers, notes, path, off).catch(errorToast)} />}</For>
       <Show when={props.msg.error}>
         <div class="ai-error">

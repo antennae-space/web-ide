@@ -98,8 +98,10 @@ type Stats struct {
 	WithTools int `json:"withTools"`
 	Multi     int `json:"multi"`
 	// Repeats: calls identical (tool and arguments) to one made since the last message of the user.
-	Repeats int      `json:"repeats"`
-	Context *Context `json:"context,omitempty"`
+	Repeats int `json:"repeats"`
+	// Suspects: the stuck alerts by state (open, ignored: false alerts, stopped).
+	Suspects map[string]int `json:"suspects,omitempty"`
+	Context  *Context       `json:"context,omitempty"`
 }
 
 // Acc gathers the statistics of conversations.
@@ -131,6 +133,13 @@ func (a *Acc) Add(c *engine.Chat) {
 	kept := false
 	seen := map[string]bool{}
 	for _, m := range c.Messages {
+		// A stuck alert counts with its answer (on it, or on the tool results after it).
+		if m.Suspect != nil && (m.Role == "assistant" && a.f.keeps(m) || m.Role == "tool" && kept) {
+			if a.s.Suspects == nil {
+				a.s.Suspects = map[string]int{}
+			}
+			a.s.Suspects[m.Suspect.State]++
+		}
 		switch m.Role {
 		case "user":
 			if m.Kind != "summary" {

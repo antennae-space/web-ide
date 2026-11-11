@@ -192,6 +192,9 @@ type Message struct {
 	Opened string                `json:"opened,omitempty"`
 	// Preview offered by share_preview (tool message): the card starts it on a click.
 	Preview *assistant.Preview `json:"preview,omitempty"`
+	// Suspect: a stuck alert raised on the step ending with this message (stuck.go); shown
+	// as a card, not sent to the model.
+	Suspect *Suspect `json:"suspect,omitempty"`
 	// Author: "claude" for a message or the answers of Claude Code (MCP), else the user.
 	Author string `json:"author,omitempty"`
 	// Date and ActiveFile: noted on a message of the user when they changed since the last

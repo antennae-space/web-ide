@@ -728,5 +728,16 @@
   "waiting": "en attente",
   "working": "en cours",
   "failed": "échec",
-  "starting": "démarrage"
+  "starting": "démarrage",
+  "The assistant seems stuck": "L'assistant semble bloqué",
+  "Ignored": "Ignorée",
+  "Ignore": "Ignorer",
+  "Stuck alerts": "Alertes de blocage",
+  "{n} ignored (false alerts), {m} stopped": "{n} ignorées (fausses alertes), {m} arrêtées",
+  "The same error {n} times: {what}": "La même erreur {n} fois : {what}",
+  "The same call {n} times: {what}": "Le même appel {n} fois : {what}",
+  "An edit undone: {what}": "Une modification annulée : {what}",
+  "The reasoning went round in circles twice": "Le raisonnement a tourné en rond deux fois",
+  "invalid state": "état invalide",
+  "no stuck alert here": "pas d'alerte de blocage ici"
 }

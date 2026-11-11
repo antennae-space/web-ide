@@ -160,6 +160,8 @@ export interface ChatMessage {
   capture?: 'pending' | 'done' | 'refused' | 'skipped'
   /** App offered by share_preview (tool message): its card starts it. */
   preview?: PreviewSpec
+  /** Stuck alert raised on the step ending with this message: a card, not sent to the model. */
+  suspect?: { rule: 'repeat' | 'error' | 'revert' | 'loop'; reason: ChatMessage['summary']; detail: string; state: 'open' | 'ignored' | 'stopped' }
   /** Event of a sub-agent in its parent, or of the parent in the child (kind agent_event). */
   event?: AgentEvent
   /** 'parent' on the result of agent_ask until the parent answers. */
