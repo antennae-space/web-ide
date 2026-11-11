@@ -8,7 +8,8 @@ import { activeTab, session } from '../state/project'
 import { focusPart } from '../state/focus'
 import { shownIn } from '../state/zones'
 import { mobileView, phone } from '../state/mobile'
-import { pluginStatus } from '../plugins/registry'
+import { pluginLoads, pluginStatus } from '../plugins/registry'
+import { t } from '../i18n'
 import type { StatusItem } from '../plugins/types'
 import { Icon } from './icons'
 import { contextMenu, type MenuItem } from './overlay'
@@ -40,6 +41,12 @@ export function StatusBar(props: { desks?: boolean }) {
         <DeskSwitcher />
       </Show>
       <span class="grow" />
+      {/* The modules of the plugins still loading after the IDE shows (#211). */}
+      <Show when={pluginLoads().settled < pluginLoads().asked}>
+        <span class="sb-item" data-testid="status-extensions" title={t('Extensions loading')}>
+          <span class="spinner" /> {t('Extensions {done}/{all}', { done: pluginLoads().settled, all: pluginLoads().asked })}
+        </span>
+      </Show>
       <Index each={items()}>
         {(it) => (
           <Show

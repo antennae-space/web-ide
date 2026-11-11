@@ -45,6 +45,9 @@ const active: Record<string, PluginContributions> = {}
 const modules: Record<string, PluginModule> = {}
 // Bumped when a module arrives: what reads the active plugins follows.
 const [version, setVersion] = createSignal(0)
+// The page modules asked and settled in this window (#211): the status bar counts those still loading.
+const [loads, setLoads] = createSignal({ asked: 0, settled: 0 })
+export const pluginLoads = loads
 const loading: Record<string, Promise<PluginModule | undefined>> = {}
 // The version an external plugin's module was built from.
 const builtVersion: Record<string, string> = {}
@@ -72,14 +75,18 @@ function load(id: string, list = states()): Promise<PluginModule | undefined> {
   const get = builtins[id] ?? (external ? () => externalModule(external, () => states().find((s) => s.manifest.id === id)) : () => Promise.reject(new Error('no page module')))
   const t0 = performance.now()
   const asked = loadPending() // the journal prints its table once no module is pending (loadJournal)
+  setLoads((n) => ({ ...n, asked: n.asked + 1 }))
+  const settled = () => setLoads((n) => ({ ...n, settled: n.settled + 1 }))
   return (loading[id] = get().then(
     (m) => {
       asked()
+      settled()
       loadMark('plugin', { id, ms: Math.round(performance.now() - t0), bytes: external ? bundleBytes[id] : chunkBytes(id), bundle: !!external })
       return (modules[id] = m)
     },
     (e) => {
       asked()
+      settled()
       console.warn('plugin', id, e)
       delete loading[id] // asked again at the next states
       return undefined

@@ -44,6 +44,7 @@ import { t, tn } from '../i18n'
 import { ProjectBar } from './ProjectBar'
 import { DeskSwitcher } from '../ui/DeskSwitcher'
 import { dragPointer } from '../ui/drag'
+import { LoadingSteps } from '../ui/LoadingSteps'
 import { SearchEverywhereHost, searchEverywhere } from '../popups/SearchEverywhere'
 import { RecentFilesHost, recentFiles } from '../popups/RecentFiles'
 import { ClipboardHistoryHost, pasteFromHistory } from '../popups/ClipboardHistory'
@@ -874,7 +875,7 @@ export function ProjectPage(props: { id: string }) {
       when={ready()}
       fallback={
         <div class="center-msg">
-          <Show when={error()} fallback={<p class="muted">{t('Opening the project…')}</p>}>
+          <Show when={error()} fallback={<LoadingSteps />}>
             <p class="danger">{error()}</p>
             <button class="btn" onClick={() => void goHome()}>
               {t('Back to the projects')}

@@ -318,7 +318,8 @@ run(
           for (const k of await c.keys()) {
             if (k.url.includes('/_relay/')) continue // the date or the index of the cache itself
             const r = await c.match(k)
-            urls.push({ url: k.url, cache: n, size: Number(r?.headers.get('content-length') ?? 0) })
+            if (!r) continue // dropped since the keys were read (the budget runs meanwhile)
+            urls.push({ url: k.url, cache: n, size: Number(r.headers.get('content-length') ?? 0) })
           }
         }
         return { names, urls }
@@ -358,6 +359,15 @@ run(
       if (u.origin === RELAY && shellPaths.includes(u.pathname) && !r.fromServiceWorker()) fromNet.push(u.pathname)
     }
     page.on('response', onResponse)
+    // The card of the bootstrap page says when the IDE itself comes, with the kB it received
+    // (#211): what its current step showed is recorded as it changes.
+    await page.addInitScript(() => {
+      window.__steps = []
+      new MutationObserver(() => {
+        const now = document.querySelector('#msg .steps li.now')
+        if (now && window.__steps.at(-1) !== now.textContent) window.__steps.push(now.textContent)
+      }).observe(document, { subtree: true, childList: true, characterData: true })
+    })
     const t0 = Date.now()
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.waitForSelector('#frame', { timeout: 30000 })
@@ -366,6 +376,8 @@ run(
     await again.waitForSelector('.project-list .project-card, .ws-dir')
     await again.waitForTimeout(400)
     page.off('response', onResponse)
+    const steps = await page.evaluate(() => window.__steps)
+    assert(steps.some((s) => s.includes('Loading the IDE') && /\d+ kB received/.test(s)), 'the bootstrap page shows the IDE coming, with the kB received: ' + steps.join(' | '))
     const re = await page.evaluate(() => ({ ...window.bootTimings, channels: window.httpChannels, bytes: window.httpBytes, paths: window.httpPaths, total: Math.round(performance.now()) }))
     console.log(`  load first:  ${JSON.stringify(first)}`)
     console.log(`  load reload: ${JSON.stringify(re)} (${Date.now() - t0} ms to the app)`)
@@ -428,7 +440,9 @@ run(
       await page.waitForTimeout(250)
     }
     const total = lru.reduce((n, u) => n + u.size, 0)
-    assert(lru.some((u) => u.url.endsWith('/' + fresh)) && total <= keptBytes && lru.length < now.length + 1, `over its budget the cache drops the least recently used: ${now.length} → ${lru.length} assets, ${total} of ${keptBytes} bytes`)
+    // The app may load a chunk of its own meanwhile: an entry dropped is looked for, not a count.
+    const dropped = now.filter((u) => !lru.some((l) => l.url === u.url))
+    assert(lru.some((u) => u.url.endsWith('/' + fresh)) && total <= keptBytes && dropped.length > 0, `over its budget the cache drops the least recently used: ${now.length} → ${lru.length} assets (${dropped.length} dropped), ${total} of ${keptBytes} bytes`)
     await page.evaluate(() => navigator.serviceWorker.controller.postMessage({ kind: 'assets-budget', bytes: 40 * 1024 * 1024 }))
 
     // A wrong token: the pod refuses the proof (the relay never sees the token).
