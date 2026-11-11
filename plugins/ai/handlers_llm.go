@@ -74,6 +74,19 @@ func (s *A) registerLLM() {
 		s.pod.Broadcast("llm.config", view)
 		return view, nil
 	})
+	// llm.web: the provider of the web tools (search "" or none: off); braveKey "" keeps the key.
+	s.handle("llm.web", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
+		a, err := bind[struct{ Search, SearXNG, BraveKey string }](p)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.LLM.SetWeb(a.Search, a.SearXNG, a.BraveKey); err != nil {
+			return nil, err
+		}
+		view := s.LLM.View()
+		s.pod.Broadcast("llm.config", view)
+		return view, nil
+	})
 	s.handle("llm.select", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
 		a, err := bind[struct{ Server, Model string }](p)
 		if err != nil {

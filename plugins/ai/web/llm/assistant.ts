@@ -97,6 +97,7 @@ interface Update {
   dismissed?: boolean
   genMs?: number
   cost?: number
+  tainted?: string[]
   from: number
   count: number
   messages?: ChatMessage[]
@@ -150,6 +151,7 @@ on('assistant.update', (u: Update) => {
       c.dismissed = u.dismissed
       if (u.genMs) c.genMs = u.genMs
       if (u.cost) c.cost = u.cost
+      c.tainted = u.tainted
     }),
   )
   setApproval(u.approval ?? null)

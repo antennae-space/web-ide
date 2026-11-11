@@ -141,7 +141,7 @@ func (s *Server) actionTools() []pluginTool {
 			if a.Access == "write" {
 				desc += " It changes something: the user may refuse it or be asked first."
 			}
-			t := plugins.AssistantTool{Name: name, Description: desc, Props: a.Properties, Required: a.Required,
+			t := plugins.AssistantTool{Name: name, Description: desc, Props: a.Properties, Required: a.Required, ReadOnly: a.Access == "read",
 				Run: func(ctx context.Context, call plugins.Call) (plugins.Result, error) {
 					return s.runAction(ctx, call, id, a)
 				}}

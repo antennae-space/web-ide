@@ -127,7 +127,7 @@ type handler func(ctx context.Context, c *Client, p json.RawMessage) (any, error
 // global are the methods of the configuration of the pod (model servers, speech models): they
 // answer without a project, as Settings asks them.
 var global = map[string]bool{
-	"llm.config": true, "llm.models": true, "llm.quota": true, "llm.select": true, "llm.children": true, "llm.image": true, "llm.server.save": true, "llm.server.delete": true,
+	"llm.config": true, "llm.models": true, "llm.quota": true, "llm.select": true, "llm.children": true, "llm.image": true, "llm.web": true, "llm.server.save": true, "llm.server.delete": true,
 	"models.list": true, "models.delete": true,
 }
 

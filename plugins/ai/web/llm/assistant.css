@@ -320,6 +320,8 @@
 .ai-plan-head { display: flex; align-items: center; gap: 8px; color: var(--info); }
 .ai-plan.done .ai-plan-head { color: var(--fg-muted); }
 .ai-approval-cmd { margin: 0 12px 8px; width: auto; }
+pre.ai-approval-cmd { max-height: 240px; overflow: auto; white-space: pre-wrap; }
+.ai-approval-web { margin: 8px 12px 0; padding: 6px 10px; border-radius: 6px; border: 1px solid color-mix(in srgb, var(--warn) 55%, var(--line)); background: color-mix(in srgb, var(--warn) 8%, var(--bg)); color: var(--fg); font-size: 12px; line-height: 1.4; }
 
 /* Narrow message box: the buttons keep their size, the model pill shrinks first. */
 .ai-composer { container-type: inline-size; }
@@ -340,6 +342,7 @@
 .ai-topbar { display: flex; align-items: center; gap: 10px; padding: 4px 10px 4px 14px; background: var(--bg-2); font-size: 12px; min-width: 0; flex: none; }
 .ai-bar-item { display: inline-flex; align-items: center; gap: 5px; min-width: 0; flex: none; padding: 0; border: 0; background: none; color: var(--fg-muted); font-size: 12px; }
 button.ai-bar-item { cursor: pointer; }
+.ai-bar-web { color: var(--warn); }
 button.ai-bar-item:hover { color: var(--accent); }
 .ai-bar-item .mono { font-family: var(--font-code); }
 .ai-bar-icon { position: relative; display: inline-flex; flex: none; }
