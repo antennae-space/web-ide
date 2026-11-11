@@ -78,6 +78,8 @@ type Config struct {
 	// Server and model of generate_image ("": the tool is not offered).
 	ImageServer string `json:"imageServer,omitempty"`
 	ImageModel  string `json:"imageModel,omitempty"`
+	// Web: the provider of web_search and web_fetch ("": the tools are not offered), web.go.
+	Web Web `json:"web,omitzero"`
 }
 
 type Manager struct {
@@ -124,7 +126,8 @@ func (m *Manager) View() map[string]any {
 			Models: s.Models, Note: s.Note, Children: s.Children})
 	}
 	return map[string]any{"servers": views, "server": m.cfg.Server, "model": m.cfg.Model, "childServer": m.cfg.ChildServer, "childModel": m.cfg.ChildModel,
-		"imageServer": m.cfg.ImageServer, "imageModel": m.cfg.ImageModel}
+		"imageServer": m.cfg.ImageServer, "imageModel": m.cfg.ImageModel,
+		"web": map[string]any{"search": m.cfg.Web.Search, "searxng": m.cfg.Web.SearXNG, "hasBraveKey": m.cfg.Web.BraveKey != ""}}
 }
 
 // SetChildDefault sets the default server and model of the sub-agents.
@@ -191,6 +194,9 @@ func (m *Manager) Keys() map[string]string {
 			out[s.ID] = s.APIKey
 		}
 	}
+	if m.cfg.Web.BraveKey != "" {
+		out[BraveKeyName] = m.cfg.Web.BraveKey
+	}
 	return out
 }
 
@@ -200,6 +206,9 @@ func (m *Manager) ApplyKeys(keys map[string]string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	changed := false
+	if k := keys[BraveKeyName]; k != "" && k != m.cfg.Web.BraveKey {
+		m.cfg.Web.BraveKey, changed = k, true
+	}
 	for _, s := range m.cfg.Servers {
 		if k, ok := keys[s.ID]; ok && k != "" && s.APIKey != k {
 			for i := range m.cfg.Servers {

@@ -46,6 +46,9 @@ func (s *A) offered(rt *runtime.Runtime, defs []json.RawMessage) []json.RawMessa
 			Function struct{ Name string } `json:"function"`
 		}
 		_ = json.Unmarshal(d, &f)
+		if engine.WebTools[f.Function.Name] && s.LLM.WebConfig().Search == "" {
+			continue
+		}
 		if f.Function.Name == engine.GenerateImageDef.Name {
 			if server, _ := s.LLM.ImageDefault(); server == "" {
 				continue

@@ -18,11 +18,16 @@ import (
 // reach the child the same way. Events are delivered outside the locks of the runs.
 
 // deliver adds an event to a conversation: queued while it runs or waits for the user,
-// else added, and the conversation started when wake is set.
+// else added, and the conversation started when wake is set. The web content of the sender
+// taints the target: its text may carry an injection (assistant_web.go).
 func (s *A) deliver(r *assistantRun, target string, ev engine.AgentEvent, wake bool) error {
 	text := engine.EventText(ev)
+	r.mu.Lock()
+	tainted := append([]string(nil), r.chat.Tainted...)
+	r.mu.Unlock()
 	if t := s.run(target); t != nil {
 		t.mu.Lock()
+		taintFrom(t.chat, tainted)
 		if !t.done {
 			t.chat.Queue = append(t.chat.Queue, engine.QueuedMessage{ID: assistant.NewID(), Text: text, Event: &ev})
 			s.publish(t, -1)
@@ -35,6 +40,7 @@ func (s *A) deliver(r *assistantRun, target string, ev engine.AgentEvent, wake b
 	if err != nil {
 		return err
 	}
+	taintFrom(c, tainted)
 	if waitsForUser(c) {
 		c.Queue = append(c.Queue, engine.QueuedMessage{ID: assistant.NewID(), Text: text, Event: &ev})
 		return s.publishIdle(r.loc, r.root, c, -1)
@@ -187,6 +193,9 @@ func (s *A) spawnAgent(r *assistantRun, a assistant.Args) (assistant.ToolResult,
 		Agent: &engine.SubAgent{Task: task, Files: files, Status: engine.AgentRunning, Depth: depth, Orchestrated: orchestrated}}
 	c.AddUser(&engine.Message{Role: "user", Kind: "agent_task", Content: assistant.String(engine.TaskText(task, files))})
 	r.mu.Lock()
+	// The child has the web content of its parent, and the URLs it may fetch.
+	taintFrom(c, r.chat.Tainted)
+	addWebURLs(c, append(append([]string{}, r.chat.WebURLs...), userURLs(r.chat)...))
 	r.chat.Children = append(r.chat.Children, c.ID)
 	s.publish(r, -1)
 	r.mu.Unlock()
@@ -406,6 +415,11 @@ func (s *A) agentStatus(r *assistantRun) (assistant.ToolResult, error) {
 			continue
 		}
 		fmt.Fprintf(&b, "- %s %q: %s", id, c.Title, s.liveStatus(c))
+		if len(c.Tainted) > 0 {
+			r.mu.Lock()
+			taintFrom(r.chat, c.Tainted) // its notes and report may carry web content
+			r.mu.Unlock()
+		}
 		if n := c.Agent.Note; n != nil {
 			fmt.Fprintf(&b, "\n  latest note: %s: %s", n.Title, assistant.Cut(n.Text, 300))
 		}

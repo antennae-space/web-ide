@@ -1,6 +1,6 @@
 // Messages of the conversation: welcome screen, user messages, answers with their reasoning
 // and tool steps, the answer being written with its live counters, edit confirmation.
-import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, For, Match, onCleanup, Show, Switch } from 'solid-js'
 import { approval, chat, config, live, liveSpeed, savePrefs, setPrefs, type Attachment, type ChatMessage, type Effort, type Part, type ToolCall } from './state'
 import { answerApproval, currentMode, dismiss, otherModel, resume, retry, stepsSinceUser } from './assistant'
 import { AttachmentChip, callLabel, DiffBlock, formatDuration, formatTokens, Markdown, safeArgs, summaryText, toolIcons, toolVerbs } from './parts'
@@ -784,30 +784,43 @@ function ApprovalCard() {
   let always = false
   return (
     <div class="ai-approval" data-testid="ai-approval">
-      <Show
-        when={a().kind === 'command'}
-        fallback={
-          <>
-            <div class="ai-approval-head">
-              <Icon name="edit" size={14} />
-              <strong>{a().created ? t('Create') : t('Edit')}</strong>
-              <span class="mono ellipsis">{relPath(a().path ?? '')}</span>
-            </div>
-            <DiffBlock lines={a().diff ?? []} />
-          </>
-        }
-      >
-        <div class="ai-approval-head">
-          <Icon name="terminal" size={14} />
-          <strong>{t('Run this command?')}</strong>
-          <span class="muted small">{t('Plan mode: it may change something.')}</span>
+      <Show when={a().tainted}>
+        <div class="ai-approval-web" data-testid="ai-approval-web">
+          <span aria-hidden="true">🌐</span> {t('Web content is in this conversation: it may hold instructions written to mislead the assistant. Check this action before you allow it.')}
         </div>
-        <pre class="ai-term ai-approval-cmd">
-          <span class="ai-term-cmd">$ {a().command}</span>
-        </pre>
       </Show>
+      <Switch>
+        <Match when={a().kind === 'edit'}>
+          <div class="ai-approval-head">
+            <Icon name="edit" size={14} />
+            <strong>{a().created ? t('Create') : t('Edit')}</strong>
+            <span class="mono ellipsis">{relPath(a().path ?? '')}</span>
+          </div>
+          <DiffBlock lines={a().diff ?? []} />
+        </Match>
+        <Match when={a().kind === 'tool'}>
+          <div class="ai-approval-head">
+            <Icon name="sparkle" size={14} />
+            <strong>{t('Call this tool?')}</strong>
+            <span class="mono ellipsis">{a().tool}</span>
+          </div>
+          <pre class="ai-term ai-approval-cmd">{a().command}</pre>
+        </Match>
+        <Match when={a().kind === 'command'}>
+          <div class="ai-approval-head">
+            <Icon name="terminal" size={14} />
+            <strong>{t('Run this command?')}</strong>
+            <Show when={!a().tainted}>
+              <span class="muted small">{t('Plan mode: it may change something.')}</span>
+            </Show>
+          </div>
+          <pre class="ai-term ai-approval-cmd">
+            <span class="ai-term-cmd">$ {a().command}</span>
+          </pre>
+        </Match>
+      </Switch>
       <div class="ai-approval-foot">
-        <Show when={a().kind === 'edit'}>
+        <Show when={a().kind === 'edit' && !a().tainted}>
           <label class="check small">
             <input type="checkbox" onChange={(e) => (always = e.currentTarget.checked)} />
             {t('Do not ask again')}
@@ -827,7 +840,7 @@ function ApprovalCard() {
             answerApproval(true, always)
           }}
         >
-          {a().kind === 'command' ? t('Run') : t('Apply')}
+          {a().kind === 'edit' ? t('Apply') : t('Run')}
         </button>
       </div>
     </div>

@@ -396,6 +396,14 @@ _Avoid_: worker
 A card in a conversation of the assistant: rules on its last steps say it may go round in circles (the same call with the same result, the same error, an edit undone, an answer stuck twice). The turn goes on; the user ignores it (a false alert) or stops the turn.
 _Avoid_: loop (the reasoning loop is one of its rules), warning
 
+**Tainted conversation**
+A conversation of the assistant that web content entered (a result of `web_search` or `web_fetch`, or a message of a tainted sub-agent or parent). It stays tainted, after a compaction too. Its commands, file changes out of `/tmp`, tools of plugins that change something and kanban writes ask the user; the top bar shows *web content* with its sources.
+_Avoid_: untrusted conversation, web mode
+
+**Web provider**
+The service `web_search` asks: Brave Search (with its key) or a SearXNG of the user. Set in the *Web* tab of the settings of the assistant; none by default, and then no web tool.
+_Avoid_: search provider (a tab of Search Everywhere), search engine
+
 **Compaction**
 Replacing the start of a long conversation with a summary to free context.
 

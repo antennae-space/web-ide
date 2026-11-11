@@ -257,6 +257,60 @@ export function ImageSettings() {
   )
 }
 
+export function WebSettings() {
+  const web = () => config.web ?? {}
+  const [searxng, setSearxng] = createSignal(web().searxng ?? '')
+  const [key, setKey] = createSignal('')
+  // The provider picked: saved once it has its key or its address.
+  const [choice, setChoice] = createSignal<string>(web().search ?? '')
+  const pick = (v: string) => {
+    setChoice(v)
+    if (v === '' || (v === 'brave' && web().hasBraveKey) || (v === 'searxng' && searxng())) set(v)
+  }
+  const set = (search: string) =>
+    request('llm.web', { search, searxng: searxng(), braveKey: key() }).then((v) => {
+      applyConfig(v)
+      setKey('')
+    }, errorToast)
+  return (
+    <div class="form" data-testid="web-settings">
+      <p class="muted small">
+        {t('The assistant can search the web (web_search) and read pages (web_fetch). A page can hold instructions written to mislead it: once web content is in a conversation, its commands, file changes and tools that change something ask you, and web_fetch reads only the URLs you wrote, of the search results and the links of pages read.')}
+      </p>
+      <label class="field">
+        <span>{t('Web search')}</span>
+        <select value={choice()} onChange={(e) => pick(e.currentTarget.value)} name="webSearch">
+          <option value="">{t('No web access')}</option>
+          <option value="brave">Brave Search</option>
+          <option value="searxng">SearXNG</option>
+        </select>
+      </label>
+      <Show when={choice() === 'brave'}>
+        <div class="field-row">
+          <label class="field grow">
+            <span>{t('Brave Search API key')}</span>
+            <input type="password" name="braveKey" value={key()} placeholder={web().hasBraveKey ? t('Key saved: type a new one to replace it') : ''} onInput={(e) => setKey(e.currentTarget.value)} />
+          </label>
+          <button class="btn" disabled={!key()} onClick={() => set('brave')}>
+            {t('Save')}
+          </button>
+        </div>
+      </Show>
+      <Show when={choice() === 'searxng'}>
+        <div class="field-row">
+          <label class="field grow">
+            <span>{t('Address of the SearXNG (its JSON format on)')}</span>
+            <input name="searxng" value={searxng()} placeholder="http://127.0.0.1:8888" onInput={(e) => setSearxng(e.currentTarget.value)} />
+          </label>
+          <button class="btn" onClick={() => set('searxng')}>
+            {t('Save')}
+          </button>
+        </div>
+      </Show>
+    </div>
+  )
+}
+
 export function CompactionSettings() {
   const [list] = createResource(
     () => prefs.compactServer,
@@ -458,7 +512,7 @@ export function SettingsModal(props: { onClose: () => void }) {
     }
   }
   const setModel = (i: number, patch: Partial<ModelConf>) => setForm({ ...form(), models: form().models.map((m, j) => (j === i ? { ...m, ...patch } : m)) })
-  type Tab = 'servers' | 'prompt' | 'plan' | 'subagents' | 'images' | 'compaction' | 'speech' | 'aliases'
+  type Tab = 'servers' | 'prompt' | 'plan' | 'subagents' | 'images' | 'web' | 'compaction' | 'speech' | 'aliases'
   const [tab, setTab] = createSignal<Tab>('servers')
   const tabs: [Tab, string][] = [
     ['servers', 'Servers'],
@@ -466,6 +520,7 @@ export function SettingsModal(props: { onClose: () => void }) {
     ['plan', 'Plan mode'],
     ['subagents', 'Sub-agents'],
     ['images', 'Image generation'],
+    ['web', 'Web'],
     ['compaction', 'Compaction'],
     ['speech', 'Transcription'],
     ['aliases', 'Aliases'],
@@ -492,6 +547,9 @@ export function SettingsModal(props: { onClose: () => void }) {
       </Show>
       <Show when={tab() === 'images'}>
         <ImageSettings />
+      </Show>
+      <Show when={tab() === 'web'}>
+        <WebSettings />
       </Show>
       <Show when={tab() === 'compaction'}>
         <CompactionSettings />

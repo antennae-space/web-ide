@@ -181,6 +181,8 @@ type Pod interface {
 	// project of rt; RunAssistantTool runs one (found: a plugin has it).
 	AssistantTools(rt *runtime.Runtime) []json.RawMessage
 	RunAssistantTool(ctx context.Context, rt *runtime.Runtime, name string, args json.RawMessage, lang string, opts assistant.Options) (res assistant.ToolResult, found bool, err error)
+	// AssistantToolReadOnly tells whether a plugin has the tool, and whether it changes nothing.
+	AssistantToolReadOnly(name string) (readOnly, found bool)
 	// Notify sends a push notification to the devices that want its kind and show no window
 	// (a conversation that ended, a test feedback added to a ticket).
 	Notify(n Note)
@@ -306,6 +308,9 @@ type AssistantTool struct {
 	// Props are the JSON schemas of the parameters; Required their required names.
 	Props    map[string]any
 	Required []string
+	// ReadOnly: it changes nothing, so it runs without asking in a conversation holding web
+	// content (the others ask there, plugins/ai/assistant_web.go).
+	ReadOnly bool
 	Run      func(ctx context.Context, c Call) (Result, error)
 }
 

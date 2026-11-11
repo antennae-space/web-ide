@@ -26,6 +26,8 @@ type fakePod struct {
 	svc *plugins.Services
 	// rts: runtimes the tests give to the pod (a console manager for the shells).
 	rts map[string]*runtime.Runtime
+	// tools: the assistant tools of other plugins, by name: read only or not.
+	tools map[string]bool
 }
 
 func (p *fakePod) setRuntime(project string, rt *runtime.Runtime) {
@@ -77,7 +79,15 @@ func (p *fakePod) CallPlugin(context.Context, string, string, any) (json.RawMess
 func (p *fakePod) UICall(context.Context, string, string, string, any, bool, time.Duration) (plugins.UIResult, bool, bool) {
 	return plugins.UIResult{}, false, false
 }
-func (p *fakePod) RunAssistantTool(context.Context, *runtime.Runtime, string, json.RawMessage, string, assistant.Options) (assistant.ToolResult, bool, error) {
+func (p *fakePod) AssistantToolReadOnly(name string) (bool, bool) {
+	ro, ok := p.tools[name]
+	return ro, ok
+}
+
+func (p *fakePod) RunAssistantTool(_ context.Context, _ *runtime.Runtime, name string, _ json.RawMessage, _ string, _ assistant.Options) (assistant.ToolResult, bool, error) {
+	if _, ok := p.tools[name]; ok {
+		return assistant.OKPlain("ran "+name, "ran"), true, nil
+	}
 	return assistant.ToolResult{}, false, nil
 }
 func (p *fakePod) CommandsText(*runtime.Runtime) (string, int, error) { return "", 0, nil }

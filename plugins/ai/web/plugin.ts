@@ -1,6 +1,6 @@
 // The AI plugin's door to the core: the api given at activation, and the parts of it the
 // assistant and the Agents tool use by name. Nothing here imports the core itself (types apart).
-import type { JSX } from 'solid-js'
+import { mergeProps, type JSX } from 'solid-js'
 import type { PluginApi } from '@ide/api'
 import type { Capabilities } from '@ide/capabilities'
 
@@ -64,7 +64,8 @@ export const newEditorView = (...a: ConstructorParameters<PluginApi['editor']['V
 export const Icon = (p: Parameters<PluginApi['ui']['Icon']>[0]): JSX.Element => api.ui.Icon(p)
 export const EmptyState = (p: Parameters<PluginApi['ui']['EmptyState']>[0]): JSX.Element => api.ui.EmptyState(p)
 export const Modal = (p: Parameters<PluginApi['ui']['Modal']>[0]): JSX.Element => api.ui.Modal(p)
-export const Markdown = (p: Parameters<PluginApi['ui']['Markdown']>[0]): JSX.Element => api.ui.Markdown(p)
+// The texts of the models and of the agents: their remote images do not load (a URL can carry data out).
+export const Markdown = (p: Parameters<PluginApi['ui']['Markdown']>[0]): JSX.Element => api.ui.Markdown(mergeProps({ remoteImages: false }, p))
 export const Switch = (p: Parameters<PluginApi['ui']['Switch']>[0]): JSX.Element => api.ui.Switch(p)
 export const HelpLink = (p: Parameters<PluginApi['ui']['HelpLink']>[0]): JSX.Element => api.ui.HelpLink(p)
 export const WorktreeChip = (p: Parameters<PluginApi['ui']['WorktreeChip']>[0]): JSX.Element => api.ui.WorktreeChip(p)

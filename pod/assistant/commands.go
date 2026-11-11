@@ -339,8 +339,9 @@ func RunsFreely(command, root, cwd string) bool {
 var shells = setOf("sh", "bash", "zsh", "dash")
 
 // Commands that act beyond the files given to them: privileges, other machines, services,
-// processes.
-var escapes = setOf("sudo", "su", "doas", "pkexec", "ssh", "scp", "sftp", "systemctl", "service", "shutdown", "reboot", "mount", "umount", "chroot", "crontab", "kill", "pkill", "killall")
+// processes, the network (a command that sends data out can leak a secret read before).
+var escapes = setOf("sudo", "su", "doas", "pkexec", "ssh", "scp", "sftp", "systemctl", "service", "shutdown", "reboot", "mount", "umount", "chroot", "crontab", "kill", "pkill", "killall",
+	"curl", "wget", "nc", "ncat", "netcat", "socat", "telnet", "ftp", "rsync", "http", "https", "xh")
 
 // StaysIn tells whether a command touches nothing out of the folders dirs, so that it runs
 // without asking: reading commands run from anywhere on anything; the others run in the

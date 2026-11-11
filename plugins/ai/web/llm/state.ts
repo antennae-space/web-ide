@@ -277,6 +277,8 @@ export interface Chat {
   genMs?: number
   /** What its own answers cost, in dollars (0: a local model); the bar adds its children's. */
   cost?: number
+  /** The sources of the web content in it (web_search, web_fetch): its actions ask the user. */
+  tainted?: string[]
   /** Abandoned by the user after an error. */
   dismissed?: boolean
   /** First message prepared by the Orchestrator, for the message box. */
@@ -317,7 +319,13 @@ export interface ChatInfo {
   files?: string[]
 }
 
-export const [config, setConfig] = createStore<{ servers: ServerView[]; server: string; model: string; childServer?: string; childModel?: string; imageServer?: string; imageModel?: string }>({ servers: [], server: '', model: '' })
+/** The provider of web_search and web_fetch (search "": the tools are off). */
+export interface WebConfig {
+  search?: '' | 'brave' | 'searxng'
+  searxng?: string
+  hasBraveKey?: boolean
+}
+export const [config, setConfig] = createStore<{ servers: ServerView[]; server: string; model: string; childServer?: string; childModel?: string; imageServer?: string; imageModel?: string; web?: WebConfig }>({ servers: [], server: '', model: '' })
 export const [models, setModels] = createSignal<Model[]>([])
 export const [modelsError, setModelsError] = createSignal('')
 export const [modelsLoading, setModelsLoading] = createSignal(false)
@@ -376,11 +384,15 @@ export function liveSpeed(now = Date.now()): number {
 export interface Approval {
   id: string
   call: ToolCall
-  kind: 'edit' | 'command'
+  /** tool: a tool of a plugin or of the kanban, its arguments in command. */
+  kind: 'edit' | 'command' | 'tool'
   path?: string
   diff?: DiffLine[]
   created?: boolean
   command?: string
+  tool?: string
+  /** Asked because web content is in the conversation. */
+  tainted?: boolean
 }
 export const [approval, setApproval] = createSignal<Approval | null>(null)
 

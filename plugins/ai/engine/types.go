@@ -65,6 +65,13 @@ type Chat struct {
 	// for the whole conversation: a change is an EffortNote
 	// in the history, so that each request starts with the one before (#217).
 	Effort string `json:"effort,omitempty"`
+	// Tainted: the sources of the web content that entered it (web_search, web_fetch; the
+	// first ones), with its sub-agents' (plugins/ai/assistant_web.go). Never cleared, a
+	// compaction neither: its commands, file changes, plugin tools and kanban writes ask.
+	Tainted []string `json:"tainted,omitempty"`
+	// WebURLs: the URLs web_fetch may take besides the ones of the user (search results,
+	// links of pages fetched), as keys of webURL.
+	WebURLs []string `json:"webUrls,omitempty"`
 }
 
 // EffortNote is a change of the reasoning effort for a local model, written into the history
@@ -215,13 +222,17 @@ type ToolCall struct {
 	} `json:"function"`
 }
 
-// Approval is an action waiting for the user: a file change (with its diff) or a command.
+// Approval is an action waiting for the user: a file change (with its diff), a command, or a
+// tool of a plugin or of the kanban (Tool, its arguments in Command).
 type Approval struct {
 	ID      string               `json:"id"`
 	Call    ToolCall             `json:"call"`
-	Kind    string               `json:"kind"` // edit | command
+	Kind    string               `json:"kind"` // edit | command | tool
 	Path    string               `json:"path,omitempty"`
 	Diff    []assistant.DiffLine `json:"diff,omitempty"`
 	Created bool                 `json:"created,omitempty"`
 	Command string               `json:"command,omitempty"`
+	Tool    string               `json:"tool,omitempty"`
+	// Tainted: asked because web content is in the conversation.
+	Tainted bool `json:"tainted,omitempty"`
 }

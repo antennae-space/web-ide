@@ -608,6 +608,14 @@ func (p podLend) RunAssistantTool(ctx context.Context, rt *runtime.Runtime, name
 	return res, true, err
 }
 
+func (p podLend) AssistantToolReadOnly(name string) (bool, bool) {
+	t := p.s.findPluginTool(name)
+	if t == nil {
+		return false, false
+	}
+	return t.tool.ReadOnly, true
+}
+
 func (p podLend) Notify(n plugins.Note)                  { go p.s.notify(n) }
 func (p podLend) QuestionsChanged(project, asked string) { p.s.questionsChanged(project, asked) }
 func (p podLend) CommandsText(rt *runtime.Runtime) (string, int, error) {

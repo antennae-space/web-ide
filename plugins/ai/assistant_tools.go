@@ -57,7 +57,13 @@ func (s *A) assistantTool(r *assistantRun, ref *runtimeRef, call engine.ToolCall
 	if res, ok := s.followed(r, ref, call, a); ok {
 		return res
 	}
+	r.mu.Lock()
+	tainted := len(r.chat.Tainted) > 0
+	r.mu.Unlock()
 	if engine.KanbanTools[name] {
+		if tainted && !kanbanReads(name, a) && !s.confirmTool(r, ref.rt.Root, call) {
+			return toolRefused()
+		}
 		return s.kanbanTool(r, name, a, mode)
 	}
 	if err := s.missingFor(ref.rt, name); err != nil {
@@ -66,6 +72,9 @@ func (s *A) assistantTool(r *assistantRun, ref *runtimeRef, call engine.ToolCall
 	r.mu.Lock()
 	options := opt(r.chat)
 	r.mu.Unlock()
+	if readOnly, found := s.pod.AssistantToolReadOnly(name); found && tainted && !readOnly && !s.confirmTool(r, ref.rt.Root, call) {
+		return toolRefused()
+	}
 	if res, found, err := s.pod.RunAssistantTool(r.ctx, ref.rt, name, []byte(orEmpty(call.Function.Arguments)), r.lang, options); found {
 		if err != nil {
 			return fail(r, err)
@@ -95,25 +104,39 @@ func (s *A) assistantTool(r *assistantRun, ref *runtimeRef, call engine.ToolCall
 		if mode != engine.Build {
 			free = assistant.RunsFreely(cmd, root, cwd) || assistant.StaysIn(cmd, cwd, assistant.Scratch)
 		}
-		if !free && !s.confirm(r, root, engine.Approval{Call: call, Kind: "command", Command: cmd}) {
+		if (!free || tainted) && !s.confirm(r, root, engine.Approval{Call: call, Kind: "command", Command: cmd, Tainted: tainted}) {
 			why := "Build mode: commands that touch nothing out of the project and " + assistant.Scratch + " run freely"
 			if mode != engine.Build {
 				why = which + " mode: only reading commands, the build and test commands of the project, and commands confined to " + assistant.Scratch + ", run freely"
+			}
+			if tainted {
+				why = "web content is in this conversation: every command asks the user"
 			}
 			return assistant.ToolResult{Content: "The user refused this command (" + why + ").", Summary: assistant.T("command refused", nil).Raw(), Status: "denied"}
 		}
 	}
 	// A saved command was written by the user: it runs freely in Build mode, and its builds,
 	// tests and lints in the other modes.
-	if name == "run_saved_command" && mode != engine.Build {
-		if cmd, err := s.findCommand(ref.rt, a.Str("id")); err == nil && cmd.Flag != "build" && cmd.Flag != "test" && cmd.Flag != "lint" &&
-			!s.confirm(r, root, engine.Approval{Call: call, Kind: "command", Command: cmd.Command}) {
+	if name == "run_saved_command" && (mode != engine.Build || tainted) {
+		if cmd, err := s.findCommand(ref.rt, a.Str("id")); err == nil && (tainted || cmd.Flag != "build" && cmd.Flag != "test" && cmd.Flag != "lint") &&
+			!s.confirm(r, root, engine.Approval{Call: call, Kind: "command", Command: cmd.Command, Tainted: tainted}) {
 			why := which + " mode: only the build, test and lint commands of the project run freely"
+			if tainted {
+				why = "web content is in this conversation: every command asks the user"
+			}
 			return assistant.ToolResult{Content: "The user refused this command (" + why + ").", Summary: assistant.T("command refused", nil).Raw(), Status: "denied"}
 		}
 	}
+	// Typed in a console, a text is a command.
+	if name == "console_input" && tainted && !s.confirm(r, root, engine.Approval{Call: call, Kind: "command", Command: a.Str("text"), Tainted: true}) {
+		return assistant.ToolResult{Content: "The user refused this input (web content is in this conversation: every command asks the user).", Summary: assistant.T("command refused", nil).Raw(), Status: "denied"}
+	}
 	var err error
 	switch name {
+	case "web_search":
+		res, err = s.webSearch(r, a)
+	case "web_fetch":
+		res, err = s.webFetch(r, a)
 	case "list_dir":
 		res, err = listDir(ref.rt, a.Str("path"))
 	case "find_files":
@@ -214,12 +237,20 @@ func (s *A) toolProgress(r *assistantRun, callID string) func(string) {
 
 // confirm asks the user before a file change or a command; false when refused or stopped.
 // Changes in the project or the scratch folder apply without asking; "Apply without asking"
-// covers the others; commands always ask.
+// covers the others; commands always ask. With web content in the conversation, a change out
+// of the scratch folder asks, "Apply without asking" or not.
 func (s *A) confirm(r *assistantRun, root string, req engine.Approval) bool {
 	r.mu.Lock()
-	if req.Kind == "edit" && (opt(r.chat).AutoApply || assistant.InZone(req.Path, root, assistant.Scratch)) {
-		r.mu.Unlock()
-		return true
+	if req.Kind == "edit" {
+		req.Tainted = len(r.chat.Tainted) > 0
+		free := opt(r.chat).AutoApply || assistant.InZone(req.Path, root, assistant.Scratch)
+		if req.Tainted {
+			free = assistant.InZone(req.Path, assistant.Scratch)
+		}
+		if free {
+			r.mu.Unlock()
+			return true
+		}
 	}
 	req.ID = assistant.NewID()
 	ch := make(chan bool, 1)
@@ -243,6 +274,35 @@ func (s *A) confirm(r *assistantRun, root string, req engine.Approval) bool {
 	s.publish(r, -1)
 	r.mu.Unlock()
 	return allowed
+}
+
+// confirmTool asks the user before a tool of a plugin or of the kanban that may change
+// something, in a conversation holding web content.
+func (s *A) confirmTool(r *assistantRun, root string, call engine.ToolCall) bool {
+	args := orEmpty(call.Function.Arguments)
+	var v any
+	if json.Unmarshal([]byte(args), &v) == nil {
+		if b, err := json.MarshalIndent(v, "", "  "); err == nil {
+			args = string(b)
+		}
+	}
+	return s.confirm(r, root, engine.Approval{Call: call, Kind: "tool", Tool: call.Function.Name, Command: assistant.Cut(args, 4000), Tainted: true})
+}
+
+func toolRefused() assistant.ToolResult {
+	return assistant.ToolResult{Content: "The user refused this call (web content is in this conversation: the tools that change something ask the user).", Summary: assistant.T("call refused", nil).Raw(), Status: "denied"}
+}
+
+// kanbanReads: the kanban tools that only read (list, get, the get and list of milestones
+// and objectives).
+func kanbanReads(name string, a assistant.Args) bool {
+	switch name {
+	case "kanban_list", "kanban_get":
+		return true
+	case "kanban_milestone", "kanban_objective":
+		return a.Str("action") == "get" || a.Str("action") == "list"
+	}
+	return false
 }
 
 // ---------- files ----------

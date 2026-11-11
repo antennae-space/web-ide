@@ -148,6 +148,35 @@ function ChildrenPart() {
   )
 }
 
+/** Web content is in the conversation: its sources in a menu that opens them. */
+function WebPart() {
+  const show = (e: MouseEvent) => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    contextMenu(
+      new MouseEvent('contextmenu', { clientX: r.left, clientY: r.bottom + 2 }),
+      (chat.tainted ?? []).map((src) => ({
+        label: src,
+        action: () => {
+          if (/^https?:\/\//.test(src)) window.open(src, '_blank', 'noopener,noreferrer')
+        },
+      })),
+    )
+  }
+  return (
+    <Show when={chat.tainted?.length}>
+      <button
+        class="ai-bar-item ai-bar-web"
+        data-testid="ai-web"
+        onClick={show}
+        title={t('Web content is in this conversation: its commands, file changes and tools that change something ask you.') + '\n' + (chat.tainted ?? []).join('\n')}
+      >
+        <span aria-hidden="true">🌐</span>
+        <span>{t('web content')}</span>
+      </button>
+    </Show>
+  )
+}
+
 /** Role of the conversation on its ticket (nothing when it is not linked). */
 function RolePart() {
   return (
@@ -197,6 +226,7 @@ export function TopBar(props: { narrow: () => boolean }) {
         <ParentPart narrow={props.narrow} />
       </Show>
       <ChildrenPart />
+      <WebPart />
       <QuotaPart narrow={props.narrow} pick={(q) => (priced() ? q.budget : undefined)} />
       <span class="grow" />
       <TicketPart />
