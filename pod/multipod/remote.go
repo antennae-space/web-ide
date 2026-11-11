@@ -173,7 +173,8 @@ func (g *RemoteGateway) serveFetch(w http.ResponseWriter, r *http.Request, key, 
 // serveWS bridges the WebSocket of a page to the rpc channel of its own window on the pod: the
 // JSON protocol unchanged, the terminals and the streams inline as on any WebSocket.
 func (g *RemoteGateway) serveWS(w http.ResponseWriter, r *http.Request, key string) {
-	c, err := websocket.Accept(w, r, nil)
+	// Compressed as the app socket of a pod (server.appSocket, #210).
+	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionNoContextTakeover, CompressionThreshold: 1024})
 	if err != nil {
 		return
 	}
