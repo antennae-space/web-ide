@@ -272,8 +272,19 @@ run(async ({ page, errors }) => {
   await page.waitForSelector('.tab:has-text("notes.txt")')
   await frame(page, 'greet').locator('#view').click()
   await frame(page, 'note').locator('#note:has-text("kept")').waitFor()
+  // The bundle comes over HTTP at the path of its version (#208), so the Service Worker of the
+  // relay can keep it, not over the socket.
+  const fetched = []
+  const bundleAsks = []
+  const onRequest = (r) => r.url().includes('/_plugins/') && fetched.push(new URL(r.url()).pathname)
+  const onSocket = (ws) => ws.on('framesent', (f) => String(f.payload).includes('"plugins.bundle"') && bundleAsks.push(String(f.payload)))
+  page.on('request', onRequest)
+  page.on('websocket', onSocket)
   await page.reload()
   await frame(page, 'note').locator('#note:has-text("kept")').waitFor()
+  page.off('request', onRequest)
+  page.off('websocket', onSocket)
+  assert(fetched.includes('/_plugins/greet/1.0.0/index.js') && fetched.includes('/_plugins/greet/1.0.0/i18n.json') && !bundleAsks.length, `the bundle comes over HTTP under its version: ${fetched.join(' ')}, plugins.bundle asked ${bundleAsks.length} times`)
 
   // Its state in the desk: kept by desk, back when the desk is shown again, after a reload too.
   await showGreet()

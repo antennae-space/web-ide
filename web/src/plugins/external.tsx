@@ -1,9 +1,10 @@
-// The page module of an external plugin, built by the core from its bundle (plugins.bundle):
+// The page module of an external plugin, built by the core from its bundle (/_plugins/, else plugins.bundle):
 // each tool and tab view a sandboxed frame running the plugin's module, its commands run in a
 // hidden frame of their own. The registry loads it as it loads a built-in.
 import { createEffect, createSignal, on as onSignal, onCleanup, onMount, untrack } from 'solid-js'
 import { render } from 'solid-js/web'
 import { request } from '../pod/rpc'
+import { base } from '../app/base'
 import { lang, t } from '../i18n'
 import { Modal } from '../ui/overlay'
 import { leaves, mutate, session, setActivePane, type TabState } from '../state/project'
@@ -39,7 +40,7 @@ export function fetchBundle(id: string, version: string): Promise<Bundle> {
   const held = asks[id]
   if (held && (!held.version || held.version === version)) return held.promise
   const ask = {} as Ask
-  ask.promise = request<Bundle>('plugins.bundle', { id }).then(
+  ask.promise = overHTTP(id, version).then((b) => b ?? request<Bundle>('plugins.bundle', { id })).then(
     (b) => {
       ask.version = b.version
       bundleBytes[id] = b.js.length
@@ -52,6 +53,24 @@ export function fetchBundle(id: string, version: string): Promise<Bundle> {
   )
   asks[id] = ask
   return ask.promise
+}
+
+/**
+ * The bundle of a known version over HTTP (#208): its URL names the version, so the Service Worker
+ * of the relay keeps it, where plugins.bundle carries it over the socket at every load. Null when
+ * the version is not the installed one (404) or the pod is older: it answers its page there, not
+ * a module.
+ */
+async function overHTTP(id: string, version: string): Promise<Bundle | null> {
+  if (!version) return null
+  const at = `${base}/_plugins/${encodeURIComponent(id)}/${encodeURIComponent(version)}/`
+  try {
+    const [js, catalogs] = await Promise.all([fetch(at + 'index.js'), fetch(at + 'i18n.json')])
+    if (!js.ok || !catalogs.ok || !/javascript/.test(js.headers.get('content-type') ?? '') || !/json/.test(catalogs.headers.get('content-type') ?? '')) return null
+    return { version, js: await js.text(), catalogs: await catalogs.json() }
+  } catch {
+    return null
+  }
 }
 
 /** Forgets a bundle in hand (the plugin was updated or removed: its module is built again). */

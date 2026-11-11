@@ -1,8 +1,12 @@
 package server
 
 import (
+	"compress/gzip"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"antennae.space/ide/pod/plugins/install"
@@ -44,6 +48,54 @@ func TestExternalsAtStart(t *testing.T) {
 	if _, err := s.pluginBundle("gone"); err == nil {
 		t.Fatal("not installed")
 	}
+	// The same files over HTTP (#208), at the path of the installed version, immutable, for a
+	// paired window only.
+	get := func(path string, cookie bool) (*http.Response, string) {
+		req, _ := http.NewRequest(http.MethodGet, ts.URL+path, nil)
+		if cookie {
+			req.Header.Set("Cookie", cookieName+"="+s.Token)
+		}
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		body, _ := io.ReadAll(res.Body)
+		return res, string(body)
+	}
+	if res, body := get("/_plugins/greet/1.0.0/index.js", true); res.StatusCode != 200 || body != "ide.register({})" || !strings.Contains(res.Header.Get("Cache-Control"), "immutable") || !strings.HasPrefix(res.Header.Get("Content-Type"), "text/javascript") {
+		t.Fatalf("index.js: %d %q %v", res.StatusCode, body, res.Header)
+	}
+	if res, body := get("/_plugins/greet/1.0.0/i18n.json", true); res.StatusCode != 200 || body != `{"fr":{"Hello":"Bonjour"}}` {
+		t.Fatalf("i18n.json: %d %q", res.StatusCode, body)
+	}
+	for _, p := range []string{"/_plugins/greet/0.9.0/index.js", "/_plugins/gone/1.0.0/index.js", "/_plugins/greet/1.0.0/plugin.json", "/_plugins/greet/1.0.0/../1.0.0/web/index.js"} {
+		if res, _ := get(p, true); res.StatusCode != http.StatusNotFound {
+			t.Errorf("%s: %d", p, res.StatusCode)
+		}
+	}
+	if res, _ := get("/_plugins/greet/1.0.0/index.js", false); res.StatusCode != http.StatusUnauthorized {
+		t.Errorf("without the cookie: %d", res.StatusCode)
+	}
+	// Big enough to compress: gzipped for a browser that takes it.
+	big := []byte("ide.register({})" + strings.Repeat("\n// a comment that compresses", 200))
+	os.WriteFile(filepath.Join(s.Store.Path("plugins", "greet", "1.0.0"), "web", "index.js"), big, 0o600)
+	s.plugins.bundles.Clear()
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/_plugins/greet/1.0.0/index.js", nil)
+	req.Header.Set("Cookie", cookieName+"="+s.Token)
+	req.Header.Set("Accept-Encoding", "gzip")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zr, err := gzip.NewReader(res.Body)
+	if err != nil || res.Header.Get("Content-Encoding") != "gzip" {
+		t.Fatalf("gzip: %v %v", err, res.Header)
+	}
+	if got, _ := io.ReadAll(zr); string(got) != string(big) {
+		t.Fatal("gzip: another body")
+	}
+	res.Body.Close()
 
 	// Its grants, changed in Settings: a permission it does not ask is refused; the lock follows.
 	a, _ := dial(t, ts, s.Token)

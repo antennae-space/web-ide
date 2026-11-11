@@ -46,8 +46,9 @@ const shellFiles = ['/', '/_relay/bootstrap.js', '/_relay/bootstrap.css', '/_rel
 const inShell = new Set(shellFiles)
 
 const pageCache = (id, version) => PAGES + id + ':' + (version ?? '')
-// Only a name hashed by Vite is kept across builds: anything else could change under its URL.
-const hashed = (url) => /\/assets\/[^/]+-[A-Za-z0-9_-]{8}\.[a-z0-9]+$/.test(new URL(url).pathname)
+// Only a name hashed by Vite, or a file of an external plugin under its version (#208), is kept
+// across builds: anything else could change under its URL.
+const hashed = (url) => /\/assets\/[^/]+-[A-Za-z0-9_-]{8}\.[a-z0-9]+$|\/_plugins\/[^/]+\/[^/]+\/(index\.js|i18n\.json)$/.test(new URL(url).pathname)
 
 // The codings this Service Worker decodes, with the DecompressionStream format of each: a Response
 // built here is never decoded by the browser, so the pod compresses an asset for the tunnel only
