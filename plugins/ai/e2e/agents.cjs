@@ -99,6 +99,13 @@ run(async ({ page }) => {
   assert(plan.includes('Say hello') && plan.includes('Edit the file'), 'plan shown: ' + plan)
   const diff = await page.$$eval('[data-testid=agent-diff] .ai-diff > div', (l) => l.map((d) => d.className + ':' + d.textContent))
   assert(diff.includes('del:- hi') && diff.includes('add:+ hello') && diff.includes(':  there'), 'edit with its diff: ' + JSON.stringify(diff))
+  // The root Conversations & Agents of the Explorer (#243): the session, the file of its edit under it.
+  if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
+  const sessionNode = '.explorer .tree-row.explorer-node[data-path^="node:conversations/agent:"]'
+  await page.waitForSelector(sessionNode)
+  await page.click(sessionNode + ' .tree-twist')
+  await page.waitForSelector('.explorer .tree-row.explorer-node[data-path*="/f:"][data-path$="hello.txt"]')
+  assert(true, 'a session lists the file of its edit under it')
   await page.waitForFunction(() => document.querySelector('[data-testid=agent-tab] .tab-title')?.textContent === 'Fake session')
   assert((await page.getAttribute('[data-testid=agent-usage]', 'title')).includes('1.2k / 200k'), 'context usage shown on the ring')
   // The popover of the ring: the context and /compact of the agent; the time and cost are in the bar.

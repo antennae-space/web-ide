@@ -723,5 +723,10 @@
   "Server of the images": "Servidor de las imágenes",
   "No image generation": "Sin generación de imágenes",
   "The assistant can make and change images (generate_image) with an image model of a server that speaks the OpenAI images API: stable-diffusion.cpp behind llama-swap, or a cloud provider. On one GPU, llama-swap unloads the model of the conversation for the image, then loads it again.": "El asistente puede crear y modificar imágenes (generate_image) con un modelo de imagen de un servidor compatible con la API de imágenes de OpenAI: stable-diffusion.cpp detrás de llama-swap, o un proveedor en la nube. Con una sola GPU, llama-swap descarga el modelo de la conversación para la imagen y luego lo vuelve a cargar.",
-  "the server returned no image": "el servidor no devolvió ninguna imagen"
+  "the server returned no image": "el servidor no devolvió ninguna imagen",
+  "Conversations & Agents": "Conversaciones y agentes",
+  "waiting": "en espera",
+  "working": "en curso",
+  "failed": "fallo",
+  "starting": "arrancando"
 }
