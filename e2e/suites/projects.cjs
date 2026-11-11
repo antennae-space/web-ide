@@ -2,7 +2,7 @@
 // the worktrees, a branch opened in its own worktree and window.
 const fs = require('fs')
 const { execSync } = require('child_process')
-const { run, openProject, assert, WS, OUT } = require('../common.cjs')
+const { run, openProject, open, assert, WS, OUT } = require('../common.cjs')
 
 const favicon = (page) => page.evaluate(() => decodeURIComponent(document.querySelector('link[rel="icon"]').href))
 
@@ -41,6 +41,23 @@ run(async ({ page, ctx }) => {
   assert(seen.includes('step:Opening the project'), 'the opening shows its step: ' + seen.join(' | '))
   assert(seen.some((s) => /^ext:Extensions \d+\/\d+$/.test(s)), 'the status bar counts the extensions still loading: ' + seen.join(' | '))
   await page.waitForFunction(() => !document.querySelector('[data-testid=status-extensions]'))
+
+  // The shape of the desk is kept on the device (#212): a reload draws it at once, dimmed, with the
+  // titles of its tabs, under the steps of the opening, until the project is ready.
+  await open(page, 'main.go')
+  await page.waitForTimeout(1500)
+  await page.addInitScript(() => {
+    window.__preview = []
+    new MutationObserver(() => {
+      const p = document.querySelector('[data-testid=shell-preview]')
+      if (p && window.__preview.at(-1) !== p.textContent) window.__preview.push(p.textContent)
+    }).observe(document, { subtree: true, childList: true, characterData: true })
+  })
+  await page.reload()
+  await page.waitForSelector('.app .menubar')
+  const preview = await page.evaluate(() => window.__preview)
+  assert(preview.some((p) => p.includes('main.go') && p.includes('Explorer')), 'a reload draws the shape of the desk at once, with its tabs and its tool: ' + preview.join(' | '))
+  assert(!(await page.$('[data-testid=shell-preview]')), 'the real IDE replaces the shape of the desk')
   // A project without an icon gets one generated: initials of its name, saved in .ide.
   await page.waitForFunction(() => decodeURIComponent(document.querySelector('link[rel="icon"]').href).includes('>DE</text>'), null, { timeout: 5000 }).catch(() => {})
   assert((await favicon(page)).includes('>DE</text>'), 'favicon: generated icon with the initials')

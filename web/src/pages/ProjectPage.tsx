@@ -21,7 +21,7 @@ import { focusEditor, focusPart, setFocusPart, trackFocus } from '../state/focus
 import { focusEditorQuietly, isTyping, lockEditor, mobileView, phone, revealCaret, setMobileView } from '../state/mobile'
 import { settings, updateSettings } from '../state/settings'
 import { goHome, homeBase } from '../app/home'
-import { EditorArea } from '../ui/EditorArea'
+import { EditorArea, tabTitle } from '../ui/EditorArea'
 import { CornerButtons, toolMenuItems } from '../ui/toolMenu'
 import { StatusBar } from '../ui/StatusBar'
 import { capability, whenProvided } from '../plugins/capabilities'
@@ -45,6 +45,7 @@ import { ProjectBar } from './ProjectBar'
 import { DeskSwitcher } from '../ui/DeskSwitcher'
 import { dragPointer } from '../ui/drag'
 import { LoadingSteps } from '../ui/LoadingSteps'
+import { loadShell, saveShell, shellOf, ShellPreview } from '../ui/ShellPreview'
 import { SearchEverywhereHost, searchEverywhere } from '../popups/SearchEverywhere'
 import { RecentFilesHost, recentFiles } from '../popups/RecentFiles'
 import { ClipboardHistoryHost, pasteFromHistory } from '../popups/ClipboardHistory'
@@ -786,6 +787,19 @@ export function ProjectPage(props: { id: string }) {
   }
   onMount(() => void open())
   useProjectActions()
+  // The shape of the desk shown, kept on this device for the next opening (#212): written a second
+  // after it changes, once the project is ready. A phone has its own layout and keeps none.
+  const preview = phone() ? null : loadShell(props.id, urlDesk())
+  let shellTimer: ReturnType<typeof setTimeout> | undefined
+  createEffect(() => {
+    if (!ready() || phone()) return
+    const shell = shellOf(session, sizesFor(), (z) => shownIn(session, z), (id) => (toolPanels[id] ? t(toolPanels[id].label) : id), tabTitle, tileMode())
+    const id = props.id
+    const n = desk()
+    clearTimeout(shellTimer)
+    shellTimer = setTimeout(() => saveShell(id, n, shell), 1000)
+  })
+  onCleanup(() => clearTimeout(shellTimer))
   // The URL is the desk shown: a desk link, the history or a shortcut switches the window.
   createEffect(
     track(urlDesk, (n) => {
@@ -874,14 +888,18 @@ export function ProjectPage(props: { id: string }) {
     <Show
       when={ready()}
       fallback={
-        <div class="center-msg">
-          <Show when={error()} fallback={<LoadingSteps />}>
-            <p class="danger">{error()}</p>
-            <button class="btn" onClick={() => void goHome()}>
-              {t('Back to the projects')}
-            </button>
-          </Show>
-        </div>
+        <Show when={!error() && preview} fallback={
+          <div class="center-msg">
+            <Show when={error()} fallback={<LoadingSteps />}>
+              <p class="danger">{error()}</p>
+              <button class="btn" onClick={() => void goHome()}>
+                {t('Back to the projects')}
+              </button>
+            </Show>
+          </div>
+        }>
+          {(s) => <ShellPreview shell={s()} />}
+        </Show>
       }
     >
       <div class="app" classList={{ 'visual-focus': settings.visualFocus, 'focus-outline': settings.focusOutline, 'focus-dim': settings.focusDim, phone: phone() }}>
