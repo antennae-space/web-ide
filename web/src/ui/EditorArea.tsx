@@ -110,7 +110,7 @@ function deskItems(pane: string, tab: string): MenuItem[] {
   ]
 }
 
-function tabTitle(tab: TabState) {
+export function tabTitle(tab: TabState) {
   if (tab.kind === 'file') return basename(tab.path ?? '')
   if (tab.kind === 'tool') return tileTools[tab.tool!] ? t(tileTools[tab.tool!].label) : tab.tool!
   if (tab.kind === 'console') return capability('terminal')?.all().find((c) => c.id === tab.console)?.title ?? t('Console')

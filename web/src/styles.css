@@ -218,6 +218,23 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .loading-steps .steps li.now { color: var(--fg); }
 .loading-steps .steps li.now .dot { border-color: var(--accent); border-top-color: transparent; animation: spin 0.9s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .loading-steps .steps li.now .dot { animation-duration: 3s; } }
+/* The shape of the desk while its project opens (#212): dimmed, inert, the steps in a card above. */
+.shell-preview { position: relative; height: var(--app-h, 100%); }
+.shell-preview .sp-body { display: flex; flex-direction: column; height: 100%; opacity: 0.45; pointer-events: none; user-select: none; }
+.shell-preview .work-top { display: flex; flex: 1; min-height: 0; }
+.shell-preview .sp-zone { display: flex; flex-direction: column; flex: none; border-right: 1px solid var(--line); background: var(--bg-2); min-width: 0; }
+.shell-preview .work-top > .sp-zone:last-child { border-right: 0; border-left: 1px solid var(--line); }
+.shell-preview .sp-head { padding: 6px 10px; font-size: 12px; color: var(--fg-muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.shell-preview .sp-center { display: flex; flex: 1; min-width: 0; }
+.shell-preview .sp-split { display: flex; flex: 1; min-width: 0; min-height: 0; gap: 1px; background: var(--line); }
+.shell-preview .sp-pane { display: flex; flex-direction: column; flex: 1; min-width: 0; background: var(--bg); }
+.shell-preview .sp-tabs { display: flex; height: 30px; background: var(--bg-2); border-bottom: 1px solid var(--line); overflow: hidden; }
+.shell-preview .sp-tab { padding: 0 12px; display: flex; align-items: center; font-size: 12px; color: var(--fg-muted); white-space: nowrap; border-right: 1px solid var(--line); }
+.shell-preview .sp-tab.active { color: var(--fg); background: var(--bg); }
+.shell-preview .sp-bottom { display: flex; flex: none; border-top: 1px solid var(--line); }
+.shell-preview .sp-bottom .sp-zone { border-right: 1px solid var(--line); }
+.shell-preview .sp-steps { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.shell-preview .sp-steps .loading-steps { background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px; padding: 14px 20px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25); }
 
 /* ---------- panels ---------- */
 .panel { display: flex; flex-direction: column; height: 100%; min-height: 0; }
