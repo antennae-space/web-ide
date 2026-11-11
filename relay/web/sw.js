@@ -12,16 +12,27 @@ const owners = new Map()
 // page of a pod reached through a gateway is served by the window that opened that gateway.
 const ownPods = new Map()
 // The assets a pod says are immutable are kept here: a reload of the page answers them from this
-// origin instead of carrying a megabyte of JavaScript through the DataChannel (#71). One cache per
-// pod and per version of that pod, so two pods of the account never share an asset and an updated
-// pod leaves its old bundle behind. The page itself, its /api calls and the previews always go
-// through the tunnel: a cached asset never stands for a live connection.
-const ASSETS = 'webide-assets:' // then <id>:<version>, ':' appears in neither a pod id nor a key
+// origin instead of carrying a megabyte of JavaScript through the DataChannel (#71). Two pods of
+// the account never share an entry. Two caches per pod (#209):
+// - webide-assets:<id>, the assets whose name carries the hash of their content
+//   (/assets/<name>-<hash>.<ext>): kept across builds and releases, since their URL is their
+//   content, so a new release only carries the chunks it changed. Bounded by BUDGET, the least
+//   recently used dropped first.
+// - webide-page:<id>:<build>, the page of the pod and anything else it says is immutable: kept for
+//   one build, dropped when the pod declares another one.
+// The /api calls and the previews always go through the tunnel: a cached asset never stands for a
+// live connection. ':' appears in neither a pod id nor a key.
+const ASSETS = 'webide-assets:'
+const PAGES = 'webide-page:'
 const CACHE_MAX = 8 * 1024 * 1024 // a phone keeps the app, not the 26 MB speech runtime
+let BUDGET = 40 * 1024 * 1024 // per pod; a test sets it lower (message assets-budget)
 const MAX_AGE = 30 * 24 * 3600 * 1000
-// The Cache API stores no date of its own: each cache carries a marker of when it was made.
+const DAY = 24 * 3600 * 1000
+// The Cache API stores no date of its own: a page cache carries a marker of when it was made, an
+// asset cache an index of its entries, {seen, urls: {url: [size, last use]}}.
 const CREATED = '/_relay/assets-created'
-const versions = new Map() // what each pod was last declared as, to drop its older cache
+const INDEX = '/_relay/assets-index'
+const versions = new Map() // what each pod was last declared as, to drop its older page cache
 
 const appFiles = new Set(['/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png'])
 
@@ -34,7 +45,9 @@ const SHELL_CACHE = 'webide-shell:'
 const shellFiles = ['/', '/_relay/bootstrap.js', '/_relay/bootstrap.css', '/_relay/routes.js', '/_relay/identity.js', '/_relay/bip39.txt', ...appFiles]
 const inShell = new Set(shellFiles)
 
-const cacheName = (id, version) => ASSETS + id + ':' + (version ?? '')
+const pageCache = (id, version) => PAGES + id + ':' + (version ?? '')
+// Only a name hashed by Vite is kept across builds: anything else could change under its URL.
+const hashed = (url) => /\/assets\/[^/]+-[A-Za-z0-9_-]{8}\.[a-z0-9]+$/.test(new URL(url).pathname)
 
 // The codings this Service Worker decodes, with the DecompressionStream format of each: a Response
 // built here is never decoded by the browser, so the pod compresses an asset for the tunnel only
@@ -94,26 +107,87 @@ async function shell(req, path, clientId) {
   return fetch(req)
 }
 
-// A pod that never came back must not leave its assets on the disk of a phone.
+// A pod that never came back must not leave its assets on the disk of a phone. The caches of a
+// Service Worker before #209 (webide-assets:<id>:<version>) are dropped: their assets come back
+// once into the cache of the pod.
 async function dropOldCaches() {
   for (const name of await caches.keys()) {
     if (name.startsWith(SHELL_CACHE) && name !== SHELL_CACHE + SHELL) await caches.delete(name)
-    if (!name.startsWith(ASSETS)) continue
+    const assets = name.startsWith(ASSETS)
+    if (!assets && !name.startsWith(PAGES)) continue
     try {
-      const r = await (await caches.open(name)).match(CREATED)
-      const at = r ? Number(await r.text()) : 0
+      if (assets && name.slice(ASSETS.length).includes(':')) {
+        await caches.delete(name)
+        continue
+      }
+      const r = await (await caches.open(name)).match(assets ? INDEX : CREATED)
+      const at = r ? (assets ? (await r.json()).seen : Number(await r.text())) : 0
       if (!at || Date.now() - at > MAX_AGE) await caches.delete(name)
     } catch {}
   }
 }
 
-// The pod declared a new version: its old cache is worth nothing now (the names of the assets are
-// hashed by the build, so an old one is never asked again — it only takes place).
+// The pod declared a new build: the page of the old one is never asked again. Its assets stay:
+// those the new build kept are answered from here.
 async function dropOldVersions(id, version) {
-  const keep = cacheName(id, version)
+  const keep = pageCache(id, version)
   for (const name of await caches.keys()) {
-    if (name.startsWith(ASSETS + id + ':') && name !== keep) await caches.delete(name)
+    if (name.startsWith(PAGES + id + ':') && name !== keep) await caches.delete(name)
   }
+}
+
+// The index of the asset cache of a pod is read and written by one change at a time: a load
+// stores tens of assets at once.
+const indexing = new Map()
+function withIndex(id, change) {
+  const next = (indexing.get(id) ?? Promise.resolve())
+    .then(async () => {
+      const c = await caches.open(ASSETS + id)
+      const r = await c.match(INDEX)
+      const index = r ? await r.json() : { seen: 0, urls: {} }
+      if (await change(c, index)) await c.put(INDEX, new Response(JSON.stringify(index)))
+    })
+    .catch(() => {})
+  indexing.set(id, next)
+  return next
+}
+
+// Stores an asset, then drops the least recently used ones while the cache is over BUDGET. An entry
+// the index missed (a Service Worker stopped between two writes) counts as never used.
+function storeAsset(id, url, response, size) {
+  return withIndex(id, async (c, index) => {
+    await c.put(url, response)
+    const now = Date.now()
+    index.seen = now
+    index.urls[url] = [size, now]
+    const keys = new Set()
+    for (const k of await c.keys()) {
+      if (new URL(k.url).pathname === INDEX) continue
+      keys.add(k.url)
+      if (!index.urls[k.url]) index.urls[k.url] = [Number((await c.match(k))?.headers.get('content-length')) || 0, 0]
+    }
+    for (const u of Object.keys(index.urls)) if (!keys.has(u)) delete index.urls[u]
+    let total = Object.values(index.urls).reduce((n, [s]) => n + s, 0)
+    for (const [u, [s]] of Object.entries(index.urls).sort((a, b) => a[1][1] - b[1][1])) {
+      if (total <= BUDGET) break
+      await c.delete(u)
+      delete index.urls[u]
+      total -= s
+    }
+    return true
+  })
+}
+
+// A hit tells its use to the index once a day at most: the order of the drops needs no more.
+function usedAsset(id, url) {
+  return withIndex(id, async (c, index) => {
+    const e = index.urls[url]
+    const now = Date.now()
+    if (!e || now - e[1] < DAY) return false
+    e[1] = now
+    index.seen = now
+    return true
+  })
 }
 
 async function bootstrap(key) {
@@ -132,6 +206,7 @@ async function bootstrap(key) {
 
 self.addEventListener('message', (e) => {
   if (e.data?.kind === 'skip') void self.skipWaiting()
+  if (e.data?.kind === 'assets-budget' && e.data.bytes > 0) BUDGET = e.data.bytes
   if (e.data?.kind === 'own' && e.source) {
     // The build of the pod's front end names its cache when the pod told it (#73): a development
     // rebuild keeps its version, never its build. Else the version, as before.
@@ -202,8 +277,10 @@ async function handle(req, url, clientId) {
   const own = owner(win, key)
   if (own.id && !preview && req.method === 'GET' && !req.headers.has('range')) {
     try {
-      const hit = await (await caches.open(cacheName(own.id, own.version))).match(req)
-      if (hit) {
+      for (const name of hashed(req.url) ? [ASSETS + own.id, pageCache(own.id, own.version)] : [pageCache(own.id, own.version)]) {
+        const hit = await (await caches.open(name)).match(req)
+        if (!hit) continue
+        if (name.startsWith(ASSETS)) void usedAsset(own.id, req.url)
         // Told to the bootstrap page that serves this window: it adds it to what the load carried
         // from the cache (#204).
         try {
@@ -286,13 +363,16 @@ async function handle(req, url, clientId) {
     const saved = new Headers(out)
     saved.set('content-length', String(kept))
     saved.delete('vary')
-    void caches
-      .open(cacheName(own.id, own.version))
-      .then(async (c) => {
+    const size = kept
+    void roomFor(size).then((room) => {
+      if (!room) return
+      const response = new Response(join(parts), { status: h.status, headers: saved })
+      if (hashed(req.url) && immutable(h.headers)) return storeAsset(own.id, req.url, response, size)
+      return caches.open(pageCache(own.id, own.version)).then(async (c) => {
         if (!(await c.match(CREATED))) await c.put(CREATED, new Response(String(Date.now())))
-        await c.put(req.url, new Response(join(parts), { status: h.status, headers: saved }))
+        await c.put(req.url, response)
       })
-      .catch(() => {})
+    }).catch(() => {})
   }
 
   const raw = new ReadableStream({
@@ -322,6 +402,16 @@ async function handle(req, url, clientId) {
     }),
   )
   return new Response(decoded, { status: h.status || 200, headers: out })
+}
+
+// A browser low on space keeps what it has: a copy is only written with room for four of it.
+async function roomFor(size) {
+  try {
+    const { quota, usage } = await navigator.storage.estimate()
+    return !quota || quota - (usage ?? 0) > size * 4
+  } catch {
+    return true
+  }
 }
 
 // The pod names its headers in their canonical form (Go), so cache-control is looked for

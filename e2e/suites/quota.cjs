@@ -1,4 +1,4 @@
-// Quota (milestone 5): run.sh starts the relay with -quota 512KB (the home page alone is over
+// Quota (milestone 5): run.sh starts the relay with -quota 256KB (the home page alone is over
 // it) and the pod with -force-turn, so
 // every byte of the app crosses TURN. The first load passes the quota; the renewal of its
 // credentials (#86) and the next tunnel get no TURN credential, and the page says why, with what
@@ -25,8 +25,8 @@ run(
         return n
       })
     let bytes = await received()
-    for (let end = Date.now() + 30000; bytes <= 512 * 1024 && Date.now() < end; bytes = await received()) await page.waitForTimeout(500)
-    assert(bytes > 512 * 1024, 'the first load carried over the quota through TURN: ' + bytes)
+    for (let end = Date.now() + 30000; bytes <= 256 * 1024 && Date.now() < end; bytes = await received()) await page.waitForTimeout(500)
+    assert(bytes > 256 * 1024, 'the first load carried over the quota through TURN: ' + bytes)
 
     // The credentials live 10 s here (#86): the renewal of this tunnel comes over the quota, the
     // relay gives none, and the page says why over the app, without a reload — the restart keeps

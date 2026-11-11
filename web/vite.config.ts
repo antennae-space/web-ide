@@ -27,7 +27,15 @@ export default defineConfig({
         // its folder (plugins/<id>/web) go there: what the core shares with it stays with the core.
         advancedChunks: {
           includeDependenciesRecursively: false,
-          groups: [{ name: (id: string) => /\/plugins\/([a-z]+)\/web\//.exec(id)?.[1].replace(/^/, 'plugin-') ?? null, test: /\/plugins\/[a-z]+\/web\// }],
+          groups: [
+            { name: (id: string) => /\/plugins\/([a-z]+)\/web\//.exec(id)?.[1].replace(/^/, 'plugin-') ?? null, test: /\/plugins\/[a-z]+\/web\// },
+            // The libraries the core imports statically, apart from its own code: a release that only
+            // changes the core keeps the name of this chunk, so the Service Worker of the relay
+            // keeps it across releases (#209). The lazy ones (mermaid, pdfjs, the speech runtime)
+            // stay in their own chunks. The preload helper of Vite goes here too: every lazy chunk
+            // imports it, and in index a change of the core would rename them all.
+            { name: 'vendor', test: /\/node_modules\/(solid-js|marked|dompurify|qrcode-generator|node-diff3)\/|vite\/preload-helper/ },
+          ],
         },
       },
     },
