@@ -129,6 +129,11 @@ func (g *RemoteGateway) serveFetch(w http.ResponseWriter, r *http.Request, key, 
 		}
 		headers[k] = strings.Join(v, ", ")
 	}
+	// The browser on this side decodes the Content-Encoding the pod answers with, and this pod
+	// passes it through: the pod may compress (server.DecodeHeader).
+	if r.Header.Get("Accept-Encoding") != "" {
+		headers["X-Webide-Decode"] = "1"
+	}
 	head, _ := json.Marshal(map[string]any{
 		"path": "/" + rest, "method": r.Method, "headers": headers, "body": string(body),
 		"base": lan.PeerPrefix + key,

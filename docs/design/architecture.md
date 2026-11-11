@@ -47,7 +47,7 @@ Each part of the map has a README with the map of its own code:
 - Relay: the `relay` package, in [Network and identity](../../pod/packages.md#network-and-identity).
 - Browser tests: [e2e/README.md](../../e2e/README.md).
 
-The front end is built by Vite and embedded in the pod binary (`pod/webdist`), so the page and the WebSocket share one origin: no mixed content, and pairing is a cookie.
+The front end is built by Vite and embedded in the pod binary (`pod/webdist`), so the page and the WebSocket share one origin: no mixed content, and pairing is a cookie. The build precompresses it (`web/scripts/compress.mjs`): a `.br` and a `.gz` next to each text asset over 1 KB, embedded too, and the pod answers the variant the request accepts (`pod/server/static_encoding.go`: brotli first, `Vary: Accept-Encoding`, the raw file for a range request). The app is about three times smaller on the wire (1.8 MB → 0.56 MB through the tunnel, e2e `relay`).
 
 The documentation is embedded the same way (`pod/docsdist`, a copy of `docs/`, `GLOSSARY.md` and the READMEs of the code made by `scripts/embed-docs.sh`, since `go:embed` cannot reach `../docs`), so a pod installed from a release has the docs of its version, offline. The pod serves it read only (`docs.read` for a page, `docs.image` for a picture; paths are those of the repo and cannot leave the copy) and the window shows it in a `doc` tab (`ui/DocView.tsx`, `state/docs.ts`). The places of the interface that have a page are listed once, in `web/src/help/topics.json`, and checked by `scripts/check-links.mjs`.
 

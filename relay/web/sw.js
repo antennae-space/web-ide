@@ -36,6 +36,21 @@ const inShell = new Set(shellFiles)
 
 const cacheName = (id, version) => ASSETS + id + ':' + (version ?? '')
 
+// The codings this Service Worker decodes, with the DecompressionStream format of each: a Response
+// built here is never decoded by the browser, so the pod compresses an asset for the tunnel only
+// when the fetch says the sender decodes it (x-webide-decode, #207). gzip wherever the stream
+// exists, brotli where the browser has it too.
+const decoders = (() => {
+  const d = {}
+  for (const [coding, format] of [['br', 'brotli'], ['gzip', 'gzip']]) {
+    try {
+      new DecompressionStream(format)
+      d[coding] = format
+    } catch {}
+  }
+  return d
+})()
+
 // What a load carried is told to the page that served it (#204): the bootstrap page counts the
 // bytes it streams through the tunnel itself, and the Service Worker reports here what it answered
 // from a cache of this origin (the shell, the assets of the pod already carried). Counting never
@@ -204,6 +219,10 @@ async function handle(req, url, clientId) {
   const body = req.method === 'GET' || req.method === 'HEAD' ? null : await req.text()
   const headers = {}
   req.headers.forEach((v, k) => (headers[k] = v))
+  if (Object.keys(decoders).length) {
+    headers['accept-encoding'] = Object.keys(decoders).join(', ')
+    headers['x-webide-decode'] = '1'
+  }
   pending.set(id, chan)
 
   // The answer of the pod: the head as JSON, then the body as raw chunks, closed by an
@@ -230,6 +249,12 @@ async function handle(req, url, clientId) {
 
   const out = new Headers(h.headers || {})
   out.set('access-control-allow-origin', '*')
+  // A compressed answer is decoded on its way to the page: its length is the one of the encoded bytes.
+  const format = decoders[(out.get('content-encoding') ?? '').toLowerCase()]
+  if (format) {
+    out.delete('content-encoding')
+    out.delete('content-length')
+  }
   // A redirect of the pod (/open sends the frame to the project page) is one the browser follows.
   const to = out.get('location')
   if (to && [301, 302, 303, 307, 308].includes(h.status)) {
@@ -241,7 +266,7 @@ async function handle(req, url, clientId) {
   // Keep a copy of what the pod says is immutable, for the next reload of the page, and of its
   // page when it names the build this window declared: the same build serves the same page for
   // the same URL. The copy is dropped as soon as it goes over the cap: a big file is streamed,
-  // never stored.
+  // never stored. The copy is the decoded body, with its own length (what a hit reports, #204).
   const page = own.build && header(h.headers, 'x-webide-build') === own.build
   let keep = own.id && !preview && req.method === 'GET' && h.status === 200 && (immutable(h.headers) || page) ? [] : null
   let kept = 0
@@ -258,31 +283,28 @@ async function handle(req, url, clientId) {
     const parts = keep
     keep = null
     if (!parts) return
+    const saved = new Headers(out)
+    saved.set('content-length', String(kept))
+    saved.delete('vary')
     void caches
       .open(cacheName(own.id, own.version))
       .then(async (c) => {
         if (!(await c.match(CREATED))) await c.put(CREATED, new Response(String(Date.now())))
-        await c.put(req.url, new Response(join(parts), { status: h.status, headers: out }))
+        await c.put(req.url, new Response(join(parts), { status: h.status, headers: saved }))
       })
       .catch(() => {})
   }
 
-  const stream = new ReadableStream({
+  const raw = new ReadableStream({
     start(controller) {
-      const push = (m) => {
-        const b = bytes(m)
-        controller.enqueue(b)
-        collect(b)
-      }
-      for (const m of got.slice(1)) push(m)
+      for (const m of got.slice(1)) controller.enqueue(bytes(m))
       chan.port1.onmessage = (e) => {
         if (!e.data) {
           controller.close()
           pending.delete(id)
-          store()
           return
         }
-        push(e.data)
+        controller.enqueue(bytes(e.data))
       }
     },
     cancel() {
@@ -290,7 +312,16 @@ async function handle(req, url, clientId) {
       chan.port1.close()
     },
   })
-  return new Response(stream, { status: h.status || 200, headers: out })
+  const decoded = (format ? raw.pipeThrough(new DecompressionStream(format)) : raw).pipeThrough(
+    new TransformStream({
+      transform(b, controller) {
+        controller.enqueue(b)
+        collect(b)
+      },
+      flush: store,
+    }),
+  )
+  return new Response(decoded, { status: h.status || 200, headers: out })
 }
 
 // The pod names its headers in their canonical form (Go), so cache-control is looked for

@@ -55,6 +55,7 @@ Arrows between blocks are imports of their packages, checked with `go list`; eve
 - Packages never import `server` except `relayclient` (it hands the DataChannels to `server.ServeTunnel`): a new package that needs the server takes an interface instead.
 - The relay is [`relay/`](../relay/README.md) and the code both share is [`lib/`](../lib/README.md) (`identity`, `tunnel`, `i18n`): they never import `pod/`.
 - Every message sent to the page goes through `i18n.Errorf` / `i18n.T`; every package that sends one imports `i18n`.
+- **Content-Encoding through the tunnel**: a Response built by the Service Worker of the relay is never decoded by the browser. The pod sends a compressed asset on an `http:<n>` channel only when the fetch carries `X-Webide-Decode` (`server.DecodeHeader`), and the Service Worker decodes it; anything else that answers on that channel stays raw.
 
 ## Tests
 
