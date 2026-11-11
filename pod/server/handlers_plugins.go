@@ -64,6 +64,9 @@ type pluginSet struct {
 	// lock at a time.
 	installer *install.Installer
 	installMu sync.Mutex
+	// bundles are the files of the external plugins served over HTTP (plugin_files.go), by
+	// id@version: read and compressed once.
+	bundles sync.Map
 	// official is the source of the official plugins (this build's, or a test folder).
 	official official.Source
 }

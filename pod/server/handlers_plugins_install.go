@@ -243,23 +243,34 @@ func (s *Server) registerPluginInstall() {
 // maxBundle caps the page module of an external plugin (one file, its own Solid and CSS).
 const maxBundle = 5 << 20
 
-// pluginBundle reads the page module and the catalogs of an installed external plugin.
+// pluginBundle reads the page module and the catalogs of an installed external plugin: the
+// answer of plugins.bundle, for a page before #208 (the others fetch /_plugins/, plugin_files.go).
 func (s *Server) pluginBundle(id string) (any, error) {
+	version, js, catalogs, err := s.readBundle(id)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"version": version, "js": string(js), "catalogs": catalogs}, nil
+}
+
+// readBundle reads the page module of the installed version of an external plugin and the
+// catalogs of its languages.
+func (s *Server) readBundle(id string) (string, []byte, map[string]map[string]string, error) {
 	e, ok := s.Plugins.External(id)
 	if !ok {
-		return nil, i18n.Errorf("the plugin %s is not installed", id)
+		return "", nil, nil, i18n.Errorf("the plugin %s is not installed", id)
 	}
 	dir := filepath.Join(s.plugins.installer.Dir(id), e.Version)
 	st, err := os.Stat(filepath.Join(dir, "web", "index.js"))
 	if err != nil || !st.Mode().IsRegular() {
-		return nil, i18n.Errorf("the plugin %s has no web/index.js", id)
+		return "", nil, nil, i18n.Errorf("the plugin %s has no web/index.js", id)
 	}
 	if st.Size() > maxBundle {
-		return nil, i18n.Errorf("the page module of %s is larger than %d MB", id, maxBundle>>20)
+		return "", nil, nil, i18n.Errorf("the page module of %s is larger than %d MB", id, maxBundle>>20)
 	}
 	js, err := os.ReadFile(filepath.Join(dir, "web", "index.js"))
 	if err != nil {
-		return nil, err
+		return "", nil, nil, err
 	}
 	catalogs := map[string]map[string]string{}
 	for _, lang := range i18n.Languages[1:] {
@@ -272,7 +283,7 @@ func (s *Server) pluginBundle(id string) (any, error) {
 			catalogs[lang] = c
 		}
 	}
-	return map[string]any{"version": e.Version, "js": string(js), "catalogs": catalogs}, nil
+	return e.Version, js, catalogs, nil
 }
 
 // resolvePlugin resolves a version of a repository, which must fit beside the built-ins.

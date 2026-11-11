@@ -309,6 +309,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.Models.ServeHTTP(w, r)
 		return
 	}
+	if strings.HasPrefix(r.URL.Path, pluginFilesPrefix) {
+		s.servePluginFile(w, r)
+		return
+	}
 	s.serveStatic(w, r)
 }
 
@@ -552,6 +556,9 @@ func (s *Server) httpHandler(req httpRequest) (http.Handler, bool) {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			s.LAN.ServeGateway(w, r, baseOf(r.Context()))
 		}), true
+	}
+	if strings.HasPrefix(req.Path, pluginFilesPrefix) {
+		return http.HandlerFunc(s.servePluginFile), true
 	}
 	// A link to a file the relay origin opened in the frame of its bootstrap page.
 	if path, _, _ := strings.Cut(req.Path, "?"); path == openPath {
