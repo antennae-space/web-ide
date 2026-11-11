@@ -92,6 +92,9 @@ const words = {
   stepRelay: L('Relay', 'Relay', 'Relay'),
   stepPod: L('Pod', 'Pod', 'Pod'),
   stepSecure: L('Secure handshake', 'Liaison chiffrée', 'Enlace cifrado'),
+  stepApp: L('Loading the IDE', 'Chargement de l’IDE', 'Carga del IDE'),
+  tAppComing: L('The IDE comes from the pod', 'L’IDE arrive du pod', 'El IDE llega del pod'),
+  tAppReceived: L('{kb} kB received', '{kb} ko reçus', '{kb} kB recibidos'),
   account: L('Your account', 'Votre compte', 'Tu cuenta'),
   podsOff: L('No pod online', 'Aucun pod en ligne', 'Ningún pod en línea'),
   podsOffHow: L('Start a pod of this account, or check that it is linked to this relay.', 'Démarrez un pod de ce compte, ou vérifiez qu’il est relié à ce relay.', 'Inicia un pod de esta cuenta o comprueba que está vinculado a este relay.'),
@@ -163,6 +166,7 @@ const words = {
     ice: L('No network path between this browser and the pod: a firewall may block UDP and TURN.', 'Aucun chemin réseau entre ce navigateur et le pod : un pare-feu bloque peut-être UDP et TURN.', 'Ningún camino de red entre este navegador y el pod: quizá un cortafuegos bloquea UDP y TURN.'),
     dtls: L('The path is found but the encrypted channel does not open.', 'Le chemin est trouvé mais le canal chiffré ne s’ouvre pas.', 'Se encuentra el camino, pero el canal cifrado no se abre.'),
     hello: L('The pod does not finish the handshake: it may be overloaded.', 'Le pod ne termine pas la poignée de main : il est peut-être surchargé.', 'El pod no termina el enlace: quizá está sobrecargado.'),
+    app: L('The IDE is still coming from the pod: a slow network takes longer.', 'L’IDE arrive encore du pod : un réseau lent prend plus de temps.', 'El IDE sigue llegando del pod: una red lenta tarda más.'),
   },
   stallWait: L('The page keeps waiting.', 'La page continue d’attendre.', 'La página sigue esperando.'),
 }
@@ -317,14 +321,15 @@ function drawBrand() {
   if (hs) hs.textContent = own === 'Web IDE' ? remote : 'Web IDE · ' + remote
 }
 
-// The connection, in three steps: the relay, the pod, the secure handshake.
+// The connection, in three steps: the relay, the pod, the secure handshake; then the IDE itself,
+// which comes from the pod through the tunnel (#211).
 let stepAt = 0
 let stepPod = ''
 function connecting(step, name) {
   if (failed || view === 'error' || view === 'offline') return
   stepAt = step ?? stepAt
   if (name) stepPod = name
-  const labels = [words.stepRelay, words.stepPod + (stepPod ? ' ' : ''), words.stepSecure]
+  const labels = [words.stepRelay, words.stepPod + (stepPod ? ' ' : ''), words.stepSecure, words.stepApp]
   draw('connecting',
     h('h1', {}, words.connecting),
     h('ol', { class: 'steps' }, labels.map((l, i) =>
@@ -344,7 +349,7 @@ const journal = []
 let phase = null // {name, text, since, warned}
 const cands = { local: 0, remote: 0 }
 // How long a sub-step may wait before the page says it is stuck (it keeps waiting).
-const STALL = { signal: 10000, answer: 15000, ice: 30000, dtls: 15000, hello: 15000 }
+const STALL = { signal: 10000, answer: 15000, ice: 30000, dtls: 15000, hello: 15000, app: 15000 }
 function trace(line, step) {
   if (journal.at(-1)?.line === line) return // a drop then its failure say the same error
   const at = Math.round(performance.now() - bootAt)
@@ -369,6 +374,7 @@ function refreshSub() {
   el.replaceChildren(
     h('span', {}, phase.text + (secs ? ' · ' + secs + ' s' : '')),
     phase.name === 'ice' ? h('span', {}, fmt(words.tCands, { l: cands.local, r: cands.remote })) : '',
+    phase.name === 'app' ? h('span', {}, fmt(words.tAppReceived, { kb: Math.round(http.bytes / 1024) })) : '',
   )
   const limit = STALL[phase.name]
   if (limit && !phase.warned && performance.now() - phase.since > limit) {
@@ -1486,6 +1492,7 @@ async function refreshPods() {
 // The app runs in an iframe of the same origin: its fetches are answered by the Service Worker,
 // and its rpc channel is a DataChannel of the tunnel of its pod. One origin for every pod: the
 // installed app never leaves it.
+let appShown = null
 async function openApp() {
   opening = true
   busy(words.loading)
@@ -1505,11 +1512,26 @@ async function openApp() {
     } catch {}
   }
   declare()
+  // The frame loads under the card, hidden but at its full size (the app lays out for it), while
+  // the card says what it received so far (#211); it shows at its load event, or when the app says
+  // it started.
   const f = document.getElementById('frame')
+  const status = document.getElementById('status')
+  f.style.visibility = 'hidden'
   f.style.display = 'block'
+  status.style.display = ''
+  connecting(3)
+  phase = { name: 'app', text: words.tAppComing, since: performance.now() }
+  refreshSub()
+  appShown = () => {
+    appShown = null
+    if (phase?.name === 'app') phase = null
+    f.style.visibility = ''
+    status.style.display = 'none'
+  }
+  f.addEventListener('load', () => appShown?.(), { once: true })
   // A path that names its pod (the link of a page of a pod, opened on its own) is taken as is.
   f.src = openPath?.startsWith('/pod/') ? openPath : (shownKey ? '/pod/' + shownKey : '') + (openPath ?? '/app')
-  document.getElementById('status').style.display = 'none'
   remember(entryPod)
 }
 
@@ -1556,6 +1578,7 @@ async function onMessage(d) {
   // The app tells the moments of its start, and asks for the journal to show it (#75). Each
   // phase of the load down to the project ready travels with its numbers (#204).
   if (d?.kind === 'trace') {
+    if (d.step === 'start') appShown?.() // its script runs: the frame shows, before its load event
     const line = traceLine(d.step, d.detail)
     if (line) {
       // A phase is written once, and a phase measured again rewrites its line; each plugin module

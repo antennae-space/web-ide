@@ -208,6 +208,16 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .empty-state .icon { color: var(--fg-faint); }
 .empty-state p { margin: 0; max-width: 300px; }
 .center-msg { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+/* The steps of an opening (#211), the look of the bootstrap page of the relay. */
+.loading-steps .steps { list-style: none; padding: 0; margin: 0; }
+.loading-steps .steps li { display: flex; align-items: center; gap: 10px; padding: 6px 0; color: var(--fg-muted); }
+.loading-steps .steps li .dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line); flex: none; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.loading-steps .steps li.done { color: var(--fg); }
+.loading-steps .steps li.done .dot { border-color: var(--ok); background: var(--ok); }
+.loading-steps .steps li.done .dot::after { content: ""; width: 4px; height: 7px; border: solid var(--bg); border-width: 0 2px 2px 0; transform: translateY(-1px) rotate(45deg); }
+.loading-steps .steps li.now { color: var(--fg); }
+.loading-steps .steps li.now .dot { border-color: var(--accent); border-top-color: transparent; animation: spin 0.9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .loading-steps .steps li.now .dot { animation-duration: 3s; } }
 
 /* ---------- panels ---------- */
 .panel { display: flex; flex-direction: column; height: 100%; min-height: 0; }

@@ -318,7 +318,6 @@
   "Open the file": "Ouvrir le fichier",
   "Open the menu bar": "Ouvrir la barre de menus",
   "chosen for this ticket session": "choisi pour cette session du ticket",
-  "Opening the project…": "Ouverture du projet…",
   "Operator": "Opérateur",
   "Ordered rules: at each position, the first matching regex wins. “Next state” pushes a state (comment, multi-line string…); “@pop” goes back to the previous state.": "Règles ordonnées : à chaque position, la première regex qui correspond gagne. « État suivant » empile un état (commentaire, chaîne multiligne…) ; « @pop » revient à l'état précédent.",
   "Other answer…": "Autre réponse…",
@@ -1021,5 +1020,10 @@
   "A debug session stopped (a breakpoint, a step)": "Une session de débogage s'est arrêtée (un point d'arrêt, un pas)",
   "These end with it:": "Ceci se termine avec lui :",
   "Remove and end them": "Supprimer et les arrêter",
-  "{name} keeps too much in the desk": "{name} garde trop de choses dans le bureau"
+  "{name} keeps too much in the desk": "{name} garde trop de choses dans le bureau",
+  "Connecting to the pod": "Connexion au pod",
+  "Opening the project": "Ouverture du projet",
+  "This step takes longer than usual.": "Cette étape prend plus de temps que d’habitude.",
+  "Extensions loading": "Extensions en cours de chargement",
+  "Extensions {done}/{all}": "Extensions {done}/{all}"
 }

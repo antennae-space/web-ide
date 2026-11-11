@@ -24,7 +24,23 @@ run(async ({ page, ctx }) => {
   const { installabilityErrors } = await cdp.send('Page.getInstallabilityErrors')
   const errors = installabilityErrors.map((e) => e.errorId).filter((id) => id !== 'in-incognito')
   assert(errors.length === 0, 'installable app: ' + errors.join(', '))
+  // The opening shows its steps (#211), and the status bar counts the modules of the plugins still
+  // loading: what the page showed is recorded as it changes.
+  await page.evaluate(() => {
+    window.__seen = []
+    const note = (s) => window.__seen.at(-1) !== s && window.__seen.push(s)
+    new MutationObserver(() => {
+      const now = document.querySelector('[data-testid=loading-steps] li.now')
+      if (now) note('step:' + now.textContent)
+      const ext = document.querySelector('[data-testid=status-extensions]')
+      if (ext) note('ext:' + ext.textContent.trim())
+    }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true })
+  })
   await openProject(page)
+  const seen = await page.evaluate(() => window.__seen)
+  assert(seen.includes('step:Opening the project'), 'the opening shows its step: ' + seen.join(' | '))
+  assert(seen.some((s) => /^ext:Extensions \d+\/\d+$/.test(s)), 'the status bar counts the extensions still loading: ' + seen.join(' | '))
+  await page.waitForFunction(() => !document.querySelector('[data-testid=status-extensions]'))
   // A project without an icon gets one generated: initials of its name, saved in .ide.
   await page.waitForFunction(() => decodeURIComponent(document.querySelector('link[rel="icon"]').href).includes('>DE</text>'), null, { timeout: 5000 }).catch(() => {})
   assert((await favicon(page)).includes('>DE</text>'), 'favicon: generated icon with the initials')
