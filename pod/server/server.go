@@ -328,6 +328,9 @@ func (s *Server) serveStatic(w http.ResponseWriter, r *http.Request) {
 				if strings.HasPrefix(p, "assets/") {
 					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 				}
+				if s.serveEncoded(w, r, p) {
+					return
+				}
 				http.ServeFileFS(w, r, s.Static, p)
 				return
 			}
@@ -515,6 +518,10 @@ func (c *Client) serveHTTPChannel(ctx context.Context, tr *transport) {
 	// the machine of the pod.
 	r.Header.Set("Cookie", cookieName+"="+c.srv.Token)
 	r.RemoteAddr = "127.0.0.1:0"
+	// A compressed body is only for a sender that decodes it itself (DecodeHeader).
+	if r.Header.Get(DecodeHeader) == "" {
+		r.Header.Del("Accept-Encoding")
+	}
 	// The path the page runs under on the origin the browser used, when the bootstrap gave one.
 	if basePattern.MatchString(req.Base) {
 		r = r.WithContext(context.WithValue(r.Context(), baseKey{}, req.Base))

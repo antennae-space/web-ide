@@ -331,6 +331,20 @@ run(
     assert(warm.urls.some((u) => new URL(u.url).pathname === '/app'), 'the page of the pod is cached under its build')
     assert(!warm.urls.some((u) => u.url.includes("/api/") || u.url.includes("/__preview/")), 'no api nor preview in the cache')
     assert(warm.urls.every((u) => u.size <= 8 * 1024 * 1024), 'every cached entry stays under the cap')
+    // The tunnel carries the assets compressed (#207): the Service Worker decodes them, so the copy
+    // it keeps is the file of the pod, and the first load carried far less than what it keeps.
+    const index = assets.find((u) => /\/assets\/index-[^/]+\.js$/.test(u.url))
+    const kept = await page.evaluate(async (url) => {
+      for (const n of await caches.keys()) {
+        const r = await (await caches.open(n)).match(url)
+        if (r) return { text: await r.text(), encoding: r.headers.get('content-encoding') }
+      }
+    }, index.url)
+    const file = fs.readFileSync(require('path').join(__dirname, '../../pod/webdist/dist/assets', index.url.split('/').pop()), 'utf8')
+    assert(kept.text === file && !kept.encoding, `the cached ${index.url.split('/').pop()} is the decoded file of the pod (${kept.text.length} of ${file.length} chars, encoding ${kept.encoding})`)
+    const decoded = warm.urls.reduce((n, u) => n + u.size, 0)
+    console.log(`  tunnel: ${first.bytes} bytes carried for ${decoded} bytes kept`)
+    assert(first.bytes * 2 < decoded, `the first load carries the assets compressed: ${first.bytes} bytes carried, ${decoded} kept`)
 
     // A reload of the page: the same app, far fewer channels and far fewer bytes through the tunnel,
     // and the shell answered by the Service Worker, never by the relay (#73).
@@ -441,6 +455,12 @@ run(
     await local.goto(`${process.env.E2E_URL}/?token=${TOKEN}`)
     await local.waitForSelector('.home .home-bar', { timeout: 15000 })
     assert(await local.evaluate(() => window.parent === window), '127.0.0.1 still works with the same pod')
+    // The pod answers a browser on its own origin with the precompressed asset; the browser decodes it.
+    const direct = await local.evaluate(async (path) => {
+      const r = await fetch(path, { cache: 'no-store' })
+      return { encoding: r.headers.get('content-encoding'), vary: r.headers.get('vary'), text: await r.text() }
+    }, new URL(index.url).pathname.replace(/^\/pod\/[^/]+/, ''))
+    assert(['br', 'gzip'].includes(direct.encoding) && direct.vary === 'Accept-Encoding' && direct.text === file, `the pod serves its assets compressed: encoding ${direct.encoding}, vary ${direct.vary}`)
 
     const relayPid = Number(process.env.E2E_RELAY_PID)
     if (!relayPid) throw new Error('E2E_RELAY_PID not set (run through e2e/run.sh)')
