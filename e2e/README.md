@@ -76,7 +76,7 @@ flowchart LR
 - `projects`: Projects: installable app, generated icon (home page, favicon), icon editor; menu bar with the selector of the worktrees
 - `push`: Push notifications (relay milestone 6): a paired browser enables them in Settings > Notifications
 - `questions`: Questions tool: a form of an ACP session (the fake agent's elicitation/create) opens by itself in a modal with the last message of
-- `quota`: Quota (milestone 5): run.sh starts the relay with -quota 512KB (the home page alone is over it) and the pod with -force-turn, so every byte of the app crosses TURN
+- `quota`: Quota (milestone 5): run.sh starts the relay with -quota 256KB (the home page alone is over it) and the pod with -force-turn, so every byte of the app crosses TURN
 - `relay`: Relay (milestone 1): a browser on another network opens a project of a pod through the relay, and installs as an app (PWA)
 - `renew`: TURN renewal (#86): run.sh starts the relay with credentials valid 10 s and the pod with -force-turn; the page renews them and restarts ICE on the same tunnel
 - `restore`: Session restored after a reload (runs after features, same pod), detached windows

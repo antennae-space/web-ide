@@ -311,24 +311,28 @@ run(
     // never cached.
     const listed = async () =>
       await page.evaluate(async () => {
-        const names = (await caches.keys()).filter((n) => n.startsWith('webide-assets'))
+        const names = (await caches.keys()).filter((n) => n.startsWith('webide-assets') || n.startsWith('webide-page'))
         const urls = []
         for (const n of names) {
           const c = await caches.open(n)
           for (const k of await c.keys()) {
-            if (k.url.includes('/_relay/assets-created')) continue // the marker of the cache itself
+            if (k.url.includes('/_relay/')) continue // the date or the index of the cache itself
             const r = await c.match(k)
-            urls.push({ url: k.url, size: Number(r?.headers.get('content-length') ?? 0) })
+            urls.push({ url: k.url, cache: n, size: Number(r?.headers.get('content-length') ?? 0) })
           }
         }
         return { names, urls }
       })
     const warm = await listed()
     const assets = warm.urls.filter((u) => u.url.includes("/assets/"))
-    assert(warm.names.length === 1 && warm.names[0].startsWith('webide-assets:' + POD_ID), 'the pod has its own asset cache: ' + warm.names.join(', '))
-    assert(/:[0-9a-f]{16}$/.test(warm.names[0]), 'the cache of the pod is named by its build: ' + warm.names[0])
+    // Two caches per pod (#209): its hashed assets across builds, its page per build.
+    const assetCache = 'webide-assets:' + POD_ID
+    const pageName = warm.names.find((n) => n.startsWith('webide-page:' + POD_ID + ':'))
+    assert(warm.names.length === 2 && warm.names.includes(assetCache) && pageName, 'the pod has its own asset cache and page cache: ' + warm.names.join(', '))
+    assert(/:[0-9a-f]{16}$/.test(pageName), 'the page cache of the pod is named by its build: ' + pageName)
     assert(assets.some((u) => u.url.includes('/assets/index-')), `${assets.length} assets of the app are cached`)
-    assert(warm.urls.some((u) => new URL(u.url).pathname === '/app'), 'the page of the pod is cached under its build')
+    assert(assets.every((u) => u.cache === assetCache), 'the hashed assets are in the cache kept across builds')
+    assert(warm.urls.some((u) => new URL(u.url).pathname === '/app' && u.cache === pageName), 'the page of the pod is cached under its build')
     assert(!warm.urls.some((u) => u.url.includes("/api/") || u.url.includes("/__preview/")), 'no api nor preview in the cache')
     assert(warm.urls.every((u) => u.size <= 8 * 1024 * 1024), 'every cached entry stays under the cap')
     // The tunnel carries the assets compressed (#207): the Service Worker decodes them, so the copy
@@ -393,15 +397,39 @@ run(
 
     // A pod updated to another version leaves its old cache behind: the Service Worker drops it
     // when the page declares the new one, and the next asset lands in the cache of that version.
-    const oldName = warm.names[0]
+    // A new build keeps the assets (#209): their names are their content, only the page goes.
     const oneAsset = warm.urls.find((u) => u.url.includes('/assets/')).url
     await page.evaluate((pod) => navigator.serviceWorker.controller.postMessage({ kind: 'own', pod, key: '', keys: [], version: 'v9.9.9' }), POD_ID)
     await page.waitForTimeout(600)
-    const moved = await page.evaluate(async (u) => {
-      await fetch(u)
-      return (await caches.keys()).filter((n) => n.startsWith('webide-assets'))
-    }, oneAsset)
-    assert(!moved.includes(oldName) && moved.length === 1 && moved[0].endsWith(':v9.9.9'), 'the cache of the old version is dropped: ' + moved.join(', '))
+    const before = await page.evaluate(() => window.httpChannels)
+    await page.evaluate((u) => fetch(u).then((r) => r.text()), oneAsset)
+    const moved = await listed()
+    assert(!moved.names.includes(pageName) && moved.names.includes(assetCache), 'a new build drops the page cache of the old one and keeps the assets: ' + moved.names.join(', '))
+    assert(moved.urls.filter((u) => u.cache === assetCache).length === assets.length, 'the assets of the old build are all still cached')
+    assert((await page.evaluate(() => window.httpChannels)) === before, 'an asset kept across builds is answered without the tunnel')
+
+    // The cache of a pod has a budget: over it, the least recently used assets go first. An asset
+    // the app never loaded yet is fetched with a budget just under what is kept.
+    const now = (await listed()).urls.filter((u) => u.cache === assetCache)
+    const keptBytes = now.reduce((n, u) => n + u.size, 0)
+    const base = new URL(index.url).pathname.replace(/[^/]+$/, '')
+    const assetDir = require('path').join(__dirname, '../../pod/webdist/dist/assets')
+    const fresh = fs
+      .readdirSync(assetDir)
+      .filter((f) => /-[A-Za-z0-9_-]{8}\.js$/.test(f) && !now.some((u) => u.url.endsWith('/' + f)))
+      .sort((a, b) => fs.statSync(assetDir + '/' + a).size - fs.statSync(assetDir + '/' + b).size)[0]
+    await page.evaluate((bytes) => navigator.serviceWorker.controller.postMessage({ kind: 'assets-budget', bytes }), keptBytes)
+    await page.evaluate((u) => fetch(u).then((r) => r.text()), base + fresh)
+    let lru
+    // The index is written after the asset: the drops come a moment later.
+    for (let i = 0; i < 40; i++) {
+      lru = (await listed()).urls.filter((u) => u.cache === assetCache)
+      if (lru.some((u) => u.url.endsWith('/' + fresh)) && lru.reduce((n, u) => n + u.size, 0) <= keptBytes) break
+      await page.waitForTimeout(250)
+    }
+    const total = lru.reduce((n, u) => n + u.size, 0)
+    assert(lru.some((u) => u.url.endsWith('/' + fresh)) && total <= keptBytes && lru.length < now.length + 1, `over its budget the cache drops the least recently used: ${now.length} → ${lru.length} assets, ${total} of ${keptBytes} bytes`)
+    await page.evaluate(() => navigator.serviceWorker.controller.postMessage({ kind: 'assets-budget', bytes: 40 * 1024 * 1024 }))
 
     // A wrong token: the pod refuses the proof (the relay never sees the token).
     const bad = await ctx.newPage()
@@ -462,6 +490,10 @@ run(
     }, new URL(index.url).pathname.replace(/^\/pod\/[^/]+/, ''))
     assert(['br', 'gzip'].includes(direct.encoding) && direct.vary === 'Accept-Encoding' && direct.text === file, `the pod serves its assets compressed: encoding ${direct.encoding}, vary ${direct.vary}`)
 
+    // A cache of a Service Worker before #209, named by the version of its pod: the next Service
+    // Worker drops it when it takes over.
+    await page.evaluate((name) => caches.open(name).then((c) => c.put('/pod/x/assets/old-AAAAAAAA.js', new Response('old'))), 'webide-assets:' + POD_ID + ':v1.0.0')
+
     const relayPid = Number(process.env.E2E_RELAY_PID)
     if (!relayPid) throw new Error('E2E_RELAY_PID not set (run through e2e/run.sh)')
     process.kill(relayPid)
@@ -508,6 +540,8 @@ run(
     await page.waitForSelector('#frame', { state: 'visible', timeout: 30000 })
     const renewed = await page.evaluate(async () => (await caches.keys()).filter((n) => n.startsWith('webide-shell:')))
     assert(renewed.length === 1 && renewed[0] !== shell.names[0], `the reload runs on the new shell: ${shell.names[0]} → ${renewed.join(', ')}`)
+    const migrated = await page.evaluate(async () => (await caches.keys()).filter((n) => n.startsWith('webide-assets')))
+    assert(migrated.length === 1 && migrated[0] === assetCache, 'the new Service Worker drops the caches of the old naming and keeps the assets: ' + migrated.join(', '))
     assert((await page.evaluate(() => fetch('/manifest.webmanifest').then((r) => r.text()))).includes('"Web IDE "'), 'the new shell is the one of the relay')
     relay.kill()
     fs.rmSync(shellDir, { recursive: true, force: true })
