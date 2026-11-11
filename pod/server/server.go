@@ -703,9 +703,15 @@ func (w *wsConn) Close() error {
 	return nil
 }
 
+// appSocket compresses the messages of the app socket over 1 KB (#210): the JSON of the file lists,
+// the conversations and the diffs compresses well, the terminal output and the events stay raw.
+// No context takeover: a window keeps no 1.2 MB flate writer of its own, one is pooled per message.
+// Safari does not negotiate it, and the tunnel of the relay is a DataChannel, not this socket.
+var appSocket = &websocket.AcceptOptions{CompressionMode: websocket.CompressionNoContextTakeover, CompressionThreshold: 1024}
+
 func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 	// Same origin only: another cluster open in the browser must not reach the pod.
-	conn, err := websocket.Accept(w, r, nil)
+	conn, err := websocket.Accept(w, r, appSocket)
 	if err != nil {
 		return
 	}
