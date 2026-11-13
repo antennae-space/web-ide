@@ -32,3 +32,26 @@
 .agent-plan-item.completed { color: var(--fg-muted); text-decoration: line-through; }
 .agent-plan-mark { width: 12px; flex: none; color: var(--accent); }
 .agent-notice { text-align: center; padding: 2px 0; }
+
+/* The sessions panel (#270): a drawer over the body of the tool; the tabs stay reachable. */
+.agent-sessions-scrim { position: absolute; inset: 0; z-index: 19; background: rgb(0 0 0 / 0.3); }
+.agent-sessions { position: absolute; z-index: 20; top: 0; bottom: 0; left: 0; width: min(430px, 92%); display: flex; flex-direction: column; gap: 8px; padding: 10px 8px; border-right: 1px solid var(--line); background: var(--bg-2); box-shadow: 8px 0 32px rgb(0 0 0 / 0.35); animation: agent-sessions-in 0.16s ease-out; }
+@keyframes agent-sessions-in { from { transform: translateX(-16px); opacity: 0; } }
+.agent-sessions-head { display: flex; align-items: center; gap: 8px; }
+.agent-sessions-name { font-weight: 600; }
+.agent-sessions-sub { font-size: 12px; color: var(--fg-muted); }
+.agent-sessions-search { display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 8px; background: var(--bg); border: 1px solid transparent; color: var(--fg-faint); }
+.agent-sessions-search:focus-within { border-color: var(--accent); }
+.agent-sessions-search input { flex: 1; border: 0 !important; background: transparent !important; padding: 6px 0 !important; outline: none; }
+.agent-sessions-list { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+.agent-sessions-empty { padding: 8px; }
+.agent-session-row { display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 2px 6px 2px 2px; }
+.agent-session-row:hover { background: var(--bg-hover); }
+.agent-session-row.picked { background: var(--bg-active); }
+.agent-session-row input[type='checkbox'] { flex: none; }
+.agent-session-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; border: 0; background: none; padding: 6px 4px; cursor: pointer; text-align: left; font-size: 13px; color: var(--fg); }
+.agent-session-agent { max-width: 110px; font-size: 12px; color: var(--fg-muted); }
+.agent-session-state, .agent-session-ticket, .agent-session-here { flex: none; }
+.agent-session-ticket { font-size: 12px; color: var(--fg-muted); }
+.agent-session-here { color: var(--accent); }
+.agent-sessions-foot { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding-top: 8px; }

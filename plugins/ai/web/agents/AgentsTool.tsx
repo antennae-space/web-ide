@@ -20,6 +20,7 @@ import {
   sessions,
   setActive,
   shown,
+  stateLabel,
   threads,
   projectOf,
   type AgentInfo,
@@ -29,6 +30,7 @@ import {
 import '../llm/assistant.css'
 import { ProjectAgentStats, statsTitle } from './stats'
 import { AgentComposer, agentFull, targetOf } from './Composer'
+import { SessionsPanel, stopSessions } from './SessionsPanel'
 import { suggest } from '../llm/ComposerShell'
 import { projectSuggestions, Suggestions } from '../llm/Thread'
 import { AgentStatusBar } from './StatusBar'
@@ -45,10 +47,8 @@ import type { MenuItem } from '../plugin'
 /** Width from which the board or the statistics are a column next to the session (as in the assistant). */
 const BOARD_WIDE = 1000
 
-const stateLabel = (s: AgentInfo['state']) =>
-  ({ starting: t('agent|Starting'), ready: t('agent|Ready'), busy: t('agent|Working'), asking: t('Waiting for you'), error: t('Stopped') })[s]
-
 export function AgentsTool() {
+  const [panel, setPanel] = createSignal(false)
   const current = () => {
     const a = active()
     return shown().some((s) => s.id === a) ? a : (shown()[0]?.id ?? null)
@@ -64,9 +64,19 @@ export function AgentsTool() {
       const items: MenuItem[] = c.agents.map((a) =>
         a.installed ? { label: a.name, hint: a.missing ? t('needs {command}', { command: a.missing }) : '', action: () => void open(a.id) } : { label: t('Install {name}…', { name: a.name }), action: () => void install(a) },
       )
-      // The sessions of the project not open on this desk: one opens here.
+      // The sessions of the project not open on this desk: one opens here, or is stopped.
       const rest = others()
-      if (rest.length) items.push({ separator: true, label: '' }, ...rest.map((s) => ({ label: t('Open “{title}”', { title: s.title }), hint: stateLabel(s.state), action: () => setActive(s.id) })))
+      if (rest.length)
+        items.push({
+          separator: true,
+          label: '',
+        }, {
+          label: t('Other sessions'),
+          items: rest.flatMap((s) => [
+            { label: t('Open “{title}”', { title: s.title }), hint: stateLabel(s.state), action: () => setActive(s.id) },
+            { label: t('Stop “{title}”', { title: s.title }), danger: true, action: () => void stopSessions([s]) },
+          ]),
+        })
       contextMenu(at, items)
     } catch (err) {
       errorToast(err)
@@ -98,12 +108,18 @@ export function AgentsTool() {
             </div>
           )}
         </For>
+        <button class="icon-btn small" title={t('Sessions of the project')} onClick={() => setPanel(!panel())} classList={{ on: panel() }} data-testid="agent-sessions-open">
+          <Icon name="sidebar" size={15} />
+        </button>
         <button class="icon-btn small" title={t('New agent session')} onClick={(e) => void plus(e)} data-testid="agent-new">
           <Icon name="plus" />
         </button>
         <HelpLink topic="agents" />
       </div>
       <div class="tool-body agents-body">
+        <Show when={panel()}>
+          <SessionsPanel onClose={() => setPanel(false)} />
+        </Show>
         <Show when={current()} keyed fallback={<Launcher />}>
           {(id) => <SessionView id={id} />}
         </Show>
