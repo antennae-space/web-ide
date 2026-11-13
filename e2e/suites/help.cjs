@@ -75,14 +75,17 @@ run(async ({ page }) => {
   await shown('docs/howto/lan-pods.md')
   assert((await title()) === 'Pods on the local network', 'Local network "?": ' + (await title()))
 
-  // The kanban and the Agents tool have theirs.
+  // The Agents tool has no ? of its own: its help is an item of the ⋮ of its zone (#270). The
+  // kanban keeps its "?".
   await openMenu(page, 'Tools')
   await page.click('.ctx-item:has-text("Agents")')
-  await page.waitForSelector('[data-testid=help-agents]')
-  await page.click('[data-testid=help-agents]')
+  await page.waitForSelector('.zone[data-tool=agents] [data-testid=zone-menu]')
+  await page.click('.zone[data-tool=agents] [data-testid=zone-menu]')
+  await page.waitForSelector('.ctx-menu >> text=Help: the Agents tool')
+  await page.click('.ctx-menu >> text=Help: the Agents tool')
   await shown('docs/guide.md#agents-claude-code-opencode-pi')
   const a = await top('agents-claude-code-opencode-pi')
-  assert(a >= 0 && a < 60, 'the Agents "?" scrolls to its heading (top ' + a + ')')
+  assert(a >= 0 && a < 60, 'the ⋮ item of the Agents tool scrolls to its heading (top ' + a + ')')
   await page.click('.rail-left .rail-btn[title^="Kanban"]')
   await kp.click('[data-testid=kanban-open-board]')
   await kp.waitForSelector('[data-testid=help-kanban]')

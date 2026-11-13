@@ -22,7 +22,7 @@ run(
     await page.waitForSelector('.ai-panel')
 
     // Settings: smallest model, English.
-    await page.click('.ai-panel button[title^="Settings"]')
+    await page.click('[data-testid=assistant-settings]')
     await page.click('.ai-tab:has-text("Transcription")')
     await page.waitForSelector('[data-testid=speech-settings]')
     await page.selectOption('[data-testid=speech-settings] select[name=whisperModel]', 'tiny')
@@ -58,7 +58,7 @@ run(
 
     // Live dictation off: the message is transcribed at the stop.
     await page.fill(box, '')
-    await page.click('.ai-panel button[title^="Settings"]')
+    await page.click('[data-testid=assistant-settings]')
     await page.click('.ai-tab:has-text("Transcription")')
     await page.uncheck('[data-testid=speech-settings] input[name=whisperLive]')
     await page.click('.ai-servers .modal-head button')
@@ -84,7 +84,7 @@ run(
     assert(true, 'attached audio file transcribed locally')
 
     // The model is in the pod cache, listed in the settings.
-    await page.click('.ai-panel button[title^="Settings"]')
+    await page.click('[data-testid=assistant-settings]')
     await page.click('.ai-tab:has-text("Transcription")')
     await page.waitForSelector('[data-testid=speech-settings] .ai-server-row:has-text("onnx-community/whisper-tiny")', { timeout: 5000 }).catch(() => {})
     assert(await page.isVisible('[data-testid=speech-settings] .ai-server-row:has-text("onnx-community/whisper-tiny")'), 'model listed in the cache of the pod')

@@ -189,7 +189,7 @@ run(async ({ page }) => {
     assert(gauge.replace(/[^\d/]/g, '').includes('/8192'), 'context gauge shown: ' + gauge)
 
     // Project prompt edited in the settings.
-    await page.click('.ai-panel button[title^="Settings"]')
+    await page.click('[data-testid=assistant-settings]')
     await page.click('.ai-tab:has-text("Prompt")')
     await page.fill('[data-testid=prompt-settings] textarea', 'You are the robot of the project {{project}}.\n{{tools}}')
     await page.click('[data-testid=prompt-settings] button:has-text("Save")')
@@ -232,7 +232,7 @@ run(async ({ page }) => {
     await ask(page, 'Walk ten steps', 'Steps walked.')
 
     // Manual compaction by a different model: the last 10 steps stay.
-    await page.click('.ai-panel button[title^="Settings"]')
+    await page.click('[data-testid=assistant-settings]')
     await page.click('.ai-tab:has-text("Compaction")')
     await page.selectOption('[data-testid=compaction-settings] select[name=compactServer]', { index: 1 })
     await page.waitForSelector('[data-testid=compaction-settings] select[name=compactModel] option[value="fake-small"]', { state: 'attached' })
@@ -280,7 +280,7 @@ run(async ({ page }) => {
     const presets = await page.textContent('[data-testid=ai-complete]')
     assert(presets.includes('/ref') && presets.includes('/q') && presets.includes('Simplify, compress, and repeat your response'), 'the presets in the / list: ' + presets)
     await page.keyboard.press('Backspace')
-    await page.click('.ai-panel button[title^="Settings"]')
+    await page.click('[data-testid=assistant-settings]')
     await page.click('.ai-tab:has-text("Aliases")')
     assert((await page.locator('[data-testid=alias-row]').count()) === 3, 'three presets in the settings')
     await page.locator('[data-testid=alias-delete]').nth(1).click()

@@ -333,7 +333,7 @@ run(async ({ page }) => {
     assert((await col()) > colBefore + 100, `the splitter widens the board (${Math.round(colBefore)} → ${Math.round(await col())})`)
     await page.screenshot({ path: OUT + '/board-wide.png' })
     // Another conversation: its own board, empty.
-    await page.click('.ai-panel button[title="New conversation"]')
+    await page.click('[data-testid=assistant-new]')
     await page.waitForSelector('[data-testid=bd-empty]')
     assert(true, 'a new conversation has an empty board')
     await page.click('[data-testid=ai-view-chat]')
@@ -599,7 +599,7 @@ run(async ({ page }) => {
 
     // The model draws on the board: a page, a copy of it, an invalid call; the image reaches
     // the model; the board says so; the pages go to the tickets.
-    await page.click('.ai-panel button[title="New conversation"]')
+    await page.click('[data-testid=assistant-new]')
     await page.fill('.ai-composer .ed-content', 'Draw: the login flow')
     await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Drawn.")', { timeout: 20000 })
@@ -635,7 +635,7 @@ run(async ({ page }) => {
     fs.mkdirSync(WS + '/demo/img', { recursive: true })
     fs.writeFileSync(WS + '/demo/img/logo.png', PNG)
     fs.writeFileSync(WS + '/demo/img/anim.gif', GIF)
-    await page.click('.ai-panel button[title="New conversation"]')
+    await page.click('[data-testid=assistant-new]')
     await page.setInputFiles('.ai-composer input[type=file]', { name: 'shot.png', mimeType: 'image/png', buffer: PNG })
     await page.waitForSelector('.ai-composer .ai-att[data-kind=image]')
     await page.fill('.ai-composer .ed-content', 'Back: annotate')
@@ -680,19 +680,19 @@ run(async ({ page }) => {
     // generate_image: offered once an image model is set; the image is a page of the board,
     // saved in the project, and a page changed through the edits endpoint.
     assert(!requests[requests.length - 1].tools.some((t) => t.function.name === 'generate_image'), 'no generate_image without an image model')
-    await page.click('.ai-panel button[title^="Settings"]')
+    await page.click('[data-testid=assistant-settings]')
     await page.click('.ai-tab:has-text("Image generation")')
     await page.selectOption('[data-testid=image-settings] select[name=imageServer]', { index: 1 })
     await page.waitForSelector('[data-testid=image-settings] select[name=imageModel] option[value="fake-model"]', { state: 'attached' })
     await page.selectOption('[data-testid=image-settings] select[name=imageModel]', 'fake-model')
     await page.click('.ai-servers .modal-head button')
     // Opened again, the settings show the model chosen (its list comes after the value).
-    await page.click('.ai-panel button[title^="Settings"]')
+    await page.click('[data-testid=assistant-settings]')
     await page.click('.ai-tab:has-text("Image generation")')
     await page.waitForSelector('[data-testid=image-settings] select[name=imageModel] option[value="fake-model"]', { state: 'attached' })
     assert((await page.inputValue('[data-testid=image-settings] select[name=imageModel]')) === 'fake-model', 'the image model shows once the settings are opened again')
     await page.click('.ai-servers .modal-head button')
-    await page.click('.ai-panel button[title="New conversation"]')
+    await page.click('[data-testid=assistant-new]')
     await page.fill('.ai-composer .ed-content', 'Imagine: a fox')
     await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Imagined.")', { timeout: 20000 })

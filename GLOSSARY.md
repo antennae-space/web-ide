@@ -135,7 +135,7 @@ The icon bars on both sides of the window / the four corners where the tools sho
 _Avoid_: sidebar
 
 **Corner**
-The group of buttons at the top right of a tool zone or of a tile: the buttons of the tool (`toolCorner`), then the **⋮** of its options menu. It has no close button of its own: *Close* in that menu, or the rail icon of the tool. The head of a tool leaves their room; a tool has no button of its own in its head.
+The group of buttons at the top right of a tool zone or of a tile: the buttons of the tool (`toolCorner`), then the **⋮** of its options menu. It has no close button of its own: *Close* in that menu, or the rail icon of the tool. The head of a tool leaves their room; a tool has no button of its own in its head, apart from the button that opens its side panel, at the left end. A tool shown in a window of its own has no corner and keeps its buttons in its head.
 _Avoid_: toolbar, header buttons
 
 **Options menu**

@@ -187,7 +187,13 @@ run(async ({ page }) => {
   // Aliases: one made in the settings of the assistant is in the / list of a session; a choice
   // puts its text in the box. An alias with the name of a command of the agent does not show.
   await page.click('.rail-btn[data-id=assistant]')
-  await page.click('.ai-panel button[title^="Settings"]')
+  // The head of the assistant keeps its side bar button and its title; its + and its gear sit in
+  // the corner of the zone, before the ⋮ (#270).
+  const aHead = await page.$$eval('.ai-panel .ai-head > *', (l) => l.map((e) => e.getAttribute('data-testid') ?? e.className))
+  const aCorner = await page.$$eval('.zone[data-tool=assistant] .zone-corner > *', (l) => l.map((e) => e.getAttribute('data-testid') ?? e.className))
+  assert(!aHead.includes('assistant-new') && !aHead.includes('assistant-settings'), 'no + nor gear in the head of the assistant: ' + JSON.stringify(aHead))
+  assert(aCorner[0] === 'assistant-new' && aCorner[1] === 'assistant-settings' && aCorner[aCorner.length - 1] === 'zone-menu', 'the corner holds +, the gear, then the ⋮: ' + JSON.stringify(aCorner))
+  await page.click('[data-testid=assistant-settings]')
   await page.click('.ai-tab:has-text("Aliases")')
   await page.click('[data-testid=alias-add]')
   await page.locator('[data-testid=alias-name]').nth(3).fill('mysnippet')
@@ -371,6 +377,13 @@ run(async ({ page }) => {
     await page.waitForSelector(panel, { state: 'detached' })
   }
 
+  // The bar follows the corner of the zone (#270): the panel button at the left of the tab bar,
+  // the + in the corner before the ⋮, the help as an item of that menu.
+  const tabs = await page.$$eval('.agents-tabs > *', (l) => l.map((e) => e.getAttribute('data-testid') ?? e.className))
+  assert(tabs[0] === 'agent-sessions-open' && !tabs.includes('agent-new'), 'the tab bar starts with the panel button and keeps no +: ' + JSON.stringify(tabs))
+  const agentsCorner = await page.$$eval('.zone[data-tool=agents] .zone-corner > *', (l) => l.map((e) => e.getAttribute('data-testid') ?? e.className))
+  assert(agentsCorner[0] === 'agent-new' && agentsCorner[agentsCorner.length - 1] === 'zone-menu', 'the corner holds the +, then the ⋮: ' + JSON.stringify(agentsCorner))
+
   // Closing the tab hides the session on the desk; + → Other sessions opens it again (#270).
   await page.click(`${tab} .tab-close`)
   await page.waitForSelector('[data-testid=agents-launcher]')
@@ -396,6 +409,13 @@ run(async ({ page }) => {
   assert((await panelRows()).length === 0 && (await page.textContent(`${panel} .agent-sessions-empty`)).includes('No session matches.'), 'no match says so')
   await page.fill(search, '')
   await closePanel()
+
+  // The ⋮ of the tool holds its help item: the ? left the bar for the corner (#270).
+  await page.click('.zone[data-tool=agents] [data-testid=zone-menu]')
+  await page.waitForSelector('.ctx-menu >> text=Help: the Agents tool')
+  await page.click('.ctx-menu >> text=Help: the Agents tool')
+  await page.waitForSelector('[data-testid=doc-view][data-doc="docs/guide.md"]')
+  assert(true, 'the ⋮ opens the page that explains the Agents tool')
 
   // Another desk shows none of the sessions of desk 1, and lists them in its + menu and its panel.
   await page.click('[data-testid=desk-add]')

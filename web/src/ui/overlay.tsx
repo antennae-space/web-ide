@@ -393,12 +393,15 @@ function MenuHost() {
     const i = node instanceof HTMLElement ? node.dataset.idx : undefined
     return i === undefined ? undefined : menu()?.items[Number(i)]
   }
-  /** A submenu opens at the right edge of its item, clamped to the window. */
+  /** A submenu opens at the right edge of its item, clamped to the window; without room on the
+   * right (the menu of a corner in a right zone), it opens on the left of the menu instead, so
+   * that it never covers the item that shows it (#270). */
   const openSub = (btn: HTMLButtonElement, items: MenuItem[]) => {
     const r = btn.getBoundingClientRect()
+    const room = innerWidth - r.right - 8 >= 240
     setSub({
       items,
-      x: Math.max(8, Math.min(r.right - 4, innerWidth - 240)),
+      x: room ? Math.max(8, Math.min(r.right - 4, innerWidth - 240)) : Math.max(8, el.getBoundingClientRect().left - 244),
       y: Math.min(r.top - 5, innerHeight - items.length * 28 - 12),
       parent: btn,
     })

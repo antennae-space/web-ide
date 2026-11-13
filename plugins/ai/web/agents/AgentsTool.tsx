@@ -9,12 +9,9 @@ import {
   answerAgent,
   catalog,
   closeAgent,
-  createAgent,
   hideAgent,
-  others,
   diffLines,
   followAgent,
-  installAgent,
   loadThread,
   restartAgent,
   sessions,
@@ -24,13 +21,13 @@ import {
   threads,
   projectOf,
   type AgentInfo,
-  type CatalogAgent,
   type Entry,
 } from './state'
 import '../llm/assistant.css'
 import { ProjectAgentStats, statsTitle } from './stats'
 import { AgentComposer, agentFull, targetOf } from './Composer'
-import { SessionsPanel, stopSessions } from './SessionsPanel'
+import { SessionsPanel } from './SessionsPanel'
+import { AgentsCorner, installCatalogAgent, installingAgent, openAgent, sessionsPanel, setSessionsPanel } from './corner'
 import { suggest } from '../llm/ComposerShell'
 import { projectSuggestions, Suggestions } from '../llm/Thread'
 import { AgentStatusBar } from './StatusBar'
@@ -41,50 +38,26 @@ import { ViewSwitch, type View } from '../llm/ViewSwitch'
 import { prefs, savePrefs, setPrefs } from '../llm/state'
 import { UserAttachments } from './UserAttachments'
 import './agents.css'
-import { contextMenu, copyText, EmptyState, errorToast, formAnswerText, HelpLink, Icon, openFile, project, QuestionForm, relPath, requestIn, showsQuestions, t, toast, WorktreeChip } from '../plugin'
-import type { MenuItem } from '../plugin'
+import { contextMenu, detached, EmptyState, errorToast, formAnswerText, HelpLink, Icon, openFile, project, QuestionForm, relPath, requestIn, showsQuestions, t, WorktreeChip } from '../plugin'
 
 /** Width from which the board or the statistics are a column next to the session (as in the assistant). */
 const BOARD_WIDE = 1000
 
 export function AgentsTool() {
-  const [panel, setPanel] = createSignal(false)
   const current = () => {
     const a = active()
     return shown().some((s) => s.id === a) ? a : (shown()[0]?.id ?? null)
   }
   // The questions of the session shown are in its thread: no modal for them.
   onCleanup(showsQuestions((q) => q.source === 'acp' && q.session === current()))
-  const plus = async (e: MouseEvent) => {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const at = { clientX: r.left, clientY: r.bottom + 2, preventDefault() {}, stopPropagation() {} } as MouseEvent
-    try {
-      const c = await catalog()
-      if (!c.local) return toast(t('Agents run on local projects only, for now.'), 'warn')
-      const items: MenuItem[] = c.agents.map((a) =>
-        a.installed ? { label: a.name, hint: a.missing ? t('needs {command}', { command: a.missing }) : '', action: () => void open(a.id) } : { label: t('Install {name}…', { name: a.name }), action: () => void install(a) },
-      )
-      // The sessions of the project not open on this desk: one opens here, or is stopped.
-      const rest = others()
-      if (rest.length)
-        items.push({
-          separator: true,
-          label: '',
-        }, {
-          label: t('Other sessions'),
-          items: rest.flatMap((s) => [
-            { label: t('Open “{title}”', { title: s.title }), hint: stateLabel(s.state), action: () => setActive(s.id) },
-            { label: t('Stop “{title}”', { title: s.title }), danger: true, action: () => void stopSessions([s]) },
-          ]),
-        })
-      contextMenu(at, items)
-    } catch (err) {
-      errorToast(err)
-    }
-  }
+  // A tool shown in a window of its own has no corner: its + and its ? stay in its tab bar.
+  const alone = detached()
   return (
     <div class="panel ai-panel agents-panel">
       <div class="tabbar tool-tabbar agents-tabs" role="tablist">
+        <button class="icon-btn small" title={t('Sessions of the project')} onClick={() => setSessionsPanel(!sessionsPanel())} classList={{ on: sessionsPanel() }} data-testid="agent-sessions-open">
+          <Icon name="sidebar" size={15} />
+        </button>
         <For each={shown()}>
           {(s) => (
             <div
@@ -108,17 +81,14 @@ export function AgentsTool() {
             </div>
           )}
         </For>
-        <button class="icon-btn small" title={t('Sessions of the project')} onClick={() => setPanel(!panel())} classList={{ on: panel() }} data-testid="agent-sessions-open">
-          <Icon name="sidebar" size={15} />
-        </button>
-        <button class="icon-btn small" title={t('New agent session')} onClick={(e) => void plus(e)} data-testid="agent-new">
-          <Icon name="plus" />
-        </button>
-        <HelpLink topic="agents" />
+        <Show when={alone}>
+          <For each={AgentsCorner()}>{(b) => b}</For>
+          <HelpLink topic="agents" />
+        </Show>
       </div>
       <div class="tool-body agents-body">
-        <Show when={panel()}>
-          <SessionsPanel onClose={() => setPanel(false)} />
+        <Show when={sessionsPanel()}>
+          <SessionsPanel onClose={() => setSessionsPanel(false)} />
         </Show>
         <Show when={current()} keyed fallback={<Launcher />}>
           {(id) => <SessionView id={id} />}
@@ -128,38 +98,11 @@ export function AgentsTool() {
   )
 }
 
-async function open(agent: string) {
-  try {
-    await createAgent(agent)
-  } catch (e) {
-    errorToast(e)
-  }
-}
-
 async function close(id: string) {
   try {
     await closeAgent(id)
   } catch (e) {
     errorToast(e)
-  }
-}
-
-const [installing, setInstalling] = createSignal<string | null>(null)
-
-async function install(a: CatalogAgent) {
-  if (!a.package) {
-    if (a.hint) void copyText(a.hint)
-    return toast(t('{name} is installed by hand: {command} (copied)', { name: a.name, command: a.hint ?? '' }), 'info', undefined, 8000)
-  }
-  setInstalling(a.id)
-  try {
-    await installAgent(a.id)
-    toast(t('{name} is installed.', { name: a.name }))
-    return true
-  } catch (e) {
-    errorToast(e)
-  } finally {
-    setInstalling(null)
   }
 }
 
@@ -185,12 +128,12 @@ function Launcher() {
               <Show
                 when={a.installed}
                 fallback={
-                  <button class="btn small" disabled={!!installing()} onClick={() => void install(a).then((ok) => ok && refetch())}>
-                    {installing() === a.id ? t('Installing…') : a.package ? t('Install') : t('Copy the command')}
+                  <button class="btn small" disabled={!!installingAgent()} onClick={() => void installCatalogAgent(a).then((ok) => ok && refetch())}>
+                    {installingAgent() === a.id ? t('Installing…') : a.package ? t('Install') : t('Copy the command')}
                   </button>
                 }
               >
-                <button class="btn small primary" onClick={() => void open(a.id)}>
+                <button class="btn small primary" onClick={() => void openAgent(a.id)}>
                   {t('Open')}
                 </button>
               </Show>
