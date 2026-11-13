@@ -12,6 +12,8 @@ import { aiUiTools } from './llm/uiTools'
 import { chat, config, loadConfig, refreshChats, resetChat, setChat } from './llm/state'
 import { loadStates, navigateChats, openChat, send } from './llm/assistant'
 import { conversationsRoot } from './explorer'
+import { AgentsCorner, agentsMenu } from './agents/corner'
+import { AssistantCorner } from './llm/corner'
 import { catalog, refreshAgents, setActive, watchAgents } from './agents/state'
 import { ProjectAgentStats, TicketAgentStats } from './agents/stats'
 
@@ -34,6 +36,9 @@ export const ai: PluginModule = {
     api.provide('agents', { catalog, show: setActive, TicketStats: TicketAgentStats, ProjectStats: ProjectAgentStats })
     return {
       tools: { assistant: { component: AssistantTool }, agents: { component: AgentsTool } },
+      // The corner of the zone or of the tile of each tool, then the items of its ⋮ menu (#176).
+      toolCorner: { assistant: AssistantCorner, agents: AgentsCorner },
+      toolMenu: { agents: agentsMenu },
       hosts: [() => <DoodleHost external onSettings={() => api.settings.open()} />],
       commands: {
         'assistant.doodle': () => {

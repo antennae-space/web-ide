@@ -14,6 +14,8 @@ import { answerStrings } from '../questions/ask'
 import { formAnswerText, QuestionForm } from '../questions/Form'
 import { showsQuestions } from '../questions/state'
 import { HelpLink } from '../help/HelpLink'
+import topics from '../help/topics.json'
+import { docTarget, openDoc, type HelpTopic } from '../state/docs'
 import { FileIcon } from '../ui/fileIcons'
 import { FileRow } from '../ui/FileRow'
 import { activeTab, attached, basename, closeTab, docError, leaves, showWorktree, docsVersion, fileUri, loadDoc, reveal, saveCursor, saveDoc, findLeaf, getDoc, home, onBufferClose, onBufferOpen, onBufferSave, openBuffers, pathFromUri, isLocal, mutate, openFile, openTab, openTextTab, project, relPath, root, session, setActivePane, type TabState } from '../state/project'
@@ -57,6 +59,12 @@ import { parseAnsi, stripAnsi } from '../ui/ansi'
 
 /** The version of this API (the pod refuses a manifest of another one): 1, frozen in #118. */
 export const API_VERSION = 1
+
+/** Opens the page that explains a place of the interface (a topic of `web/src/help/topics.json`), at its heading. */
+const openHelp = (topic: string) => {
+  if (!(topic in topics)) return
+  openDoc(docTarget(topic as HelpTopic))
+}
 
 export function makeApi(id: string) {
   const full = (method: string) => (method.includes('.') ? method : `${id}.${method}`)
@@ -289,7 +297,7 @@ export function makeApi(id: string) {
     keys: { register: registerAction, shortcut: shortcutOf, actionOf, run: runAction, setDynamic: setDynamicActions },
     /** The transport of the page: in the tunnel of the relay, or a WebSocket to the pod. */
     transport: { inTunnel },
-    ui: { Markdown, Switch, openDiagram, HelpLink, fuzzy, EmptyState, Icon, FileIcon, FileRow, Modal, toast, errorToast, contextMenu, prompt, pick, copyText, parseAnsi, stripAnsi, WorktreeChip, tabDrop: { dropClasses, dropIndex, moveItem, setDropAt }, toolMenu: (tab: TabState, extra?: MenuItem[], close?: MenuItem) => toolMenuItems({ pane: '', tab }, extra, close) },
+    ui: { Markdown, Switch, openDiagram, HelpLink, openHelp, fuzzy, EmptyState, Icon, FileIcon, FileRow, Modal, toast, errorToast, contextMenu, prompt, pick, copyText, parseAnsi, stripAnsi, WorktreeChip, tabDrop: { dropClasses, dropIndex, moveItem, setDropAt }, toolMenu: (tab: TabState, extra?: MenuItem[], close?: MenuItem) => toolMenuItems({ pane: '', tab }, extra, close) },
   }
 }
 

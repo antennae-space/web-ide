@@ -1,13 +1,14 @@
 // Tool "Assistant IA": chat with a model of a llama.cpp or Ollama server, which can read and
 // change the project files, ask the language servers and run commands. Layout: history side
 // bar (always shown in a wide detached window, else folding), conversation, message box.
-import { createEffect, createSignal, on, onCleanup, onMount, Show } from 'solid-js'
-import { approval, chat, live, loadConfig, modelsError, prefs, resetChat, savePrefs, setPrefs } from './state'
+import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from 'solid-js'
+import { approval, chat, live, loadConfig, modelsError, prefs, savePrefs, setPrefs } from './state'
 import { SettingsModal } from './AssistantSettings'
 import { restoreActive } from './assistant'
 import { Thread } from './Thread'
 import { addFiles, Composer, focusComposer, fullComposer, suggest } from './Composer'
 import { Sidebar } from './Sidebar'
+import { AssistantCorner, settingsOpen, setSettingsOpen } from './corner'
 import { DoodleHost } from './doodle/DoodleModal'
 import { Board } from './board/Board'
 import { boardShown, fresh, pages, setBoardWide, setView, view } from './board/pages'
@@ -30,7 +31,6 @@ export function AssistantTool() {
   // The questions of the conversation shown are in its thread: no modal for them.
   onCleanup(showsQuestions((q) => q.source === 'assistant' && q.session === chat.id))
   const [width, setWidth] = createSignal(0)
-  const [settings, setSettings] = createSignal(false)
   const [dragging, setDragging] = createSignal(false)
   const wide = () => width() >= WIDE
   const narrow = () => width() < NARROW
@@ -78,11 +78,6 @@ export function AssistantTool() {
   createEffect(on(() => [chat.messages.length, live.content, live.reasoning, live.tool, approval()], () => thread?.follow()))
   createEffect(on(() => chat.id, () => thread?.reset()))
 
-  const newChat = () => {
-    resetChat()
-    focusComposer()
-  }
-
   return (
     <div class="panel ai-panel" ref={rootEl} classList={{ wide: wide(), detached: isDetached }}>
       <div class="panel-head ai-head">
@@ -95,12 +90,10 @@ export function AssistantTool() {
           {chat.title || t('New conversation')}
         </span>
         <span class="grow" />
-        <button class="icon-btn" title={t('New conversation')} onClick={newChat}>
-          <Icon name="plus" size={15} />
-        </button>
-        <button class="icon-btn" title={t('Settings (servers, prompt, compaction, transcription)')} onClick={() => setSettings(true)}>
-          <Icon name="gear" size={15} />
-        </button>
+        {/* A tool shown in a window of its own has no corner: its buttons stay in its head. */}
+        <Show when={isDetached}>
+          <For each={AssistantCorner()}>{(b) => b}</For>
+        </Show>
       </div>
       <Show when={modelsError()}>
         <div class="ai-banner">
@@ -141,11 +134,11 @@ export function AssistantTool() {
               }
             }}
           >
-            <Thread onSuggest={suggest} onSettings={() => setSettings(true)} />
+            <Thread onSuggest={suggest} onSettings={() => setSettingsOpen(true)} />
           </div>
           <Composer
             head={<TopBar narrow={narrow} />}
-            onSettings={() => setSettings(true)}
+            onSettings={() => setSettingsOpen(true)}
             onSent={() => thread?.reset()}
           />
         </div>
@@ -179,10 +172,10 @@ export function AssistantTool() {
         </Show>
         <ViewSwitch view={view()} onView={setView} count={pages().length} fresh={fresh()} faded={scrolling()} />
       </div>
-      <Show when={settings()}>
-        <SettingsModal onClose={() => setSettings(false)} />
+      <Show when={settingsOpen()}>
+        <SettingsModal onClose={() => setSettingsOpen(false)} />
       </Show>
-      <DoodleHost onSettings={() => setSettings(true)} />
+      <DoodleHost onSettings={() => setSettingsOpen(true)} />
     </div>
   )
 }

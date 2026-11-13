@@ -153,7 +153,7 @@ run(async ({ page }) => {
     assert(!(await page.isVisible('.ai-chat-item:has-text("Change the greeting") .ai-agent-dot')), 'no dot on an ended sub-agent')
 
     // A cloud server for the sub-agents: kind, key, a typed model, a note.
-    await page.click('.ai-panel button[title^="Settings"]')
+    await page.click('[data-testid=assistant-settings]')
     await page.fill('.ai-servers input[name=url]', `127.0.0.1:${cloud.address().port}/v1`)
     await page.selectOption('.ai-servers select[name=kind]', 'openai')
     await page.fill('.ai-servers input[name=name]', 'Cloud')
@@ -173,7 +173,7 @@ run(async ({ page }) => {
     await page.click('.ai-servers .modal-head button')
     assert(!JSON.stringify(await page.evaluate(() => document.body.innerHTML)).includes('sk-e2e'), 'the key never reaches the page')
 
-    await page.click('.ai-panel button[title="New conversation"]')
+    await page.click('[data-testid=assistant-new]')
     await page.fill('.ai-composer .ed-content', 'Review in the cloud')
     await page.keyboard.press('Enter')
     await page.waitForSelector('.ai-msg.assistant .md:has-text("The cloud reviewed it.")', { timeout: 20000 })

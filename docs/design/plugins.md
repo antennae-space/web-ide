@@ -474,6 +474,11 @@ Done in #176 (the `toolCorner` contribution point):
 
 - **On the page**: `toolCorner[toolId or viewId]()` in the contributions, the buttons the tool puts in the **corner** of the zone or of the tile showing it, rendered by the core (`CornerButtons` of `ui/toolMenu.tsx`) before the ⋮. `toolCornerFor` (`plugins/registry.tsx`) resolves the enabled plugin the same way. A tool has no button of its own in its head any more: Explorer, Structure, Git and Kanban keep their title only, and the room the head leaves for the corner is measured (`--corner-w`) instead of fixed. The corner keeps no close button either: *Close* is an item of the ⋮ menu. A frame keeps its own toolbar and leaves `--ide-head-inset`, which now covers the whole corner group.
 
+Done in #270 (the Assistant and the Agents tools joined the corner):
+
+- `toolCorner: { assistant, agents }` and `toolMenu: { agents }` in `plugins/ai/web/index.tsx`. The buttons are built in `llm/corner.tsx` and `agents/corner.tsx`, where their signals live too (`settingsOpen`, `sessionsPanel`): the core draws the corner outside the tool, so the state a corner button switches cannot stay in the tool's component. The **+** of each tool, and the gear of the assistant, sit in the corner before the ⋮; *Help: the Agents tool* is an item of that menu, through `api.ui.openHelp(topic)` (the core's `openDoc(docTarget(topic))`, what `ide.help` already does for a frame).
+- Those two tools keep one button in their head: the toggle of their side panel (*Conversations of the project*, *Sessions of the project*), at its left end. A tool shown in a window of its own has no corner (`DetachedTool` renders none): both render their corner buttons in their head when `api.window.detached()`.
+
 ### Steps
 
 1. The SDK and its UI kit (`plugin-sdk`), then the template (`plugin-template`).

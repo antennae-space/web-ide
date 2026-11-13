@@ -4,7 +4,7 @@ import { createEffect, createRoot, createSignal, on } from 'solid-js'
 import { createStore, produce, reconcile } from 'solid-js/store'
 import type { DiffLine } from '../llm/state'
 import type { Totals } from './stats'
-import { api, attachedIds, home, lineHunks, onPod, openFile, requestIn } from '../plugin'
+import { api, attachedIds, home, lineHunks, onPod, openFile, requestIn, t } from '../plugin'
 import type { FormSchema } from '../plugin'
 
 export interface ConfigOption {
@@ -49,6 +49,10 @@ export interface AgentInfo {
   /** Worktree the session runs in (set by the page). */
   project?: string
 }
+
+/** The state of a session, in the words of the tool (tabs, panel, menus). */
+export const stateLabel = (s: AgentInfo['state']) =>
+  ({ starting: t('agent|Starting'), ready: t('agent|Ready'), busy: t('agent|Working'), asking: t('Waiting for you'), error: t('Stopped') })[s]
 
 export interface ToolContent {
   type: 'content' | 'diff' | 'terminal'

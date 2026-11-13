@@ -367,7 +367,7 @@ run(async ({ page, ctx }) => {
     assert((await page.$$('.ai-tool')).length === 4, 'conversation reopened with its tool calls')
 
     // Image attachment (new conversation).
-    await page.click('.ai-panel button[title="New conversation"]')
+    await page.click('[data-testid=assistant-new]')
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR4nGP8z8DwnwEIGBkZGRgYAAAiBgID0ZfYpQAAAABJRU5ErkJggg==', 'base64')
     await page.setInputFiles('.ai-composer input[type=file]', { name: 'pixel.png', mimeType: 'image/png', buffer: png })
     await page.waitForSelector('.ai-composer .ai-att:has-text("pixel.png")')
@@ -461,7 +461,7 @@ run(async ({ page, ctx }) => {
     // Abandon a failed conversation: no more Resume, no more red dot, in the history.
     await page.click('[data-testid=model-pill]')
     await page.click('.ai-model-item:has-text("fake-model")')
-    await page.click('.ai-panel button[title="New conversation"]')
+    await page.click('[data-testid=assistant-new]')
     await page.fill('.ai-composer .ed-content', 'crash until another model')
     await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=ai-dismiss]', { timeout: 10000 })
@@ -476,7 +476,7 @@ run(async ({ page, ctx }) => {
     const w = await page.context().newPage()
     await w.goto(new URL(new URL(page.url()).pathname.replace(/\/$/, '') + '/tool/assistant', page.url()).href)
     await w.waitForSelector('.ai-panel.detached')
-    await w.click('.ai-panel button[title="New conversation"]')
+    await w.click('[data-testid=assistant-new]')
     await w.click('[data-testid=ai-stats-toggle]')
     await w.waitForSelector('[data-testid=st-view]')
     await w.fill('.ai-composer .ed-content', 'Explain the greeter')
@@ -489,8 +489,8 @@ run(async ({ page, ctx }) => {
 
     // The web (#253): off by default; SearXNG set in the settings, the model searches, reads a
     // page holding an injection, then runs a reading command: it asks, with the web line.
-    await page.click('.ai-panel button[title="New conversation"]')
-    await page.click('.ai-panel button[title^="Settings (servers"]')
+    await page.click('[data-testid=assistant-new]')
+    await page.click('[data-testid=assistant-settings]')
     await page.click('.ai-tab:has-text("Web")')
     await page.selectOption('[data-testid=web-settings] select[name=webSearch]', 'searxng')
     await page.fill('[data-testid=web-settings] input[name=searxng]', webBase)

@@ -126,14 +126,14 @@ run(
       assert(true, 'the bar of the development links to the orchestrator that follows it')
 
       // 2. What did we do: the history of the kanban.
-      await page.click('.ai-panel button[title="New conversation"]')
+      await page.click('[data-testid=assistant-new]')
       await page.fill('.ai-composer .ed-content', 'What did we do yesterday?')
       await page.keyboard.press('Enter')
       await page.waitForSelector('.ai-msg.assistant .md:has-text("Two tickets were planned.")', { timeout: 20000 })
       assert(outputs.history.includes('Login page') && outputs.history.includes('In progress'), 'kanban_history lists the moves of the period: ' + outputs.history)
 
       // 3. An idea: a Briefing conversation opens for the user, the idea sent.
-      await page.click('.ai-panel button[title="New conversation"]')
+      await page.click('[data-testid=assistant-new]')
       await page.fill('.ai-composer .ed-content', 'I have an idea: a dark mode')
       await page.keyboard.press('Enter')
       await page.waitForSelector('.ai-msg.assistant .md:has-text("Let\'s clarify the dark mode.")', { timeout: 20000 })
@@ -147,7 +147,7 @@ run(
 
       // 4. Adoption: a conversation started by hand becomes a sub-agent of the orchestrator;
       // it announces itself and keeps its own tools.
-      await page.click('.ai-panel button[title="New conversation"]')
+      await page.click('[data-testid=assistant-new]')
       await page.focus('.ai-composer .ed-content')
       await page.keyboard.press('Shift+Tab') // Briefing
       await page.keyboard.press('Shift+Tab') // Plan
@@ -155,7 +155,7 @@ run(
       await page.fill('.ai-composer .ed-content', 'Work on the footer')
       await page.keyboard.press('Enter')
       await page.waitForSelector('.ai-msg.assistant .md:has-text("Developing.")', { timeout: 20000 })
-      await page.click('.ai-panel button[title="New conversation"]')
+      await page.click('[data-testid=assistant-new]')
       await page.fill('.ai-composer .ed-content', 'Follow the footer')
       await page.keyboard.press('Enter')
       await page.waitForSelector('.ai-msg.assistant .md:has-text("I follow the footer now.")', { timeout: 20000 })
@@ -175,7 +175,7 @@ run(
       assert((await page.getAttribute('[data-testid=ai-parent] .link', 'title')) === 'Open the parent conversation', 'the bar of the adopted conversation links to the orchestrator that follows it')
 
       // 5. A conversation failed on its own: the orchestrator resumes it and adopts it.
-      await page.click('.ai-panel button[title="New conversation"]')
+      await page.click('[data-testid=assistant-new]')
       await page.focus('.ai-composer .ed-content')
       await page.keyboard.press('Shift+Tab') // Briefing
       await page.keyboard.press('Shift+Tab') // Plan
@@ -183,7 +183,7 @@ run(
       await page.fill('.ai-composer .ed-content', 'Break please')
       await page.keyboard.press('Enter')
       await page.waitForSelector('[data-testid=ai-dismiss]', { timeout: 20000 })
-      await page.click('.ai-panel button[title="New conversation"]')
+      await page.click('[data-testid=assistant-new]')
       await page.fill('.ai-composer .ed-content', 'Resume the broken one')
       await page.keyboard.press('Enter')
       await page.waitForSelector('.ai-msg.assistant .md:has-text("Resumed it.")', { timeout: 20000 })

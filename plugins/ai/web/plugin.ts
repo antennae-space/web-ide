@@ -68,6 +68,8 @@ export const Modal = (p: Parameters<PluginApi['ui']['Modal']>[0]): JSX.Element =
 export const Markdown = (p: Parameters<PluginApi['ui']['Markdown']>[0]): JSX.Element => api.ui.Markdown(mergeProps({ remoteImages: false }, p))
 export const Switch = (p: Parameters<PluginApi['ui']['Switch']>[0]): JSX.Element => api.ui.Switch(p)
 export const HelpLink = (p: Parameters<PluginApi['ui']['HelpLink']>[0]): JSX.Element => api.ui.HelpLink(p)
+/** Opens the page that explains a place of the interface (a topic of `web/src/help/topics.json`). */
+export const openHelp: PluginApi['ui']['openHelp'] = (topic: string) => api.ui.openHelp(topic)
 export const WorktreeChip = (p: Parameters<PluginApi['ui']['WorktreeChip']>[0]): JSX.Element => api.ui.WorktreeChip(p)
 export const contextMenu: PluginApi['ui']['contextMenu'] = (...a) => api.ui.contextMenu(...a)
 export const prompt: PluginApi['ui']['prompt'] = (...a) => api.ui.prompt(...a)

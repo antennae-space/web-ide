@@ -3,7 +3,10 @@
 // permission card; the follow mode opens the file of an edit; the composer (/ and @ completion, image and file as blocks, history, queue);
 // a config option; Stop; the agent killed is restarted and its session
 // loaded; the tabs are those of the desk (#199): closing one hides the session, another desk
-// shows none, Other sessions opens it again, Stop ends it; the thread follows its end. Work time and cost: on the tab, the project, and
+// shows none, the Other sessions submenu of the + menu opens or stops it, Stop ends it; the
+// sessions panel of the header (#270) lists every session of the project (another desk, a
+// worktree), searches them and stops the selected ones after a confirmation. The thread follows
+// its end. Work time and cost: on the tab, the project, and
 // the ticket of a session run in its worktree. The daily quota of a Claude subscription (a fake
 // usage endpoint) in the bar.
 const fs = require('fs')
@@ -184,7 +187,13 @@ run(async ({ page }) => {
   // Aliases: one made in the settings of the assistant is in the / list of a session; a choice
   // puts its text in the box. An alias with the name of a command of the agent does not show.
   await page.click('.rail-btn[data-id=assistant]')
-  await page.click('.ai-panel button[title^="Settings"]')
+  // The head of the assistant keeps its side bar button and its title; its + and its gear sit in
+  // the corner of the zone, before the ⋮ (#270).
+  const aHead = await page.$$eval('.ai-panel .ai-head > *', (l) => l.map((e) => e.getAttribute('data-testid') ?? e.className))
+  const aCorner = await page.$$eval('.zone[data-tool=assistant] .zone-corner > *', (l) => l.map((e) => e.getAttribute('data-testid') ?? e.className))
+  assert(!aHead.includes('assistant-new') && !aHead.includes('assistant-settings'), 'no + nor gear in the head of the assistant: ' + JSON.stringify(aHead))
+  assert(aCorner[0] === 'assistant-new' && aCorner[1] === 'assistant-settings' && aCorner[aCorner.length - 1] === 'zone-menu', 'the corner holds +, the gear, then the ⋮: ' + JSON.stringify(aCorner))
+  await page.click('[data-testid=assistant-settings]')
   await page.click('.ai-tab:has-text("Aliases")')
   await page.click('[data-testid=alias-add]')
   await page.locator('[data-testid=alias-name]').nth(3).fill('mysnippet')
@@ -352,33 +361,143 @@ run(async ({ page }) => {
   if (!(await page.isVisible('[data-testid=agent-session]'))) await page.click('.rail-btn[data-id=agents]')
   await page.waitForSelector('[data-testid=agent-user]:has-text("hello again")')
 
-  // Closing the tab hides the session on the desk; the + menu opens it again.
+  // The sessions panel of the Agents tool (#270).
+  const panel = '[data-testid=agent-sessions]'
+  const search = '[data-testid=agent-sessions-search]'
+  const panelRows = () =>
+    page.$$eval(`${panel} [data-testid=agent-session-row]`, (l) =>
+      l.map((e) => ({ state: e.dataset.state, text: e.textContent, chip: e.querySelector('[data-testid=worktree-chip]')?.textContent })),
+    )
+  const openPanel = async () => {
+    await page.click('[data-testid=agent-sessions-open]')
+    await page.waitForSelector(panel)
+  }
+  const closePanel = async () => {
+    await page.click('[data-testid=agent-sessions-close]')
+    await page.waitForSelector(panel, { state: 'detached' })
+  }
+
+  // The bar follows the corner of the zone (#270): the panel button at the left of the tab bar,
+  // the + in the corner before the ⋮, the help as an item of that menu.
+  const tabs = await page.$$eval('.agents-tabs > *', (l) => l.map((e) => e.getAttribute('data-testid') ?? e.className))
+  assert(tabs[0] === 'agent-sessions-open' && !tabs.includes('agent-new'), 'the tab bar starts with the panel button and keeps no +: ' + JSON.stringify(tabs))
+  const agentsCorner = await page.$$eval('.zone[data-tool=agents] .zone-corner > *', (l) => l.map((e) => e.getAttribute('data-testid') ?? e.className))
+  assert(agentsCorner[0] === 'agent-new' && agentsCorner[agentsCorner.length - 1] === 'zone-menu', 'the corner holds the +, then the ⋮: ' + JSON.stringify(agentsCorner))
+
+  // Closing the tab hides the session on the desk; + → Other sessions opens it again (#270).
   await page.click(`${tab} .tab-close`)
   await page.waitForSelector('[data-testid=agents-launcher]')
   assert((await page.$$(tab)).length === 0, 'the tab is closed')
   await page.click('[data-testid=agent-new]')
-  await page.click('.ctx-menu >> text=Open “Fake session”')
+  await page.click('.ctx-menu >> text=Other sessions')
+  await page.waitForSelector('.ctx-menu.sub >> text=Open “Fake session”')
+  assert(await page.isVisible('.ctx-menu.sub >> text=Stop “Fake session”'), 'the submenu offers Stop as well as Open')
+  await page.click('.ctx-menu.sub >> text=Open “Fake session”')
   await page.waitForSelector(`${tab}[data-state=ready]`)
-  assert(true, 'a hidden session goes on and opens again from the + menu')
+  assert(true, 'a hidden session goes on and opens again from the Other sessions submenu')
 
-  // Another desk shows none of the sessions of desk 1, and lists them in its + menu.
+  // The sessions panel of the header: every session of the project, its state and its agent.
+  await openPanel()
+  const row0 = await panelRows()
+  assert(row0.length === 1 && row0[0].text.includes('Fake session') && row0[0].text.includes('Claude Code') && row0[0].state === 'ready', 'the panel lists the session with its agent and its state: ' + JSON.stringify(row0))
+  // Search: the title, the agent, and nothing.
+  await page.fill(search, 'fake')
+  assert((await panelRows()).length === 1, 'a search on the title keeps the row')
+  await page.fill(search, 'claude')
+  assert((await panelRows()).length === 1, 'a search on the agent keeps the row')
+  await page.fill(search, 'zzz')
+  assert((await panelRows()).length === 0 && (await page.textContent(`${panel} .agent-sessions-empty`)).includes('No session matches.'), 'no match says so')
+  await page.fill(search, '')
+  await closePanel()
+
+  // The ⋮ of the tool holds its help item: the ? left the bar for the corner (#270).
+  await page.click('.zone[data-tool=agents] [data-testid=zone-menu]')
+  await page.waitForSelector('.ctx-menu >> text=Help: the Agents tool')
+  await page.click('.ctx-menu >> text=Help: the Agents tool')
+  await page.waitForSelector('[data-testid=doc-view][data-doc="docs/guide.md"]')
+  assert(true, 'the ⋮ opens the page that explains the Agents tool')
+
+  // Another desk shows none of the sessions of desk 1, and lists them in its + menu and its panel.
   await page.click('[data-testid=desk-add]')
   await page.waitForFunction(() => location.pathname.endsWith('/desk/2'))
   if (!(await page.isVisible('.agents-panel'))) await page.click('.rail-btn[data-id=agents]')
   await page.waitForSelector('[data-testid=agents-launcher]')
   assert((await page.$$(tab)).length === 0, 'desk 2 has no tab of the sessions of desk 1')
+  await openPanel()
+  const row2 = await panelRows()
+  assert(row2.length === 1 && row2[0].text.includes('Fake session'), 'the panel of desk 2 lists the session opened on desk 1: ' + JSON.stringify(row2))
+  await closePanel()
   await page.click('[data-testid=agent-new]')
-  await page.waitForSelector('.ctx-menu >> text=Open “Fake session”')
+  await page.waitForSelector('.ctx-menu >> text=Other sessions')
   await page.keyboard.press('Escape')
   await page.click('[data-testid=desk-1]')
   await page.waitForFunction(() => !location.pathname.includes('/desk/'))
   await page.waitForSelector(tab)
 
-  // Stop ends the session.
-  await page.click(tab, { button: 'right' })
-  await page.click('.ctx-menu >> text=Stop the session')
+  // A second session on the desk: the panel can then select them all at once.
+  await page.click('[data-testid=agent-new]')
+  await page.click('.ctx-menu >> text=Claude Code')
+  await page.waitForSelector(`${tab} >> nth=1`)
+  assert((await page.$$(tab)).length === 2, 'two sessions run on desk 1')
+
+  // The box at the left of the head acts on the rows shown: all, mixed, none.
+  await openPanel()
+  await page.click('[data-testid=agent-sessions-all]')
+  assert((await page.$$(`${panel} .agent-session-row.picked`)).length === 2, 'the box ticks every row shown')
+  assert(await page.$eval('[data-testid=agent-sessions-all]', (e) => e.checked && !e.indeterminate), 'the box is checked when all the rows are picked')
+  await page.click(`${panel} [data-testid=agent-session-pick] >> nth=0`)
+  assert((await page.$$(`${panel} .agent-session-row.picked`)).length === 1 && (await page.$eval('[data-testid=agent-sessions-all]', (e) => e.indeterminate)), 'one row left out: the box shows the mixed state')
+  await page.click('[data-testid=agent-sessions-all]')
+  assert((await page.$$(`${panel} .agent-session-row.picked`)).length === 2, 'the mixed box ticks the rows again')
+  await page.click('[data-testid=agent-sessions-all]')
+  assert((await page.$(`${panel} .agent-session-row.picked`)) === null && (await page.isDisabled('[data-testid=agent-sessions-stop]')), 'a last click clears the selection, and Stop is disabled')
+
+  // Stop in the panel asks for a confirmation, for several sessions too: dismissing it changes nothing.
+  await page.click('[data-testid=agent-sessions-all]')
+  assert(!(await page.isDisabled('[data-testid=agent-sessions-stop]')), 'Stop is offered for a selection')
+  let asked = ''
+  page.once('dialog', (d) => ((asked = d.message()), d.dismiss()))
+  await page.click('[data-testid=agent-sessions-stop]')
+  await page.waitForTimeout(400)
+  assert(/Stop 2 sessions\?/.test(asked), 'Stop asks first, with the number of sessions: ' + asked)
+  assert((await panelRows()).length === 2 && (await page.$$(tab)).length === 2, 'cancelling keeps the two sessions, their tabs and their rows')
+
+  // Confirmed: the rows, the tabs and the nodes of the Explorer go.
+  page.once('dialog', (d) => d.accept())
+  await page.click('[data-testid=agent-sessions-stop]')
+  await page.waitForSelector(`${panel} .agent-sessions-empty:has-text("No session for this project.")`)
+  assert((await page.$$(tab)).length === 0, 'the tabs are gone with their sessions')
+  if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
+  await page.waitForSelector(sessionNode, { state: 'detached', timeout: 10000 })
+  assert(true, 'the root of the Explorer drops the stopped sessions')
+  await closePanel()
+
+  // A reload finds no tab and no row: agents.list does not return the stopped session anymore.
+  await page.reload()
+  await page.waitForSelector('.menubar')
+  if (!(await page.isVisible('.agents-panel'))) await page.click('.rail-btn[data-id=agents]')
   await page.waitForSelector('[data-testid=agents-launcher]')
-  assert((await page.$$(tab)).length === 0, 'session stopped')
+  assert((await page.$$(tab)).length === 0, 'the stopped session is not restored')
+  await openPanel()
+  assert((await panelRows()).length === 0, 'and the panel lists nothing: ' + JSON.stringify(await panelRows()))
+  await closePanel()
+
+  // The submenu stops a session too: opened on the desk, hidden, stopped from +.
+  await page.click('[data-testid=agent-card-claude] button:has-text("Open")')
+  await page.waitForSelector(tab)
+  await waitState(page, 'ready')
+  await prompt(page, 'name yourself')
+  await page.waitForFunction(() => document.querySelector('[data-testid=agent-tab] .tab-title')?.textContent === 'Fake session')
+  await waitState(page, 'ready')
+  await page.click(`${tab} .tab-close`)
+  await page.waitForSelector('[data-testid=agents-launcher]')
+  await page.click('[data-testid=agent-new]')
+  await page.click('.ctx-menu >> text=Other sessions')
+  await page.waitForSelector('.ctx-menu.sub >> text=Stop “Fake session”')
+  page.once('dialog', (d) => d.accept())
+  await page.click('.ctx-menu.sub >> text=Stop “Fake session”')
+  await page.waitForTimeout(600)
+  assert((await page.$$(tab)).length === 0 && (await page.isVisible('[data-testid=agents-launcher]')), 'Stop “…” in the submenu ends the session')
 
   // The turns stay counted for the project once the session is closed.
   await page.waitForFunction(() => /\$0\.\d+/.test(document.querySelector('[data-testid=project-agent-stats-value]')?.textContent ?? ''))
@@ -407,6 +526,26 @@ run(async ({ page }) => {
   await page.waitForSelector(`[data-testid=agent-topbar] [data-testid=ai-ticket]:has-text("#${n}")`)
   assert((await page.textContent('[data-testid=agent-topbar] [data-testid=ai-role]')).trim().length > 0, 'the role on the ticket in the bar')
   await page.waitForFunction((n) => (document.querySelector('[data-testid=agent-gentime]')?.title ?? '').includes(`Ticket #${n}: `), n)
+
+  // The panel of the worktree: its session with its ticket, and a Stop that reaches the other project.
+  await openPanel()
+  const rowW = await panelRows()
+  assert(rowW.length === 1 && rowW[0].chip === `#${n}` && rowW[0].text.includes(`#${n}`), 'the panel lists the session of the worktree with its ticket: ' + JSON.stringify(rowW))
+  await page.fill(search, `#${n}`)
+  assert((await panelRows()).length === 1, 'a search on the ticket number keeps the row')
+  await page.fill(search, '')
+  await page.click(`${panel} [data-testid=agent-session-pick]`)
+  page.once('dialog', (d) => d.accept())
+  await page.click('[data-testid=agent-sessions-stop]')
+  await page.waitForSelector(`${panel} .agent-sessions-empty:has-text("No session for this project.")`)
+  assert((await page.$$(tab)).length === 0, 'the session of the worktree is stopped from the panel')
+  await closePanel()
+  await page.reload()
+  await page.waitForSelector('.menubar')
+  if (!(await page.isVisible('.agents-panel'))) await page.click('.rail-btn[data-id=agents]')
+  await page.waitForSelector('[data-testid=agents-launcher]')
+  assert((await page.$$(tab)).length === 0, 'a reload of the worktree finds no tab of the stopped session')
+
   await page.goto(home + '?ticket=' + n)
   const kp = inFrames(page)
   await kp.waitForSelector('[data-testid=ticket-agent-stats]')
