@@ -434,26 +434,42 @@ run(async ({ page }) => {
   await page.waitForFunction(() => !location.pathname.includes('/desk/'))
   await page.waitForSelector(tab)
 
-  // Stop in the panel asks for a confirmation: dismissing it changes nothing.
+  // A second session on the desk: the panel can then select them all at once.
+  await page.click('[data-testid=agent-new]')
+  await page.click('.ctx-menu >> text=Claude Code')
+  await page.waitForSelector(`${tab} >> nth=1`)
+  assert((await page.$$(tab)).length === 2, 'two sessions run on desk 1')
+
+  // The box at the left of the head acts on the rows shown: all, mixed, none.
   await openPanel()
-  await page.click(`${panel} [data-testid=agent-session-pick]`)
-  assert(!!(await page.$(`${panel} .agent-session-row.picked`)), 'the row is selected')
+  await page.click('[data-testid=agent-sessions-all]')
+  assert((await page.$$(`${panel} .agent-session-row.picked`)).length === 2, 'the box ticks every row shown')
+  assert(await page.$eval('[data-testid=agent-sessions-all]', (e) => e.checked && !e.indeterminate), 'the box is checked when all the rows are picked')
+  await page.click(`${panel} [data-testid=agent-session-pick] >> nth=0`)
+  assert((await page.$$(`${panel} .agent-session-row.picked`)).length === 1 && (await page.$eval('[data-testid=agent-sessions-all]', (e) => e.indeterminate)), 'one row left out: the box shows the mixed state')
+  await page.click('[data-testid=agent-sessions-all]')
+  assert((await page.$$(`${panel} .agent-session-row.picked`)).length === 2, 'the mixed box ticks the rows again')
+  await page.click('[data-testid=agent-sessions-all]')
+  assert((await page.$(`${panel} .agent-session-row.picked`)) === null && (await page.isDisabled('[data-testid=agent-sessions-stop]')), 'a last click clears the selection, and Stop is disabled')
+
+  // Stop in the panel asks for a confirmation, for several sessions too: dismissing it changes nothing.
+  await page.click('[data-testid=agent-sessions-all]')
   assert(!(await page.isDisabled('[data-testid=agent-sessions-stop]')), 'Stop is offered for a selection')
   let asked = ''
   page.once('dialog', (d) => ((asked = d.message()), d.dismiss()))
   await page.click('[data-testid=agent-sessions-stop]')
   await page.waitForTimeout(400)
-  assert(/Stop the session\?/.test(asked), 'Stop asks first: ' + asked)
-  assert((await panelRows()).length === 1 && (await page.$$(tab)).length === 1 && (await state(page)) === 'ready', 'cancelling keeps the session, its tab and its row')
+  assert(/Stop 2 sessions\?/.test(asked), 'Stop asks first, with the number of sessions: ' + asked)
+  assert((await panelRows()).length === 2 && (await page.$$(tab)).length === 2, 'cancelling keeps the two sessions, their tabs and their rows')
 
-  // Confirmed: the row, the tab and the node of the Explorer go.
+  // Confirmed: the rows, the tabs and the nodes of the Explorer go.
   page.once('dialog', (d) => d.accept())
   await page.click('[data-testid=agent-sessions-stop]')
   await page.waitForSelector(`${panel} .agent-sessions-empty:has-text("No session for this project.")`)
-  assert((await page.$$(tab)).length === 0, 'the tab is gone with the session')
+  assert((await page.$$(tab)).length === 0, 'the tabs are gone with their sessions')
   if (!(await page.isVisible('.explorer'))) await page.click('.rail-left .rail-btn[title^="Explorer"]')
   await page.waitForSelector(sessionNode, { state: 'detached', timeout: 10000 })
-  assert(true, 'the root of the Explorer drops the stopped session')
+  assert(true, 'the root of the Explorer drops the stopped sessions')
   await closePanel()
 
   // A reload finds no tab and no row: agents.list does not return the stopped session anymore.

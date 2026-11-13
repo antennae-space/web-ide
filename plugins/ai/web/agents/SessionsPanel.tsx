@@ -2,7 +2,7 @@
 // or in an attached worktree (docs/design/desks.md). Search, open one here, stop the selected
 // ones after a confirmation (#270). A stopped session goes from the panel, the tabs and the
 // Explorer: the pod emits agents.closed and state.ts drops it.
-import { createMemo, createSignal, For, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, For, Show } from 'solid-js'
 import { closeAgent, sessions, setActive, shown, stateLabel, type AgentInfo } from './state'
 import { ticketOf } from './AgentStats'
 import { errorToast, Icon, t, tn, WorktreeChip } from '../plugin'
@@ -37,8 +37,17 @@ export function SessionsPanel(props: { onClose: () => void }) {
     return all.filter((s) => [s.title, s.name, ticketOf(s) ? `#${ticketOf(s)}` : ''].some((x) => x.toLowerCase().includes(query)))
   })
   const chosen = () => picked().filter((id) => sessions().some((s) => s.id === id))
-  const pick = (id: string, on: boolean) =>
-    setPicked((l) => (on ? [...l, id] : l.filter((x) => x !== id)))
+  // The box of the head acts on the rows shown: checked when all of them are picked, mixed when
+  // some are. Picking clears the ones it shows; picking again adds them back.
+  const shownRows = () => rows()
+  const allOn = () => shownRows().length > 0 && shownRows().every((s) => chosen().includes(s.id))
+  const someOn = () => shownRows().some((s) => chosen().includes(s.id)) && !allOn()
+  const pick = (id: string, on: boolean) => setPicked((l) => (on ? [...l, id] : l.filter((x) => x !== id)))
+  const pickAll = (on: boolean) =>
+    setPicked((l) => {
+      const ids = shownRows().map((s) => s.id)
+      return on ? [...new Set([...l, ...ids])] : l.filter((id) => !ids.includes(id))
+    })
   const open = (id: string) => {
     setActive(id)
     props.onClose()
@@ -50,6 +59,15 @@ export function SessionsPanel(props: { onClose: () => void }) {
       <div class="agent-sessions-scrim" onClick={props.onClose} />
       <aside class="agent-sessions" data-testid="agent-sessions">
         <div class="agent-sessions-head">
+          <input
+            type="checkbox"
+            checked={allOn()}
+            disabled={!shownRows().length}
+            onChange={(e) => pickAll(e.currentTarget.checked)}
+            ref={(el) => createEffect(() => (el.indeterminate = someOn()))}
+            title={t('Select all')}
+            data-testid="agent-sessions-all"
+          />
           <span class="agent-sessions-name">{t('Sessions')}</span>
           <span class="agent-sessions-sub">{t('Sessions of the project')}</span>
           <span class="grow" />
