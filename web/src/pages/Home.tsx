@@ -39,9 +39,6 @@ const homeTabs = ['projects', 'pods', 'services'] as const
 
 export function Home() {
   const [section, setSection] = createSignal<(typeof homeTabs)[number]>('projects')
-  const [search, setSearch] = createSignal('')
-  let searchBox!: HTMLInputElement
-  let list!: HTMLDivElement
   const pinStore = 'web-ide:pins:' + podPath('/')
   const [pins, setPins] = createSignal<string[]>((() => {
     try {
@@ -57,31 +54,8 @@ export function Home() {
       try { localStorage.setItem(pinStore, JSON.stringify(next)) } catch { /* Storage is optional. */ }
     } }
   }
-  const shortcuts = (ev: KeyboardEvent) => {
-    if (ev.defaultPrevented || ev.ctrlKey || ev.metaKey || ev.altKey || ev.isComposing ||
-        document.querySelector('[role="dialog"], [role="menu"]')) return
-    const target = ev.target as HTMLElement
-    if (ev.key === '/' && !target.closest('input, textarea, select, [contenteditable]') && searchBox.offsetWidth) {
-      ev.preventDefault()
-      searchBox.focus()
-    } else if (target === searchBox || target.matches('a.project-open')) {
-      const links = Array.from(list.querySelectorAll<HTMLAnchorElement>('a.project-open'))
-      const index = links.indexOf(target as HTMLAnchorElement)
-      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
-        ev.preventDefault()
-        links[Math.max(0, Math.min(links.length - 1, index + (ev.key === 'ArrowDown' ? 1 : -1)))]?.focus()
-      } else if (ev.key === 'Enter' && target === searchBox) {
-        ev.preventDefault()
-        links[0]?.click()
-      }
-    }
-  }
-  onMount(() => document.addEventListener('keydown', shortcuts))
-  onCleanup(() => document.removeEventListener('keydown', shortcuts))
-  const query = () => search().trim().toLocaleLowerCase()
-  const matches = (...fields: (string | undefined)[]) => !query() || fields.some((field) => field?.toLocaleLowerCase().includes(query()))
-
   const [projects, { refetch }] = createResource(() => request<Project[]>('projects.list'))
+  const [repositories] = createResource(projects, () => request<Record<string, string>>('projects.github'))
   // workspace.get: the projects folder, under its old name on the wire (pods of other releases).
   const [ws, { refetch: refetchWs }] = createResource(() => request('workspace.get'))
   // The project form: a project of this pod (pod null) or of another one, which saves it itself.
@@ -156,7 +130,6 @@ export function Home() {
     })
   })
 
-  const visibleEntries = createMemo(() => entries().filter(({ p, pod }) => matches(p.name, p.description, p.path, pod?.name ?? ws()?.name)))
   const remove = async (p: Project) => {
     if (!confirm(t('Remove “{name}” from the list? The files are not deleted.', { name: p.name }))) return
     try {
@@ -208,20 +181,8 @@ export function Home() {
               <Icon name="plus" size={14} /> {t('New project')}
             </button>
           </div>
-          <label class="home-search">
-            <Icon name="search" size={16} />
-            <input
-              class="input"
-              type="search" ref={searchBox} aria-keyshortcuts="/"
-              placeholder={t('Search projects')}
-              aria-label={t('Search projects')}
-              value={search()}
-              onInput={(e) => setSearch(e.currentTarget.value)}
-            />
-            <kbd>/</kbd>
-          </label>
-          <div class="project-list" ref={list}>
-            <For each={visibleEntries()}>
+          <div class="project-list">
+            <For each={entries()}>
               {(e) =>
                 e.pod ? (
                   <RemoteCard folder={ws()?.workspace} pin={pinItem(e)} pod={e.pod} p={e.p as PodProject} onEdit={remoteEdit} onIcon={remoteIcon} onRemove={remoteRemove} />
@@ -240,6 +201,10 @@ export function Home() {
                       </Show>
                       <ProjectInfo folder={ws()?.workspace} name={e.p.name} path={where(e.p as Project)} />
                     </a>
+                    <Show when={repositories()?.[e.p.id]}>{(repo) =>
+                      <a class="icon-btn" href={`https://github.com/${repo()}`} target="_blank" rel="noreferrer"
+                        title={t('Open on GitHub')} aria-label={t('Open on GitHub')}><Icon name="external" size={16} /></a>
+                    }</Show>
                     <ProjectActions items={[
                       pinItem(e), pathItem(where(e.p as Project)),
                       { label: t('Change the icon'), action: () => editIcon(e.p as Project) },
@@ -251,10 +216,8 @@ export function Home() {
               }
             </For>
           </div>
-          <Show when={!visibleEntries().length}>
-            <Show when={query()} fallback={<p class="muted">{projects.loading ? t('Loading…') : t('No project yet.')}</p>}>
-              <p class="muted">{t('No matching projects.')}</p>
-            </Show>
+          <Show when={!entries().length}>
+            <p class="muted">{projects.loading ? t('Loading…') : t('No project yet.')}</p>
           </Show>
           {/* A quiet line, not a button: a plain link, nothing is loaded from GitHub until it is clicked. */}
           <p class="home-sponsor" data-testid="sponsor-line">
@@ -524,7 +487,7 @@ function PodRow(props: { pod: PodInfo; self?: boolean }) {
         <span class="small mono" data-testid={props.self ? 'pod-version' : undefined}>{p().version}</span>
         <Show when={props.self}>
           <span class="badge pod-badge" data-testid="pod-self">
-            {t('this pod')}
+            {t('This')}
           </span>
         </Show>
         <Show when={p().gateway}>

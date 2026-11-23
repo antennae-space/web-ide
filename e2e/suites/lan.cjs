@@ -124,7 +124,7 @@ run(async ({ page }) => {
     const names = await page.$$eval('[data-testid=pod-block]', (els) => els.map((e) => e.dataset.name))
     assert(names.sort().join() === 'bravo,echo', 'only the pods of the account have a line: ' + names)
     const own = await page.waitForSelector('.home-pods > [data-testid=pod-own][data-name=alpha]')
-    assert((await own.textContent()).includes('this pod'), 'this pod has its line too, first: ' + (await own.textContent()))
+    assert((await own.$eval('[data-testid=pod-self]', (el) => el.textContent)) === 'This', 'this pod has its line too, first: ' + (await own.textContent()))
     assert(await page.$eval('.home-pods > .pod-row', (e) => e.dataset.name === 'alpha'), 'the line of this pod comes first')
 
     // 4. echo is revoked offline (phrase typed): alpha drops it, and bravo gets the list

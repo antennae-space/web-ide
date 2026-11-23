@@ -24,7 +24,7 @@ run(async ({ page, ctx }) => {
   await page.evaluate((paths) => new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://${location.host}/ws`)
     ws.onopen = () => paths.forEach((path, i) => {
-      ws.send(JSON.stringify({ id: i + 1, method: 'projects.create', params: { type: 'local', path } }))
+      ws.send(JSON.stringify({ id: i + 1, method: 'projects.create', params: { type: 'local', path, remote: i === 21 ? 'git@github.com:example/demo.git' : '' } }))
     })
     const timer = setTimeout(() => { ws.close(); reject(new Error('Project fixtures timed out')) }, 15000)
     let count = 0
@@ -51,24 +51,18 @@ run(async ({ page, ctx }) => {
   const scrolledSide = await page.locator('.home-side').boundingBox()
   assert(side.y === scrolledSide.y && await page.isVisible('[data-testid=service-add]'), 'the side column stays in place while projects scroll')
   await projectsPanel.evaluate((el) => { el.scrollTop = 0 })
-  const search = page.getByRole('searchbox', { name: 'Search projects' })
-  await page.keyboard.press('/')
-  assert(await search.evaluate((el) => document.activeElement === el), 'slash focuses project search')
-  await search.fill('HOME-PROJECT-22')
-  assert(await page.locator('.project-list .project-card').count() === 1 && await page.isVisible('.project-open:has-text("home-project-22")'), 'search filters a long list by project name')
-  await search.press('ArrowDown')
-  assert(await page.locator('.project-open:focus').count() === 1, 'down selects the matching project')
-  await page.getByTestId('project-actions').click()
+  assert(!(await page.getByRole('searchbox').count()), 'home lists projects without a search field')
+  const fixture = page.locator('.project-card').filter({ hasText: 'home-project-22' })
+  const github = fixture.getByRole('link', { name: 'Open on GitHub' })
+  await github.waitFor()
+  assert(await github.getAttribute('href') === 'https://github.com/example/demo' && await github.getAttribute('target') === '_blank', 'GitHub opens the repository in a new tab')
+  await fixture.getByTestId('project-actions').click()
   await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
-  await search.fill('')
   assert((await page.locator('.project-card').first().textContent()).includes('home-project-22'), 'pinned project leads the list')
   await page.reload()
   await page.locator('.project-card').first().getByText('home-project-22', { exact: true }).waitFor()
   await page.locator('.project-card').first().getByTestId('project-actions').click()
   await page.getByRole('menuitem', { name: 'Unpin', exact: true }).click()
-  await search.fill('no such project')
-  assert(await page.getByText('No matching projects.').isVisible(), 'search reports no matches')
-  await search.fill('')
 
   // On a narrow screen the tabs reach the pod controls and services without project scrolling.
   const desktop = originalSize
@@ -85,7 +79,7 @@ run(async ({ page, ctx }) => {
   assert(await serviceTab.getAttribute('aria-selected') === 'true' && await page.isVisible('[data-testid=service-add]'), 'the Services tab provides direct access')
   assert(await page.locator('.home').evaluate((el) => el.scrollWidth <= el.clientWidth), 'a narrow screen fits without horizontal scrolling')
   await projectTab.click()
-  assert(await search.isVisible(), 'Projects tab brings back the search')
+  assert(await projectsPanel.isVisible(), 'Projects tab brings back the list')
   await page.setViewportSize(desktop)
 
   // Installable app (PWA): Chromium sees no error but the incognito context of the tests.

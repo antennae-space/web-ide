@@ -101,6 +101,9 @@ func (s *Server) registerGlobal() {
 		return map[string]any{"hosts": hosts, "keys": sshx.LocalKeys(), "agent": os.Getenv("SSH_AUTH_SOCK") != ""}, nil
 	})
 
+	s.handle("projects.github", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
+		return projectRepositories(ctx, s.Projects.List()), nil
+	})
 	s.handle("projects.list", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
 		return s.Projects.List(), nil
 	})
