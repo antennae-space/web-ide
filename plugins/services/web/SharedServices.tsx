@@ -1,13 +1,14 @@
 // The services this pod shares (docs/design/relay.md, *Services*), on the home page: an HTTP
 // service of this machine (127.0.0.1:<port>) the other pods of the account reach, with its switch,
 // and the pods attached to it, each with Cut.
-import { createResource, createSignal, For, onCleanup, Show } from 'solid-js'
+import { createSignal, For, onCleanup, Show } from 'solid-js'
 import { api, errorToast, Icon, t } from './plugin'
+import { createInventory, healthReason, type Health } from './inventory'
 import { RouteBadge, type Route } from './RouteBadge'
 import './services.css'
 
 type Attached = { key: string; name: string; since: number; last?: number; requests: number; bytes: number; route?: Route }
-type Service = { id: string; name: string; port: number; enabled: boolean; attached: Attached[] }
+type Service = { id: string; name: string; port: number; enabled: boolean; health?: Health; attached: Attached[] }
 
 /** The form of a new service, or of one edited. */
 function ServiceForm(props: { s?: Service; onDone: () => void }) {
@@ -39,8 +40,10 @@ function ServiceForm(props: { s?: Service; onDone: () => void }) {
 }
 
 export function SharedServices() {
-  const [list, { mutate }] = createResource(() => api.rpc<Service[]>('services.list'))
-  onCleanup(api.on('services.changed', (l: Service[]) => mutate(l)))
+  const inventory = createInventory<Service>('services.list', ({ id, name, enabled }) => ({ id, name, enabled, attached: [] }))
+  onCleanup(api.on('services.changed', (l: Service[]) => inventory.accept(l)))
+  const reason = (s: Service) => inventory.checking() ? t('Checking…') : inventory.unavailable() ? t('Service status unavailable.') : healthReason(s.health)
+  const controlsReady = () => !inventory.checking() && !inventory.unavailable()
   const [adding, setAdding] = createSignal(false)
   const [editing, setEditing] = createSignal('')
   const toggle = (s: Service, on: boolean) => api.rpc('services.save', { ...s, enabled: on }).catch(errorToast)
@@ -63,25 +66,31 @@ export function SharedServices() {
       <Show when={adding()}>
         <ServiceForm onDone={() => setAdding(false)} />
       </Show>
-      <Show when={!adding() && list.latest && !list.latest.length}>
+      <Show when={!adding() && controlsReady() && !inventory.entries()?.length}>
         <p class="muted small">{t('Nothing shared. A service you share is reached only by the pods of your account, and only while it is on.')}</p>
       </Show>
-      <For each={list.latest}>
+      <Show when={!inventory.entries()?.length && !controlsReady()}>
+        <p class="muted small" role="status">{inventory.checking() ? t('Loading services…') : t('Service status unavailable.')}</p>
+      </Show>
+      <For each={inventory.entries()}>
         {(s) => (
           <Show when={editing() !== s.id} fallback={<ServiceForm s={s} onDone={() => setEditing('')} />}>
-            <div class="svc-row" classList={{ off: !s.enabled }} data-testid={`service-${s.port}`}>
+            <div class="svc-row" classList={{ off: !s.enabled, unavailable: !!reason(s) }} data-testid={`service-${s.port || s.id}`}>
               <div class="svc-head">
-                <input type="checkbox" class="ai-switch" checked={s.enabled} title={s.enabled ? t('Shared: turn off') : t('Off: share it')} onChange={(e) => toggle(s, e.currentTarget.checked)} data-testid={`service-on-${s.port}`} />
+                <input type="checkbox" class="ai-switch" checked={s.enabled} disabled={!controlsReady()} title={s.enabled ? t('Shared: turn off') : t('Off: share it')} onChange={(e) => toggle(s, e.currentTarget.checked)} data-testid={`service-on-${s.port}`} />
                 <strong class="svc-name">{s.name}</strong>
-                <span class="mono muted">127.0.0.1:{s.port}</span>
+                <Show when={s.port}><span class="mono muted">127.0.0.1:{s.port}</span></Show>
                 <Show when={!s.enabled}>
                   <span class="badge">{t('off')}</span>
                 </Show>
+                <Show when={reason(s)}>
+                  <span class="muted small" role="status" data-testid="service-health">{reason(s)}</span>
+                </Show>
                 <span class="grow" />
-                <button class="icon-btn small" title={t('Edit')} onClick={() => setEditing(s.id)} data-testid={`service-edit-${s.port}`}>
+                <button class="icon-btn small" title={t('Edit')} disabled={!controlsReady()} onClick={() => setEditing(s.id)} data-testid={`service-edit-${s.port}`}>
                   <Icon name="edit" size={12} />
                 </button>
-                <button class="icon-btn small" title={t('Stop sharing')} onClick={() => remove(s)} data-testid={`service-delete-${s.port}`}>
+                <button class="icon-btn small" title={t('Stop sharing')} disabled={!controlsReady()} onClick={() => remove(s)} data-testid={`service-delete-${s.port}`}>
                   <Icon name="close" size={12} />
                 </button>
               </div>
@@ -97,7 +106,7 @@ export function SharedServices() {
                           <Show when={a.last}> · {t('last request {when}', { when: api.fmtAgo(a.last!) })}</Show>
                         </span>
                         <span class="grow" />
-                        <button class="btn small" title={t('Detach this pod: its next request is refused')} onClick={() => cut(s, a)}>
+                        <button class="btn small" disabled={!controlsReady()} title={t('Detach this pod: its next request is refused')} onClick={() => cut(s, a)}>
                           {t('Cut')}
                         </button>
                       </div>

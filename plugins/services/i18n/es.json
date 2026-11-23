@@ -35,5 +35,10 @@
   "Relay · direct": "Relé · directo",
   "Relay · TURN": "Relé · TURN",
   "idle": "inactivo",
-  "Any machine of the local network reaches this service, without authentication.": "Cualquier máquina de la red local accede a este servicio, sin autenticación."
+  "Any machine of the local network reaches this service, without authentication.": "Cualquier máquina de la red local accede a este servicio, sin autenticación.",
+  "Checking…": "Comprobando…",
+  "The service did not respond.": "El servicio no responde.",
+  "Loading services…": "Cargando servicios…",
+  "Service status unavailable.": "Estado del servicio no disponible.",
+  "No shared service from another pod.": "Ningún servicio compartido por otro pod."
 }
