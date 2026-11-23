@@ -501,7 +501,7 @@ run(async ({ page }) => {
     assert(!started.failed, 'assistant_start: ' + started.text)
     const externalChat = started.text
     const listed = await mcpTool('assistant_list', { query: 'MCP conversation' })
-    assert(!listed.failed && listed.text.includes(externalChat) && listed.text.includes('briefing'), 'assistant_list: ' + listed.text)
+    assert(!listed.failed && listed.text.includes(externalChat) && listed.text.includes(' · build · '), 'assistant_list: ' + listed.text)
     const second = await mcpTool('assistant_send', { chat: externalChat, message: 'MCP follow-up' })
     assert(!second.failed, 'assistant_send: ' + second.text)
     await page.waitForFunction(async ({ url, token, cwd, chat }) => {

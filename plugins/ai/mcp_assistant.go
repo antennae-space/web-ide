@@ -88,7 +88,7 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 			Props: map[string]any{
 				"message": message,
 				"title":   plugins.Str("Conversation title, optional"),
-				"mode":    plugins.Enum("Assistant mode, default briefing", engine.Briefing, engine.Plan, engine.Build, engine.Orchestrator),
+				"mode":    plugins.Enum("Assistant mode, default build", engine.Briefing, engine.Plan, engine.Build, engine.Orchestrator),
 				"server":  plugins.Str("Model server id, optional with model"),
 				"model":   plugins.Str("Model id, optional with server"),
 			},
@@ -108,7 +108,7 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 	}
 	switch a.Mode {
 	case "":
-		a.Mode = engine.Briefing
+		a.Mode = engine.Build
 	case engine.Briefing, engine.Plan, engine.Build, engine.Orchestrator:
 	default:
 		return "", i18n.Errorf("unknown mode: %s", a.Mode)

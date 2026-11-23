@@ -48,7 +48,7 @@ The pictures of this guide are made with Qwen3.8 27B on llama.cpp.
 
 ### Use the Assistant from an MCP client
 
-Give each call your absolute project folder as `cwd`. Use `assistant_list` to find a conversation by title or list active conversations. Use `assistant_read` to read its messages and pending questions. Use `assistant_send` to send a message. The message waits if a turn is running. Use `assistant_start` with a message to start a conversation in Briefing mode with the configured model. You can specify a mode or a model server and model. The normal approval and question cards appear in the IDE.
+Give each call your absolute project folder as `cwd`. Use `assistant_list` to find a conversation by title or list active conversations. Use `assistant_read` to read its messages and pending questions. Use `assistant_send` to send a message. The message waits if a turn is running. Use `assistant_start` with a message to start a conversation in Build mode with the configured model. You can specify a mode or a model server and model. The normal approval and question cards appear in the IDE.
 
 ## Agents: Claude Code, Codex, opencode, pi
 
