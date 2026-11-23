@@ -214,11 +214,6 @@ export function Home() {
           <Show when={!entries().length}>
             <p class="muted">{projects.loading ? t('Loading…') : t('No project yet.')}</p>
           </Show>
-          {/* A quiet line, not a button: a plain link, nothing is loaded from GitHub until it is clicked. */}
-          <p class="home-sponsor" data-testid="sponsor-line">
-            {t('Web IDE is free and open source. If it saves you time, you can')}{' '}
-            <a href="https://github.com/sponsors/DrSmithFr" target="_blank" rel="noreferrer" data-testid="sponsor">{t('support it on GitHub')}</a>.
-          </p>
         </section>
         <aside class="home-side">
           <div id="home-pods" role="tabpanel" aria-labelledby="home-tab-pods">
@@ -228,6 +223,11 @@ export function Home() {
             <For each={homeParts()}>{(Part) => <Part />}</For>
           </section>
         </aside>
+        {/* A quiet line, not a button: a plain link, nothing is loaded from GitHub until it is clicked. */}
+        <p class="home-sponsor" data-testid="sponsor-line">
+          {t('Web IDE is free and open source. If it saves you time, you can')}{' '}
+          <a href="https://github.com/sponsors/DrSmithFr" target="_blank" rel="noreferrer" data-testid="sponsor">{t('support it on GitHub')}</a>.
+        </p>
       </main>
       <Show when={iconFor()}>
         {(f) => <IconEditor id={f().p.id} name={f().p.name} spec={f().spec} save={f().save} onClose={() => setIconFor(null)} />}

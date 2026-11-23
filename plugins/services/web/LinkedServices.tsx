@@ -136,7 +136,7 @@ export function LinkedServices() {
   const timer = setInterval(inventory.refetch, 5000)
   onCleanup(() => clearInterval(timer))
   return (
-    <div data-testid="home-linked-services" aria-busy={inventory.checking()}>
+    <div class="linked-services" data-testid="home-linked-services" aria-busy={inventory.checking()}>
       <Show when={inventory.unavailable() && !pods()?.length}><p class="muted small">{t('Service status unavailable.')}</p></Show>
       <For each={pods()}>{(p) =>
         <For each={p.services}>{(s) => {

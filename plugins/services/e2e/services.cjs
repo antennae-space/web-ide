@@ -19,6 +19,7 @@ run(async ({ page, ctx }) => {
   await page.click('[data-testid=service-save]')
   await page.waitForSelector(`[data-testid=service-${port}]`)
   const row = `[data-testid=service-${port}]`
+  assert(await page.locator(row).evaluate((el) => getComputedStyle(el).borderBottomColor === 'rgba(0, 0, 0, 0)'), 'the final local service has a transparent divider')
   await page.click(`${row} [data-testid=service-details]`)
   assert((await page.textContent(row)).includes(`127.0.0.1:${port}`), 'the row shows the address')
   let list = saved()
@@ -98,6 +99,8 @@ run(async ({ page, ctx }) => {
   await stub(seed, () => remoteInventory(true))
   await seed.goto(homeURL)
   await seed.waitForSelector(`${remote} [data-testid=service-open]`)
+  const dividers = await seed.locator('.svc-row').evaluateAll((rows) => rows.map((row) => getComputedStyle(row).borderBottomColor))
+  assert(dividers.length >= 2 && dividers.at(-1) === 'rgba(0, 0, 0, 0)' && dividers.slice(0, -1).every((color) => color !== dividers.at(-1)), 'only the last service has a transparent divider: ' + dividers.join(', '))
   const other = seed.getByTestId('link-bravo-other-api')
   assert(await other.getByRole('checkbox').isVisible(), 'unlinked service shows its checkbox')
   assert(await other.getByTestId('service-open').isDisabled() && await other.getByTestId('service-copy-url').isDisabled(), 'address actions stay visible without a link')

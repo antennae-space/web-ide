@@ -729,16 +729,17 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .home { height: 100%; display: flex; flex-direction: column; overflow: hidden; }
 .home-head { display: flex; align-items: center; gap: 10px; padding: 12px 24px; border-bottom: 1px solid var(--line); background: var(--bg-2); }
 .home-head h1 { margin: 0; font-size: 17px; }
-.home-sponsor { margin: 32px 0 0; font-size: 12px; color: var(--fg-faint); }
+.home-sponsor { grid-column: 1; margin: 0; padding: 8px 24px 12px; font-size: 12px; color: var(--fg-faint); }
 .home-sponsor a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .home-sponsor a:hover { color: var(--fg-muted); }
 .home-tabs { display: none; }
-.home-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 390px); width: 100%; flex: 1; min-height: 0; }
+.home-main { display: grid; grid-template-rows: minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr) minmax(300px, 390px); width: 100%; flex: 1; min-height: 0; }
 .home-projects, .home-side { min-width: 0; overflow: auto; padding: 24px; }
-.home-side { border-inline-start: 1px solid var(--line); overflow-wrap: anywhere; }
+.home-side { grid-column: 2; grid-row: 1 / 3; border-inline-start: 1px solid var(--line); overflow-wrap: anywhere; }
 .home-side .home-pods, .home-side .home-pods > .home-sub { margin-top: 0; }
 @media (max-width: 720px) {
   .home { overflow: auto; }
+  .home-sponsor { display: none; }
   .home-head { padding-inline: 16px; flex: none; }
   .home-head .pod-status .rate { display: none; }
   .home-main { display: block; flex: none; }
@@ -777,12 +778,12 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .pod-dot.on { background: var(--ok); }
 .project-list { display: grid; }
 .project-card { display: grid; grid-template-columns: minmax(0, 1fr) 24px 28px; border-bottom: 1px solid var(--line); align-items: center; min-width: 0; }
+.project-card:last-child { border-bottom-color: transparent; }
 .project-card:hover { background: var(--bg-2); }
 .project-open { display: flex; gap: 12px; align-items: center; min-height: 44px; padding: 6px 8px; color: inherit; text-decoration: none; min-width: 0; }
 .project-icon { width: 30px; height: 30px; flex: none; }
-.project-title { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
-.project-title > :first-child { flex: 0 1 auto; }
-.project-path { flex: 1 2 auto; font-weight: 400; min-width: 28px; }
+.project-title { font-weight: 600; font-size: 14px; display: grid; grid-template-columns: min(36%, 22ch) minmax(0, 1fr) auto; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+.project-path { font-weight: 400; min-width: 0; }
 .project-title .pod-badge { flex: 0 1 auto; margin-inline-start: auto; text-align: center; }
 @media (max-width: 720px) {
   .project-title { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 6px; }

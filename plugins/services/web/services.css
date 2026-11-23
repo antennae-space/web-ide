@@ -3,6 +3,8 @@
 .home-services .home-bar { margin-bottom: 6px; }
 .home-services .home-sub { margin: 0; }
 .svc-row { border-bottom: 1px solid var(--line); padding: 8px 0; }
+.linked-services > .svc-row:last-child,
+.home-services:not(:has(.linked-services > .svc-row)) > .svc-row:has(+ .linked-services) { border-bottom-color: transparent; }
 .svc-line { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, auto) auto; align-items: center; gap: 6px; }
 .svc-line .pod-badge { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; }
 .svc-title { display: grid; overflow-wrap: anywhere; }
