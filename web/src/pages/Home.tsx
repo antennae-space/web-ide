@@ -296,8 +296,8 @@ function ProjectInfo(props: { folder?: string; name: string; path: string; pod?:
 
 function GitHubLink(props: { repo?: string }) {
   return <Show when={props.repo && /^[\w-]+\/[\w.-]+$/.test(props.repo)}>
-    <a class="icon-btn" href={`https://github.com/${props.repo}`} target="_blank" rel="noreferrer"
-      title={t('Open on GitHub')} aria-label={t('Open on GitHub')}><Icon name="external" size={16} /></a>
+    <a class="icon-btn project-github" href={`https://github.com/${props.repo}`} target="_blank" rel="noreferrer"
+      title={t('Open on GitHub')} aria-label={t('Open on GitHub')}><Icon name="github" size={16} /></a>
   </Show>
 }
 

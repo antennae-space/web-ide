@@ -771,7 +771,7 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .pod-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--fg-muted); flex: none; }
 .pod-dot.on { background: var(--ok); }
 .project-list { display: grid; }
-.project-card { display: grid; grid-template-columns: minmax(0, 1fr); grid-auto-flow: column; grid-auto-columns: auto; border-bottom: 1px solid var(--line); align-items: center; min-width: 0; }
+.project-card { display: grid; grid-template-columns: minmax(0, 1fr) 24px 28px; border-bottom: 1px solid var(--line); align-items: center; min-width: 0; }
 .project-card:hover { background: var(--bg-2); }
 .project-open { display: flex; gap: 12px; align-items: center; min-height: 44px; padding: 6px 8px; color: inherit; text-decoration: none; min-width: 0; }
 .project-icon { width: 30px; height: 30px; flex: none; }
@@ -779,7 +779,8 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .project-title > :first-child { flex: 0 1 auto; }
 .project-path { flex: 1 2 auto; font-weight: 400; min-width: 28px; }
 .project-title .pod-badge { flex: 0 1 auto; margin-inline-start: auto; text-align: center; }
-.project-menu { margin-inline-start: 4px; }
+.project-github { grid-column: 2; }
+.project-menu { grid-column: 3; margin-inline-start: 4px; }
 .pod-details { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
 .folder-browser { border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); }
 .folder-path { display: flex; align-items: center; gap: 6px; padding: 6px; border-bottom: 1px solid var(--line); }
