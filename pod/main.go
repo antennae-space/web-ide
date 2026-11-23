@@ -840,7 +840,7 @@ func flagValue(fs *flag.FlagSet, name, def string) string {
 func projectList(st *store.Store, reg *projects.Registry) []multipod.Project {
 	out := []multipod.Project{}
 	for _, v := range reg.HomeList(context.Background()) {
-		p := multipod.Project{GitHubRepo: v.GitHubRepo, ID: v.ID, Title: v.Name(), Description: v.Description, Type: v.Type, Path: v.Path}
+		p := multipod.Project{HomePath: v.HomePath, GitHubRepo: v.GitHubRepo, ID: v.ID, Title: v.Name(), Description: v.Description, Type: v.Type, Path: v.Path}
 		if !v.OpenedAt.IsZero() {
 			p.Opened = v.OpenedAt.Unix()
 		}

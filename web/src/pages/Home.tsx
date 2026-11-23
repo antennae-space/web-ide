@@ -32,6 +32,7 @@ interface Project {
   type: 'local' | 'ssh'
   path: string
   ssh?: { host: string; port: number; user: string; auth: 'agent' | 'key' | 'password'; keyPath?: string }
+  homePath?: string
   githubRepo?: string
   openedAt: string
 }
@@ -173,9 +174,6 @@ export function Home() {
         <section id="home-projects" class="home-projects" role="tabpanel" aria-labelledby="home-tab-projects">
           <div class="home-bar">
             <h2>{t('Projects')}</h2>
-            <span class="muted small">
-              {t('Projects folder:')} <span class="mono">{ws()?.workspace}</span>
-            </span>
             <span class="grow" />
             <button class="btn primary" data-testid="home-new-project" onClick={() => setEditing({ p: { type: 'local' }, pod: null })}>
               <Icon name="plus" size={14} /> {t('New project')}
@@ -185,7 +183,7 @@ export function Home() {
             <For each={entries()}>
               {(e) =>
                 e.pod ? (
-                  <RemoteCard folder={ws()?.workspace} pin={pinItem(e)} pod={e.pod} p={e.p as PodProject} onEdit={remoteEdit} onIcon={remoteIcon} onRemove={remoteRemove} />
+                  <RemoteCard pin={pinItem(e)} pod={e.pod} p={e.p as PodProject} onEdit={remoteEdit} onIcon={remoteIcon} onRemove={remoteRemove} />
                 ) : (
                   <article class="project-card" data-pod={ws()?.name}>
                     <a
@@ -199,7 +197,7 @@ export function Home() {
                       <Show when={iconOf(e.p.id)} fallback={<span class="project-icon" />}>
                         <img class="project-icon" src={iconURL(iconOf(e.p.id))} alt="" data-testid="project-icon" />
                       </Show>
-                      <ProjectInfo folder={ws()?.workspace} name={e.p.name} path={where(e.p as Project)} />
+                      <ProjectInfo homePath={e.p.homePath} name={e.p.name} path={where(e.p as Project)} />
                     </a>
                     <GitHubLink repo={e.p.githubRepo} />
                     <ProjectActions items={[
@@ -273,20 +271,11 @@ function pathItem(path: string): MenuItem {
   return { label: t('Copy path'), hint: path, action: () => void copyText(path) }
 }
 
-function ProjectInfo(props: { folder?: string; name: string; path: string; pod?: string }) {
-  const short = () => {
-    const prefix = props.folder?.replace(/\/$/, '') + '/'
-    if (props.folder && props.path.startsWith(prefix)) {
-      const relative = props.path.slice(prefix.length)
-      return relative === props.name ? '' : relative
-    }
-    const home = props.folder?.match(/^\/(?:home|Users)\/[^/]+(?=\/|$)/)?.[0]
-    return home && props.path.startsWith(home + '/') ? '~' + props.path.slice(home.length) : props.path
-  }
+function ProjectInfo(props: { homePath?: string; name: string; path: string; pod?: string }) {
   return (
     <div class="project-title" title={props.path}>
       <span class="ellipsis">{props.name}</span>
-      <Show when={short()}><span class="project-path muted small mono ellipsis" title={props.path}>{short()}</span></Show>
+      <span class="project-path muted small mono ellipsis" title={props.path}>{props.homePath || props.path}</span>
       <Show when={props.pod}>
         <span class="badge pod-badge ellipsis" data-testid="project-pod" title={t('Pod')}>{props.pod}</span>
       </Show>
@@ -320,7 +309,6 @@ const reachable = (p: PodInfo) => p.online && podOpenable(p)
  * actions are requests to that pod. */
 function RemoteCard(props: {
   pin: MenuItem
-  folder?: string
   pod: PodInfo
   p: PodProject
   onEdit: (pod: PodInfo, id: string) => void
@@ -338,7 +326,7 @@ function RemoteCard(props: {
   const body = () => (
     <>
       <img class="project-icon" src={iconURL(icon())} alt="" />
-      <ProjectInfo folder={props.folder} name={props.p.name} path={props.p.path} pod={pod().name} />
+      <ProjectInfo homePath={props.p.homePath} name={props.p.name} path={props.p.path} pod={pod().name} />
     </>
   )
   return (

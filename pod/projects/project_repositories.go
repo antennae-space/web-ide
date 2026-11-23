@@ -3,7 +3,9 @@ package projects
 import (
 	"context"
 	"net/url"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -13,12 +15,20 @@ var githubName = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+$`)
 // Send only the repository name to the home page. Origin URLs can contain credentials.
 func (r *Registry) HomeList(ctx context.Context) []View {
 	list := r.List()
+	home, _ := os.UserHomeDir()
 	for i, p := range list {
 		if ctx.Err() != nil {
 			break
 		}
 		if p.Type != "local" {
 			continue
+		}
+		if home != "" {
+			if p.Path == home {
+				list[i].HomePath = "~"
+			} else if rel, ok := strings.CutPrefix(p.Path, strings.TrimRight(home, string(filepath.Separator))+string(filepath.Separator)); ok {
+				list[i].HomePath = "~/" + filepath.ToSlash(rel)
+			}
 		}
 		cmd := exec.CommandContext(ctx, "git", "-C", p.Path, "config", "--local", "--get", "remote.origin.url")
 		if raw, err := cmd.Output(); err == nil {

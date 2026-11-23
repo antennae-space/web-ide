@@ -226,6 +226,7 @@ type List struct {
 
 // Project is one entry of a published list.
 type Project struct {
+	HomePath    string `json:"homePath,omitempty"`
 	GitHubRepo  string `json:"githubRepo,omitempty"`
 	ID          string `json:"id"`
 	Title       string `json:"title"`
@@ -399,6 +400,9 @@ func (d *Directory) fill(v *PodView, key, name string) {
 	projects := []map[string]string{}
 	for _, p := range l.Projects {
 		e := map[string]string{"id": p.ID, "name": p.Title, "description": p.Description, "type": p.Type, "path": p.Path, "icon": p.Icon}
+		if p.HomePath != "" {
+			e["homePath"] = p.HomePath
+		}
 		if p.GitHubRepo != "" {
 			e["githubRepo"] = p.GitHubRepo
 		}

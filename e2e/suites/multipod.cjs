@@ -404,8 +404,8 @@ run(
       await page.waitForSelector('#frame', { timeout: 40000 })
       let app = appOf(page)
       await app.waitForSelector('.home .home-bar', { timeout: 40000 })
-      const bar = (await app.textContent('.home-bar')).trim()
-      assert(bar.includes(WS), 'the page runs on alpha, the preferred gateway')
+      const ownPod = () => app.locator('[data-testid=pod-own]').getAttribute('data-name')
+      assert(await ownPod() === 'alpha', 'the page runs on alpha, the preferred gateway')
       assert((await app.textContent('.home')).includes('alpha-app'), 'the projects of alpha are its own block')
 
       // The Members panel is where an admin wraps the key of the epoch for the pods that
@@ -581,7 +581,7 @@ run(
       await app.goto(`${ORIGIN}/pod/${keyC}/`, { waitUntil: 'domcontentloaded' })
       await app.waitForFunction((k) => location.pathname === `/pod/${k}/`, keyA, { timeout: 40000 })
       await app.waitForSelector('.home .home-bar', { timeout: 40000 })
-      assert((await app.textContent('.home-bar')).includes(WS), 'the home page of charlie is the one of the entry, alpha: ' + (await app.textContent('.home-bar')))
+      assert(await ownPod() === 'alpha', 'the home page of charlie is the one of the entry, alpha')
       await openProject(page, app, 'charlie', path.join(TMP, 'mp-charlie', 'ws'), 'charlie')
       assert(new URL(app.url()).pathname === `/pod/${keyC}/project/charlie-app`, 'the project of charlie runs under its own path: ' + app.url())
       const direct = await tunnelKeys(page)
@@ -744,7 +744,7 @@ run(
       assert(gate === keyB, `bravo is the gateway of the cluster now: ${gate}`)
       await app.goto(`${ORIGIN}/app`, { waitUntil: 'domcontentloaded' })
       await app.waitForSelector('.home .home-bar', { timeout: 40000 })
-      assert((await app.textContent('.home-bar')).includes(bravoWs), 'the window enters through the new gateway: ' + (await app.textContent('.home-bar')))
+      assert(await ownPod() === 'bravo', 'the window enters through the new gateway, bravo')
       assert(!(await app.$('[data-testid=pod-block][data-name=alpha]:not(.offline)')), 'the pod that left is not shown as online')
       const left = await tunnelKeys(page)
       assert(!left.includes(keyA) && left.includes(keyB), 'the tunnel of the gateway that left is gone: ' + left.join(','))

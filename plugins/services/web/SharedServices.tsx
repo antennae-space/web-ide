@@ -61,8 +61,8 @@ export function SharedServices() {
         <h3 class="home-sub">{t('Services')}</h3>
         <span class="grow" />
         <Show when={!adding()}>
-          <button class="btn small" onClick={() => setAdding(true)} data-testid="service-add">
-            {t('Share a service')}
+          <button class="btn primary" onClick={() => setAdding(true)} data-testid="service-add">
+            <Icon name="plus" size={14} /> {t('Share a service')}
           </button>
         </Show>
       </div>

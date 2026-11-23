@@ -13,7 +13,7 @@ run(async ({ page, ctx }) => {
   await page.waitForSelector('.home-head button[title="Settings"]')
   assert(!(await page.getByTitle('Add ' + WS + '/demo', { exact: true }).count()), 'folders are added through New project')
   assert(!(await page.locator('.home-head [data-testid=pod-version]').count()), 'the header omits the pod version')
-  assert((await page.textContent('.home')).includes('Projects folder:'), 'home page: the projects folder is named')
+  assert(!(await page.textContent('.home-bar')).includes('Projects folder:'), 'the heading omits the projects folder')
   // The sponsor line is a quiet plain link at the bottom: no button, no frame, nothing loaded from GitHub.
   assert((await page.getAttribute('[data-testid=sponsor]', 'href')) === 'https://github.com/sponsors/DrSmithFr', 'home page: the sponsor line links GitHub Sponsors')
   assert(!(await page.$('.home-head [data-testid=sponsor]')), 'home page: no sponsor button in the header')
@@ -41,6 +41,8 @@ run(async ({ page, ctx }) => {
   }), paths)
   await page.waitForFunction((count) => document.querySelectorAll('.project-list .project-card').length >= count, paths.length)
   await page.waitForSelector('[data-testid=home-services]')
+  assert(await page.locator('.project-list .project-path').evaluateAll((paths) => paths.every((el) => el.textContent && el.clientWidth > 0)), 'each project shows its path')
+  assert(await page.getByTestId('service-add').evaluate((el) => el.classList.contains('primary') && !!el.querySelector('svg')), 'Share a service uses the primary add button')
   const originalSize = page.viewportSize()
   await page.setViewportSize({ width: 1800, height: originalSize.height })
   const side = await page.locator('.home-side').boundingBox()
@@ -83,6 +85,9 @@ run(async ({ page, ctx }) => {
   assert(await page.locator('.home').evaluate((el) => el.scrollWidth <= el.clientWidth), 'a narrow screen fits without horizontal scrolling')
   await projectTab.click()
   assert(await projectsPanel.isVisible(), 'Projects tab brings back the list')
+  assert(await fixture.locator('.project-title').evaluate((el) =>
+    el.querySelector('.project-path').getBoundingClientRect().top >= el.firstElementChild.getBoundingClientRect().bottom
+  ), 'the path appears below the name on narrow screens')
   await page.setViewportSize(desktop)
 
   // Installable app (PWA): Chromium sees no error but the incognito context of the tests.
