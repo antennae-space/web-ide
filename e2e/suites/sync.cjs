@@ -60,7 +60,7 @@ const appOf = (page) => page.mainFrame().childFrames()[0]
 async function openProject(app) {
   await app.waitForSelector('.home .home-bar, .menubar', { timeout: 30000 })
   // A project of this pod: another pod holds a project of the same name, in the same list.
-  const local = '.home main > .project-list a.project-open:not([data-testid=pod-project]):has-text("demo")'
+  const local = '.home-projects .project-list a.project-open:not([data-testid=pod-project]):has-text("demo")'
   if (await app.locator(local).count()) await app.click(local)
   else if (await app.locator('.ws-dir:has-text("demo")').count()) await app.click('.ws-dir:has-text("demo")')
   await app.waitForSelector('.menubar', { timeout: 30000 })

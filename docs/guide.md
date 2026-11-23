@@ -32,6 +32,8 @@ Then, as you need them: [account and devices](howto/account-and-devices.md), [po
 
 The home page lists your projects and the folders of the projects folder not added yet: click one to open it. A project is a local folder or a folder on an SSH host (same features, through your local SSH keys). Each project gets an icon, generated from its name and editable.
 
+On desktop, search the project list by name, path, description or pod. The project list scrolls separately from the column with the pod power controls and shared services. On a narrow screen, use the **Projects**, **Pods** and **Shared services** tabs at the top.
+
 A project opens in its own window, and comes back as you left it, in any browser connected to the same pod: tabs, splits, carets, terminals.
 
 ## Connect a model

@@ -2,7 +2,7 @@
 // creation of local or SSH projects, folders of the projects folder not yet added.
 import { base, podPath } from '../app/base'
 import { homeBase } from '../app/home'
-import { createEffect, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
+import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import { on as onPod, request } from '../pod/rpc'
 import { loadMark } from '../pod/loadJournal'
@@ -35,7 +35,14 @@ interface Project {
   openedAt: string
 }
 
+const homeTabs = ['projects', 'pods', 'services'] as const
+
 export function Home() {
+  const [section, setSection] = createSignal<(typeof homeTabs)[number]>('projects')
+  const [search, setSearch] = createSignal('')
+  const query = () => search().trim().toLocaleLowerCase()
+  const matches = (...fields: (string | undefined)[]) => !query() || fields.some((field) => field?.toLocaleLowerCase().includes(query()))
+
   const [projects, { refetch }] = createResource(() => request<Project[]>('projects.list'))
   // workspace.get/dirs: the projects folder, under its old name on the wire (pods of other releases).
   const [ws, { refetch: refetchWs }] = createResource(() => request('workspace.get'))
@@ -100,11 +107,11 @@ export function Home() {
   // One list for every pod of the account, the last opened first: the projects of this pod, and
   // those the other pods published (a project never opened, or of a pod that tells no date, last).
   const [pods] = usePods()
-  const entries = (): Entry[] => {
+  const entries = createMemo((): Entry[] => {
     const all: Entry[] = (projects() ?? []).map((p) => ({ pod: null, p, opened: Date.parse(p.openedAt) || 0 }))
     for (const pod of pods() ?? []) for (const p of pod.projects ?? []) all.push({ pod, p, opened: Date.parse(p.openedAt ?? '') || 0 })
     return all.sort((a, b) => b.opened - a.opened || a.p.name.localeCompare(b.p.name))
-  }
+  })
   // The home page of a pod served under a prefix is the one of the window's entry pod.
   onMount(() => {
     void homeBase().then((to) => {
@@ -116,6 +123,9 @@ export function Home() {
     const used = new Set((projects() ?? []).filter((p) => p.type === 'local').map((p) => p.path))
     return (dirs()?.dirs ?? []).filter((d: any) => !used.has(d.path))
   }
+
+  const visibleEntries = createMemo(() => entries().filter(({ p, pod }) => matches(p.name, p.description, p.path, pod?.name ?? ws()?.name)))
+  const visibleDirs = createMemo(() => available().filter((d: { name: string; path: string }) => matches(d.name, d.path)))
 
   const addQuick = async (path: string) => {
     try {
@@ -146,76 +156,118 @@ export function Home() {
         </button>
         <PodStatus />
       </header>
-      <main class="home-main">
-        <div class="home-bar">
-          <h2>{t('Projects')}</h2>
-          <span class="muted small">
-            {t('Projects folder:')} <span class="mono">{ws()?.workspace}</span>
-          </span>
-          <span class="grow" />
-          <button class="btn primary" onClick={() => setEditing({ p: { type: 'local' }, pod: null })}>
-            <Icon name="plus" size={14} /> {t('New project')}
-          </button>
-        </div>
-        <div class="project-list">
-          <For each={entries()} fallback={<p class="muted">{projects.loading ? t('Loading…') : t('No project. Create one, or add one of the folders below.')}</p>}>
-            {(e) =>
-              e.pod ? (
-                <RemoteCard pod={e.pod} p={e.p as PodProject} onEdit={remoteEdit} onIcon={remoteIcon} onRemove={remoteRemove} />
-              ) : (
-                <article class="project-card" data-pod={ws()?.name}>
-                  <a
-                    class="project-open"
-                    href={podPath(deskPath(e.p.id, lastDesk(e.p.id)))}
-                    onClick={(ev) => {
-                      ev.preventDefault()
-                      navigate(deskPath(e.p.id, lastDesk(e.p.id)))
-                    }}
-                  >
-                    <Show when={iconOf(e.p.id)} fallback={<span class="project-icon" />}>
-                      <img class="project-icon" src={iconURL(iconOf(e.p.id))} alt="" data-testid="project-icon" />
-                    </Show>
-                    <ProjectInfo p={e.p} pod={(pods() ?? []).length ? ws()?.name : undefined} where={where(e.p as Project)} />
-                  </a>
-                  <div class="project-actions">
-                    <span class="muted small">{e.p.openedAt ? new Date(e.p.openedAt).toLocaleDateString() : ''}</span>
-                    <button class="icon-btn" title={t('Change the icon')} onClick={() => editIcon(e.p as Project)} data-testid="project-icon-edit">
-                      <Icon name="sparkle" />
-                    </button>
-                    <button class="icon-btn" title={t('Edit')} onClick={() => setEditing({ p: structuredClone(e.p as Project), pod: null })}>
-                      <Icon name="edit" />
-                    </button>
-                    <button class="icon-btn" title={t('Remove from the list')} onClick={() => remove(e.p as Project)}>
-                      <Icon name="close" />
-                    </button>
-                  </div>
-                </article>
-              )
-            }
-          </For>
-        </div>
-        <Show when={(pods() ?? []).length}>
-          <Pods pods={pods()!} name={ws()?.name ?? ''} version={ws()?.version ?? ''} />
-        </Show>
-        <For each={homeParts()}>{(Part) => <Part />}</For>
-        <Show when={available().length}>
-          <h3 class="home-sub">{t('In the projects folder')}</h3>
-          <div class="ws-dirs">
-            <For each={available()}>
-              {(d: any) => (
-                <button class="ws-dir" onClick={() => addQuick(d.path)} title={t('Add {path}', { path: d.path })}>
-                  <Icon name="folder" size={14} /> {d.name}
-                  <Icon name="plus" size={12} />
-                </button>
-              )}
+      <nav class="home-tabs" role="tablist" aria-label={t('Home sections')}>
+        <For each={homeTabs}>
+          {(tab) => (
+            <button
+              type="button"
+              role="tab"
+              id={`home-tab-${tab}`}
+              aria-controls={`home-${tab}`}
+              aria-selected={section() === tab}
+              tabIndex={section() === tab ? 0 : -1}
+              onClick={(e) => {
+                setSection(tab)
+                e.currentTarget.closest('.home')?.scrollTo(0, 0)
+              }}
+            >
+              {tab === 'projects' ? t('Projects') : tab === 'pods' ? t('Pods') : t('Shared services')}
+            </button>
+          )}
+        </For>
+      </nav>
+      <main class="home-main" data-section={section()}>
+        <section id="home-projects" class="home-projects" role="tabpanel" aria-labelledby="home-tab-projects">
+          <div class="home-bar">
+            <h2>{t('Projects')}</h2>
+            <span class="muted small">
+              {t('Projects folder:')} <span class="mono">{ws()?.workspace}</span>
+            </span>
+            <span class="grow" />
+            <button class="btn primary" onClick={() => setEditing({ p: { type: 'local' }, pod: null })}>
+              <Icon name="plus" size={14} /> {t('New project')}
+            </button>
+          </div>
+          <label class="home-search">
+            <Icon name="search" size={16} />
+            <input
+              class="input"
+              type="search"
+              placeholder={t('Search projects')}
+              aria-label={t('Search projects')}
+              value={search()}
+              onInput={(e) => setSearch(e.currentTarget.value)}
+            />
+          </label>
+          <div class="project-list">
+            <For each={visibleEntries()}>
+              {(e) =>
+                e.pod ? (
+                  <RemoteCard pod={e.pod} p={e.p as PodProject} onEdit={remoteEdit} onIcon={remoteIcon} onRemove={remoteRemove} />
+                ) : (
+                  <article class="project-card" data-pod={ws()?.name}>
+                    <a
+                      class="project-open"
+                      href={podPath(deskPath(e.p.id, lastDesk(e.p.id)))}
+                      onClick={(ev) => {
+                        ev.preventDefault()
+                        navigate(deskPath(e.p.id, lastDesk(e.p.id)))
+                      }}
+                    >
+                      <Show when={iconOf(e.p.id)} fallback={<span class="project-icon" />}>
+                        <img class="project-icon" src={iconURL(iconOf(e.p.id))} alt="" data-testid="project-icon" />
+                      </Show>
+                      <ProjectInfo p={e.p} pod={(pods() ?? []).length ? ws()?.name : undefined} where={where(e.p as Project)} />
+                    </a>
+                    <div class="project-actions">
+                      <span class="muted small">{e.p.openedAt ? new Date(e.p.openedAt).toLocaleDateString() : ''}</span>
+                      <button class="icon-btn" title={t('Change the icon')} onClick={() => editIcon(e.p as Project)} data-testid="project-icon-edit">
+                        <Icon name="sparkle" />
+                      </button>
+                      <button class="icon-btn" title={t('Edit')} onClick={() => setEditing({ p: structuredClone(e.p as Project), pod: null })}>
+                        <Icon name="edit" />
+                      </button>
+                      <button class="icon-btn" title={t('Remove from the list')} onClick={() => remove(e.p as Project)}>
+                        <Icon name="close" />
+                      </button>
+                    </div>
+                  </article>
+                )
+              }
             </For>
           </div>
-        </Show>
-        {/* A quiet line, not a button: a plain link, nothing is loaded from GitHub until it is clicked. */}
-        <p class="home-sponsor" data-testid="sponsor-line">
-          {t('Web IDE is free and open source. If it saves you time, you can')}{' '}
-          <a href="https://github.com/sponsors/DrSmithFr" target="_blank" rel="noreferrer" data-testid="sponsor">{t('support it on GitHub')}</a>.
-        </p>
+          <Show when={!visibleEntries().length}>
+            <Show when={query()} fallback={<p class="muted">{projects.loading ? t('Loading…') : t('No project. Create one, or add one of the folders below.')}</p>}>
+              <Show when={!visibleDirs().length}><p class="muted">{t('No matching projects.')}</p></Show>
+            </Show>
+          </Show>
+          <Show when={visibleDirs().length}>
+            <h3 class="home-sub">{t('In the projects folder')}</h3>
+            <div class="ws-dirs">
+              <For each={visibleDirs()}>
+                {(d: any) => (
+                  <button class="ws-dir" onClick={() => addQuick(d.path)} title={t('Add {path}', { path: d.path })}>
+                    <Icon name="folder" size={14} /> {d.name}
+                    <Icon name="plus" size={12} />
+                  </button>
+                )}
+              </For>
+            </div>
+          </Show>
+          {/* A quiet line, not a button: a plain link, nothing is loaded from GitHub until it is clicked. */}
+          <p class="home-sponsor" data-testid="sponsor-line">
+            {t('Web IDE is free and open source. If it saves you time, you can')}{' '}
+            <a href="https://github.com/sponsors/DrSmithFr" target="_blank" rel="noreferrer" data-testid="sponsor">{t('support it on GitHub')}</a>.
+          </p>
+        </section>
+        <aside class="home-side">
+          <div id="home-pods" role="tabpanel" aria-labelledby="home-tab-pods">
+            <Pods pods={pods() ?? []} name={ws()?.name ?? ''} version={ws()?.version ?? ''} />
+          </div>
+          <section id="home-services" role="tabpanel" aria-labelledby="home-tab-services">
+            <For each={homeParts()}>{(Part) => <Part />}</For>
+          </section>
+        </aside>
       </main>
       <Show when={iconFor()}>
         {(f) => <IconEditor id={f().p.id} name={f().p.name} spec={f().spec} save={f().save} onClose={() => setIconFor(null)} />}
@@ -338,7 +390,12 @@ function RemoteCard(props: {
 function Pods(props: { pods: PodInfo[]; name: string; version: string }) {
   const [lan] = useLan()
   const outdated = () => (lan()?.failed ?? []).filter((f) => f.error === 'version')
-  const [self] = createResource(() => request<{ key?: string; fingerprint?: string; gateway: string; power?: boolean }>('pods.self').catch(() => null))
+  // The local pod can be paired while the home page is open.
+  const [self, { refetch }] = createResource(
+    () => (lan()?.paired ? 'paired' : 'initial'),
+    () => request<{ key?: string; fingerprint?: string; gateway: string; power?: boolean }>('pods.self').catch(() => null),
+  )
+  onCleanup(onPod('pod.reconnected', () => refetch()))
   const own = (): PodInfo | null => {
     const s = self()
     if (!s?.key) return null
@@ -348,6 +405,9 @@ function Pods(props: { pods: PodInfo[]; name: string; version: string }) {
     <section class="home-pods">
       <h3 class="home-sub">{t('Pods')}</h3>
       <Show when={own()}>{(o) => <PodRow pod={o()} self />}</Show>
+      <Show when={!own() && !props.pods.length && !outdated().length}>
+        <p class="muted small">{self.loading ? t('Loading…') : t('No pod controls available.')}</p>
+      </Show>
       <For each={props.pods}>{(pod) => <PodRow pod={pod} />}</For>
       <For each={outdated()}>
         {(f) => (

@@ -438,7 +438,7 @@ run(
       await app.waitForSelector('.project-card[data-pod=charlie] [data-testid=pod-project]:has-text("charlie-app")', { timeout: 60000 })
       const blocks = await app.$$eval('[data-testid=pod-block]', (els) => els.map((e) => e.dataset.name))
       assert(blocks.includes('bravo') && blocks.includes('charlie'), 'the home page lists the other pods: ' + blocks.join(','))
-      const cards = await app.$$eval('.home main > .project-list .project-card', (els) => els.map((e) => e.dataset.pod))
+      const cards = await app.$$eval('.home-projects .project-list .project-card', (els) => els.map((e) => e.dataset.pod))
       assert(cards.includes('alpha') && cards.includes('bravo') && cards.includes('charlie'), 'one list holds the projects of every pod: ' + cards.join(','))
       assert((await app.textContent('.project-card[data-pod=bravo] [data-testid=project-pod]')).includes('bravo'), 'a project shows the badge of its pod')
       const href = await app.getAttribute('.project-card[data-pod=bravo] [data-testid=pod-project]', 'href')

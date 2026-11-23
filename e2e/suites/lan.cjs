@@ -85,6 +85,8 @@ run(async ({ page }) => {
   try {
     // 1. alpha is paired by the CLI while it runs: it opens its LAN port.
     pair(DATA, ['restore'], PHRASE + '\n')
+    await page.waitForSelector('.home-pods > [data-testid=pod-own] [data-testid=pod-power]', { timeout: 15000 })
+    assert(true, 'the local pod offers power controls before other pods join')
     const bravo = await startPod('bravo', 0, 'join')
     const charlie = await startPod('charlie', 1, 'none')
     const delta = await startPod('delta', 2, 'foreign')

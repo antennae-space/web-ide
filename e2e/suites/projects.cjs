@@ -19,6 +19,61 @@ run(async ({ page, ctx }) => {
   assert((await page.getAttribute('[data-testid=sponsor]', 'href')) === 'https://github.com/sponsors/DrSmithFr', 'home page: the sponsor line links GitHub Sponsors')
   assert(!(await page.$('.home-head [data-testid=sponsor]')), 'home page: no sponsor button in the header')
   assert(!(await page.$('iframe[src*="github.com"]')), 'home page: no GitHub frame')
+  // A long projects list has its own scroll, and the side column stays available.
+  const paths = Array.from({ length: 22 }, (_, i) => `${WS}/home-project-${i + 1}`)
+  for (const path of paths) fs.mkdirSync(path)
+  await page.evaluate((paths) => new Promise((resolve, reject) => {
+    const ws = new WebSocket(`ws://${location.host}/ws`)
+    ws.onopen = () => paths.forEach((path, i) => {
+      ws.send(JSON.stringify({ id: i + 1, method: 'projects.create', params: { type: 'local', path } }))
+    })
+    const timer = setTimeout(() => { ws.close(); reject(new Error('Project fixtures timed out')) }, 15000)
+    let count = 0
+    ws.onmessage = (e) => {
+      const m = JSON.parse(e.data)
+      if (!m.id) return
+      if (m.error || ++count === paths.length) {
+        clearTimeout(timer)
+        ws.close()
+        if (m.error) reject(new Error(JSON.stringify(m.error)))
+        else resolve()
+      }
+    }
+  }), paths)
+  await page.waitForFunction((count) => document.querySelectorAll('.project-list .project-card').length >= count, paths.length)
+  await page.waitForSelector('[data-testid=home-services]')
+  const side = await page.locator('.home-side').boundingBox()
+  const projectsPanel = page.locator('.home-projects')
+  await projectsPanel.evaluate((el) => { el.scrollTop = el.scrollHeight })
+  assert(await projectsPanel.evaluate((el) => el.scrollTop > 0), 'projects scroll with a long list')
+  const scrolledSide = await page.locator('.home-side').boundingBox()
+  assert(side.y === scrolledSide.y && await page.isVisible('[data-testid=service-add]'), 'the side column stays in place while projects scroll')
+  await projectsPanel.evaluate((el) => { el.scrollTop = 0 })
+  const search = page.getByRole('searchbox', { name: 'Search projects' })
+  await search.fill('HOME-PROJECT-22')
+  assert(await page.locator('.project-list .project-card').count() === 1 && await page.isVisible('.project-open:has-text("home-project-22")'), 'search filters a long list by project name')
+  await search.fill('no such project')
+  assert(await page.getByText('No matching projects.').isVisible(), 'search reports no matches')
+  await search.fill('')
+
+  // On a narrow screen the tabs reach the pod controls and services without project scrolling.
+  const desktop = page.viewportSize()
+  await page.setViewportSize({ width: 320, height: 700 })
+  const projectTab = page.getByRole('tab', { name: 'Projects' })
+  const podTab = page.getByRole('tab', { name: 'Pods' })
+  const serviceTab = page.getByRole('tab', { name: 'Shared services' })
+  await projectTab.focus()
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('Enter')
+  assert(await podTab.getAttribute('aria-selected') === 'true' && await page.locator('#home-pods').isVisible(), 'keyboard navigation opens the Pods tab')
+  assert(!await projectsPanel.isVisible(), 'the project list does not occupy the Pods tab')
+  await serviceTab.click()
+  assert(await serviceTab.getAttribute('aria-selected') === 'true' && await page.isVisible('[data-testid=service-add]'), 'the Shared services tab provides direct access')
+  assert(await page.locator('.home').evaluate((el) => el.scrollWidth <= el.clientWidth), 'a narrow screen fits without horizontal scrolling')
+  await projectTab.click()
+  assert(await search.isVisible(), 'Projects tab brings back the search')
+  await page.setViewportSize(desktop)
+
   // Installable app (PWA): Chromium sees no error but the incognito context of the tests.
   const cdp = await ctx.newCDPSession(page)
   const { installabilityErrors } = await cdp.send('Page.getInstallabilityErrors')

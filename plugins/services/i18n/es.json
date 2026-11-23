@@ -7,7 +7,6 @@
   "Port of this machine": "Puerto de esta máquina",
   "Share": "Compartir",
   "Stop sharing {name}? The pods using it lose it.": "¿Dejar de compartir {name}? Los pods que lo usan lo pierden.",
-  "Shared services": "Servicios compartidos",
   "HTTP services of this machine the other pods of your account can reach.": "Servicios HTTP de esta máquina que los otros pods de tu cuenta pueden alcanzar.",
   "Share a service": "Compartir un servicio",
   "Nothing shared. A service you share is reached only by the pods of your account, and only while it is on.": "Nada compartido. Un servicio compartido solo lo alcanzan los pods de tu cuenta, y solo mientras está activado.",
