@@ -2,18 +2,21 @@
 .home-services { margin-top: 28px; }
 .home-services .home-bar { margin-bottom: 6px; }
 .home-services .home-sub { margin: 0; }
-.svc-row { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 6px; background: var(--bg-2); }
+.svc-row { border-bottom: 1px solid var(--line); padding: 8px 0; }
+.svc-line { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, auto) auto; align-items: center; gap: 6px; }
+.svc-line .pod-badge { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; }
+.svc-title { display: grid; overflow-wrap: anywhere; }
+.svc-check { margin: 0; width: 16px; height: 16px; accent-color: var(--ok); }
+.svc-check[data-state=checking] { accent-color: var(--warn); }
+.svc-check[data-state=unavailable] { accent-color: var(--danger); }
+.svc-title .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .svc-head { display: flex; align-items: center; gap: 8px; min-height: 26px; flex-wrap: wrap; }
-.svc-row.off .svc-name, .svc-row.off .mono, .svc-row.unavailable .svc-name, .svc-row.unavailable .mono { color: var(--fg-muted); }
 .svc-pods { margin: 4px 0 2px 18px; display: flex; flex-direction: column; gap: 2px; }
 .svc-pod { display: flex; align-items: center; gap: 8px; font-size: 12.5px; flex-wrap: wrap; }
 .svc-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 6px; margin-bottom: 6px; }
 .svc-form label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
 .svc-form input.input { width: 160px; }
 .svc-form input.input.port { width: 90px; }
-.svc-group + .svc-group { margin-top: 12px; }
-.svc-group > .svc-head { margin-bottom: 4px; }
-.svc-group h4 { margin: 0; font-size: inherit; }
 .svc-opts { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 10px; margin: 4px 0 2px 26px; }
 .svc-opts label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
 .svc-opts input.input.port { width: 90px; }
@@ -21,10 +24,5 @@
 .svc-route.relay-direct { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
 .svc-route.relay-turn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
 .svc-route.idle { color: var(--fg-muted); }
-.home-services .pod-dot.on { background: var(--ok); }
-
-.svc-status-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--fg-muted); }
-.svc-status-dot[data-state=ready] { background: var(--ok); }
-.svc-status-dot[data-state=checking] { background: var(--warn); }
 .svc-address-actions { display: inline-flex; align-items: center; gap: 2px; }
 .svc-address-actions a { text-decoration: none; }

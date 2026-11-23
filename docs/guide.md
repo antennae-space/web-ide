@@ -32,9 +32,9 @@ Then, as you need them: [account and devices](howto/account-and-devices.md), [po
 
 The home page lists your projects. To add an existing folder, open *New project* and choose the folder. A project is a local folder or a folder on an SSH host (same features, through your local SSH keys). Each project gets an icon, generated from its name and editable.
 
-Open a project from its row. The path appears next to the name. Only projects from another pod show a pod badge. The project actions open in a menu. The Pods section shows the version and fingerprint. A service status dot shows availability. Use the service icons to open or copy the address when it is known. A local service can only open directly from a browser on the pod machine. Use *Manage sharing* or *Manage links* to change service settings.
+Open a project from its row. The path appears next to the name. Only projects from another pod show a pod badge. The project actions open in a menu. The Pods section shows the version and fingerprint. In **Services**, check a local service to share it or a remote service to link it. A checked box is green when ready, orange during a check, and red when unavailable. Open the row settings for the address, route and controls. Use the two address buttons to open a reachable URL or copy a known URL.
 
-On desktop, search the project list by name, path, description or pod. The project list scrolls separately from the column with the pod power controls and shared services. On a narrow screen, use the **Projects**, **Pods** and **Shared services** tabs at the top.
+On desktop, search the project list by name, path, description or pod. The project list scrolls separately from the column with the pod power controls and shared services. On a narrow screen, use the **Projects**, **Pods** and **Services** tabs at the top.
 
 A project opens in its own window, and comes back as you left it, in any browser connected to the same pod: tabs, splits, carets, terminals.
 

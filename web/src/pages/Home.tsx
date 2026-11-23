@@ -191,7 +191,7 @@ export function Home() {
                 e.currentTarget.closest('.home')?.scrollTo(0, 0)
               }}
             >
-              {tab === 'projects' ? t('Projects') : tab === 'pods' ? t('Pods') : t('Shared services')}
+              {tab === 'projects' ? t('Projects') : tab === 'pods' ? t('Pods') : t('Services')}
             </button>
           )}
         </For>

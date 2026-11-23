@@ -4,7 +4,6 @@
 import type { PluginModule } from '@ide/types'
 import { bindApi } from './plugin'
 import { SharedServices } from './SharedServices'
-import { LinkedServices } from './LinkedServices'
 
 export const services: PluginModule = {
   activate() {
@@ -12,11 +11,6 @@ export const services: PluginModule = {
   },
   home(api) {
     bindApi(api)
-    return () => (
-      <>
-        <SharedServices />
-        <LinkedServices />
-      </>
-    )
+    return SharedServices
   },
 }

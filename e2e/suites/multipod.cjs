@@ -461,7 +461,7 @@ run(
         await app.waitForSelector(`${sel} [data-testid=link-address]`, { timeout: 60000 })
         return Number((await app.textContent(`${sel} [data-testid=link-address]`)).split(':').pop())
       }
-      await app.click('[data-testid=link-manage]')
+      await app.click(`${linkB} [data-testid=service-details]`)
       await app.check(`${linkB} [data-testid=link-on]`)
       const lpB = await linkPort(linkB)
       // The port of the service is taken on this machine (the same one runs here): the next one.
@@ -475,6 +475,7 @@ run(
       assert((await upgrade(lpB)) === 'echo hi', 'a WebSocket through the LAN link')
       await app.waitForSelector(`${linkB} [data-route=lan]`, { timeout: 15000 })
 
+      await app.click(`${linkC} [data-testid=service-details]`)
       await app.check(`${linkC} [data-testid=link-on]`)
       const lpC = await linkPort(linkC)
       got = await getText(lpC, '/api/tags')
@@ -492,7 +493,7 @@ run(
       const tokenB = fs.readFileSync(path.join(dataB, 'token'), 'utf8').trim()
       const pageB = await ctx.newPage()
       await pageB.goto(`http://127.0.0.1:${portB}/?token=${tokenB}`)
-      await pageB.click('[data-testid=service-manage]')
+      await pageB.click(`[data-testid=service-${svcPortB}] [data-testid=service-details]`)
       await pageB.waitForSelector('[data-testid=service-pod-alpha] [data-route=lan]', { timeout: 20000 })
       await pageB.click('[data-testid=service-pod-alpha] button:has-text("Cut")')
       await pageB.waitForSelector('[data-testid=service-pod-alpha]', { state: 'detached' })

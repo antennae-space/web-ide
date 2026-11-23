@@ -1,10 +1,10 @@
 // The services of the other pods of the account (docs/design/relay.md, *Services*), on the home
 // page: each with a switch that links it to a port of this machine, the route it takes (the LAN
 // first, else the relay), its state and what went through it.
-import { createSignal, createUniqueId, For, onCleanup, Show } from 'solid-js'
+import { createSignal, For, onCleanup, Show } from 'solid-js'
 import { api, errorToast, t } from './plugin'
 import { createInventory, healthReason, type Health } from './inventory'
-import { ServiceActions, ServiceStatus } from './ServiceActions'
+import { ServiceRow, localBrowser } from './ServiceRow'
 import { RouteBadge, type Route } from './RouteBadge'
 
 type LinkView = {
@@ -39,8 +39,7 @@ function stateText(l: LinkView): string {
   return ''
 }
 
-function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolean; unavailable: boolean; manage: boolean }) {
-  const reasonID = createUniqueId()
+function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolean; unavailable: boolean; manage: boolean; expand: () => void }) {
   const reachability = () => {
     if (props.unavailable) return t('Service status unavailable.')
     if (props.checking || props.pod.pending) return t('Checking…')
@@ -52,7 +51,7 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
   const [port, setPort] = createSignal(l()?.port ? String(l()!.port) : '')
   const [scope, setScope] = createSignal<'local' | 'lan'>(l()?.scope ?? 'local')
   const set = (on: boolean) =>
-    api.rpc('services.link', { pod: props.pod.key, podName: props.pod.name, service: props.s.id, name: props.s.name, port: Number(port()) || 0, scope: scope(), on }).catch(errorToast)
+    api.rpc('services.link', { pod: props.pod.key, podName: props.pod.name, service: props.s.id, name: props.s.name, port: Number(port()) || 0, scope: scope(), on })
   const address = () => `http://${scope() === 'lan' ? location.hostname : '127.0.0.1'}:${l()?.listen}`
   const reason = () => {
     const link = l()
@@ -63,59 +62,45 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
     }
     return reachability()
   }
-  const addressLabel = () => props.manage ? `${scope() === 'lan' ? '0.0.0.0' : '127.0.0.1'}:${l()?.listen}` : t('Open')
-  const canOpen = () => !reason()
   const controlsReady = () => !props.checking && !props.unavailable && !props.pod.pending && !props.s.cached
+  const url = () => l()?.on && l()?.listen ? address() : undefined
   return (
-    <div class="svc-row" classList={{ on: !!l()?.on, off: !!reason() }} data-testid={`link-${props.pod.name}-${props.s.name}`}>
-      <div class="svc-head">
-        <Show when={props.manage}><input type="checkbox" class="ai-switch" checked={!!l()?.on} disabled={!controlsReady() || (!l()?.on && !!reachability())} aria-describedby={reason() ? reasonID : undefined} onChange={(e) => set(e.currentTarget.checked)} title={l()?.on ? t('Linked: turn off') : t('Link it to a port of this machine')} data-testid="link-on" /></Show>
-        <ServiceStatus state={props.checking || props.s.cached || props.s.health === 'checking' ? 'checking' : canOpen() ? 'ready' : 'unavailable'}
-          label={reason() || t('Available')} />
-        <strong class="svc-name">{props.s.name}</strong>
-        <Show when={l()?.on && l()?.listen}>
-          <Show when={props.manage || !canOpen()}>
-            <Show when={canOpen()} fallback={<span class="mono muted" aria-disabled="true" aria-describedby={reasonID} data-testid="link-address">{addressLabel()}</span>}>
-              <a class="mono" href={address()} target="_blank" rel="noreferrer" data-testid="link-address">{addressLabel()}</a>
-            </Show>
-          </Show>
+    <ServiceRow name={props.s.name} pod={props.pod.name} checked={!!l()?.on}
+      disabled={!controlsReady() || (!l()?.on && !!reachability())}
+      checking={reason() === t('Checking…')} reason={reason()} url={url()}
+      canOpen={!reason() && (localBrowser() || (scope() === 'lan' && api.podPath('/') === '/'))}
+      action={l()?.on ? t('Linked: turn off') : t('Link it to a port of this machine')}
+      testID={`link-${props.pod.name}-${props.s.name}`} checkID="link-on" reasonID="link-state"
+      expanded={props.manage} expand={props.expand} toggle={set}>
+      <Show when={url()}>
+        <div class="svc-head">
+          <span class="mono muted" data-testid="link-address">{address()}</span>
           <RouteBadge route={l()!.route} />
-          <ServiceActions url={address()} canOpen={canOpen()} />
-        </Show>
-        <Show when={reason()}>
-          <span id={reasonID} class="muted small" role="status" data-testid="link-state">{reason()}</span>
-        </Show>
-        <span class="grow" />
-        <Show when={l()?.on && l()!.requests}>
-          <span class="muted small">
-            {api.tn(l()!.requests, '{n} request', '{n} requests')} · {api.fmtSize(l()!.bytes)}
-          </span>
-        </Show>
-      </div>
-      <Show when={props.manage}>
-        <div class="svc-opts">
-          <label>
-            {t('Local port')}
-            <input class="input port" disabled={!controlsReady()} inputmode="numeric" placeholder={t('the service’s')} value={port()} onInput={(e) => setPort(e.currentTarget.value)} onChange={() => l()?.on && set(true)} data-testid="link-port" />
-          </label>
-          <label>
-            {t('Reached from')}
-            <select class="input" disabled={!controlsReady()} value={scope()} onChange={(e) => (setScope(e.currentTarget.value as 'local' | 'lan'), l()?.on && set(true))} data-testid="link-scope">
-              <option value="local">{t('This machine')}</option>
-              <option value="lan">{t('The local network')}</option>
-            </select>
-          </label>
-          <Show when={scope() === 'lan'}>
-            <span class="warn small">{t('Any machine of the local network reaches this service, without authentication.')}</span>
-          </Show>
-          <Show when={l() && !l()!.on}>
-            <button class="btn small" disabled={!controlsReady()} onClick={() => api.rpc('services.forget', { id: l()!.id }).catch(errorToast)}>
-              {t('Forget')}
-            </button>
-          </Show>
+          <span class="small muted">{api.tn(l()!.requests, '{n} request', '{n} requests')} · {api.fmtSize(l()!.bytes)}</span>
         </div>
       </Show>
-    </div>
+      <div class="svc-opts">
+        <label>
+          {t('Local port')}
+          <input class="input port" disabled={!controlsReady()} inputmode="numeric" placeholder={t('the service’s')} value={port()} onInput={(e) => setPort(e.currentTarget.value)} onChange={() => l()?.on && set(true).catch(errorToast)} data-testid="link-port" />
+        </label>
+        <label>
+          {t('Reached from')}
+          <select class="input" disabled={!controlsReady()} value={scope()} onChange={(e) => (setScope(e.currentTarget.value as 'local' | 'lan'), l()?.on && set(true).catch(errorToast))} data-testid="link-scope">
+            <option value="local">{t('This machine')}</option>
+            <option value="lan">{t('The local network')}</option>
+          </select>
+        </label>
+        <Show when={scope() === 'lan'}>
+          <span class="warn small">{t('Any machine of the local network reaches this service, without authentication.')}</span>
+        </Show>
+        <Show when={l() && !l()!.on}>
+          <button class="btn small" disabled={!controlsReady()} onClick={() => api.rpc('services.forget', { id: l()!.id }).catch(errorToast)}>
+            {t('Forget')}
+          </button>
+        </Show>
+      </div>
+    </ServiceRow>
   )
 }
 
@@ -136,7 +121,7 @@ function keepUndiscovered(received: RemotePod[], previous: RemotePod[]) {
 }
 
 export function LinkedServices() {
-  const [managing, setManaging] = createSignal(false)
+  const [expanded, setExpanded] = createSignal('')
   const discoveryEnds = Date.now() + 15_000
   const inventory = createInventory<RemotePod>('services.remote', ({ key, name, services }) => ({
     key, name, services: services.map((s) => ({ id: s.id, name: s.name })),
@@ -151,36 +136,15 @@ export function LinkedServices() {
   const timer = setInterval(inventory.refetch, 5000)
   onCleanup(() => clearInterval(timer))
   return (
-    <div class="home-services" data-testid="home-linked-services" aria-busy={inventory.checking()}>
-      <div class="home-bar">
-        <h3 class="home-sub">{t('Services from other pods')}</h3>
-        <Show when={pods()?.length}>
-          <button class="btn small" aria-expanded={managing()} onClick={() => setManaging(!managing())} data-testid="link-manage">{t('Manage links')}</button>
-        </Show>
-      </div>
-      <Show when={!pods()?.length}>
-        <p class="muted small" role="status">{inventory.checking() ? t('Loading services…') : inventory.unavailable() ? t('Service status unavailable.') : t('No shared service from another pod.')}</p>
-      </Show>
-      <For each={pods()}>
-        {(p) => (
-          <div class="svc-group" data-testid={`remote-pod-${p.name}`}>
-            <div class="svc-head">
-              <span class="pod-dot" classList={{ on: p.online }} />
-              <h4>{p.name}</h4>
-              <Show when={!inventory.checking() && !inventory.unavailable() && !p.online && !p.pending}>
-                <span class="muted small">{t('offline')}</span>
-              </Show>
-            </div>
-            <div>
-              <Show when={!managing() && !inventory.unavailable() && p.services.length > 1 && p.services.every((s) =>
-                !s.gone && !s.link?.on && (inventory.checking() || p.pending || (p.online && (s.cached || s.health === 'checking'))))}
-                fallback={<For each={p.services}>{(s) => <ServiceLink pod={p} s={s} checking={inventory.checking()} unavailable={inventory.unavailable()} manage={managing()} />}</For>}>
-                <span class="muted small" role="status">{t('Checking {n} services…', { n: p.services.length })}</span>
-              </Show>
-            </div>
-          </div>
-        )}
-      </For>
+    <div data-testid="home-linked-services" aria-busy={inventory.checking()}>
+      <Show when={inventory.unavailable() && !pods()?.length}><p class="muted small">{t('Service status unavailable.')}</p></Show>
+      <For each={pods()}>{(p) =>
+        <For each={p.services}>{(s) => {
+          const key = JSON.stringify([p.key, s.id])
+          return <ServiceLink pod={p} s={s} checking={inventory.checking()} unavailable={inventory.unavailable()}
+            manage={expanded() === key} expand={() => setExpanded(expanded() === key ? '' : key)} />
+        }}</For>
+      }</For>
     </div>
   )
 }

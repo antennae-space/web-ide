@@ -12,11 +12,6 @@ const port = 39417
 
 run(async ({ page, ctx }) => {
   await page.waitForSelector('[data-testid=home-services]')
-  assert((await page.textContent('[data-testid=home-services]')).includes('Nothing shared'), 'nothing shared by default')
-
-  assert(!(await page.isVisible('[data-testid=service-add]')), 'sharing controls are hidden at first')
-  await page.click('[data-testid=service-manage]')
-
   // Shared: the row, the file.
   await page.click('[data-testid=service-add]')
   await page.fill('[data-testid=service-name]', 'Ollama')
@@ -24,6 +19,7 @@ run(async ({ page, ctx }) => {
   await page.click('[data-testid=service-save]')
   await page.waitForSelector(`[data-testid=service-${port}]`)
   const row = `[data-testid=service-${port}]`
+  await page.click(`${row} [data-testid=service-details]`)
   assert((await page.textContent(row)).includes(`127.0.0.1:${port}`), 'the row shows the address')
   let list = saved()
   assert(list.length === 1 && list[0].name === 'Ollama' && list[0].port === port && list[0].enabled, 'services.json: ' + JSON.stringify(list))
@@ -56,6 +52,9 @@ run(async ({ page, ctx }) => {
   const statusLine = `${row} [data-testid=service-health]`
   await page.waitForSelector(`${statusLine}:has-text("The service did not respond.")`, { timeout: 15000 })
   assert(await page.isVisible(`${row}.unavailable`), 'an unavailable local service is muted and explains why')
+  const checkbox = page.locator(`${row} input[type=checkbox]`)
+  assert(await checkbox.isChecked() && await checkbox.getAttribute('data-state') === 'unavailable', 'a failed service stays checked and shows its error state')
+  assert(await page.locator(`${row} [data-testid=service-open]`).isDisabled() && await page.locator(`${row} [data-testid=service-copy-url]`).isEnabled(), 'an unavailable address can still be copied')
   const service = http.createServer((_req, res) => res.end('OK'))
   await new Promise((done) => service.listen(port, '127.0.0.1', done))
   try {
@@ -99,9 +98,9 @@ run(async ({ page, ctx }) => {
   await stub(seed, () => remoteInventory(true))
   await seed.goto(homeURL)
   await seed.waitForSelector(`${remote} [data-testid=service-open]`)
-  const group = seed.getByTestId('remote-pod-bravo')
-  assert(await group.getByRole('heading', { name: 'bravo' }).isVisible(), 'the pod name heads its service cards')
-  assert(await group.locator('.svc-row').count() === 2, 'each remote service has its own card')
+  const other = seed.getByTestId('link-bravo-other-api')
+  assert(await other.getByRole('checkbox').isVisible(), 'unlinked service shows its checkbox')
+  assert(await other.getByTestId('service-open').isDisabled() && await other.getByTestId('service-copy-url').isDisabled(), 'address actions stay visible without a link')
   await seed.close()
 
   const delayed = await ctx.newPage()
@@ -111,18 +110,16 @@ run(async ({ page, ctx }) => {
   await stub(delayed, async () => { await first; return inventory })
   try {
     await delayed.goto(homeURL)
-    await delayed.getByText('Checking 2 services…').waitFor()
-    await delayed.getByTestId('link-manage').click()
     await delayed.waitForSelector(`${remoteState}:has-text("Checking…")`)
-    assert(!(await delayed.locator(`${remote} [data-testid=service-open]`).count()), 'cached service shown in a new tab with no active link')
+    assert(await delayed.locator(`${remote} [data-testid=service-open]`).isDisabled(), 'cached service shown in a new tab with no active link')
     resume()
     await delayed.waitForSelector('[data-testid=home-linked-services][aria-busy=false]')
     assert(await delayed.isVisible(`${remoteState}:has-text("Checking…")`), 'an empty reply during directory discovery keeps known services visible')
     inventory = remoteInventory(false)
     await delayed.waitForSelector(`${remoteState}:has-text("bravo offline")`)
-    assert(await delayed.isVisible(`${remote}.off [aria-disabled=true]`), 'offline service is disabled and says why')
+    assert(await delayed.locator(`${remote} [data-testid=service-open]`).isDisabled(), 'offline service is disabled and says why')
     inventory = remoteInventory(true)
-    await delayed.waitForSelector(`${remote} [data-testid=service-open]`, { timeout: 15000 })
+    await delayed.waitForSelector(`${remote} a[data-testid=service-open]`, { timeout: 15000 })
     assert(!(await delayed.locator(`${remote}.off`).count()), 'service opens again when its pod comes back')
     inventory = [{ ...inventory[0], services: [] }]
     await delayed.waitForSelector(remote, { state: 'detached', timeout: 15000 })
@@ -142,13 +139,13 @@ run(async ({ page, ctx }) => {
   const fr = await start({ locale: 'fr-FR' })
   await fr.page.waitForSelector(row)
   const text = await fr.page.textContent('[data-testid=home-services]')
-  assert(text.includes('Services partagés') && text.includes('Ollama GPU'), 'in French: ' + text)
+  assert(text.includes('Services') && text.includes('Ollama GPU'), 'in French: ' + text)
   await fr.browser.close()
 
   // The service stays visible when management is closed.
   assert(!(await page.isVisible(`[data-testid=service-edit-${port}]`)), 'service settings are closed after navigation')
   await page.waitForSelector(row)
-  await page.click('[data-testid=service-manage]')
+  await page.click(`${row} [data-testid=service-details]`)
 
   // Removed.
   page.once('dialog', (d) => d.accept())
