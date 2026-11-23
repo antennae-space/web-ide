@@ -4,6 +4,7 @@
 import { createSignal, For, onCleanup, Show } from 'solid-js'
 import { api, errorToast, Icon, t } from './plugin'
 import { createInventory, healthReason, type Health } from './inventory'
+import { ServiceActions, ServiceStatus } from './ServiceActions'
 import { RouteBadge, type Route } from './RouteBadge'
 import './services.css'
 
@@ -43,6 +44,7 @@ export function SharedServices() {
   const inventory = createInventory<Service>('services.list', ({ id, name, enabled }) => ({ id, name, enabled, attached: [] }))
   onCleanup(api.on('services.changed', (l: Service[]) => inventory.accept(l)))
   const reason = (s: Service) => inventory.checking() ? t('Checking…') : inventory.unavailable() ? t('Service status unavailable.') : healthReason(s.health)
+  const localBrowser = api.podPath('/') === '/' && ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)
   const controlsReady = () => !inventory.checking() && !inventory.unavailable()
   const [managing, setManaging] = createSignal(false)
   const [adding, setAdding] = createSignal(false)
@@ -85,6 +87,8 @@ export function SharedServices() {
             <div class="svc-row" classList={{ off: !s.enabled, unavailable: !!reason(s) }} data-testid={`service-${s.port || s.id}`}>
               <div class="svc-head">
                 <Show when={managing()}><input type="checkbox" class="ai-switch" checked={s.enabled} disabled={!controlsReady()} title={s.enabled ? t('Shared: turn off') : t('Off: share it')} onChange={(e) => toggle(s, e.currentTarget.checked)} data-testid={`service-on-${s.port}`} /></Show>
+                <ServiceStatus state={inventory.checking() || s.health === 'checking' ? 'checking' : s.enabled && !reason(s) ? 'ready' : 'unavailable'}
+                  label={reason(s) || (s.enabled ? t('Available') : t('off'))} />
                 <strong class="svc-name">{s.name}</strong>
                 <Show when={managing() && s.port}><span class="mono muted">127.0.0.1:{s.port}</span></Show>
                 <Show when={!s.enabled}>
@@ -93,11 +97,11 @@ export function SharedServices() {
                 <Show when={reason(s)}>
                   <span class="muted small" role="status" data-testid="service-health">{reason(s)}</span>
                 </Show>
-                <Show when={s.enabled && !reason(s)}>
-                  <span class="muted small">{t('Available')}</span>
+                <span class="grow" />
+                <Show when={controlsReady() && s.port}>
+                  <ServiceActions url={`http://127.0.0.1:${s.port}`} canOpen={localBrowser && s.enabled && !reason(s)} />
                 </Show>
                 <Show when={managing()}>
-                  <span class="grow" />
                   <button class="icon-btn small" title={t('Edit')} disabled={!controlsReady()} onClick={() => setEditing(s.id)} data-testid={`service-edit-${s.port}`}>
                     <Icon name="edit" size={12} />
                   </button>

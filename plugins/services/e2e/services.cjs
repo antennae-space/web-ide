@@ -61,6 +61,11 @@ run(async ({ page, ctx }) => {
   try {
     await page.waitForSelector(statusLine, { state: 'detached', timeout: 15000 })
     assert(!(await page.locator(`${row}.unavailable`).count()), 'the service recovers while home is open')
+    const open = page.locator(`${row} [data-testid=service-open]`)
+    assert(await open.getAttribute('target') === '_blank', 'a healthy local service opens in a new tab')
+    await ctx.grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.locator(`${row} [data-testid=service-copy-url]`).click()
+    await page.waitForFunction(async (url) => (await navigator.clipboard.readText()) === url, `http://127.0.0.1:${port}`)
   } finally {
     await new Promise((done) => service.close(done))
   }
@@ -93,7 +98,7 @@ run(async ({ page, ctx }) => {
   const seed = await ctx.newPage()
   await stub(seed, () => remoteInventory(true))
   await seed.goto(homeURL)
-  await seed.waitForSelector(`${remote} a[data-testid=link-address]`)
+  await seed.waitForSelector(`${remote} [data-testid=service-open]`)
   await seed.close()
 
   const delayed = await ctx.newPage()
@@ -104,7 +109,7 @@ run(async ({ page, ctx }) => {
   try {
     await delayed.goto(homeURL)
     await delayed.waitForSelector(`${remoteState}:has-text("Checking…")`)
-    assert(!(await delayed.locator(`${remote} a[data-testid=link-address]`).count()), 'cached service shown in a new tab with no active link')
+    assert(!(await delayed.locator(`${remote} [data-testid=service-open]`).count()), 'cached service shown in a new tab with no active link')
     resume()
     await delayed.waitForSelector('[data-testid=home-linked-services][aria-busy=false]')
     assert(await delayed.isVisible(`${remoteState}:has-text("Checking…")`), 'an empty reply during directory discovery keeps known services visible')
@@ -112,7 +117,7 @@ run(async ({ page, ctx }) => {
     await delayed.waitForSelector(`${remoteState}:has-text("bravo offline")`)
     assert(await delayed.isVisible(`${remote}.off [aria-disabled=true]`), 'offline service is disabled and says why')
     inventory = remoteInventory(true)
-    await delayed.waitForSelector(`${remote} a[data-testid=link-address]`, { timeout: 15000 })
+    await delayed.waitForSelector(`${remote} [data-testid=service-open]`, { timeout: 15000 })
     assert(!(await delayed.locator(`${remote}.off`).count()), 'service opens again when its pod comes back')
     inventory = [{ ...inventory[0], services: [] }]
     await delayed.waitForSelector(remote, { state: 'detached', timeout: 15000 })

@@ -445,13 +445,12 @@ run(
       assert(href && href.startsWith('/pod/' + keyB), 'on the relay origin, the page of a pod of the cluster runs under /pod/: ' + href)
       // A project of bravo is edited from this home page: the request rides a side channel routed
       // through the gateway, and bravo saves it.
-      await app.click('.project-card[data-pod=bravo] [data-testid=project-details]')
-      await app.click('.project-card[data-pod=bravo] [data-testid=project-edit]')
+      await app.click('.project-card[data-pod=bravo] [data-testid=project-actions]')
+      await app.getByRole('menuitem', { name: 'Edit', exact: true }).click()
       await app.fill('.modal textarea', 'edited through the relay')
       await app.click('.modal button[type=submit]')
       const regB = () => JSON.parse(fs.readFileSync(path.join(dataB, 'projects.json'), 'utf8'))
       assert(await waitFor(() => (regB().some((p) => p.description === 'edited through the relay') ? true : null), 20000), 'bravo saved the change asked through the relay: ' + JSON.stringify(regB()))
-      await app.waitForSelector('.project-card[data-pod=bravo]:has-text("edited through the relay")', { timeout: 30000 })
 
       // 4b. Shared services: alpha lists those of bravo (its LAN $info) and charlie (its list).
       const linkB = '[data-testid="link-bravo-bravo-api"]'

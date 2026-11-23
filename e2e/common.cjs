@@ -61,16 +61,9 @@ exports.openProject = async (page) => {
   await page.waitForFunction(() => document.querySelector('.project-list .project-card, .ws-dir'))
   // Fresh data: the project is added from the folders of the projects folder.
   if (await page.$('.project-open:has-text("demo")')) await page.click('.project-open:has-text("demo")')
-  else await exports.openDemoFolder(page)
+  else await page.click('.ws-dir:has-text("demo")')
   await page.waitForSelector('.menubar')
   await page.waitForTimeout(400)
-}
-
-/** Opens the demo folder from the optional list of folders to add. */
-exports.openDemoFolder = async (page) => {
-  const demo = page.locator('.ws-dir:has-text("demo")')
-  if (!(await demo.isVisible())) await page.click('[data-testid=project-folders] > summary')
-  await demo.click()
 }
 
 /** Shows the menus of the menu bar (they are behind the grid button) and waits for them. */

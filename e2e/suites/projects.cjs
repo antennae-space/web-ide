@@ -10,10 +10,8 @@ const env = { ...process.env, GIT_AUTHOR_NAME: 'e2e', GIT_AUTHOR_EMAIL: 'e2e@x',
 const git = (cmd, cwd = WS + '/demo') => execSync(`git ${cmd}`, { cwd, env, encoding: 'utf8' }).trim()
 
 run(async ({ page, ctx }) => {
-  // The home page shows the version of the pod (git describe of the build).
-  await page.waitForFunction(() => document.querySelector('[data-testid=pod-version]')?.textContent)
-  const version = execSync(`${__dirname}/../../bin/web-ide-pod -version`, { encoding: 'utf8' }).trim()
-  assert((await page.textContent('[data-testid=pod-version]')) === version, 'home page: version of the pod')
+  await page.waitForSelector('.home-head button[title="Settings"]')
+  assert(!(await page.locator('.home-head [data-testid=pod-version]').count()), 'the header omits the pod version')
   assert((await page.textContent('.home')).includes('Projects folder:'), 'home page: the projects folder is named')
   // The sponsor line is a quiet plain link at the bottom: no button, no frame, nothing loaded from GitHub.
   assert((await page.getAttribute('[data-testid=sponsor]', 'href')) === 'https://github.com/sponsors/DrSmithFr', 'home page: the sponsor line links GitHub Sponsors')
@@ -125,11 +123,10 @@ run(async ({ page, ctx }) => {
   await page.waitForSelector('.project-card [data-testid=project-icon]')
   assert((await favicon(page)).includes('<path'), 'home page: favicon of the application')
   const demoRow = page.locator('.project-card:has-text("demo")').first()
-  const projectIconEdit = demoRow.getByTestId('project-icon-edit')
-  assert(!(await projectIconEdit.isVisible()), 'the project row hides management actions')
-  await demoRow.getByTestId('project-details').click()
-  assert(await projectIconEdit.isVisible(), 'project details reveal management actions')
-  await projectIconEdit.click()
+  assert(await demoRow.locator('.project-path').isVisible(), 'the project path is visible beside its name')
+  assert(!(await demoRow.getByTestId('project-pod').count()), 'local projects do not show a pod badge')
+  await demoRow.getByTestId('project-actions').click()
+  await page.getByRole('menuitem', { name: 'Change the icon', exact: true }).click()
   await page.click('[data-testid=icon-kind-glyph]')
   await page.fill('[data-testid=icon-search]', 'rock')
   await page.click('.ie-glyph[data-glyph=rocket]')

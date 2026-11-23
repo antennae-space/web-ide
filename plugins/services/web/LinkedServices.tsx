@@ -4,6 +4,7 @@
 import { createSignal, createUniqueId, For, onCleanup, Show } from 'solid-js'
 import { api, errorToast, t } from './plugin'
 import { createInventory, healthReason, type Health } from './inventory'
+import { ServiceActions, ServiceStatus } from './ServiceActions'
 import { RouteBadge, type Route } from './RouteBadge'
 
 type LinkView = {
@@ -69,12 +70,17 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
     <div class="svc-link" classList={{ on: !!l()?.on, off: !!reason() }} data-testid={`link-${props.pod.name}-${props.s.name}`}>
       <div class="svc-head">
         <Show when={props.manage}><input type="checkbox" class="ai-switch" checked={!!l()?.on} disabled={!controlsReady() || (!l()?.on && !!reachability())} aria-describedby={reason() ? reasonID : undefined} onChange={(e) => set(e.currentTarget.checked)} title={l()?.on ? t('Linked: turn off') : t('Link it to a port of this machine')} data-testid="link-on" /></Show>
+        <ServiceStatus state={props.checking || props.s.cached || props.s.health === 'checking' ? 'checking' : canOpen() ? 'ready' : 'unavailable'}
+          label={reason() || t('Available')} />
         <strong class="svc-name">{props.s.name}</strong>
         <Show when={l()?.on && l()?.listen}>
-          <Show when={canOpen()} fallback={<span class="mono muted" aria-disabled="true" aria-describedby={reasonID} data-testid="link-address">{addressLabel()}</span>}>
-            <a class="mono" href={address()} target="_blank" rel="noreferrer" data-testid="link-address">{addressLabel()}</a>
+          <Show when={props.manage || !canOpen()}>
+            <Show when={canOpen()} fallback={<span class="mono muted" aria-disabled="true" aria-describedby={reasonID} data-testid="link-address">{addressLabel()}</span>}>
+              <a class="mono" href={address()} target="_blank" rel="noreferrer" data-testid="link-address">{addressLabel()}</a>
+            </Show>
           </Show>
           <RouteBadge route={l()!.route} />
+          <ServiceActions url={address()} canOpen={canOpen()} />
         </Show>
         <Show when={reason()}>
           <span id={reasonID} class="muted small" role="status" data-testid="link-state">{reason()}</span>

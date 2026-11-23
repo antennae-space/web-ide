@@ -777,17 +777,12 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .project-card:hover { background: var(--bg-2); }
 .project-open { display: flex; gap: 12px; align-items: center; min-height: 44px; padding: 6px 8px; color: inherit; text-decoration: none; min-width: 0; }
 .project-icon { width: 30px; height: 30px; flex: none; }
-.project-title { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 12px; min-width: 0; }
-.project-title .small { font-weight: 400; }
-.project-details { display: contents; }
-.project-details > summary { list-style: none; justify-self: end; }
-.project-details > summary::-webkit-details-marker { display: none; }
-.project-details:not([open]) > .project-actions { display: none; }
-.project-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 4px 8px 10px; }
-.project-meta { flex: 1 1 140px; min-width: 0; overflow-wrap: anywhere; }
-.home-fold { margin-top: 12px; }
-.home-fold > summary { cursor: pointer; color: var(--fg-muted); }
-.pod-details { margin: 4px 0 0; font-size: 12px; }
+.project-title { font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+.project-title > :first-child { flex: 0 1 auto; }
+.project-path { flex: 1 2 auto; font-weight: 400; min-width: 28px; }
+.project-title .pod-badge { flex: 0 1 auto; margin-inline-start: auto; text-align: center; }
+.project-menu { margin-inline-start: 4px; }
+.pod-details { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
 .ws-dirs { display: flex; flex-wrap: wrap; gap: 8px; }
 .ws-dir { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px dashed var(--line); border-radius: 6px; background: transparent; cursor: pointer; }
 .ws-dir:hover { border-color: var(--accent); color: var(--accent); }

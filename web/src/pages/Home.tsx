@@ -2,14 +2,13 @@
 // creation of local or SSH projects, folders of the projects folder not yet added.
 import { base, podPath } from '../app/base'
 import { homeBase } from '../app/home'
-import type { JSX } from 'solid-js'
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import { on as onPod, request } from '../pod/rpc'
 import { loadMark } from '../pod/loadJournal'
 import { deskPath, navigate } from '../app/router'
 import { lastDesk, loadLastDesks } from '../state/desks'
-import { contextMenu, Modal } from '../ui/overlay'
+import { contextMenu, Modal, type MenuItem } from '../ui/overlay'
 import { errorToast, toast } from '../ui/toast'
 import { copyText } from '../ui/clipboard'
 import { Icon } from '../ui/icons'
@@ -150,12 +149,11 @@ export function Home() {
     <div class="home">
       <header class="home-head">
         <h1>Web IDE</h1>
-        <span class="muted small mono" data-testid="pod-version">{ws()?.version}</span>
         <span class="grow" />
+        <PodStatus />
         <button class="icon-btn" title={t('Settings')} onClick={() => openSettings('projects')}>
           <Icon name="gear" />
         </button>
-        <PodStatus />
       </header>
       <nav class="home-tabs" role="tablist" aria-label={t('Home sections')}>
         <For each={homeTabs}>
@@ -218,19 +216,13 @@ export function Home() {
                       <Show when={iconOf(e.p.id)} fallback={<span class="project-icon" />}>
                         <img class="project-icon" src={iconURL(iconOf(e.p.id))} alt="" data-testid="project-icon" />
                       </Show>
-                      <ProjectInfo p={e.p} pod={(pods() ?? []).length ? ws()?.name : undefined} />
+                      <ProjectInfo name={e.p.name} path={where(e.p as Project)} />
                     </a>
-                    <ProjectDetails p={e.p} path={where(e.p as Project)}>
-                      <button class="icon-btn" title={t('Change the icon')} onClick={() => editIcon(e.p as Project)} data-testid="project-icon-edit">
-                        <Icon name="sparkle" />
-                      </button>
-                      <button class="icon-btn" title={t('Edit')} onClick={() => setEditing({ p: structuredClone(e.p as Project), pod: null })}>
-                        <Icon name="edit" />
-                      </button>
-                      <button class="icon-btn" title={t('Remove from the list')} onClick={() => remove(e.p as Project)}>
-                        <Icon name="close" />
-                      </button>
-                    </ProjectDetails>
+                    <ProjectActions items={[
+                      { label: t('Change the icon'), action: () => editIcon(e.p as Project) },
+                      { label: t('Edit'), action: () => setEditing({ p: structuredClone(e.p as Project), pod: null }) },
+                      { label: t('Remove from the list'), action: () => void remove(e.p as Project), danger: true },
+                    ]} />
                   </article>
                 )
               }
@@ -242,19 +234,16 @@ export function Home() {
             </Show>
           </Show>
           <Show when={visibleDirs().length}>
-            <details class="home-fold" data-testid="project-folders" open={!!query() || !visibleEntries().length}>
-              <summary>{t('In the projects folder')}</summary>
-              <div class="ws-dirs">
-                <For each={visibleDirs()}>
-                  {(d: any) => (
-                    <button class="ws-dir" onClick={() => addQuick(d.path)} title={t('Add {path}', { path: d.path })}>
-                      <Icon name="folder" size={14} /> {d.name}
-                      <Icon name="plus" size={12} />
-                    </button>
-                  )}
-                </For>
-              </div>
-            </details>
+            <div class="ws-dirs">
+              <For each={visibleDirs()}>
+                {(d: any) => (
+                  <button class="ws-dir" onClick={() => addQuick(d.path)} title={t('Add {path}', { path: d.path })}>
+                    <Icon name="folder" size={14} /> {d.name}
+                    <Icon name="plus" size={12} />
+                  </button>
+                )}
+              </For>
+            </div>
           </Show>
           {/* A quiet line, not a button: a plain link, nothing is loaded from GitHub until it is clicked. */}
           <p class="home-sponsor" data-testid="sponsor-line">
@@ -309,32 +298,27 @@ interface Entry {
 
 const where = (p: Project) => (p.type === 'ssh' ? `${p.ssh?.user ? p.ssh.user + '@' : ''}${p.ssh?.host}:${p.path}` : p.path)
 
-function ProjectInfo(props: { p: { name: string }; pod?: string }) {
+function ProjectInfo(props: { name: string; path: string; pod?: string }) {
   return (
     <div class="project-title">
-      <span class="ellipsis">{props.p.name}</span>
+      <span class="ellipsis">{props.name}</span>
+      <span class="project-path muted small mono ellipsis" title={props.path}>{props.path}</span>
       <Show when={props.pod}>
-        <span class="muted small ellipsis" data-testid="project-pod" title={t('Pod')}>{props.pod}</span>
+        <span class="badge pod-badge ellipsis" data-testid="project-pod" title={t('Pod')}>{props.pod}</span>
       </Show>
     </div>
   )
 }
 
-function ProjectDetails(props: { p: Project | PodProject; path: string; children: JSX.Element }) {
+function ProjectActions(props: { items: MenuItem[] }) {
   return (
-    <details class="project-details">
-      <summary class="icon-btn" aria-label={t('Project details')} data-testid="project-details">
-        <Icon name="more" />
-      </summary>
-      <div class="project-actions">
-        <div class="project-meta muted small">
-          <div class="mono">{props.path}</div>
-          <Show when={props.p.description}><div>{props.p.description}</div></Show>
-          <Show when={props.p.openedAt}><div>{new Date(props.p.openedAt!).toLocaleDateString()}</div></Show>
-        </div>
-        {props.children}
-      </div>
-    </details>
+    <button class="icon-btn project-menu" aria-label={t('Project actions')} aria-haspopup="menu" data-testid="project-actions"
+      onClick={(e) => {
+        const rect = e.currentTarget.getBoundingClientRect()
+        contextMenu(new MouseEvent('click', { clientX: rect.left, clientY: rect.bottom }), props.items)
+      }}>
+      <Icon name="more" />
+    </button>
   )
 }
 
@@ -361,7 +345,7 @@ function RemoteCard(props: {
   const body = () => (
     <>
       <img class="project-icon" src={iconURL(icon())} alt="" />
-      <ProjectInfo p={props.p} pod={pod().name} />
+      <ProjectInfo name={props.p.name} path={props.p.path} pod={pod().name} />
     </>
   )
   return (
@@ -378,17 +362,11 @@ function RemoteCard(props: {
           {body()}
         </a>
       </Show>
-      <ProjectDetails p={props.p} path={props.p.path}>
-        <button class="icon-btn" title={reachable(pod()) ? t('Change the icon') : why()} disabled={!reachable(pod())} onClick={() => props.onIcon(pod(), props.p)} data-testid="project-icon-edit">
-          <Icon name="sparkle" />
-        </button>
-        <button class="icon-btn" title={reachable(pod()) ? t('Edit') : why()} disabled={!reachable(pod())} onClick={() => props.onEdit(pod(), props.p.id)} data-testid="project-edit">
-          <Icon name="edit" />
-        </button>
-        <button class="icon-btn" title={reachable(pod()) ? t('Remove from the list') : why()} disabled={!reachable(pod())} onClick={() => props.onRemove(pod(), props.p)} data-testid="project-remove">
-          <Icon name="close" />
-        </button>
-      </ProjectDetails>
+      <ProjectActions items={[
+        { label: t('Change the icon'), action: () => props.onIcon(pod(), props.p) },
+        { label: t('Edit'), action: () => props.onEdit(pod(), props.p.id) },
+        { label: t('Remove from the list'), action: () => props.onRemove(pod(), props.p), danger: true },
+      ].map((item) => ({ ...item, disabled: !reachable(pod()), title: reachable(pod()) ? undefined : why() }))} />
     </article>
   )
 }
@@ -569,11 +547,10 @@ function PodRow(props: { pod: PodInfo; self?: boolean }) {
           </span>
         </Show>
       </div>
-      <details class="home-fold pod-details">
-        <summary>{t('Pod details')}</summary>
-        <div class="muted small mono">{p().version}</div>
-        <div class="muted small" title={t('Fingerprint of the pod')}>{p().fingerprint}</div>
-      </details>
+      <div class="pod-details">
+        <span class="muted small mono" data-testid={props.self ? 'pod-version' : undefined}>{p().version}</span>
+        <span class="muted small" title={t('Fingerprint of the pod')}>{p().fingerprint}</span>
+      </div>
       <Show when={p().oneway && !p().online}>
         <p class="muted small">{oneway()}</p>
       </Show>
