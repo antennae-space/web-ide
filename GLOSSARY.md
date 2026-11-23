@@ -354,7 +354,7 @@ What the tools of the assistant and those of the MCP share, kept in the core (`p
 _Avoid_: toolbox, SDK
 
 **Agent**
-A coding agent program (Claude Code, opencode, pi) the IDE runs through ACP, in the Agents tool.
+A coding agent program (Claude Code, Codex, opencode, pi) the IDE runs through ACP, in the Agents tool.
 _Avoid_: CLI agent, external agent; for the assistant
 
 **Conversation**

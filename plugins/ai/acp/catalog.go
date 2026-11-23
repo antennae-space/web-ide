@@ -39,9 +39,10 @@ type Command struct {
 	Description string `json:"description"`
 }
 
-// Agents are the agents the Agents tool offers, versions pinned (spike of 2026-10-13).
+// Agents are the agents the Agents tool offers, with pinned adapter versions.
 var Agents = []Agent{
 	{ID: "claude", Name: "Claude Code", Bin: "claude-agent-acp", Package: "@agentclientprotocol/claude-agent-acp@0.89.1"},
+	{ID: "codex", Name: "Codex", Bin: "codex-acp", Package: "@agentclientprotocol/codex-acp@2.9.0"},
 	{ID: "opencode", Name: "opencode", Bin: "opencode", Args: []string{"acp"}, Paths: []string{"~/.opencode/bin/opencode"}, Hint: "curl -fsSL https://opencode.ai/install | bash",
 		Hidden: []Command{{Name: "compact", Description: "Compact the session context"}}},
 	{ID: "pi", Name: "pi", Bin: "pi-acp", Package: "pi-acp@0.0.34", Needs: "pi"},

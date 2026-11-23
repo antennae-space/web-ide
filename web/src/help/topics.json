@@ -6,7 +6,7 @@
   "settings.remote.lan": "docs/howto/lan-pods.md",
   "settings.notifications": "docs/howto/notifications.md",
   "kanban": "docs/design/kanban.md",
-  "agents": "docs/guide.md#agents-claude-code-opencode-pi",
+  "agents": "docs/guide.md#agents-claude-code-codex-opencode-pi",
   "assistant": "docs/guide.md#connect-a-model",
   "docs": "docs/README.md"
 }

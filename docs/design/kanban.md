@@ -164,7 +164,7 @@ One call may hold a small graph of questions: a question with an `id` is asked o
 
 ## Development by a CLI agent (Agents tool)
 
-The kanban settings choose the **development agent**: the assistant (default) or a CLI agent installed for the Agents tool (Claude Code, opencode, pi; `meta.devAgent`).
+The kanban settings choose the **development agent**: the assistant (default) or a CLI agent installed for the Agents tool (Claude Code, Codex, opencode, pi; `meta.devAgent`).
 
 - With an agent, *Start development* creates the branch and the worktree as usual, then *Dev session* gives the ticket to the agent (`kanban.agent`): **one session per ticket** in the Agents tool, in the worktree, named `#<n> <title>`, whose first prompt is the briefing of the role (the instructions of `agent/texts.go`, the ticket in Markdown) followed by the message of the button. *Fix session*, *Fix feedbacks*, *New dev session* and the resolution of a rebase in the worktree send their briefing to the same session (refused while it works).
 - Every session of the Agents tool gets the **MCP server of the IDE** in `session/new` / `session/load` (`http`, `http://127.0.0.1:<port>/mcp`, the token as a bearer, named `web-ide` like the one users add to Claude Code, so it replaces it): the agent reaches the kanban tools with its worktree as `cwd`, which selects its ticket. pi has no MCP over HTTP: its sessions say so in a notice.

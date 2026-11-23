@@ -546,6 +546,15 @@ run(async ({ page }) => {
   await page.waitForSelector('[data-testid=agents-launcher]')
   assert((await page.$$(tab)).length === 0, 'a reload of the worktree finds no tab of the stopped session')
 
+  // Open Codex in the worktree and read its ticket through the session's MCP server.
+  const codex = '[data-testid=agent-card-codex]'
+  await page.click(codex + ' button:has-text("Open")')
+  await waitState(page, 'ready')
+  assert((await page.textContent(`${tab} .tab-title`)) === 'Codex', 'tab named Codex')
+  await prompt(page, `# Ticket linked\nRead ticket #${n}`)
+  await page.waitForSelector('[data-testid=agent-message]:has-text("MCP web-ide:"):has-text("Timed by the agents")')
+  await waitState(page, 'ready')
+
   await page.goto(home + '?ticket=' + n)
   const kp = inFrames(page)
   await kp.waitForSelector('[data-testid=ticket-agent-stats]')
