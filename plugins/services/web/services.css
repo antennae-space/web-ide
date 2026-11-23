@@ -4,15 +4,16 @@
 .home-services .home-sub { margin: 0; }
 .svc-row { padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 6px; background: var(--bg-2); }
 .svc-head { display: flex; align-items: center; gap: 8px; min-height: 26px; flex-wrap: wrap; }
-.svc-row.off .svc-name, .svc-row.off .mono, .svc-row.unavailable .svc-name, .svc-row.unavailable .mono, .svc-link.off .svc-name, .svc-link.off .mono { color: var(--fg-muted); }
+.svc-row.off .svc-name, .svc-row.off .mono, .svc-row.unavailable .svc-name, .svc-row.unavailable .mono { color: var(--fg-muted); }
 .svc-pods { margin: 4px 0 2px 18px; display: flex; flex-direction: column; gap: 2px; }
 .svc-pod { display: flex; align-items: center; gap: 8px; font-size: 12.5px; flex-wrap: wrap; }
 .svc-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; padding: 8px 10px; border: 1px dashed var(--line); border-radius: 6px; margin-bottom: 6px; }
 .svc-form label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
 .svc-form input.input { width: 160px; }
 .svc-form input.input.port { width: 90px; }
-.svc-link { padding: 4px 0; }
-.svc-link + .svc-link { border-top: 1px solid var(--line); }
+.svc-group + .svc-group { margin-top: 12px; }
+.svc-group > .svc-head { margin-bottom: 4px; }
+.svc-group h4 { margin: 0; font-size: inherit; }
 .svc-opts { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 10px; margin: 4px 0 2px 26px; }
 .svc-opts label { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
 .svc-opts input.input.port { width: 90px; }
@@ -20,7 +21,7 @@
 .svc-route.relay-direct { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
 .svc-route.relay-turn { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
 .svc-route.idle { color: var(--fg-muted); }
-.svc-row .pod-dot.on { background: var(--ok); }
+.home-services .pod-dot.on { background: var(--ok); }
 
 .svc-status-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--fg-muted); }
 .svc-status-dot[data-state=ready] { background: var(--ok); }

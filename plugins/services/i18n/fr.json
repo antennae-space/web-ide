@@ -34,7 +34,7 @@
   "Reached from": "Joignable depuis",
   "This machine": "Cette machine",
   "The local network": "Le réseau local",
-  "Services of your other pods": "Services de vos autres pods",
+  "Services from other pods": "Services des autres pods",
   "Link one to a port of this machine: your tools reach it as if it ran here.": "Reliez-en un à un port de cette machine : vos outils le joignent comme s’il tournait ici.",
   "LAN": "LAN",
   "Relay · direct": "Relais · direct",

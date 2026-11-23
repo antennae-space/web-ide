@@ -41,7 +41,10 @@ run(async ({ page, ctx }) => {
   }), paths)
   await page.waitForFunction((count) => document.querySelectorAll('.project-list .project-card').length >= count, paths.length)
   await page.waitForSelector('[data-testid=home-services]')
+  const originalSize = page.viewportSize()
+  await page.setViewportSize({ width: 1800, height: originalSize.height })
   const side = await page.locator('.home-side').boundingBox()
+  assert(side.x + side.width === 1800, 'the side panel reaches the right edge on wide screens')
   const projectsPanel = page.locator('.home-projects')
   await projectsPanel.evaluate((el) => { el.scrollTop = el.scrollHeight })
   assert(await projectsPanel.evaluate((el) => el.scrollTop > 0), 'projects scroll with a long list')
@@ -68,7 +71,7 @@ run(async ({ page, ctx }) => {
   await search.fill('')
 
   // On a narrow screen the tabs reach the pod controls and services without project scrolling.
-  const desktop = page.viewportSize()
+  const desktop = originalSize
   await page.setViewportSize({ width: 320, height: 700 })
   const projectTab = page.getByRole('tab', { name: 'Projects' })
   const podTab = page.getByRole('tab', { name: 'Pods' })

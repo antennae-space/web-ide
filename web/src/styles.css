@@ -733,7 +733,7 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .home-sponsor a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .home-sponsor a:hover { color: var(--fg-muted); }
 .home-tabs { display: none; }
-.home-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 390px); width: min(1360px, 100%); flex: 1; min-height: 0; margin: 0 auto; }
+.home-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 390px); width: 100%; flex: 1; min-height: 0; }
 .home-projects, .home-side { min-width: 0; overflow: auto; padding: 24px; }
 .home-side { border-inline-start: 1px solid var(--line); overflow-wrap: anywhere; }
 .home-side .home-pods, .home-side .home-pods > .home-sub { margin-top: 0; }

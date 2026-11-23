@@ -67,7 +67,7 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
   const canOpen = () => !reason()
   const controlsReady = () => !props.checking && !props.unavailable && !props.pod.pending && !props.s.cached
   return (
-    <div class="svc-link" classList={{ on: !!l()?.on, off: !!reason() }} data-testid={`link-${props.pod.name}-${props.s.name}`}>
+    <div class="svc-row" classList={{ on: !!l()?.on, off: !!reason() }} data-testid={`link-${props.pod.name}-${props.s.name}`}>
       <div class="svc-head">
         <Show when={props.manage}><input type="checkbox" class="ai-switch" checked={!!l()?.on} disabled={!controlsReady() || (!l()?.on && !!reachability())} aria-describedby={reason() ? reasonID : undefined} onChange={(e) => set(e.currentTarget.checked)} title={l()?.on ? t('Linked: turn off') : t('Link it to a port of this machine')} data-testid="link-on" /></Show>
         <ServiceStatus state={props.checking || props.s.cached || props.s.health === 'checking' ? 'checking' : canOpen() ? 'ready' : 'unavailable'}
@@ -153,7 +153,7 @@ export function LinkedServices() {
   return (
     <div class="home-services" data-testid="home-linked-services" aria-busy={inventory.checking()}>
       <div class="home-bar">
-        <h3 class="home-sub">{t('Services of your other pods')}</h3>
+        <h3 class="home-sub">{t('Services from other pods')}</h3>
         <Show when={pods()?.length}>
           <button class="btn small" aria-expanded={managing()} onClick={() => setManaging(!managing())} data-testid="link-manage">{t('Manage links')}</button>
         </Show>
@@ -163,15 +163,15 @@ export function LinkedServices() {
       </Show>
       <For each={pods()}>
         {(p) => (
-          <div class="svc-row" classList={{ off: !p.online }} data-testid={`remote-pod-${p.name}`}>
+          <div class="svc-group" data-testid={`remote-pod-${p.name}`}>
             <div class="svc-head">
               <span class="pod-dot" classList={{ on: p.online }} />
-              <strong>{p.name}</strong>
+              <h4>{p.name}</h4>
               <Show when={!inventory.checking() && !inventory.unavailable() && !p.online && !p.pending}>
                 <span class="muted small">{t('offline')}</span>
               </Show>
             </div>
-            <div class="svc-pods">
+            <div>
               <Show when={!managing() && !inventory.unavailable() && p.services.length > 1 && p.services.every((s) =>
                 !s.gone && !s.link?.on && (inventory.checking() || p.pending || (p.online && (s.cached || s.health === 'checking'))))}
                 fallback={<For each={p.services}>{(s) => <ServiceLink pod={p} s={s} checking={inventory.checking()} unavailable={inventory.unavailable()} manage={managing()} />}</For>}>

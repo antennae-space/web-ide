@@ -99,6 +99,9 @@ run(async ({ page, ctx }) => {
   await stub(seed, () => remoteInventory(true))
   await seed.goto(homeURL)
   await seed.waitForSelector(`${remote} [data-testid=service-open]`)
+  const group = seed.getByTestId('remote-pod-bravo')
+  assert(await group.getByRole('heading', { name: 'bravo' }).isVisible(), 'the pod name heads its service cards')
+  assert(await group.locator('.svc-row').count() === 2, 'each remote service has its own card')
   await seed.close()
 
   const delayed = await ctx.newPage()
