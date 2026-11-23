@@ -1,4 +1,7 @@
 {
+  "Available": "Disponible",
+  "Manage links": "Gestion de enlaces",
+  "Manage sharing": "Gestion de servicios compartidos",
   "Services": "Servicios",
   "a service needs a name": "un servicio necesita un nombre",
   "the port must be between 1 and 65535": "el puerto debe estar entre 1 y 65535",

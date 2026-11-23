@@ -44,6 +44,7 @@ export function SharedServices() {
   onCleanup(api.on('services.changed', (l: Service[]) => inventory.accept(l)))
   const reason = (s: Service) => inventory.checking() ? t('Checking…') : inventory.unavailable() ? t('Service status unavailable.') : healthReason(s.health)
   const controlsReady = () => !inventory.checking() && !inventory.unavailable()
+  const [managing, setManaging] = createSignal(false)
   const [adding, setAdding] = createSignal(false)
   const [editing, setEditing] = createSignal('')
   const toggle = (s: Service, on: boolean) => api.rpc('services.save', { ...s, enabled: on }).catch(errorToast)
@@ -55,9 +56,15 @@ export function SharedServices() {
     <div class="home-services" data-testid="home-services">
       <div class="home-bar">
         <h3 class="home-sub">{t('Shared services')}</h3>
-        <span class="muted small">{t('HTTP services of this machine the other pods of your account can reach.')}</span>
         <span class="grow" />
-        <Show when={!adding()}>
+        <button class="btn small" aria-expanded={managing()} onClick={() => {
+          if (managing()) {
+            setAdding(false)
+            setEditing('')
+          }
+          setManaging(!managing())
+        }} data-testid="service-manage">{t('Manage sharing')}</button>
+        <Show when={managing() && !adding()}>
           <button class="btn small" onClick={() => setAdding(true)} data-testid="service-add">
             {t('Share a service')}
           </button>
@@ -77,24 +84,29 @@ export function SharedServices() {
           <Show when={editing() !== s.id} fallback={<ServiceForm s={s} onDone={() => setEditing('')} />}>
             <div class="svc-row" classList={{ off: !s.enabled, unavailable: !!reason(s) }} data-testid={`service-${s.port || s.id}`}>
               <div class="svc-head">
-                <input type="checkbox" class="ai-switch" checked={s.enabled} disabled={!controlsReady()} title={s.enabled ? t('Shared: turn off') : t('Off: share it')} onChange={(e) => toggle(s, e.currentTarget.checked)} data-testid={`service-on-${s.port}`} />
+                <Show when={managing()}><input type="checkbox" class="ai-switch" checked={s.enabled} disabled={!controlsReady()} title={s.enabled ? t('Shared: turn off') : t('Off: share it')} onChange={(e) => toggle(s, e.currentTarget.checked)} data-testid={`service-on-${s.port}`} /></Show>
                 <strong class="svc-name">{s.name}</strong>
-                <Show when={s.port}><span class="mono muted">127.0.0.1:{s.port}</span></Show>
+                <Show when={managing() && s.port}><span class="mono muted">127.0.0.1:{s.port}</span></Show>
                 <Show when={!s.enabled}>
                   <span class="badge">{t('off')}</span>
                 </Show>
                 <Show when={reason(s)}>
                   <span class="muted small" role="status" data-testid="service-health">{reason(s)}</span>
                 </Show>
-                <span class="grow" />
-                <button class="icon-btn small" title={t('Edit')} disabled={!controlsReady()} onClick={() => setEditing(s.id)} data-testid={`service-edit-${s.port}`}>
-                  <Icon name="edit" size={12} />
-                </button>
-                <button class="icon-btn small" title={t('Stop sharing')} disabled={!controlsReady()} onClick={() => remove(s)} data-testid={`service-delete-${s.port}`}>
-                  <Icon name="close" size={12} />
-                </button>
+                <Show when={s.enabled && !reason(s)}>
+                  <span class="muted small">{t('Available')}</span>
+                </Show>
+                <Show when={managing()}>
+                  <span class="grow" />
+                  <button class="icon-btn small" title={t('Edit')} disabled={!controlsReady()} onClick={() => setEditing(s.id)} data-testid={`service-edit-${s.port}`}>
+                    <Icon name="edit" size={12} />
+                  </button>
+                  <button class="icon-btn small" title={t('Stop sharing')} disabled={!controlsReady()} onClick={() => remove(s)} data-testid={`service-delete-${s.port}`}>
+                    <Icon name="close" size={12} />
+                  </button>
+                </Show>
               </div>
-              <Show when={s.attached.length}>
+              <Show when={managing() && s.attached.length}>
                 <div class="svc-pods">
                   <For each={s.attached}>
                     {(a) => (

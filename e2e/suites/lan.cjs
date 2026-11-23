@@ -213,13 +213,16 @@ run(async ({ page }) => {
     // 7b. The projects of bravo are edited from the home page of alpha: each request goes to
     // bravo, which saves it in its own registry.
     const bravoCard = '.project-card[data-pod=bravo]:has-text("bravo-app")'
+    await page.click(`${bravoCard} [data-testid=project-details]`)
     await page.click(`${bravoCard} [data-testid=project-edit]`)
     await page.fill('.modal label.field:has-text("Title") input', 'bravo renamed')
     await page.click('.modal button[type=submit]')
     await page.waitForSelector('.project-card[data-pod=bravo]:has-text("bravo renamed")', { timeout: 15000 })
     const reg = () => JSON.parse(fs.readFileSync(path.join(bravo.data, 'projects.json'), 'utf8'))
     assert(reg().some((p) => p.title === 'bravo renamed'), 'the new title is saved by bravo: ' + JSON.stringify(reg().map((p) => p.title)))
-    await page.click('.project-card[data-pod=bravo]:has-text("bravo renamed") [data-testid=project-icon-edit]')
+    const renamed = page.locator('.project-card[data-pod=bravo]:has-text("bravo renamed")')
+    if (!(await renamed.getByTestId("project-icon-edit").isVisible())) await renamed.getByTestId("project-details").click()
+    await renamed.getByTestId("project-icon-edit").click()
     await page.click('.ie-shape[data-shape=hexagon]')
     await page.click('[data-testid=icon-save]')
     await page.waitForSelector('.modal', { state: 'detached' })
@@ -249,6 +252,7 @@ run(async ({ page }) => {
     const made = '.project-card[data-pod=bravo]:has-text("made-from-alpha")'
     await page.waitForSelector(made, { timeout: 15000 })
     page.once('dialog', (d) => d.accept())
+    await page.click(`${made} [data-testid=project-details]`)
     await page.click(`${made} [data-testid=project-remove]`)
     await page.waitForSelector(made, { state: 'detached', timeout: 15000 })
     assert(!reg().some((p) => p.path.endsWith('made-from-alpha')), 'bravo removed it from its registry')

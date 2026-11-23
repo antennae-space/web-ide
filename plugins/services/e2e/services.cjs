@@ -14,6 +14,9 @@ run(async ({ page, ctx }) => {
   await page.waitForSelector('[data-testid=home-services]')
   assert((await page.textContent('[data-testid=home-services]')).includes('Nothing shared'), 'nothing shared by default')
 
+  assert(!(await page.isVisible('[data-testid=service-add]')), 'sharing controls are hidden at first')
+  await page.click('[data-testid=service-manage]')
+
   // Shared: the row, the file.
   await page.click('[data-testid=service-add]')
   await page.fill('[data-testid=service-name]', 'Ollama')
@@ -131,6 +134,11 @@ run(async ({ page, ctx }) => {
   const text = await fr.page.textContent('[data-testid=home-services]')
   assert(text.includes('Services partagés') && text.includes('Ollama GPU'), 'in French: ' + text)
   await fr.browser.close()
+
+  // The service stays visible when management is closed.
+  assert(!(await page.isVisible(`[data-testid=service-edit-${port}]`)), 'service settings are closed after navigation')
+  await page.waitForSelector(row)
+  await page.click('[data-testid=service-manage]')
 
   // Removed.
   page.once('dialog', (d) => d.accept())

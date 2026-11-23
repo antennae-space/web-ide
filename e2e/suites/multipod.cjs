@@ -445,6 +445,7 @@ run(
       assert(href && href.startsWith('/pod/' + keyB), 'on the relay origin, the page of a pod of the cluster runs under /pod/: ' + href)
       // A project of bravo is edited from this home page: the request rides a side channel routed
       // through the gateway, and bravo saves it.
+      await app.click('.project-card[data-pod=bravo] [data-testid=project-details]')
       await app.click('.project-card[data-pod=bravo] [data-testid=project-edit]')
       await app.fill('.modal textarea', 'edited through the relay')
       await app.click('.modal button[type=submit]')
@@ -461,6 +462,7 @@ run(
         await app.waitForSelector(`${sel} [data-testid=link-address]`, { timeout: 60000 })
         return Number((await app.textContent(`${sel} [data-testid=link-address]`)).split(':').pop())
       }
+      await app.click('[data-testid=link-manage]')
       await app.check(`${linkB} [data-testid=link-on]`)
       const lpB = await linkPort(linkB)
       // The port of the service is taken on this machine (the same one runs here): the next one.
@@ -491,6 +493,7 @@ run(
       const tokenB = fs.readFileSync(path.join(dataB, 'token'), 'utf8').trim()
       const pageB = await ctx.newPage()
       await pageB.goto(`http://127.0.0.1:${portB}/?token=${tokenB}`)
+      await pageB.click('[data-testid=service-manage]')
       await pageB.waitForSelector('[data-testid=service-pod-alpha] [data-route=lan]', { timeout: 20000 })
       await pageB.click('[data-testid=service-pod-alpha] button:has-text("Cut")')
       await pageB.waitForSelector('[data-testid=service-pod-alpha]', { state: 'detached' })
