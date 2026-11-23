@@ -56,12 +56,22 @@ exports.dropNotes = (r) => {
   return r
 }
 
+exports.addProjectFolder = async (page, name = 'demo') => {
+  await page.getByTestId('home-new-project').click()
+  const form = page.locator('.modal form')
+  const folder = form.locator('input[required]').first()
+  await folder.waitFor()
+  const root = (await folder.inputValue()).replace(/\/$/, '')
+  await folder.fill(root + '/' + name)
+  await form.locator('button[type=submit]').click()
+}
+
 exports.openProject = async (page) => {
   await page.waitForSelector('.home .home-bar')
-  await page.waitForFunction(() => document.querySelector('.project-list .project-card, .ws-dir'))
-  // Fresh data: the project is added from the folders of the projects folder.
-  if (await page.$('.project-open:has-text("demo")')) await page.click('.project-open:has-text("demo")')
-  else await page.click('.ws-dir:has-text("demo")')
+  await page.waitForSelector('[data-testid=home-new-project], .project-open:has-text("demo")')
+  const demo = page.locator('.project-open:has-text("demo")').first()
+  if (await demo.count()) await demo.click()
+  else await exports.addProjectFolder(page)
   await page.waitForSelector('.menubar')
   await page.waitForTimeout(400)
 }

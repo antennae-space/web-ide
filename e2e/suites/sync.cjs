@@ -8,7 +8,7 @@ const path = require('path')
 const readline = require('readline')
 const http = require('http')
 const { spawn, execFileSync } = require('child_process')
-const { run, assert } = require('../common.cjs')
+const { run, assert, addProjectFolder } = require('../common.cjs')
 
 const ROOT = path.join(__dirname, '..', '..')
 const BIN = process.env.E2E_BIN
@@ -62,7 +62,7 @@ async function openProject(app) {
   // A project of this pod: another pod holds a project of the same name, in the same list.
   const local = '.home-projects .project-list a.project-open:not([data-testid=pod-project]):has-text("demo")'
   if (await app.locator(local).count()) await app.click(local)
-  else if (await app.locator('.ws-dir:has-text("demo")').count()) await app.click('.ws-dir:has-text("demo")')
+  else if (await app.getByTestId('home-new-project').count()) await addProjectFolder(app)
   await app.waitForSelector('.menubar', { timeout: 30000 })
 }
 

@@ -11,6 +11,7 @@ const os = require('os')
 const path = require('path')
 const { spawn, execFileSync } = require('child_process')
 const { chromium } = require('playwright-core')
+const { addProjectFolder } = require('../common.cjs')
 const proxy = require('./llm-proxy.cjs')
 const screencast = require('./screencast.cjs')
 
@@ -185,7 +186,7 @@ async function say(page, text) {
       await page.waitForTimeout(1500)
     }
     await page.goto(`http://127.0.0.1:${PORT}/`)
-    await page.click('.ws-dir:has-text("web-ide")')
+    await addProjectFolder(page, 'web-ide')
     await page.waitForSelector('.menubar')
     await page.waitForTimeout(1500)
 

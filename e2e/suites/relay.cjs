@@ -7,7 +7,7 @@
 const fs = require('fs')
 const http = require('http')
 const net = require('net')
-const { run, assert, WS, OUT } = require('../common.cjs')
+const { run, assert, WS, OUT, addProjectFolder } = require('../common.cjs')
 
 const RELAY = process.env.E2E_RELAY_URL
 const POD_ID = process.env.E2E_POD_ID
@@ -80,9 +80,9 @@ run(
     // into the element focused inside it.
     const app = page.mainFrame().childFrames()[0]
     await app.waitForSelector('.home .home-bar', { timeout: 30000 })
-    await app.waitForSelector('.project-list .project-card, .ws-dir')
+    await app.waitForSelector('[data-testid=home-new-project]')
     if (await app.locator('.project-open:has-text("demo")').count()) await app.click('.project-open:has-text("demo")')
-    else await app.click('.ws-dir:has-text("demo")')
+    else await addProjectFolder(app)
     await app.waitForSelector('.menubar')
     await app.waitForTimeout(400)
 
@@ -373,7 +373,7 @@ run(
     await page.waitForSelector('#frame', { timeout: 30000 })
     const again = page.mainFrame().childFrames()[0]
     await again.waitForSelector('.home .home-bar', { timeout: 30000 })
-    await again.waitForSelector('.project-list .project-card, .ws-dir')
+    await again.waitForSelector('[data-testid=home-new-project]')
     await again.waitForTimeout(400)
     page.off('response', onResponse)
     const steps = await page.evaluate(() => window.__steps)
@@ -392,7 +392,7 @@ run(
 
     // The app works after the reload: the project is opened and its file read again.
     if (await again.locator('.project-open:has-text("demo")').count()) await again.click('.project-open:has-text("demo")')
-    else await again.click('.ws-dir:has-text("demo")')
+    else await addProjectFolder(again)
     await again.waitForSelector('.menubar')
     await again.waitForSelector(`.explorer .tree-row[data-path="${WS}/demo/notes.txt"]`, { timeout: 15000 })
     await again.dblclick(`.explorer .tree-row[data-path="${WS}/demo/notes.txt"]`)
@@ -526,8 +526,8 @@ run(
     for (let i = 0; i < 30 && !(await local.isVisible('.settings-body .dot-disconnected')); i++) await local.waitForTimeout(500)
     assert(await local.isVisible('.settings-body .dot-disconnected'), 'the link to the relay shows disconnected after the relay stopped')
     await local.click('.modal-settings .modal-head button')
-    await local.waitForFunction(() => document.querySelector('.project-list .project-card, .ws-dir'), null, { timeout: 15000 })
-    assert(await local.isVisible('.project-list .project-card, .ws-dir'), 'the pod still serves its projects with the relay down')
+    await local.waitForFunction(() => document.querySelector('[data-testid=home-new-project]'), null, { timeout: 15000 })
+    assert(await local.isVisible('[data-testid=home-new-project]'), 'the pod still serves its projects with the relay down')
 
     // The relay comes back: the pod reconnects by itself (backoff), and the link shows
     // connected again.

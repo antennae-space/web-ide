@@ -11,7 +11,7 @@ const path = require('path')
 const readline = require('readline')
 const http = require('http')
 const { spawn, execFileSync } = require('child_process')
-const { run, assert } = require('../common.cjs')
+const { run, assert, addProjectFolder } = require('../common.cjs')
 
 const ORIGIN = `http://localhost:${process.env.E2E_RELAY_PORT}`
 const POD_ID = process.env.E2E_POD_ID
@@ -189,7 +189,7 @@ run(
     const app = page.mainFrame().childFrames()[0]
     await app.waitForSelector('.home .home-bar', { timeout: 30000 })
     if (await app.locator('.project-open:has-text("demo")').count()) await app.click('.project-open:has-text("demo")')
-    else await app.click('.ws-dir:has-text("demo")')
+    else await addProjectFolder(app)
     await app.waitForSelector('.menubar', { timeout: 30000 })
     await app.click('.menubar button[title^="Settings"]')
     await app.waitForSelector('.settings')
@@ -419,7 +419,7 @@ db=sqlite3.connect(sys.argv[1]); db.execute("INSERT INTO github (account, github
     await app10.waitForSelector('.menubar, .home .home-bar', { timeout: 30000 })
     if (!(await app10.locator('.menubar').count())) {
       if (await app10.locator('.project-open:has-text("demo")').count()) await app10.click('.project-open:has-text("demo")')
-      else await app10.click('.ws-dir:has-text("demo")')
+      else await addProjectFolder(app10)
       await app10.waitForSelector('.menubar', { timeout: 30000 })
     }
     await app10.click('.menubar button[title^="Settings"]')

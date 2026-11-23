@@ -61,7 +61,7 @@ run(
     assert(/quota is reached/i.test(remote), 'Settings tells the quota is reached: ' + remote.slice(0, 300))
     assert(await local.isVisible('.settings-body a[href="https://github.com/sponsors/DrSmithFr"]'), 'Settings links what lifts the quota')
     // The pod itself still works: the quota closes the relayed path, not the pod.
-    assert(await local.isVisible('.project-list .project-card, .ws-dir'), 'the pod keeps serving its projects over quota')
+    assert(await local.isVisible('[data-testid=home-new-project]'), 'the pod keeps serving its projects over quota')
     await local.screenshot({ path: OUT + '/quota-settings.png' })
     await page.screenshot({ path: OUT + '/quota-page.png' })
   },

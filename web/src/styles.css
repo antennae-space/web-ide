@@ -783,9 +783,6 @@ button.sb-item:hover { background: var(--bg-3); color: var(--fg); }
 .project-title .pod-badge { flex: 0 1 auto; margin-inline-start: auto; text-align: center; }
 .project-menu { margin-inline-start: 4px; }
 .pod-details { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; }
-.ws-dirs { display: flex; flex-wrap: wrap; gap: 8px; }
-.ws-dir { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px dashed var(--line); border-radius: 6px; background: transparent; cursor: pointer; }
-.ws-dir:hover { border-color: var(--accent); color: var(--accent); }
 .folder-browser { border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); }
 .folder-path { display: flex; align-items: center; gap: 6px; padding: 6px; border-bottom: 1px solid var(--line); }
 .folder-list { max-height: 220px; overflow: auto; padding: 4px; display: flex; flex-direction: column; }

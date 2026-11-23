@@ -11,7 +11,7 @@
 const fs = require('fs')
 const http = require('http')
 const { execFileSync } = require('child_process')
-const { run, assert, pushService } = require('../common.cjs')
+const { run, assert, pushService, addProjectFolder } = require('../common.cjs')
 
 const ORIGIN = `http://localhost:${process.env.E2E_RELAY_PORT}`
 const POD_ID = process.env.E2E_POD_ID
@@ -95,7 +95,7 @@ run(
     const app = page.mainFrame().childFrames()[0]
     await app.waitForSelector('.home .home-bar', { timeout: 30000 })
     if (await app.locator('.project-open:has-text("demo")').count()) await app.click('.project-open:has-text("demo")')
-    else await app.click('.ws-dir:has-text("demo")')
+    else await addProjectFolder(app)
     await app.waitForSelector('.menubar', { timeout: 30000 })
 
     // Settings > Notifications: enable, the switches, a test.

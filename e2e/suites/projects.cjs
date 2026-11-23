@@ -11,6 +11,7 @@ const git = (cmd, cwd = WS + '/demo') => execSync(`git ${cmd}`, { cwd, env, enco
 
 run(async ({ page, ctx }) => {
   await page.waitForSelector('.home-head button[title="Settings"]')
+  assert(!(await page.getByTitle('Add ' + WS + '/demo', { exact: true }).count()), 'folders are added through New project')
   assert(!(await page.locator('.home-head [data-testid=pod-version]').count()), 'the header omits the pod version')
   assert((await page.textContent('.home')).includes('Projects folder:'), 'home page: the projects folder is named')
   // The sponsor line is a quiet plain link at the bottom: no button, no frame, nothing loaded from GitHub.

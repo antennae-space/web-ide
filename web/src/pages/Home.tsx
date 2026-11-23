@@ -1,5 +1,5 @@
 // Home page: one list of the projects of every pod of the account, the state of those pods,
-// creation of local or SSH projects, folders of the projects folder not yet added.
+// creation of local or SSH projects.
 import { base, podPath } from '../app/base'
 import { homeBase } from '../app/home'
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js'
@@ -44,16 +44,11 @@ export function Home() {
   const matches = (...fields: (string | undefined)[]) => !query() || fields.some((field) => field?.toLocaleLowerCase().includes(query()))
 
   const [projects, { refetch }] = createResource(() => request<Project[]>('projects.list'))
-  // workspace.get/dirs: the projects folder, under its old name on the wire (pods of other releases).
+  // workspace.get: the projects folder, under its old name on the wire (pods of other releases).
   const [ws, { refetch: refetchWs }] = createResource(() => request('workspace.get'))
-  const [dirs, { refetch: refetchDirs }] = createResource(() => request('workspace.dirs', {}).catch(() => null))
   // The project form: a project of this pod (pod null) or of another one, which saves it itself.
   const [editing, setEditing] = createSignal<{ p: Partial<Project>; pod: PodInfo | null } | null>(null)
-  const off = onPod('projects.changed', () => {
-    refetch()
-    refetchDirs()
-  })
-  onCleanup(off)
+  onCleanup(onPod('projects.changed', () => refetch()))
   onMount(() => {
     document.title = `${t('Projects')} · Web IDE`
     setFavicon(null)
@@ -119,23 +114,7 @@ export function Home() {
     })
   })
 
-  const available = () => {
-    const used = new Set((projects() ?? []).filter((p) => p.type === 'local').map((p) => p.path))
-    return (dirs()?.dirs ?? []).filter((d: any) => !used.has(d.path))
-  }
-
   const visibleEntries = createMemo(() => entries().filter(({ p, pod }) => matches(p.name, p.description, p.path, pod?.name ?? ws()?.name)))
-  const visibleDirs = createMemo(() => available().filter((d: { name: string; path: string }) => matches(d.name, d.path)))
-
-  const addQuick = async (path: string) => {
-    try {
-      const p = await request('projects.create', { type: 'local', path, title: '', description: '' })
-      if (p.gitError) toast(t('git init failed: {error}', { error: p.gitError }), 'error')
-      navigate(`/project/${p.id}`)
-    } catch (e) {
-      errorToast(e)
-    }
-  }
   const remove = async (p: Project) => {
     if (!confirm(t('Remove “{name}” from the list? The files are not deleted.', { name: p.name }))) return
     try {
@@ -183,7 +162,7 @@ export function Home() {
               {t('Projects folder:')} <span class="mono">{ws()?.workspace}</span>
             </span>
             <span class="grow" />
-            <button class="btn primary" onClick={() => setEditing({ p: { type: 'local' }, pod: null })}>
+            <button class="btn primary" data-testid="home-new-project" onClick={() => setEditing({ p: { type: 'local' }, pod: null })}>
               <Icon name="plus" size={14} /> {t('New project')}
             </button>
           </div>
@@ -229,21 +208,9 @@ export function Home() {
             </For>
           </div>
           <Show when={!visibleEntries().length}>
-            <Show when={query()} fallback={<p class="muted">{projects.loading ? t('Loading…') : t('No project. Create one, or add one of the folders below.')}</p>}>
-              <Show when={!visibleDirs().length}><p class="muted">{t('No matching projects.')}</p></Show>
+            <Show when={query()} fallback={<p class="muted">{projects.loading ? t('Loading…') : t('No project yet.')}</p>}>
+              <p class="muted">{t('No matching projects.')}</p>
             </Show>
-          </Show>
-          <Show when={visibleDirs().length}>
-            <div class="ws-dirs">
-              <For each={visibleDirs()}>
-                {(d: any) => (
-                  <button class="ws-dir" onClick={() => addQuick(d.path)} title={t('Add {path}', { path: d.path })}>
-                    <Icon name="folder" size={14} /> {d.name}
-                    <Icon name="plus" size={12} />
-                  </button>
-                )}
-              </For>
-            </div>
           </Show>
           {/* A quiet line, not a button: a plain link, nothing is loaded from GitHub until it is clicked. */}
           <p class="home-sponsor" data-testid="sponsor-line">

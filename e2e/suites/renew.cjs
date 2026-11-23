@@ -3,7 +3,7 @@
 // quarters of their life and restarts ICE on the same tunnel: the app keeps working on it, no new
 // tunnel is dialled, and the relay never sees an expired credential.
 const fs = require('fs')
-const { run, assert, OUT } = require('../common.cjs')
+const { run, assert, OUT, addProjectFolder } = require('../common.cjs')
 
 const RELAY = process.env.E2E_RELAY_URL
 const POD_ID = process.env.E2E_POD_ID
@@ -34,9 +34,9 @@ run(
     assert(pair.includes('relay'), 'the renewed path is still a TURN one: ' + pair)
 
     // The app works on the renewed tunnel: a project and a terminal (their own channels).
-    await app.waitForSelector('.project-list .project-card, .ws-dir')
+    await app.waitForSelector('[data-testid=home-new-project]')
     if (await app.locator('.project-open:has-text("demo")').count()) await app.click('.project-open:has-text("demo")')
-    else await app.click('.ws-dir:has-text("demo")')
+    else await addProjectFolder(app)
     await app.waitForSelector('.menubar')
     await app.focus('.menubar')
     await page.keyboard.press('Control+Shift+N')
