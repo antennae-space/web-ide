@@ -4,6 +4,28 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ## [Unreleased]
 
+## [1.30.1] - 2026-11-23
+
+### Added
+
+- **Pinned projects on the home page.** *Pin* and *Unpin* in the menu of a project row. The pinned rows come first, in the order you pinned them, then the last opened. The pins are kept in this browser for the pod shown, so a reload keeps them.
+- **A GitHub link on a project row** whose pod reads a GitHub remote (`remote.origin.url`). The GitHub mark opens `https://github.com/<owner>/<repo>` in a new tab. The pod sends the owner and repository name only, never the remote URL, which can hold credentials (`pod/projects/project_repositories.go`). The name goes to the other pods, so a project of another pod shows its link too.
+- **Copy path** in the menu of a project row, with the full path shown as its hint.
+- **A service opens its settings from its own row** (Services plugin): its button shows the address, the route, the local port, the scope and *Forget* for that service, where *Manage sharing* and *Manage links* opened every row at once.
+
+### Changed
+
+- **One service list on the home page** (Services plugin). The shared services and those of the other pods are one section named **Services** (its tab on a narrow screen too), one row per service with the badge of its pod. Each row is a checkbox that carries its state: green when ready, orange during a check, red when unavailable. Its address buttons stay in the row even when the service has no link or does not answer: *Open* stays disabled, *Copy* works with a known address. *Share a service* is the primary add button and is always shown.
+- **Every project shows its path**, in a column beside its name, below the name on a narrow screen. A leading `~` stands for the home folder of the pod that holds the project. The heading no longer names the projects folder, and the search field is gone: the list shows every project.
+- **Pod cards**: the version sits on its own line below the name, the badge of this pod says *this* in green, and the power button takes the height of the card at its right edge. The fingerprint is no longer shown. The pod badge of a project row is no longer colored.
+- **The home page fills the width of the screen**: the side column reaches the right edge, and the sponsor line sits at the bottom left. On a phone the footer is hidden.
+
+### Fixed
+
+- Home page: the sponsor line no longer rides inside the scrolling project list, where a long list pushed it out of view. It stays at the bottom left while the projects scroll.
+- Home page: every project path starts in the same column, every project row ends at the same right edge with or without its GitHub link, and the last project and service rows keep no divider.
+- Services (plugin): a share or a link that fails puts its checkbox back and shows its error.
+
 ## [1.30.0] - 2026-11-23
 
 ### Added
