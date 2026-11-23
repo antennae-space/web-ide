@@ -71,6 +71,23 @@ func (p *Plugin) Register(h plugins.Host) {
 	}
 	h.HandlePeer(m.Handler())
 	h.Advertise("services", func() any { return m.Published() })
+	var stopHealth context.CancelFunc
+	var healthDone chan struct{}
+	h.OnStart(func() {
+		ctx, cancel := context.WithCancel(context.Background())
+		stopHealth = cancel
+		healthDone = make(chan struct{})
+		go func() {
+			defer close(healthDone)
+			m.monitorHealth(ctx)
+		}()
+	})
+	h.OnStop(func() {
+		if stopHealth != nil {
+			stopHealth()
+			<-healthDone
+		}
+	})
 
 	// The links of this pod to the services of the other pods.
 	links, err := LoadLinks(pod.Services().Store, lazyPeers{pod}, func() { pod.Broadcast("services.links", nil) })
@@ -80,7 +97,13 @@ func (p *Plugin) Register(h plugins.Host) {
 	h.OnStart(links.Start)
 	h.OnStop(links.Stop)
 	h.HandleGlobal("services.remote", func(ctx context.Context, c plugins.Call) (any, error) {
-		return remote(pod.Peers(), links), nil
+		a, err := bind[struct {
+			Catalog bool `json:"catalog"`
+		}](c.Params)
+		if err != nil {
+			return nil, err
+		}
+		return remote(pod.Peers(), links, a.Catalog), nil
 	})
 	h.HandleGlobal("services.link", func(ctx context.Context, c plugins.Call) (any, error) {
 		k, err := bind[Link](c.Params)
@@ -149,17 +172,21 @@ type RemotePod struct {
 	Online   bool            `json:"online"`
 	Route    tunnel.Route    `json:"route"`
 	Services []RemoteService `json:"services"`
+	// Catalog says this online pod advertised its service list, even if empty.
+	Catalog bool `json:"catalog,omitempty"`
 }
 
 // RemoteService is a service of another pod, with the link of this pod if it has one.
 type RemoteService struct {
-	ID   string    `json:"id"`
-	Name string    `json:"name"`
-	Link *LinkView `json:"link,omitempty"`
+	ID     string    `json:"id"`
+	Name   string    `json:"name"`
+	Health string    `json:"health,omitempty"`
+	Gone   bool      `json:"gone,omitempty"`
+	Link   *LinkView `json:"link,omitempty"`
 }
 
 // remote lists the services of the other pods, and the links to services no longer shared.
-func remote(peers plugins.Peers, links *Links) []RemotePod {
+func remote(peers plugins.Peers, links *Links, catalogs bool) []RemotePod {
 	byPod := map[string][]LinkView{}
 	for _, v := range links.List() {
 		byPod[v.Pod] = append(byPod[v.Pod], v)
@@ -169,7 +196,7 @@ func remote(peers plugins.Peers, links *Links) []RemotePod {
 	add := func(p RemotePod, refs []Ref) {
 		used := map[string]bool{}
 		for _, r := range refs {
-			s := RemoteService{ID: r.ID, Name: r.Name}
+			s := RemoteService{ID: r.ID, Name: r.Name, Health: r.Health}
 			for _, v := range byPod[p.Key] {
 				if v.Service == r.ID {
 					s.Link = &v
@@ -181,18 +208,18 @@ func remote(peers plugins.Peers, links *Links) []RemotePod {
 		for _, v := range byPod[p.Key] {
 			if !used[v.Service] {
 				v := v
-				p.Services = append(p.Services, RemoteService{ID: v.Service, Name: v.Name, Link: &v})
+				p.Services = append(p.Services, RemoteService{ID: v.Service, Name: v.Name, Gone: p.Catalog, Link: &v})
 			}
 		}
-		if len(p.Services) > 0 {
+		if len(p.Services) > 0 || catalogs && p.Catalog {
 			out = append(out, p)
 		}
 		seen[p.Key] = true
 	}
 	for _, pp := range peers.List() {
 		var refs []Ref
-		_ = json.Unmarshal(pp.Advertised["services"], &refs)
-		add(RemotePod{Key: pp.Key, Name: pp.Name, Online: pp.Online, Route: peers.Route(pp.Key), Services: []RemoteService{}}, refs)
+		advertised := json.Unmarshal(pp.Advertised["services"], &refs) == nil && refs != nil
+		add(RemotePod{Key: pp.Key, Name: pp.Name, Online: pp.Online, Route: peers.Route(pp.Key), Services: []RemoteService{}, Catalog: catalogs && pp.Online && advertised}, refs)
 	}
 	// A link to a pod the directory no longer lists.
 	for key, l := range byPod {

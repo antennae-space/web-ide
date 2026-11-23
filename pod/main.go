@@ -212,7 +212,6 @@ func main() {
 	}
 	srv.Keeper = dialKeeper(*keeperPath, st.Path("keeper.sock"))
 	srv.Init()
-	srv.Started()
 
 	// Remote access: one outbound link to the relay (no port to open). The pod id and its
 	// secret live in relay.json (0600); the token is proved inside the tunnel, never to the
@@ -527,6 +526,9 @@ func main() {
 		srv.Broadcast("relay.changed", info)
 		return info, nil
 	}
+
+	// Plugins can now publish updates and reach the other pods.
+	srv.Started()
 
 	httpSrv := &http.Server{Addr: cfg.Addr, Handler: srv, ReadHeaderTimeout: 10 * time.Second}
 	go func() {

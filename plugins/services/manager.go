@@ -45,12 +45,14 @@ type Attached struct {
 type View struct {
 	Service
 	Attached []Attached `json:"attached"`
+	Health   string     `json:"health,omitempty"`
 }
 
 // Ref is a service as the other pods see it: no port, no address.
 type Ref struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Health string `json:"health,omitempty"`
 }
 
 // Manager holds the shared services and the pods attached to them (in memory: a pod links again
@@ -61,6 +63,7 @@ type Manager struct {
 
 	mu       sync.Mutex
 	list     []Service
+	health   map[string]serviceHealth
 	attached map[string]map[string]*Attached // service id → pod key
 	// cut are the pods this pod cut, by service: they attach again only when their user turns
 	// the link on (relink), not by themselves.
@@ -83,7 +86,7 @@ func (m *Manager) List() []View {
 	defer m.mu.Unlock()
 	out := []View{}
 	for _, s := range m.list {
-		v := View{Service: s, Attached: []Attached{}}
+		v := View{Service: s, Attached: []Attached{}, Health: m.healthOf(s)}
 		for _, a := range m.attached[s.ID] {
 			v.Attached = append(v.Attached, *a)
 		}
@@ -101,7 +104,7 @@ func (m *Manager) Published() []Ref {
 	out := []Ref{}
 	for _, s := range m.list {
 		if s.Enabled {
-			out = append(out, Ref{ID: s.ID, Name: s.Name})
+			out = append(out, Ref{ID: s.ID, Name: s.Name, Health: m.healthOf(s)})
 		}
 	}
 	return out
@@ -139,6 +142,9 @@ func (m *Manager) Save(s Service) (Service, error) {
 		m.mu.Unlock()
 		return s, err
 	}
+	if i >= 0 && (s.Port != m.list[i].Port || s.Enabled != m.list[i].Enabled) {
+		delete(m.health, s.ID)
+	}
 	m.list = list
 	if !s.Enabled {
 		delete(m.attached, s.ID)
@@ -158,6 +164,7 @@ func (m *Manager) Delete(id string) error {
 	}
 	m.list = list
 	delete(m.attached, id)
+	delete(m.health, id)
 	m.mu.Unlock()
 	m.changed()
 	return nil
