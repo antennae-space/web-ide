@@ -7,6 +7,7 @@ import { on, request } from '../pod/rpc'
 import { inTunnel } from '../pod/transport'
 
 export interface PodProject {
+  githubRepo?: string
   id: string
   name: string
   description?: string

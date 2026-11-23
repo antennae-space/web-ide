@@ -102,10 +102,16 @@ func (s *Server) registerGlobal() {
 	})
 
 	s.handle("projects.github", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
-		return projectRepositories(ctx, s.Projects.List()), nil
+		repos := map[string]string{}
+		for _, p := range s.Projects.HomeList(ctx) {
+			if p.GitHubRepo != "" {
+				repos[p.ID] = p.GitHubRepo
+			}
+		}
+		return repos, nil
 	})
 	s.handle("projects.list", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
-		return s.Projects.List(), nil
+		return s.Projects.HomeList(ctx), nil
 	})
 	s.handle("projects.create", func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
 		a, err := bind[projects.Project](p)

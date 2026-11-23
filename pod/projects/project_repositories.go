@@ -1,4 +1,4 @@
-package server
+package projects
 
 import (
 	"context"
@@ -6,16 +6,14 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
-
-	"antennae.space/ide/pod/projects"
 )
 
 var githubName = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+$`)
 
 // Send only the repository name to the home page. Origin URLs can contain credentials.
-func projectRepositories(ctx context.Context, list []projects.View) map[string]string {
-	repos := map[string]string{}
-	for _, p := range list {
+func (r *Registry) HomeList(ctx context.Context) []View {
+	list := r.List()
+	for i, p := range list {
 		if ctx.Err() != nil {
 			break
 		}
@@ -25,11 +23,11 @@ func projectRepositories(ctx context.Context, list []projects.View) map[string]s
 		cmd := exec.CommandContext(ctx, "git", "-C", p.Path, "config", "--local", "--get", "remote.origin.url")
 		if raw, err := cmd.Output(); err == nil {
 			if repo := githubRepository(strings.TrimSpace(string(raw))); repo != "" {
-				repos[p.ID] = repo
+				list[i].GitHubRepo = repo
 			}
 		}
 	}
-	return repos
+	return list
 }
 
 func githubRepository(remote string) string {

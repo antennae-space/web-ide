@@ -32,6 +32,7 @@ interface Project {
   type: 'local' | 'ssh'
   path: string
   ssh?: { host: string; port: number; user: string; auth: 'agent' | 'key' | 'password'; keyPath?: string }
+  githubRepo?: string
   openedAt: string
 }
 
@@ -55,7 +56,6 @@ export function Home() {
     } }
   }
   const [projects, { refetch }] = createResource(() => request<Project[]>('projects.list'))
-  const [repositories] = createResource(projects, () => request<Record<string, string>>('projects.github'))
   // workspace.get: the projects folder, under its old name on the wire (pods of other releases).
   const [ws, { refetch: refetchWs }] = createResource(() => request('workspace.get'))
   // The project form: a project of this pod (pod null) or of another one, which saves it itself.
@@ -201,10 +201,7 @@ export function Home() {
                       </Show>
                       <ProjectInfo folder={ws()?.workspace} name={e.p.name} path={where(e.p as Project)} />
                     </a>
-                    <Show when={repositories()?.[e.p.id]}>{(repo) =>
-                      <a class="icon-btn" href={`https://github.com/${repo()}`} target="_blank" rel="noreferrer"
-                        title={t('Open on GitHub')} aria-label={t('Open on GitHub')}><Icon name="external" size={16} /></a>
-                    }</Show>
+                    <GitHubLink repo={e.p.githubRepo} />
                     <ProjectActions items={[
                       pinItem(e), pathItem(where(e.p as Project)),
                       { label: t('Change the icon'), action: () => editIcon(e.p as Project) },
@@ -297,6 +294,13 @@ function ProjectInfo(props: { folder?: string; name: string; path: string; pod?:
   )
 }
 
+function GitHubLink(props: { repo?: string }) {
+  return <Show when={props.repo && /^[\w-]+\/[\w.-]+$/.test(props.repo)}>
+    <a class="icon-btn" href={`https://github.com/${props.repo}`} target="_blank" rel="noreferrer"
+      title={t('Open on GitHub')} aria-label={t('Open on GitHub')}><Icon name="external" size={16} /></a>
+  </Show>
+}
+
 function ProjectActions(props: { items: MenuItem[] }) {
   return (
     <button class="icon-btn project-menu" aria-label={t('Project actions')} aria-haspopup="menu" data-testid="project-actions"
@@ -351,6 +355,7 @@ function RemoteCard(props: {
           {body()}
         </a>
       </Show>
+      <GitHubLink repo={props.p.githubRepo} />
       <ProjectActions items={[props.pin, pathItem(props.p.path), ...[
         { label: t('Change the icon'), action: () => props.onIcon(pod(), props.p) },
         { label: t('Edit'), action: () => props.onEdit(pod(), props.p.id) },

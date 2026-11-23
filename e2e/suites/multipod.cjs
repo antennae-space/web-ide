@@ -155,6 +155,8 @@ async function startPod(name, data, port, { lan = null, relay = false, protocol 
   const app = path.join(ws, name + '-app')
   fs.mkdirSync(data, { recursive: true })
   fs.mkdirSync(app, { recursive: true })
+  execFileSync('git', ['-C', app, 'init', '-q'])
+  execFileSync('git', ['-C', app, 'config', 'remote.origin.url', `git@github.com:example/${name}-app.git`])
   fs.writeFileSync(path.join(app, 'hello.txt'), `hello from ${name}\n`)
   const now = new Date().toISOString()
   fs.writeFileSync(path.join(data, 'projects.json'), JSON.stringify([{ id: name + '-app', title: name + '-app', description: '', type: 'local', path: app, createdAt: now, openedAt: now }]))
@@ -442,6 +444,11 @@ run(
       assert(cards.includes('alpha') && cards.includes('bravo') && cards.includes('charlie'), 'one list holds the projects of every pod: ' + cards.join(','))
       assert((await app.textContent('.project-card[data-pod=bravo] [data-testid=project-pod]')).includes('bravo'), 'a project shows the badge of its pod')
       const href = await app.getAttribute('.project-card[data-pod=bravo] [data-testid=pod-project]', 'href')
+      for (const pod of ['bravo', 'charlie']) {
+        const link = app.locator(`.project-card[data-pod="${pod}"] a[title="Open on GitHub"]`)
+        await link.waitFor()
+        assert(await link.getAttribute('href') === `https://github.com/example/${pod}-app`, 'GitHub repository from ' + pod)
+      }
       assert(href && href.startsWith('/pod/' + keyB), 'on the relay origin, the page of a pod of the cluster runs under /pod/: ' + href)
       // A project of bravo is edited from this home page: the request rides a side channel routed
       // through the gateway, and bravo saves it.

@@ -82,6 +82,7 @@ func Load(st *store.Store) (*Registry, error) {
 func (r *Registry) save() error { return r.st.WriteJSON(file, r.items) }
 
 type View struct {
+	GitHubRepo string `json:"githubRepo,omitempty"`
 	*Project
 	DisplayName string `json:"name"`
 }

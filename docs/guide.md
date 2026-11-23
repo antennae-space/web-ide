@@ -34,7 +34,7 @@ The home page lists your projects. To add an existing folder, open *New project*
 
 Open a project from its row. The path appears next to the name. Only projects from another pod show a pod badge. The project actions open in a menu. The Pods section shows the version and fingerprint. In **Services**, check a local service to share it or a remote service to link it. A checked box is green when ready, orange during a check, and red when unavailable. Open the row settings for the address, route and controls. Use the two address buttons to open a reachable URL or copy a known URL.
 
-Use the external-link icon beside a local project with a GitHub origin to open its repository in a new tab. The project list scrolls separately from the column with the pod power controls and shared services. On a narrow screen, use the **Projects**, **Pods** and **Services** tabs at the top.
+Use the external-link icon beside a project whose pod reports a GitHub origin to open its repository in a new tab. The project list scrolls separately from the column with the pod power controls and shared services. On a narrow screen, use the **Projects**, **Pods** and **Services** tabs at the top.
 
 A project opens in its own window, and comes back as you left it, in any browser connected to the same pod: tabs, splits, carets, terminals.
 

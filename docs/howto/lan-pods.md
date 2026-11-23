@@ -68,4 +68,4 @@ On the other pods, *Services* lists local and remote services together. Check a 
 
 [Account and devices](account-and-devices.md) · [Self-host a relay](self-host-relay.md) · [Windows with WSL](../install/windows-wsl.md) · [Relay design](../design/relay.md)
 
-On Home, the project menu lets you copy its full path and pin it in this browser. Each pod shows its version beside its name.
+On Home, the project menu lets you copy its full path and pin it in this browser. Each pod shows its version beside its name. The project list shares the GitHub owner and repository name with the other pods of your account.
