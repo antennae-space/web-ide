@@ -4,6 +4,21 @@ All notable changes of Web IDE. The release workflow publishes the section of a 
 
 ## [Unreleased]
 
+## [1.30.0] - 2026-11-23
+
+### Added
+
+- **Codex in the Agents tool** (`codex-acp`, adapter pinned: `@agentclientprotocol/codex-acp@2.9.0`). Install its adapter from the tool, run `codex login` in a terminal on the pod machine as the user running the pod, then open a session in your project. It gets the MCP server of the IDE, so it reads its ticket with the kanban tools when the plugin is enabled. Codex is offered as the *Development agent* in the kanban settings.
+- **The Assistant's conversations over MCP**: `assistant_list`, `assistant_read`, `assistant_send` and `assistant_start` (AI plugin). Give each call your absolute project folder as `cwd`: it selects the project and the conversation store. `assistant_list` filters by title, lists the active conversations, and gives the ids, modes, tickets, sub-agents and states. `assistant_read` reads its messages, its tool calls and the questions waiting for the user. `assistant_send` sends a message; it waits if a turn is running. `assistant_start` starts a conversation, with a mode, a model server and a model when you give them. The normal approval and question cards appear in the IDE.
+- **Shared services show their availability** (Services plugin). Each pod checks the loopback HTTP listeners of its enabled services with a short HEAD request every 5 seconds, and publishes the result with its service list (`services: [{id, name, health}]`). The home page shows a status dot for each service. A configured service stays visible while its listener is down, with the reason beside its name, and its address is disabled until it answers again. The page keeps the last known service names for up to 15 seconds while the peer directory fills, so the section is not empty during discovery.
+- **Search and tabs on the home page**. The project list searches on the name, the path, the description and the pod. On desktop it scrolls separately from the column with the pod controls and the shared services. On a narrow screen, the **Projects**, **Pods** and **Shared services** tabs at the top reach each section; `ArrowRight` and `Enter` move between them. The Pods section shows this pod when it is paired and alone.
+- **The address of a service has its icons**: open it in a new tab, or copy it. A local service opens directly only from a browser on the machine of its pod.
+
+### Changed
+
+- **Compact home page**: project rows show the path beside the name, and their management actions open from a menu. Only the projects of another pod show the pod badge. The version of this pod is no longer in the header: each pod row shows its version and its fingerprint. Quick project creation from the folders of the projects folder is gone; *New project* takes the folder, and *Manage sharing* and *Manage links* open on demand.
+- `assistant_start` starts in Build mode, where it started in Briefing mode.
+
 ## [1.29.0] - 2026-11-13
 
 ### Added
