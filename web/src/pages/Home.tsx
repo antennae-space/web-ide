@@ -486,39 +486,40 @@ function PodRow(props: { pod: PodInfo; self?: boolean }) {
       : t('This pod cannot reach {name} on the local network, only {name} reaches this pod (a NAT, WSL2): without the relay, {name} cannot be opened from here.', { name: p().name })
   return (
     <div class="pod-row" classList={{ offline: !p().online }} data-testid={props.self ? 'pod-own' : 'pod-block'} data-name={p().name}>
-      <div class="home-bar">
+      <div class="pod-info">
         <span class="pod-dot" classList={{ on: p().online }} />
-        <strong>{p().name}</strong>
+        <div class="home-bar">
+          <strong>{p().name}</strong>
+          <Show when={props.self}>
+            <span class="badge pod-self" data-testid="pod-self">
+              {t('this')}
+            </span>
+          </Show>
+          <Show when={p().gateway}>
+            <span class="badge" data-testid="pod-gateway">
+              {t('gateway')}
+            </span>
+          </Show>
+          <Show when={p().mismatch}>
+            <span class="badge" data-testid="pod-mismatch">
+              {p().mismatch === 'outdated' ? t('older version') : t('newer version')}
+            </span>
+          </Show>
+          <Show when={p().oneway}>
+            <span class="badge" data-testid="pod-oneway" title={oneway()}>
+              {t('LAN one-way')}
+            </span>
+          </Show>
+          <Show when={!p().online}>
+            <span class="badge">{t('offline')}</span>
+          </Show>
+          <Show when={p().nokey}>
+            <span class="badge" data-testid="pod-nokey" title={t('This pod has not published its projects yet.')}>
+              {t('waiting for the sync key')}
+            </span>
+          </Show>
+        </div>
         <span class="small mono" data-testid={props.self ? 'pod-version' : undefined}>{p().version}</span>
-        <Show when={props.self}>
-          <span class="badge pod-badge" data-testid="pod-self">
-            {t('This')}
-          </span>
-        </Show>
-        <Show when={p().gateway}>
-          <span class="badge" data-testid="pod-gateway">
-            {t('gateway')}
-          </span>
-        </Show>
-        <Show when={p().mismatch}>
-          <span class="badge" data-testid="pod-mismatch">
-            {p().mismatch === 'outdated' ? t('older version') : t('newer version')}
-          </span>
-        </Show>
-        <Show when={p().oneway}>
-          <span class="badge" data-testid="pod-oneway" title={oneway()}>
-            {t('LAN one-way')}
-          </span>
-        </Show>
-        <Show when={!p().online}>
-          <span class="badge">{t('offline')}</span>
-        </Show>
-        <Show when={p().nokey}>
-          <span class="badge" data-testid="pod-nokey" title={t('This pod has not published its projects yet.')}>
-            {t('waiting for the sync key')}
-          </span>
-        </Show>
-        <span class="grow" />
         <Show when={!p().online && seen()}>
           <span class="muted small">{seen()}</span>
         </Show>
@@ -526,11 +527,6 @@ function PodRow(props: { pod: PodInfo; self?: boolean }) {
         <Show when={!p().online && p().wake}>
           <button class="btn small" disabled={busy() || waking()} onClick={() => void runPower('wake')} data-testid="pod-wake">
             {waking() ? t('Waking…') : t('Wake')}
-          </button>
-        </Show>
-        <Show when={p().online && p().power !== undefined}>
-          <button class="icon-btn" title={t('Power')} disabled={busy()} onClick={powerMenu} data-testid="pod-power">
-            <Icon name="power" />
           </button>
         </Show>
         <Show when={outdated()}>
@@ -541,26 +537,28 @@ function PodRow(props: { pod: PodInfo; self?: boolean }) {
             <span class="muted small">{t('to {version}', { version: offer()!.version })}</span>
           </span>
         </Show>
+        <Show when={p().oneway && !p().online}>
+          <p class="muted small">{oneway()}</p>
+        </Show>
+        <Show when={refusal()}>
+          <div data-testid="pod-power-cmd">
+            <p class="small">{t('That machine does not let its pod power it off: run this command on it:')}</p>
+            <pre class="mono small">{refusal()!.command}</pre>
+            <button class="btn small" onClick={() => void copyText(refusal()!.command ?? '')}>{t('Copy')}</button>
+          </div>
+        </Show>
+        <Show when={answer()?.status === 'not_service'}>
+          <div data-testid="pod-update-cmd">
+            <p class="small">{t('That pod does not run as its systemd unit: run this command there, then restart it:')}</p>
+            <pre class="mono small">{answer()!.command}</pre>
+            <button class="btn small" onClick={() => void copyText(answer()!.command ?? '')}>{t('Copy')}</button>
+          </div>
+        </Show>
       </div>
-      <details class="pod-details"><summary>{t('Fingerprint of the pod')}</summary>
-        <span class="muted small" title={t('Fingerprint of the pod')}>{p().fingerprint}</span>
-      </details>
-      <Show when={p().oneway && !p().online}>
-        <p class="muted small">{oneway()}</p>
-      </Show>
-      <Show when={refusal()}>
-        <div data-testid="pod-power-cmd">
-          <p class="small">{t('That machine does not let its pod power it off: run this command on it:')}</p>
-          <pre class="mono small">{refusal()!.command}</pre>
-          <button class="btn small" onClick={() => void copyText(refusal()!.command ?? '')}>{t('Copy')}</button>
-        </div>
-      </Show>
-      <Show when={answer()?.status === 'not_service'}>
-        <div data-testid="pod-update-cmd">
-          <p class="small">{t('That pod does not run as its systemd unit: run this command there, then restart it:')}</p>
-          <pre class="mono small">{answer()!.command}</pre>
-          <button class="btn small" onClick={() => void copyText(answer()!.command ?? '')}>{t('Copy')}</button>
-        </div>
+      <Show when={p().online && p().power !== undefined}>
+        <button class="icon-btn pod-power" title={t('Power')} disabled={busy()} onClick={powerMenu} data-testid="pod-power">
+          <Icon name="power" />
+        </button>
       </Show>
     </div>
   )

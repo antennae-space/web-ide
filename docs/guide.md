@@ -32,7 +32,7 @@ Then, as you need them: [account and devices](howto/account-and-devices.md), [po
 
 The home page lists your projects. To add an existing folder, open *New project* and choose the folder. A project is a local folder or a folder on an SSH host (same features, through your local SSH keys). Each project gets an icon, generated from its name and editable.
 
-Open a project from its row. The path appears next to the name. Only projects from another pod show a pod badge. The project actions open in a menu. The Pods section shows the version and fingerprint. In **Services**, check a local service to share it or a remote service to link it. A checked box is green when ready, orange during a check, and red when unavailable. Open the row settings for the address, route and controls. Use the two address buttons to open a reachable URL or copy a known URL.
+Open a project from its row. The path appears next to the name. Only projects from another pod show a pod badge. The project actions open in a menu. Each pod card shows its version below its name. The power button on the right opens its power menu. In **Services**, check a local service to share it or a remote service to link it. A checked box is green when ready, orange during a check, and red when unavailable. Open the row settings for the address, route and controls. Use the two address buttons to open a reachable URL or copy a known URL.
 
 Use the GitHub icon beside a project whose pod reports a GitHub origin to open its repository in a new tab. The project list scrolls separately from the column with the pod power controls and shared services. On a narrow screen, use the **Projects**, **Pods** and **Services** tabs at the top.
 

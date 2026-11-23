@@ -1,5 +1,5 @@
 {
-  "This": "Este",
+  "this": "este",
   "Open on GitHub": "Abrir en GitHub",
   "Services": "Servicios",
   "Copy path": "Copiar la ruta",
@@ -777,7 +777,6 @@
   "Project saved on {pod}": "Proyecto guardado en {pod}",
   "{name} (this pod)": "{name} (este pod)",
   "Pod": "Pod",
-  "Fingerprint of the pod": "Huella del pod",
   "offline": "sin conexión",
   "This pod is offline.": "Este pod está sin conexión.",
   "gateway": "pasarela",
