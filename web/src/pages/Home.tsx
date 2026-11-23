@@ -40,6 +40,44 @@ const homeTabs = ['projects', 'pods', 'services'] as const
 export function Home() {
   const [section, setSection] = createSignal<(typeof homeTabs)[number]>('projects')
   const [search, setSearch] = createSignal('')
+  let searchBox!: HTMLInputElement
+  let list!: HTMLDivElement
+  const pinStore = 'web-ide:pins:' + podPath('/')
+  const [pins, setPins] = createSignal<string[]>((() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(pinStore) ?? '[]')
+      return Array.isArray(saved) ? saved.filter((key) => typeof key === 'string') : []
+    } catch { return [] }
+  })())
+  const entryKey = (e: Entry) => JSON.stringify([e.pod?.key, e.p.id])
+  const pinItem = (e: Entry): MenuItem => {
+    const key = entryKey(e)
+    return { label: pins().includes(key) ? t('Unpin') : t('Pin'), action: () => {
+      const next = setPins((old) => old.includes(key) ? old.filter((k) => k !== key) : [...old, key])
+      try { localStorage.setItem(pinStore, JSON.stringify(next)) } catch { /* Storage is optional. */ }
+    } }
+  }
+  const shortcuts = (ev: KeyboardEvent) => {
+    if (ev.defaultPrevented || ev.ctrlKey || ev.metaKey || ev.altKey || ev.isComposing ||
+        document.querySelector('[role="dialog"], [role="menu"]')) return
+    const target = ev.target as HTMLElement
+    if (ev.key === '/' && !target.closest('input, textarea, select, [contenteditable]') && searchBox.offsetWidth) {
+      ev.preventDefault()
+      searchBox.focus()
+    } else if (target === searchBox || target.matches('a.project-open')) {
+      const links = Array.from(list.querySelectorAll<HTMLAnchorElement>('a.project-open'))
+      const index = links.indexOf(target as HTMLAnchorElement)
+      if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+        ev.preventDefault()
+        links[Math.max(0, Math.min(links.length - 1, index + (ev.key === 'ArrowDown' ? 1 : -1)))]?.focus()
+      } else if (ev.key === 'Enter' && target === searchBox) {
+        ev.preventDefault()
+        links[0]?.click()
+      }
+    }
+  }
+  onMount(() => document.addEventListener('keydown', shortcuts))
+  onCleanup(() => document.removeEventListener('keydown', shortcuts))
   const query = () => search().trim().toLocaleLowerCase()
   const matches = (...fields: (string | undefined)[]) => !query() || fields.some((field) => field?.toLocaleLowerCase().includes(query()))
 
@@ -105,7 +143,11 @@ export function Home() {
   const entries = createMemo((): Entry[] => {
     const all: Entry[] = (projects() ?? []).map((p) => ({ pod: null, p, opened: Date.parse(p.openedAt) || 0 }))
     for (const pod of pods() ?? []) for (const p of pod.projects ?? []) all.push({ pod, p, opened: Date.parse(p.openedAt ?? '') || 0 })
-    return all.sort((a, b) => b.opened - a.opened || a.p.name.localeCompare(b.p.name))
+    const rank = (e: Entry) => {
+      const index = pins().indexOf(entryKey(e))
+      return index < 0 ? Infinity : index
+    }
+    return all.sort((a, b) => rank(a) - rank(b) || b.opened - a.opened || a.p.name.localeCompare(b.p.name))
   })
   // The home page of a pod served under a prefix is the one of the window's entry pod.
   onMount(() => {
@@ -170,18 +212,19 @@ export function Home() {
             <Icon name="search" size={16} />
             <input
               class="input"
-              type="search"
+              type="search" ref={searchBox} aria-keyshortcuts="/"
               placeholder={t('Search projects')}
               aria-label={t('Search projects')}
               value={search()}
               onInput={(e) => setSearch(e.currentTarget.value)}
             />
+            <kbd>/</kbd>
           </label>
-          <div class="project-list">
+          <div class="project-list" ref={list}>
             <For each={visibleEntries()}>
               {(e) =>
                 e.pod ? (
-                  <RemoteCard pod={e.pod} p={e.p as PodProject} onEdit={remoteEdit} onIcon={remoteIcon} onRemove={remoteRemove} />
+                  <RemoteCard folder={ws()?.workspace} pin={pinItem(e)} pod={e.pod} p={e.p as PodProject} onEdit={remoteEdit} onIcon={remoteIcon} onRemove={remoteRemove} />
                 ) : (
                   <article class="project-card" data-pod={ws()?.name}>
                     <a
@@ -195,9 +238,10 @@ export function Home() {
                       <Show when={iconOf(e.p.id)} fallback={<span class="project-icon" />}>
                         <img class="project-icon" src={iconURL(iconOf(e.p.id))} alt="" data-testid="project-icon" />
                       </Show>
-                      <ProjectInfo name={e.p.name} path={where(e.p as Project)} />
+                      <ProjectInfo folder={ws()?.workspace} name={e.p.name} path={where(e.p as Project)} />
                     </a>
                     <ProjectActions items={[
+                      pinItem(e), pathItem(where(e.p as Project)),
                       { label: t('Change the icon'), action: () => editIcon(e.p as Project) },
                       { label: t('Edit'), action: () => setEditing({ p: structuredClone(e.p as Project), pod: null }) },
                       { label: t('Remove from the list'), action: () => void remove(e.p as Project), danger: true },
@@ -265,11 +309,24 @@ interface Entry {
 
 const where = (p: Project) => (p.type === 'ssh' ? `${p.ssh?.user ? p.ssh.user + '@' : ''}${p.ssh?.host}:${p.path}` : p.path)
 
-function ProjectInfo(props: { name: string; path: string; pod?: string }) {
+function pathItem(path: string): MenuItem {
+  return { label: t('Copy path'), hint: path, action: () => void copyText(path) }
+}
+
+function ProjectInfo(props: { folder?: string; name: string; path: string; pod?: string }) {
+  const short = () => {
+    const prefix = props.folder?.replace(/\/$/, '') + '/'
+    if (props.folder && props.path.startsWith(prefix)) {
+      const relative = props.path.slice(prefix.length)
+      return relative === props.name ? '' : relative
+    }
+    const home = props.folder?.match(/^\/(?:home|Users)\/[^/]+(?=\/|$)/)?.[0]
+    return home && props.path.startsWith(home + '/') ? '~' + props.path.slice(home.length) : props.path
+  }
   return (
-    <div class="project-title">
+    <div class="project-title" title={props.path}>
       <span class="ellipsis">{props.name}</span>
-      <span class="project-path muted small mono ellipsis" title={props.path}>{props.path}</span>
+      <Show when={short()}><span class="project-path muted small mono ellipsis" title={props.path}>{short()}</span></Show>
       <Show when={props.pod}>
         <span class="badge pod-badge ellipsis" data-testid="project-pod" title={t('Pod')}>{props.pod}</span>
       </Show>
@@ -295,6 +352,8 @@ const reachable = (p: PodInfo) => p.online && podOpenable(p)
 /** A project of another pod: it opens with the front end of that pod, in this window, and its
  * actions are requests to that pod. */
 function RemoteCard(props: {
+  pin: MenuItem
+  folder?: string
   pod: PodInfo
   p: PodProject
   onEdit: (pod: PodInfo, id: string) => void
@@ -312,7 +371,7 @@ function RemoteCard(props: {
   const body = () => (
     <>
       <img class="project-icon" src={iconURL(icon())} alt="" />
-      <ProjectInfo name={props.p.name} path={props.p.path} pod={pod().name} />
+      <ProjectInfo folder={props.folder} name={props.p.name} path={props.p.path} pod={pod().name} />
     </>
   )
   return (
@@ -329,11 +388,11 @@ function RemoteCard(props: {
           {body()}
         </a>
       </Show>
-      <ProjectActions items={[
+      <ProjectActions items={[props.pin, pathItem(props.p.path), ...[
         { label: t('Change the icon'), action: () => props.onIcon(pod(), props.p) },
         { label: t('Edit'), action: () => props.onEdit(pod(), props.p.id) },
         { label: t('Remove from the list'), action: () => props.onRemove(pod(), props.p), danger: true },
-      ].map((item) => ({ ...item, disabled: !reachable(pod()), title: reachable(pod()) ? undefined : why() }))} />
+      ].map((item) => ({ ...item, disabled: !reachable(pod()), title: reachable(pod()) ? undefined : why() }))]} />
     </article>
   )
 }
@@ -462,6 +521,7 @@ function PodRow(props: { pod: PodInfo; self?: boolean }) {
       <div class="home-bar">
         <span class="pod-dot" classList={{ on: p().online }} />
         <strong>{p().name}</strong>
+        <span class="small mono" data-testid={props.self ? 'pod-version' : undefined}>{p().version}</span>
         <Show when={props.self}>
           <span class="badge pod-badge" data-testid="pod-self">
             {t('this pod')}
@@ -514,10 +574,9 @@ function PodRow(props: { pod: PodInfo; self?: boolean }) {
           </span>
         </Show>
       </div>
-      <div class="pod-details">
-        <span class="muted small mono" data-testid={props.self ? 'pod-version' : undefined}>{p().version}</span>
+      <details class="pod-details"><summary>{t('Fingerprint of the pod')}</summary>
         <span class="muted small" title={t('Fingerprint of the pod')}>{p().fingerprint}</span>
-      </div>
+      </details>
       <Show when={p().oneway && !p().online}>
         <p class="muted small">{oneway()}</p>
       </Show>

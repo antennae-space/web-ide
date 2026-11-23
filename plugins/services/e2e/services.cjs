@@ -93,7 +93,7 @@ run(async ({ page, ctx }) => {
     services: [{ id: 'svc', name: 'bravo-api', health: 'ready', link: {
       id: 'link', pod: 'bravo', podName: 'bravo', service: 'svc', name: 'bravo-api',
       scope: 'local', on: true, state: 'on', listen: 39418, route: { name: 'lan' }, requests: 0, bytes: 0,
-    } }],
+    } }, { id: 'other', name: 'other-api', health: 'ready' }],
   }]
   const seed = await ctx.newPage()
   await stub(seed, () => remoteInventory(true))
@@ -108,6 +108,8 @@ run(async ({ page, ctx }) => {
   await stub(delayed, async () => { await first; return inventory })
   try {
     await delayed.goto(homeURL)
+    await delayed.getByText('Checking 2 services…').waitFor()
+    await delayed.getByTestId('link-manage').click()
     await delayed.waitForSelector(`${remoteState}:has-text("Checking…")`)
     assert(!(await delayed.locator(`${remote} [data-testid=service-open]`).count()), 'cached service shown in a new tab with no active link')
     resume()

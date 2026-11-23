@@ -19,7 +19,7 @@ The pods of one account ([account and devices](account-and-devices.md)) that see
    web-ide-pod pair join --phrase   # no admin around: the phrase typed, the pod keeps its own key
    ```
 
-2. Open the home page of any pod: it lists the projects of every pod of the account in one list, the last opened first, each with the badge of its pod. A project of another pod opens through a port this pod keeps for it: its page and its terminals come from the pod that holds it, and the home button leads back to the home page of the pod you entered through.
+2. Open the home page of any pod: it lists the projects of every pod of the account in one list, pinned projects first in pin order, then the last opened first, each with the badge of its pod. A project of another pod opens through a port this pod keeps for it: its page and its terminals come from the pod that holds it, and the home button leads back to the home page of the pod you entered through.
 3. When mDNS does not find a pod (another subnet, multicast blocked), type its address (`192.168.1.20:4436`) in Settings > Remote access > Local network. The reason an address fails is shown next to it.
 4. To revoke a pod with no relay: `web-ide-pod pair revoke <key>`, the phrase typed. The list spreads from pod to pod, and one made offline goes to the relay as soon as a pod reaches it.
 
@@ -67,3 +67,5 @@ On the other pods, *Services of your other pods* lists it with a switch: on, it 
 ## See also
 
 [Account and devices](account-and-devices.md) · [Self-host a relay](self-host-relay.md) · [Windows with WSL](../install/windows-wsl.md) · [Relay design](../design/relay.md)
+
+On Home, press `/` to search projects. Use the arrow keys to select a result and Enter to open it. The project menu lets you copy its full path and pin it in this browser. Each pod shows its version beside its name.

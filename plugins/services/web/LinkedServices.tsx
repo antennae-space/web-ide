@@ -172,7 +172,11 @@ export function LinkedServices() {
               </Show>
             </div>
             <div class="svc-pods">
-              <For each={p.services}>{(s) => <ServiceLink pod={p} s={s} checking={inventory.checking()} unavailable={inventory.unavailable()} manage={managing()} />}</For>
+              <Show when={!managing() && !inventory.unavailable() && p.services.length > 1 && p.services.every((s) =>
+                !s.gone && !s.link?.on && (inventory.checking() || p.pending || (p.online && (s.cached || s.health === 'checking'))))}
+                fallback={<For each={p.services}>{(s) => <ServiceLink pod={p} s={s} checking={inventory.checking()} unavailable={inventory.unavailable()} manage={managing()} />}</For>}>
+                <span class="muted small" role="status">{t('Checking {n} services…', { n: p.services.length })}</span>
+              </Show>
             </div>
           </div>
         )}
