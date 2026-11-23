@@ -20,7 +20,7 @@ import (
 // need the tickets of the Kanban, whose scope and ticket binding they share.
 
 func (s *A) registerMCP() {
-	for _, t := range s.mcpTools() {
+	for _, t := range append(s.mcpTools(), s.assistantMCPTools()...) {
 		s.host.MCPTool(t)
 	}
 }
@@ -61,7 +61,7 @@ func (s *A) mcpTools() []plugins.MCPTool {
 				}
 				var chat engine.Chat
 				_ = json.Unmarshal(raw, &chat)
-				return text + pendingQuestions(&chat), nil
+				return text + pendingQuestions(&chat, "Answer with kanban_answer, one list of strings per question, in this order (an option label, several for a multiple choice, or a free text):"), nil
 			}),
 		},
 		{
@@ -75,7 +75,7 @@ func (s *A) mcpTools() []plugins.MCPTool {
 				if err != nil {
 					return "", err
 				}
-				return s.reply(lc.loc, lc.root, lc.project, sc.Lang, a.Chat, a.Message)
+				return s.reply(lc.loc, lc.root, lc.project, sc.Lang, a.Chat, a.Message, assistant.AuthorClaude)
 			}),
 		},
 		{
@@ -153,16 +153,19 @@ func (s *A) ticketChatProject(ctx context.Context, sc plugins.MCPScope, t *kbTic
 	return sc.Root.ID
 }
 
-// reply sends a message of Claude Code (kanban_reply of the MCP) into a conversation: queued while it runs,
-// else added (the questions waiting for the user are left aside) and the conversation started.
-func (s *A) reply(loc llm.ChatLocation, root, project, lang, id, text string) (string, error) {
+// reply queues a message from an MCP client during a turn, or starts a new turn.
+func (s *A) reply(loc llm.ChatLocation, root, project, lang, id, text, author string) (string, error) {
 	if strings.TrimSpace(text) == "" {
 		return "", fmt.Errorf("message is empty")
 	}
 	if r := s.run(id); r != nil {
 		r.mu.Lock()
+		if r.root != root {
+			r.mu.Unlock()
+			return "", fmt.Errorf("conversation %s is not in this project", id)
+		}
 		if !r.done {
-			r.chat.Queue = append(r.chat.Queue, engine.QueuedMessage{ID: assistant.NewID(), Text: text, Author: assistant.AuthorClaude})
+			r.chat.Queue = append(r.chat.Queue, engine.QueuedMessage{ID: assistant.NewID(), Text: text, Author: author})
 			s.publish(r, -1)
 			r.mu.Unlock()
 			return "The conversation is running: your message is queued and sent at its next step.", nil
@@ -176,12 +179,20 @@ func (s *A) reply(loc llm.ChatLocation, root, project, lang, id, text string) (s
 	if chat.Server == "" || chat.Model == "" {
 		return "", fmt.Errorf("this conversation has no model yet: the user must send its first message")
 	}
+	if author == assistant.AuthorMCP {
+		project = s.runProject(chat, root, project)
+		revive(chat)
+	}
 	from := minFrom(len(chat.Messages), skipQuestions(chat))
-	chat.AddUser(&engine.Message{Role: "user", Content: assistant.String(text), Display: text, Author: assistant.AuthorClaude})
+	chat.AddUser(&engine.Message{Role: "user", Content: assistant.String(text), Display: text, Author: author})
 	if !s.startRun(loc, root, project, lang, chat, from) {
 		return "", fmt.Errorf("the conversation started meanwhile: send your message again")
 	}
-	return "Message sent: the assistant answers now. Read its answer later with kanban_conversation.", nil
+	reader := "kanban_conversation"
+	if author == assistant.AuthorMCP {
+		reader = "assistant_read"
+	}
+	return "Message sent: the assistant answers now. Read its answer later with " + reader + ".", nil
 }
 
 // answer answers the questions of ask_user waiting in a conversation (kanban_answer of the
@@ -225,15 +236,15 @@ func (s *A) answer(loc llm.ChatLocation, root, project, lang, id string, answers
 	return "Answers sent: the assistant goes on.", nil
 }
 
-// pendingQuestions lists the questions waiting in a conversation, for kanban_conversation.
-func pendingQuestions(c *engine.Chat) string {
+// pendingQuestions lists the questions waiting in a conversation.
+func pendingQuestions(c *engine.Chat, instruction string) string {
 	for i := len(c.Messages) - 1; i >= 0; i-- {
 		m := c.Messages[i]
 		if m.AskState != "pending" {
 			continue
 		}
 		var b strings.Builder
-		b.WriteString("\n## Waiting for the answers of the user\nAnswer with kanban_answer, one list of strings per question, in this order (an option label, several for a multiple choice, or a free text):\n")
+		fmt.Fprintf(&b, "\n## Waiting for the answers of the user\n%s\n", instruction)
 		for k, q := range m.Questions {
 			fmt.Fprintf(&b, "%d. %s", k+1, q.Question)
 			var labels []string
@@ -314,6 +325,8 @@ func conversationText(raw json.RawMessage, last int, tools bool) string {
 			label := "User"
 			if m.Author == assistant.AuthorClaude {
 				label = "Claude Code (you)"
+			} else if m.Author == assistant.AuthorMCP {
+				label = "MCP client"
 			}
 			if m.Kind == "summary" {
 				label = "Summary of the earlier messages"

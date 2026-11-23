@@ -160,3 +160,6 @@ func String(s string) json.RawMessage { return Plain(s) }
 
 // AuthorClaude marks the messages and answers written by Claude Code (through the MCP).
 const AuthorClaude = "claude"
+
+// AuthorMCP marks a message from an MCP client.
+const AuthorMCP = "mcp"

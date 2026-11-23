@@ -101,7 +101,7 @@ export interface ChatMessage {
   // Fields of the page only (removed before sending).
   /** What the user typed (content also holds the text of the attachments). */
   display?: string
-  /** 'claude': written or answered by Claude Code (MCP), else by the user. */
+  /** 'claude' and 'mcp' mark messages from MCP clients. */
   author?: string
   /** Date and active file noted by the pod on a message of the user when they changed: the
    *  model reads them at the end of its content, the bubble does not show them. */

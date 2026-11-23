@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"antennae.space/ide/plugins/ai/engine"
+	"antennae.space/ide/plugins/ai/llm"
 	"antennae.space/ide/pod/assistant"
 )
 
@@ -29,9 +30,21 @@ func (s *A) orchestratorTool(r *assistantRun, ref *runtimeRef, name string, a as
 }
 
 func (s *A) listConversations(r *assistantRun, query string, limit int) (assistant.ToolResult, error) {
-	list, err := s.LLM.ListChats(r.loc)
+	lines, err := s.conversationLines(r.loc, r.id, query, limit, false)
 	if err != nil {
 		return assistant.ToolResult{}, err
+	}
+	text := "No conversation."
+	if len(lines) > 0 {
+		text = strings.Join(lines, "\n")
+	}
+	return assistant.OK(text, assistant.Tn(len(lines), "{n} conversation", "{n} conversations", nil)), nil
+}
+
+func (s *A) conversationLines(loc llm.ChatLocation, exclude, query string, limit int, active bool) ([]string, error) {
+	list, err := s.LLM.ListChats(loc)
+	if err != nil {
+		return nil, err
 	}
 	if limit <= 0 {
 		limit = 20
@@ -39,7 +52,11 @@ func (s *A) listConversations(r *assistantRun, query string, limit int) (assista
 	q := strings.ToLower(strings.TrimSpace(query))
 	var lines []string
 	for _, c := range list {
-		if c.ID == r.id || q != "" && !strings.Contains(strings.ToLower(c.Title), q) {
+		if c.ID == exclude || q != "" && !strings.Contains(strings.ToLower(c.Title), q) {
+			continue
+		}
+		state, _ := s.stateOf(c.ID)
+		if active && state == "idle" && !c.Waiting {
 			continue
 		}
 		mode := c.Mode
@@ -53,7 +70,7 @@ func (s *A) listConversations(r *assistantRun, query string, limit int) (assista
 		if c.Parent != "" {
 			line += fmt.Sprintf(" · sub-agent of %s (%s)", c.Parent, c.Status)
 		}
-		if state, _ := s.stateOf(c.ID); state != "idle" {
+		if state != "idle" {
 			line += " · " + state
 		} else if c.Waiting {
 			line += " · waiting for the user"
@@ -65,10 +82,7 @@ func (s *A) listConversations(r *assistantRun, query string, limit int) (assista
 			break
 		}
 	}
-	if len(lines) == 0 {
-		return assistant.OK("No conversation.", assistant.Tn(0, "{n} conversation", "{n} conversations", nil)), nil
-	}
-	return assistant.OK(strings.Join(lines, "\n"), assistant.Tn(len(lines), "{n} conversation", "{n} conversations", nil)), nil
+	return lines, nil
 }
 
 func (s *A) actionCard(r *assistantRun, a assistant.Args) (assistant.ToolResult, error) {

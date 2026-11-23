@@ -329,6 +329,9 @@ function UserMessage(props: { msg: ChatMessage; index: number }) {
                 {t('Claude Code')}
               </span>
             </Show>
+            <Show when={props.msg.author === 'mcp'}>
+              <span class="badge ai-author" data-testid="ai-author-mcp">{t('MCP client')}</span>
+            </Show>
             <div class="ai-user-bubble">
               <Show when={props.msg.attachments?.length}>
                 <div class="ai-atts">

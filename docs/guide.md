@@ -46,6 +46,10 @@ The pictures of this guide are made with Qwen3.8 27B on llama.cpp.
 
 **Aliases** are short texts you keep at hand. Type `/` in the message box of the assistant or of an agent and pick one (`/scr`, `/ref` and `/q` are there at the start): its text goes in the box, and you can change it before you send. Edit them in the *Aliases* tab of the settings of the assistant; they are the same in every project. When a command has the same name, the command stays in the list and the alias does not show in that box.
 
+### Use the Assistant from an MCP client
+
+Give each call your absolute project folder as `cwd`. Use `assistant_list` to find a conversation by title or list active conversations. Use `assistant_read` to read its messages and pending questions. Use `assistant_send` to send a message. The message waits if a turn is running. Use `assistant_start` with a message to start a conversation in Briefing mode with the configured model. You can specify a mode or a model server and model. The normal approval and question cards appear in the IDE.
+
 ## Agents: Claude Code, Codex, opencode, pi
 
 To use Codex, install its adapter from the *Agents* tool. Run `codex login` in a terminal on the pod machine as the user running the pod. Open a Codex session in your project. The session receives the MCP server of the IDE, including the kanban tools when the plugin is enabled.

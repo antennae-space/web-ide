@@ -1,4 +1,8 @@
 {
+  "model %q is not available on server %q": "El modelo %q no está disponible en el servidor %q",
+  "unknown mode: %s": "Modo desconocido: %s",
+  "message is empty": "El mensaje está vacío",
+  "MCP client": "Cliente MCP",
   "The assistant wants a capture of your screen: the browser allows it only on a secure address (https, or localhost).": "El asistente quiere una captura de tu pantalla: el navegador solo lo permite en una dirección segura (https o localhost).",
   "Puts an image on the board": "Coloca una imagen en la pizarra",
   "The assistant wants a capture of your screen to draw on it.": "El asistente quiere una captura de tu pantalla para dibujar sobre ella.",

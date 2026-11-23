@@ -1,0 +1,131 @@
+package ai
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+
+	"antennae.space/ide/lib/i18n"
+	"antennae.space/ide/plugins/ai/engine"
+	"antennae.space/ide/pod/assistant"
+	"antennae.space/ide/pod/plugins"
+)
+
+func (s *A) assistantMCPTools() []plugins.MCPTool {
+	chat := plugins.Str("Conversation id from assistant_list or assistant_start")
+	message := plugins.Str("Markdown message for the Assistant")
+	return []plugins.MCPTool{
+		{
+			Name:        "assistant_list",
+			Description: "Lists Assistant conversations in the project, including conversation ids, modes, tickets, sub-agents and current states.",
+			Props: map[string]any{
+				"query":  plugins.Str("Filter by title"),
+				"limit":  map[string]any{"type": "integer", "description": "Maximum number of conversations, default 20"},
+				"active": map[string]any{"type": "boolean", "description": "Only running conversations and those waiting for the user"},
+			},
+			Run: func(_ context.Context, sc plugins.MCPScope, raw json.RawMessage) (string, error) {
+				a, err := bind[struct {
+					Query  string
+					Limit  int
+					Active bool
+				}](raw)
+				if err != nil {
+					return "", err
+				}
+				lines, err := s.conversationLines(chatLocOf(sc.Root), "", a.Query, a.Limit, a.Active)
+				if err == nil && len(lines) == 0 {
+					return "No conversation.", nil
+				}
+				return strings.Join(lines, "\n"), err
+			},
+		},
+		{
+			Name:        "assistant_read",
+			Description: "Reads an Assistant conversation in the project, including questions waiting for the user.",
+			Props: map[string]any{
+				"chat":  chat,
+				"last":  map[string]any{"type": "integer", "description": "Maximum number of recent messages, default all"},
+				"tools": map[string]any{"type": "boolean", "description": "Include tool calls and errors"},
+			},
+			Required: []string{"chat"},
+			Run: func(_ context.Context, sc plugins.MCPScope, raw json.RawMessage) (string, error) {
+				a, err := bind[struct {
+					Chat  string
+					Last  int
+					Tools bool
+				}](raw)
+				if err != nil {
+					return "", err
+				}
+				data, err := s.LLM.GetChat(chatLocOf(sc.Root), a.Chat)
+				if err != nil {
+					return "", err
+				}
+				var c engine.Chat
+				if err := json.Unmarshal(data, &c); err != nil {
+					return "", err
+				}
+				text := conversationText(data, a.Last, a.Tools)
+				return text + pendingQuestions(&c, "The user can answer in the Questions tool of the IDE."), nil
+			},
+		},
+		{
+			Name:        "assistant_send",
+			Description: "Sends a message to an existing Assistant conversation. Queues it if the conversation is running. Read the answer later with assistant_read.",
+			Props:       map[string]any{"chat": chat, "message": message},
+			Required:    []string{"chat", "message"},
+			Run: func(_ context.Context, sc plugins.MCPScope, raw json.RawMessage) (string, error) {
+				a, err := bind[struct{ Chat, Message string }](raw)
+				if err != nil {
+					return "", err
+				}
+				return s.reply(chatLocOf(sc.Root), sc.Root.ID, sc.Here.ID, sc.Lang, a.Chat, a.Message, assistant.AuthorMCP)
+			},
+		},
+		{
+			Name:        "assistant_start",
+			Description: "Starts a new Assistant conversation in the project of cwd and returns its id. Uses the configured model by default.",
+			Props: map[string]any{
+				"message": message,
+				"title":   plugins.Str("Conversation title, optional"),
+				"mode":    plugins.Enum("Assistant mode, default briefing", engine.Briefing, engine.Plan, engine.Build, engine.Orchestrator),
+				"server":  plugins.Str("Model server id, optional with model"),
+				"model":   plugins.Str("Model id, optional with server"),
+			},
+			Required: []string{"message"},
+			Run:      s.startMCPConversation,
+		},
+	}
+}
+
+func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw json.RawMessage) (string, error) {
+	a, err := bind[struct{ Message, Title, Mode, Server, Model string }](raw)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(a.Message) == "" {
+		return "", i18n.New("message is empty")
+	}
+	switch a.Mode {
+	case "":
+		a.Mode = engine.Briefing
+	case engine.Briefing, engine.Plan, engine.Build, engine.Orchestrator:
+	default:
+		return "", i18n.Errorf("unknown mode: %s", a.Mode)
+	}
+	if a.Server == "" && a.Model == "" {
+		view := s.LLM.View()
+		a.Server, _ = view["server"].(string)
+		a.Model, _ = view["model"].(string)
+	}
+	if a.Server == "" || a.Model == "" {
+		return "", i18n.New("Choose a server and a model")
+	}
+	if !s.modelInfo(ctx, a.Server, a.Model).found {
+		return "", i18n.Errorf("model %q is not available on server %q", a.Model, a.Server)
+	}
+	c := &engine.Chat{ID: assistant.NewID(), Title: strings.TrimSpace(a.Title), Mode: a.Mode, Server: a.Server, Model: a.Model}
+	c.AddUser(&engine.Message{Role: "user", Content: assistant.String(a.Message), Display: a.Message, Author: assistant.AuthorMCP})
+	s.startRun(chatLocOf(sc.Root), sc.Root.ID, sc.Here.ID, sc.Lang, c, 0)
+	return c.ID, nil
+}

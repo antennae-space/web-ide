@@ -30,6 +30,10 @@ const fake = http.createServer(async (req, res) => {
   const msgs = r.messages
   const last = msgs[msgs.length - 1]
   const firstUser = text(msgs.find((m) => m.role === 'user') ?? {})
+  if (firstUser === 'MCP first message') {
+    sse(res, { content: 'MCP received ' + text(last) })
+    return end(res)
+  }
   if (firstUser.startsWith('Write the implementation plan')) {
     if (last.role === 'user')
       return (
@@ -379,7 +383,7 @@ run(async ({ page }) => {
 
     // The question types: one of each (choice, idea, compare, rank, scenario), a legacy one,
     // a note, "I don't know", and an invalid call (compare with three options) refused.
-    await kp.click('.ai-panel button[title="New conversation"]')
+    await kp.click('[data-testid=assistant-new]')
     await kp.fill('.ai-composer .ed-content', 'Types: which widgets')
     await page.keyboard.press('Enter')
     await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Which color?")', { timeout: 10000 })
@@ -431,7 +435,7 @@ run(async ({ page }) => {
     assert(folded.includes('Blue') && folded.includes('prefers it calm') && folded.includes('1. email, 2. id'), 'the folded card shows the answers and the note: ' + folded)
 
     // Briefing mode: questions, then tickets created and linked to the conversation.
-    await kp.click('.ai-panel button[title="New conversation"]')
+    await kp.click('[data-testid=assistant-new]')
     await kp.click('.ai-composer .ed-content')
     await page.keyboard.press('Shift+Tab')
     await page.keyboard.press('Shift+Tab')
@@ -480,6 +484,10 @@ run(async ({ page }) => {
     await kp.waitForSelector('[data-testid=ai-author-claude]', { timeout: 10000 })
     await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("CSV or JSON?")', { timeout: 10000 })
     assert((await kp.textContent('.ai-msg.user:has([data-testid=ai-author-claude])')).includes('which format?'), 'the message of Claude is shown with its badge')
+    const active = await mcpTool('assistant_list', { active: true })
+    assert(!active.failed && active.text.includes(chatId), 'assistant_list finds a conversation waiting for the user: ' + active.text)
+    const readPending = await mcpTool('assistant_read', { chat: chatId })
+    assert(!readPending.failed && readPending.text.includes('Questions tool of the IDE') && readPending.text.includes('[options: CSV | JSON]'), 'assistant_read lists the pending question')
     const pendingText = (await mcpTool('kanban_conversation', { chat: chatId })).text
     assert(pendingText.includes('Waiting for the answers') && pendingText.includes('[options: CSV | JSON]'), 'kanban_conversation lists the waiting questions: ' + pendingText)
     const answered = await mcpTool('kanban_answer', { chat: chatId, answers: [['JSON']] })
@@ -488,8 +496,26 @@ run(async ({ page }) => {
     await kp.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Thanks, Claude")', { timeout: 10000 })
     assert((await kp.textContent('.ai-msg.assistant:not(.live) .md:has-text("Thanks, Claude")')).includes('JSON'), 'the assistant gets the answers of Claude')
 
+    // The MCP can start and steer a conversation without a ticket.
+    const started = await mcpTool('assistant_start', { title: 'MCP conversation', message: 'MCP first message' })
+    assert(!started.failed, 'assistant_start: ' + started.text)
+    const externalChat = started.text
+    const listed = await mcpTool('assistant_list', { query: 'MCP conversation' })
+    assert(!listed.failed && listed.text.includes(externalChat) && listed.text.includes('briefing'), 'assistant_list: ' + listed.text)
+    const second = await mcpTool('assistant_send', { chat: externalChat, message: 'MCP follow-up' })
+    assert(!second.failed, 'assistant_send: ' + second.text)
+    await page.waitForFunction(async ({ url, token, cwd, chat }) => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'assistant_read', arguments: { cwd, chat } } }),
+      })
+      const reply = await response.json()
+      return reply.result?.content[0]?.text.includes('## Assistant\nMCP received MCP follow-up')
+    }, { url: process.env.E2E_URL + '/mcp', token: process.env.E2E_TOKEN, cwd: WS + '/demo', chat: externalChat })
+
     // Mobile: the idea is answered by swiping the card (right = Yes), and the compare stacks.
-    await kp.click('.ai-panel button[title="New conversation"]')
+    await kp.click('[data-testid=assistant-new]')
     await kp.fill('.ai-composer .ed-content', 'TypesM: swipe')
     await page.keyboard.press('Enter')
     await kp.waitForSelector('[data-testid=ai-ask-idea]', { timeout: 10000 })
@@ -527,7 +553,7 @@ run(async ({ page }) => {
 
     // A graph of questions: the branch of the answer only, a breadcrumb, Previous + another
     // answer changing the path, invalid graphs refused.
-    await kp.click('.ai-panel button[title="New conversation"]')
+    await kp.click('[data-testid=assistant-new]')
     await kp.fill('.ai-composer .ed-content', 'Graph: a game')
     await page.keyboard.press('Enter')
     await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Mode?")', { timeout: 10000 })
@@ -558,7 +584,7 @@ run(async ({ page }) => {
     assert(text(gres.find((m) => m.tool_call_id === 'g3')).includes('p → q → p form a cycle'), 'cycle refused')
 
     // Leaving the path: a free answer on a question with branches sends the round at once.
-    await kp.click('.ai-panel button[title="New conversation"]')
+    await kp.click('[data-testid=assistant-new]')
     await kp.fill('.ai-composer .ed-content', 'GraphOff: a game')
     await page.keyboard.press('Enter')
     await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Mode?")', { timeout: 10000 })
