@@ -2,7 +2,7 @@ import { createSignal, createUniqueId, Show, type JSX } from 'solid-js'
 import { api, errorToast, Icon, t } from './plugin'
 
 export function ServiceRow(props: {
-  name: string; pod: string; checked: boolean; disabled: boolean
+  name: string; pod: string; shared?: boolean; checked: boolean; disabled: boolean
   reason: string; url?: string; canOpen: boolean; action: string
   testID: string; checkID: string; reasonID: string; expanded: boolean
   toggle: (on: boolean) => Promise<unknown>; expand: () => void; children: JSX.Element
@@ -13,7 +13,7 @@ export function ServiceRow(props: {
   return (
     <div class="svc-row" classList={{ off: !props.checked, unavailable: !!props.reason }} data-testid={props.testID}>
       <div class="svc-line">
-        <input class="svc-check" type="checkbox" checked={props.checked} disabled={props.disabled || switching()}
+        <input class="svc-check" classList={{ 'svc-share': props.shared }} type="checkbox" checked={props.checked} disabled={props.disabled || switching()}
           data-state={state()} aria-label={props.name + ' · ' + props.action} aria-describedby={props.reason ? description : undefined} aria-busy={switching()}
           title={props.action} data-testid={props.checkID} onChange={(e) => {
             const on = e.currentTarget.checked

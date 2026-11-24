@@ -35,9 +35,15 @@ run(async ({ page, ctx }) => {
   await page.waitForSelector('.toast-error:has-text("is shared already, as Ollama")')
   await page.click('[data-testid=service-form] button:has-text("Cancel")')
 
-  // Off, then on again.
+  // The local share keeps its antenna in both states.
+  const share = page.locator(`${row} input[type=checkbox]`)
+  const antenna = () => share.evaluate((el) => getComputedStyle(el, '::before').maskImage !== 'none')
+  assert(await antenna() && (await share.getAttribute('title')).includes('Turn off sharing'), 'an active share shows an antenna and its sharing action')
+  const onColor = await share.evaluate((el) => getComputedStyle(el).backgroundColor)
+
   await page.uncheck(`[data-testid=service-on-${port}]`)
   await page.waitForSelector(`${row}.off`)
+  assert(await antenna() && await share.evaluate((el) => getComputedStyle(el).backgroundColor) !== onColor, 'the inactive share keeps its antenna on a different background')
   assert(!saved()[0].enabled, 'off in services.json')
   await page.check(`[data-testid=service-on-${port}]`)
   await page.waitForSelector(`${row}:not(.off)`)
@@ -106,6 +112,8 @@ run(async ({ page, ctx }) => {
   await stub(seed, () => remoteInventory(true), () => linkRequest)
   await seed.goto(homeURL)
   await seed.waitForSelector(`${remote} [data-testid=service-open]`)
+  const linked = seed.locator(`${remote} input[type=checkbox]`)
+  assert(await linked.isChecked() && await linked.evaluate((el) => getComputedStyle(el).appearance === 'auto') && (await linked.getAttribute('title')).includes('Forward to bravo'), 'an active remote forward uses a native checkmark and names its destination')
   const dividers = await seed.locator('.svc-row').evaluateAll((rows) => rows.map((row) => getComputedStyle(row).borderBottomColor))
   assert(dividers.length >= 2 && dividers.at(-1) === 'rgba(0, 0, 0, 0)' && dividers.slice(0, -1).every((color) => color !== dividers.at(-1)), 'only the last service has a transparent divider: ' + dividers.join(', '))
   const other = seed.getByTestId('link-bravo-other-api')

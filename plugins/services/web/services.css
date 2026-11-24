@@ -9,15 +9,24 @@
 .svc-line .pod-badge { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; }
 .svc-title { display: flex; align-items: center; gap: 4px; overflow-wrap: anywhere; }
 .svc-check { margin: 0; width: 16px; height: 16px; accent-color: var(--ok); }
-.svc-check[data-state=checking] {
+.svc-share, .svc-check[data-state=checking] {
   appearance: none;
   display: grid;
   place-items: center;
-  background-color: #4285e9;
-  border: 1px solid #3978d5;
+  border: 1px solid var(--fg-muted);
   border-radius: 3px;
 }
-.svc-check[data-state=checking]:checked::before {
+.svc-share { color: var(--fg-muted); background-color: color-mix(in srgb, var(--bg) 80%, gray); }
+.svc-share:checked { color: #172317; background-color: var(--ok); border-color: var(--ok); }
+.svc-share::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: url('./antenna.svg') center / contain no-repeat;
+}
+.svc-check[data-state=checking] { color: white; background-color: #4285e9; border-color: #3978d5; }
+.svc-check:not(.svc-share)[data-state=checking]:checked::before {
   content: '';
   width: 4px;
   height: 8px;

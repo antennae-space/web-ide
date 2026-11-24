@@ -71,7 +71,7 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
       disabled={!controlsReady() || (!checked() && (!props.pod.online || props.s.gone === true))}
       reason={reason()} url={url()}
       canOpen={localBrowser() || (listener()?.scope === 'lan' && api.podPath('/') === '/')}
-      action={checked() ? t('Linked: turn off') : t('Link it to a port of this machine')}
+      action={checked() ? t('Forward to {pod} · Turn off forwarding', { pod: props.pod.name }) : t('Turn on forwarding to {pod}', { pod: props.pod.name })}
       testID={`link-${props.pod.name}-${props.s.name}`} checkID="link-on" reasonID="link-state"
       expanded={props.manage} expand={props.expand} toggle={set}>
       <Show when={url() && l()}>

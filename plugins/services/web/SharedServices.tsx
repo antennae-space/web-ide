@@ -46,6 +46,7 @@ export function SharedServices() {
   onCleanup(api.on('services.changed', (l: Service[]) => inventory.accept(l)))
   const reason = (s: Service) => s.enabled ? healthReason(s.health) : ''
   const [self] = createResource(() => api.rpc<{ name: string }>('workspace.get'))
+  const podName = () => self()?.name || t('this pod')
   const controlsReady = () => !inventory.checking() && !inventory.unavailable()
   const [linksLoading, setLinksLoading] = createSignal(true)
   const [expanded, setExpanded] = createSignal('')
@@ -77,8 +78,8 @@ export function SharedServices() {
       <For each={inventory.entries()}>
         {(s) => (
           <Show when={editing() !== s.id} fallback={<ServiceForm s={s} onDone={() => setEditing('')} />}>
-            <ServiceRow name={s.name} pod={self()?.name || t('this pod')} checked={s.enabled} disabled={!controlsReady()}
-              reason={reason(s)} action={s.enabled ? t('Shared: turn off') : t('Off: share it')}
+            <ServiceRow shared name={s.name} pod={podName()} checked={s.enabled} disabled={!controlsReady()}
+              reason={reason(s)} action={s.enabled ? t('Shared from {pod} · Turn off sharing', { pod: podName() }) : t('Share from {pod}', { pod: podName() })}
               url={Number.isInteger(s.port) && s.port > 0 && s.port <= 65535 ? `http://127.0.0.1:${s.port}` : undefined} canOpen={localBrowser() && s.enabled && !reason(s)}
               testID={`service-${s.port || s.id}`} checkID={`service-on-${s.port}`} reasonID="service-health"
               expanded={expanded() === s.id} expand={() => setExpanded(expanded() === s.id ? '' : s.id)} toggle={(on) => toggle(s, on)}>
