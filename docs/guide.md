@@ -36,6 +36,8 @@ Open a project from its row. Project paths line up in a column beside the names.
 
 Use the GitHub icon beside a project whose pod reports a GitHub origin to open its repository in a new tab. The project list scrolls separately from the column with the pod power controls and shared services. The GitHub Sponsors link sits at the bottom left on desktop. On a narrow screen, use the **Projects**, **Pods** and **Services** tabs at the top.
 
+Services show their last known checkmarks while the home page checks their status. A blue checkbox pulses during a check. With reduced motion enabled, it stays blue. If a service is unavailable, its row shows the reason.
+
 A project opens in its own window, and comes back as you left it, in any browser connected to the same pod: tabs, splits, carets, terminals.
 
 ## Connect a model

@@ -114,6 +114,13 @@ run(async ({ page, ctx }) => {
   try {
     await delayed.goto(homeURL)
     await delayed.waitForSelector(`${remoteState}:has-text("Checking…")`)
+    const pending = delayed.locator(`${remote} input[data-state=checking]`)
+    assert(await pending.isChecked(), 'the cached link keeps its checkmark during discovery')
+    assert(await delayed.getByTestId('link-bravo-other-api').locator('input[data-state=checking]').isVisible(), 'an unchecked service also shows a pending check')
+    assert(await delayed.locator(remoteState).evaluate((el) => getComputedStyle(el).position === 'absolute' && el.clientHeight === 1), 'the status check takes no extra line')
+    assert(await pending.evaluate((el) => getComputedStyle(el).animationName === 'svc-check-pulse'), 'the checkbox pulses during discovery')
+    await delayed.emulateMedia({ reducedMotion: 'reduce' })
+    assert(await pending.evaluate((el) => getComputedStyle(el).animationName === 'none'), 'reduced motion keeps the pending checkbox still')
     assert(await delayed.locator(`${remote} [data-testid=service-open]`).isDisabled(), 'cached service shown in a new tab with no active link')
     resume()
     await delayed.waitForSelector('[data-testid=home-linked-services][aria-busy=false]')

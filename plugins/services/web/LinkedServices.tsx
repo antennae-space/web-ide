@@ -22,7 +22,7 @@ type LinkView = {
   requests: number
   bytes: number
 }
-type RemoteService = { id: string; name: string; health?: Health; link?: LinkView; cached?: boolean; gone?: boolean }
+type RemoteService = { id: string; name: string; health?: Health; link?: LinkView; lastOn?: boolean; cached?: boolean; gone?: boolean }
 type RemotePod = { key: string; name: string; online: boolean; route: Route; services: RemoteService[]; catalog?: boolean; pending?: boolean }
 
 function stateText(l: LinkView): string {
@@ -48,6 +48,7 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
     return healthReason(props.s.cached ? 'checking' : props.s.health)
   }
   const l = () => props.s.link
+  const checked = () => l()?.on ?? props.s.lastOn ?? false
   const [port, setPort] = createSignal(l()?.port ? String(l()!.port) : '')
   const [scope, setScope] = createSignal<'local' | 'lan'>(l()?.scope ?? 'local')
   const set = (on: boolean) =>
@@ -65,11 +66,11 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
   const controlsReady = () => !props.checking && !props.unavailable && !props.pod.pending && !props.s.cached
   const url = () => l()?.on && l()?.listen ? address() : undefined
   return (
-    <ServiceRow name={props.s.name} pod={props.pod.name} checked={!!l()?.on}
+    <ServiceRow name={props.s.name} pod={props.pod.name} checked={checked()}
       disabled={!controlsReady() || (!l()?.on && !!reachability())}
       checking={reason() === t('Checking…')} reason={reason()} url={url()}
       canOpen={!reason() && (localBrowser() || (scope() === 'lan' && api.podPath('/') === '/'))}
-      action={l()?.on ? t('Linked: turn off') : t('Link it to a port of this machine')}
+      action={checked() ? t('Linked: turn off') : t('Link it to a port of this machine')}
       testID={`link-${props.pod.name}-${props.s.name}`} checkID="link-on" reasonID="link-state"
       expanded={props.manage} expand={props.expand} toggle={set}>
       <Show when={url()}>
@@ -104,6 +105,10 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
   )
 }
 
+function serviceSnapshot(s: RemoteService) {
+  return { id: s.id, name: s.name, lastOn: s.link?.on ?? s.lastOn ?? false }
+}
+
 // The directory can answer before it has read an advertisement from a known pod.
 function keepUndiscovered(received: RemotePod[], previous: RemotePod[]) {
   const pods = new Map(received.map((pod) => [pod.key, pod]))
@@ -112,7 +117,7 @@ function keepUndiscovered(received: RemotePod[], previous: RemotePod[]) {
     if (pod?.catalog) continue
     const missing = old.services
       .filter((s) => !pod?.services.some((known) => known.id === s.id))
-      .map(({ id, name }) => ({ id, name, cached: true }))
+      .map((s) => ({ ...serviceSnapshot(s), cached: true }))
     if (missing.length) {
       pods.set(old.key, pod ? { ...pod, services: [...pod.services, ...missing] } : { ...old, online: false, pending: true, services: missing })
     }
@@ -124,7 +129,7 @@ export function LinkedServices() {
   const [expanded, setExpanded] = createSignal('')
   const discoveryEnds = Date.now() + 15_000
   const inventory = createInventory<RemotePod>('services.remote', ({ key, name, services }) => ({
-    key, name, services: services.map((s) => ({ id: s.id, name: s.name })),
+    key, name, services: services.map(serviceSnapshot),
   }), {
     params: { catalog: true },
     reconcile: (received, previous) => Date.now() < discoveryEnds ? keepUndiscovered(received, previous) : received,

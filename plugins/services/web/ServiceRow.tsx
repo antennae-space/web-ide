@@ -8,10 +8,10 @@ export function ServiceRow(props: {
   toggle: (on: boolean) => Promise<unknown>; expand: () => void; children: JSX.Element
 }) {
   const description = createUniqueId()
-  const state = () => !props.checked ? 'off' : props.checking ? 'checking' : props.reason ? 'unavailable' : 'ready'
+  const state = () => props.checking ? 'checking' : !props.checked ? 'off' : props.reason ? 'unavailable' : 'ready'
   const status = () => props.reason || (props.checked ? t('Available') : t('off'))
   return (
-    <div class="svc-row" classList={{ off: !props.checked, unavailable: !!props.reason }} data-testid={props.testID}>
+    <div class="svc-row" classList={{ off: !props.checked, unavailable: !!props.reason && !props.checking }} data-testid={props.testID}>
       <div class="svc-line">
         <input class="svc-check" type="checkbox" checked={props.checked} disabled={props.disabled}
           data-state={state()} aria-label={props.name + ' · ' + props.action} aria-describedby={description}
@@ -25,7 +25,7 @@ export function ServiceRow(props: {
           }} />
         <div class="svc-title">
           <strong>{props.name}</strong>
-          <span id={description} class={props.reason ? 'muted small' : 'sr-only'} role="status" data-testid={props.reason ? props.reasonID : undefined}>{status()}</span>
+          <span id={description} class={props.reason && !props.checking ? 'muted small' : 'sr-only'} role="status" data-testid={props.reason ? props.reasonID : undefined}>{status()}</span>
         </div>
         <span class="badge pod-badge">{props.pod}</span>
         <span class="svc-address-actions">
