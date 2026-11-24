@@ -36,7 +36,7 @@ Open a project from its row. Project paths line up in a column beside the names.
 
 Use the GitHub icon beside a project whose pod reports a GitHub origin to open its repository in a new tab. The project list scrolls separately from the column with the pod power controls and shared services. The GitHub Sponsors link sits at the bottom left on desktop. On a narrow screen, use the **Projects**, **Pods** and **Services** tabs at the top.
 
-An antenna marks a service shared from this pod. Its background turns green when sharing is on. A checkmark marks an active port forward to another pod.
+An antenna marks a service shared from this pod. A checkmark marks an active port forward to another pod. Its badge names that pod. An active share or forward turns yellow when the service is unavailable. It turns green again when the service recovers.
 
 Services show their last known settings as soon as the section opens. A small indicator beside the heading shows when the list refreshes. A checkbox pulses blue while you turn a service on or off. For an active port forward, you can copy its last known address or open it from a browser that can reach it. Select the info icon beside a service to read its status. The page updates the address when the entry pod replies.
 

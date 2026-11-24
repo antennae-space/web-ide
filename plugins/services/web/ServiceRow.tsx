@@ -3,13 +3,13 @@ import { api, errorToast, Icon, t } from './plugin'
 
 export function ServiceRow(props: {
   name: string; pod: string; shared?: boolean; checked: boolean; disabled: boolean
-  reason: string; url?: string; canOpen: boolean; action: string
+  failed: boolean; reason: string; url?: string; canOpen: boolean; action: string
   testID: string; checkID: string; reasonID: string; expanded: boolean
   toggle: (on: boolean) => Promise<unknown>; expand: () => void; children: JSX.Element
 }) {
   const description = createUniqueId()
   const [switching, setSwitching] = createSignal(false)
-  const state = () => switching() ? 'checking' : !props.checked ? 'off' : 'ready'
+  const state = () => switching() ? 'checking' : !props.checked ? 'off' : props.failed ? 'warning' : 'ready'
   return (
     <div class="svc-row" classList={{ off: !props.checked, unavailable: !!props.reason }} data-testid={props.testID}>
       <div class="svc-line">
@@ -34,7 +34,7 @@ export function ServiceRow(props: {
             <span id={description} class="sr-only">{props.reason}</span>
           </Show>
         </div>
-        <span class="badge pod-badge">{props.pod}</span>
+        <Show when={!props.shared}><span class="badge pod-badge">{props.pod}</span></Show>
         <span class="svc-address-actions">
           <Show when={props.url && props.canOpen} fallback={
             <button class="icon-btn small" disabled aria-label={t('Open in new tab')} title={t('Open in new tab')} data-testid="service-open"><Icon name="external" size={13} /></button>

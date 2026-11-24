@@ -43,7 +43,7 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
   const reachability = () => {
     if (props.s.gone) return t('no longer shared by {pod}', { pod: props.pod.name })
     if (!props.pod.pending && props.pod.online === false) return t('{pod} offline, retrying', { pod: props.pod.name })
-    return healthReason(props.s.health)
+    return props.s.health === 'unreachable' ? healthReason(props.s.health) : ''
   }
   const l = () => props.s.link
   const listener = () => l() ?? props.s.lastLink
@@ -57,7 +57,7 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
     if (!link?.on || !link.listen || !Number.isInteger(link.listen) || link.listen < 1 || link.listen > 65535) return
     return `http://${link.scope === 'lan' ? location.hostname : '127.0.0.1'}:${link.listen}`
   }
-  const reason = () => {
+  const failure = () => {
     const link = listener()
     // An existing listener tries its route again on the next request. Once the
     // pod is back online, a failure from an earlier request cannot block it.
@@ -69,7 +69,7 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
   return (
     <ServiceRow name={props.s.name} pod={props.pod.name} checked={checked()}
       disabled={!controlsReady() || (!checked() && (!props.pod.online || props.s.gone === true))}
-      reason={reason()} url={url()}
+      failed={!!failure()} reason={failure() || healthReason(props.s.health)} url={url()}
       canOpen={localBrowser() || (listener()?.scope === 'lan' && api.podPath('/') === '/')}
       action={checked() ? t('Forward to {pod} · Turn off forwarding', { pod: props.pod.name }) : t('Turn on forwarding to {pod}', { pod: props.pod.name })}
       testID={`link-${props.pod.name}-${props.s.name}`} checkID="link-on" reasonID="link-state"
