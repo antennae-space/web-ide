@@ -42,11 +42,12 @@ function ServiceForm(props: { s?: Service; onDone: () => void }) {
 }
 
 export function SharedServices() {
-  const inventory = createInventory<Service>('services.list', ({ id, name, enabled }) => ({ id, name, enabled, attached: [] }))
+  const inventory = createInventory<Service>('services.list', ({ id, name, enabled, port, health }) => ({ id, name, enabled, port, health, attached: [] }))
   onCleanup(api.on('services.changed', (l: Service[]) => inventory.accept(l)))
-  const reason = (s: Service) => inventory.checking() ? t('Checking…') : inventory.unavailable() ? t('Service status unavailable.') : healthReason(s.health)
+  const reason = (s: Service) => s.enabled ? healthReason(s.health) : ''
   const [self] = createResource(() => api.rpc<{ name: string }>('workspace.get'))
   const controlsReady = () => !inventory.checking() && !inventory.unavailable()
+  const [linksLoading, setLinksLoading] = createSignal(true)
   const [expanded, setExpanded] = createSignal('')
   const [adding, setAdding] = createSignal(false)
   const [editing, setEditing] = createSignal('')
@@ -59,6 +60,7 @@ export function SharedServices() {
     <div class="home-services" data-testid="home-services">
       <div class="home-bar">
         <h3 class="home-sub">{t('Services')}</h3>
+        <Show when={inventory.loading() || linksLoading()}><span class="spinner svc-loading" role="status" aria-label={t('Loading services…')} title={t('Loading services…')} /></Show>
         <span class="grow" />
         <Show when={!adding()}>
           <button class="btn primary" onClick={() => setAdding(true)} data-testid="service-add">
@@ -69,15 +71,15 @@ export function SharedServices() {
       <Show when={adding()}>
         <ServiceForm onDone={() => setAdding(false)} />
       </Show>
-      <Show when={!inventory.entries()?.length && !controlsReady()}>
-        <p class="muted small" role="status">{inventory.checking() ? t('Loading services…') : t('Service status unavailable.')}</p>
+      <Show when={inventory.unavailable()}>
+        <p class="muted small" role="status">{t('Service status unavailable.')}</p>
       </Show>
       <For each={inventory.entries()}>
         {(s) => (
           <Show when={editing() !== s.id} fallback={<ServiceForm s={s} onDone={() => setEditing('')} />}>
             <ServiceRow name={s.name} pod={self()?.name || t('this pod')} checked={s.enabled} disabled={!controlsReady()}
-              reason={reason(s)} checking={inventory.checking() || s.health === 'checking'} action={s.enabled ? t('Shared: turn off') : t('Off: share it')}
-              url={s.port ? `http://127.0.0.1:${s.port}` : undefined} canOpen={localBrowser() && s.enabled && !reason(s)}
+              reason={reason(s)} action={s.enabled ? t('Shared: turn off') : t('Off: share it')}
+              url={Number.isInteger(s.port) && s.port > 0 && s.port <= 65535 ? `http://127.0.0.1:${s.port}` : undefined} canOpen={localBrowser() && s.enabled && !reason(s)}
               testID={`service-${s.port || s.id}`} checkID={`service-on-${s.port}`} reasonID="service-health"
               expanded={expanded() === s.id} expand={() => setExpanded(expanded() === s.id ? '' : s.id)} toggle={(on) => toggle(s, on)}>
               <div class="svc-head">
@@ -113,7 +115,7 @@ export function SharedServices() {
           </Show>
         )}
       </For>
-      <LinkedServices />
+      <LinkedServices onLoading={setLinksLoading} />
     </div>
   )
 }

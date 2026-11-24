@@ -45,6 +45,7 @@ export function createInventory<T>(method: string, snapshot: (entry: T) => unkno
   })
   return {
     entries: (): T[] | undefined => resource.latest?.entries ?? initial,
+    loading: () => resource.loading,
     checking: () => !resource.latest,
     unavailable: () => !!resource.latest?.unavailable,
     accept: (entries: T[]) => mutate({ entries: remember(entries), unavailable: false }),

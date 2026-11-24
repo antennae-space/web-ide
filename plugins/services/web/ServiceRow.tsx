@@ -1,31 +1,38 @@
-import { createUniqueId, Show, type JSX } from 'solid-js'
+import { createSignal, createUniqueId, Show, type JSX } from 'solid-js'
 import { api, errorToast, Icon, t } from './plugin'
 
 export function ServiceRow(props: {
-  name: string; pod: string; checked: boolean; disabled: boolean; checking: boolean
+  name: string; pod: string; checked: boolean; disabled: boolean
   reason: string; url?: string; canOpen: boolean; action: string
   testID: string; checkID: string; reasonID: string; expanded: boolean
   toggle: (on: boolean) => Promise<unknown>; expand: () => void; children: JSX.Element
 }) {
   const description = createUniqueId()
-  const state = () => props.checking ? 'checking' : !props.checked ? 'off' : props.reason ? 'unavailable' : 'ready'
-  const status = () => props.reason || (props.checked ? t('Available') : t('off'))
+  const [switching, setSwitching] = createSignal(false)
+  const state = () => switching() ? 'checking' : !props.checked ? 'off' : 'ready'
   return (
-    <div class="svc-row" classList={{ off: !props.checked, unavailable: !!props.reason && !props.checking }} data-testid={props.testID}>
+    <div class="svc-row" classList={{ off: !props.checked, unavailable: !!props.reason }} data-testid={props.testID}>
       <div class="svc-line">
-        <input class="svc-check" type="checkbox" checked={props.checked} disabled={props.disabled}
-          data-state={state()} aria-label={props.name + ' · ' + props.action} aria-describedby={description}
+        <input class="svc-check" type="checkbox" checked={props.checked} disabled={props.disabled || switching()}
+          data-state={state()} aria-label={props.name + ' · ' + props.action} aria-describedby={props.reason ? description : undefined} aria-busy={switching()}
           title={props.action} data-testid={props.checkID} onChange={(e) => {
             const on = e.currentTarget.checked
             const input = e.currentTarget
+            setSwitching(true)
             void props.toggle(on).catch((error) => {
               input.checked = props.checked
               errorToast(error)
-            })
+            }).finally(() => setSwitching(false))
           }} />
         <div class="svc-title">
           <strong>{props.name}</strong>
-          <span id={description} class={props.reason && !props.checking ? 'muted small' : 'sr-only'} role="status" data-testid={props.reason ? props.reasonID : undefined}>{status()}</span>
+          <Show when={props.reason}>
+            <details class="svc-health" data-testid={props.reasonID}>
+              <summary aria-label={props.reason} title={props.reason}><Icon name="info" size={13} /></summary>
+              <span>{props.reason}</span>
+            </details>
+            <span id={description} class="sr-only">{props.reason}</span>
+          </Show>
         </div>
         <span class="badge pod-badge">{props.pod}</span>
         <span class="svc-address-actions">

@@ -54,7 +54,7 @@ run(async ({ page, ctx }) => {
   await page.waitForSelector(`${statusLine}:has-text("The service did not respond.")`, { timeout: 15000 })
   assert(await page.isVisible(`${row}.unavailable`), 'an unavailable local service is muted and explains why')
   const checkbox = page.locator(`${row} input[type=checkbox]`)
-  assert(await checkbox.isChecked() && await checkbox.getAttribute('data-state') === 'unavailable', 'a failed service stays checked and shows its error state')
+  assert(await checkbox.isChecked() && await checkbox.getAttribute('data-state') === 'ready', 'a failed service keeps its share checked independently of health')
   assert(await page.locator(`${row} [data-testid=service-open]`).isDisabled() && await page.locator(`${row} [data-testid=service-copy-url]`).isEnabled(), 'an unavailable address can still be copied')
   const service = http.createServer((_req, res) => res.end('OK'))
   await new Promise((done) => service.listen(port, '127.0.0.1', done))
@@ -76,10 +76,15 @@ run(async ({ page, ctx }) => {
   const remoteState = `${remote} [data-testid=link-state]`
   const homeURL = page.url()
   await page.goto('about:blank')
-  const stub = (tab, getInventory) => tab.routeWebSocket(/\/ws$/, (ws) => {
+  const stub = (tab, getInventory, beforeLink) => tab.routeWebSocket(/\/ws$/, (ws) => {
     const server = ws.connectToServer()
     ws.onMessage(async (message) => {
       const req = JSON.parse(String(message))
+      if (req.method === 'services.link' && beforeLink) {
+        await beforeLink()
+        ws.send(JSON.stringify({ id: req.id, error: { code: -32000, message: 'link failed' } }))
+        return
+      }
       if (req.method !== 'services.remote') {
         server.send(message)
         return
@@ -90,13 +95,15 @@ run(async ({ page, ctx }) => {
   })
   const remoteInventory = (online) => [{
     key: 'bravo', name: 'bravo', online, catalog: online, route: { name: 'lan' },
-    services: [{ id: 'svc', name: 'bravo-api', health: 'ready', link: {
+    services: [{ id: 'svc', name: 'bravo-api', health: 'unreachable', link: {
       id: 'link', pod: 'bravo', podName: 'bravo', service: 'svc', name: 'bravo-api',
       scope: 'local', on: true, state: 'on', listen: 39418, route: { name: 'lan' }, requests: 0, bytes: 0,
     } }, { id: 'other', name: 'other-api', health: 'ready' }],
   }]
   const seed = await ctx.newPage()
-  await stub(seed, () => remoteInventory(true))
+  let finishLink
+  const linkRequest = new Promise((done) => { finishLink = done })
+  await stub(seed, () => remoteInventory(true), () => linkRequest)
   await seed.goto(homeURL)
   await seed.waitForSelector(`${remote} [data-testid=service-open]`)
   const dividers = await seed.locator('.svc-row').evaluateAll((rows) => rows.map((row) => getComputedStyle(row).borderBottomColor))
@@ -104,33 +111,46 @@ run(async ({ page, ctx }) => {
   const other = seed.getByTestId('link-bravo-other-api')
   assert(await other.getByRole('checkbox').isVisible(), 'unlinked service shows its checkbox')
   assert(await other.getByTestId('service-open').isDisabled() && await other.getByTestId('service-copy-url').isDisabled(), 'address actions stay visible without a link')
+  const toggle = other.getByRole('checkbox')
+  await toggle.click()
+  assert(await toggle.getAttribute('aria-busy') === 'true' && await toggle.evaluate((el) => getComputedStyle(el).animationName === 'svc-check-pulse'), 'only the requested switch pulses')
+  await seed.emulateMedia({ reducedMotion: 'reduce' })
+  assert(await toggle.evaluate((el) => getComputedStyle(el).animationName === 'none'), 'reduced motion keeps the pending switch still')
+  finishLink()
+  await seed.waitForSelector('[data-testid="link-bravo-other-api"] input[data-state=off]:not(:checked)')
   await seed.close()
 
   const delayed = await ctx.newPage()
   let resume
   const first = new Promise((done) => { resume = done })
   let inventory = []
-  await stub(delayed, async () => { await first; return inventory })
+  let requests = 0
+  await stub(delayed, async () => { requests++; await first; return inventory })
   try {
     await delayed.goto(homeURL)
-    await delayed.waitForSelector(`${remoteState}:has-text("Checking…")`)
-    const pending = delayed.locator(`${remote} input[data-state=checking]`)
-    assert(await pending.isChecked(), 'the cached link keeps its checkmark during discovery')
-    assert(await delayed.getByTestId('link-bravo-other-api').locator('input[data-state=checking]').isVisible(), 'an unchecked service also shows a pending check')
-    assert(await delayed.locator(remoteState).evaluate((el) => getComputedStyle(el).position === 'absolute' && el.clientHeight === 1), 'the status check takes no extra line')
-    assert(await pending.evaluate((el) => getComputedStyle(el).animationName === 'svc-check-pulse'), 'the checkbox pulses during discovery')
-    await delayed.emulateMedia({ reducedMotion: 'reduce' })
-    assert(await pending.evaluate((el) => getComputedStyle(el).animationName === 'none'), 'reduced motion keeps the pending checkbox still')
-    assert(await delayed.locator(`${remote} [data-testid=service-open]`).isDisabled(), 'cached service shown in a new tab with no active link')
-    resume()
-    await delayed.waitForSelector('[data-testid=home-linked-services][aria-busy=false]')
-    assert(await delayed.isVisible(`${remoteState}:has-text("Checking…")`), 'an empty reply during directory discovery keeps known services visible')
+    const open = delayed.locator(`${remote} a[data-testid=service-open]`)
+    await open.click({ trial: true })
+    const elapsed = await delayed.evaluate(() => Math.round(performance.now()))
+    assert(elapsed < 1000, 'cached forward is actionable ' + elapsed + ' ms after navigation')
+    assert(await open.getAttribute('href') === 'http://127.0.0.1:39418', 'open uses the cached listener')
+    assert(await delayed.locator(`${remote} input[data-state=ready]`).isChecked(), 'the active forward stays checked')
+    assert(await delayed.getByTestId('link-bravo-other-api').locator('input[data-state=off]').isVisible(), 'the inactive forward stays grey')
+    assert(await delayed.locator('.home-bar .svc-loading').isVisible(), 'the heading shows the refresh')
+    await delayed.locator(`${remoteState} summary`).click()
+    assert(await delayed.locator(`${remoteState} > span`).isVisible() && await delayed.locator(`${remoteState} > span`).textContent() === 'The service did not respond.', 'the cached health detail opens')
+    await delayed.locator(`${remote} [data-testid=service-copy-url]`).click()
+    await delayed.waitForFunction(() => navigator.clipboard.readText().then((url) => url === 'http://127.0.0.1:39418'))
+    await delayed.waitForTimeout(10000)
+    assert(requests === 1, 'a slow inventory request finishes before another starts')
     inventory = remoteInventory(false)
-    await delayed.waitForSelector(`${remoteState}:has-text("bravo offline")`)
-    assert(await delayed.locator(`${remote} [data-testid=service-open]`).isDisabled(), 'offline service is disabled and says why')
+    inventory[0].services[0].link.listen = 39419
+    resume()
+    await delayed.waitForSelector(`${remote} a[href="http://127.0.0.1:39419"]`)
+    assert(await delayed.isVisible(`${remoteState}:has-text("bravo offline")`), 'the live reply updates the warning and listener independently')
     inventory = remoteInventory(true)
-    await delayed.waitForSelector(`${remote} a[data-testid=service-open]`, { timeout: 15000 })
-    assert(!(await delayed.locator(`${remote}.off`).count()), 'service opens again when its pod comes back')
+    delete inventory[0].services[0].link
+    await delayed.waitForSelector(`${remote} button[data-testid=service-open]:disabled`, { timeout: 15000 })
+    assert(await delayed.locator(`${remote} [data-testid=service-copy-url]`).isDisabled(), 'removing the link clears the cached address')
     inventory = [{ ...inventory[0], services: [] }]
     await delayed.waitForSelector(remote, { state: 'detached', timeout: 15000 })
     assert(!(await delayed.locator(remote).count()), 'the reachable pod confirms that the service is no longer shared')

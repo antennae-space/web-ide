@@ -7,7 +7,7 @@
 .home-services:not(:has(.linked-services > .svc-row)) > .svc-row:has(+ .linked-services) { border-bottom-color: transparent; }
 .svc-line { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, auto) auto; align-items: center; gap: 6px; }
 .svc-line .pod-badge { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; }
-.svc-title { display: grid; overflow-wrap: anywhere; }
+.svc-title { display: flex; align-items: center; gap: 4px; overflow-wrap: anywhere; }
 .svc-check { margin: 0; width: 16px; height: 16px; accent-color: var(--ok); }
 .svc-check[data-state=checking] {
   appearance: none;
@@ -29,7 +29,11 @@
   .svc-check[data-state=checking] { animation: svc-check-pulse 1.6s ease-in-out infinite alternate; }
 }
 @keyframes svc-check-pulse { to { background-color: #2459a5; } }
-.svc-check[data-state=unavailable] { accent-color: var(--danger); }
+.svc-health { position: relative; color: var(--fg-muted); }
+.svc-health summary { display: flex; cursor: pointer; }
+.svc-health summary::-webkit-details-marker { display: none; }
+.svc-health[open] > span { position: absolute; top: 100%; right: 0; z-index: 1; width: max-content; max-width: 16ch; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+@media (prefers-reduced-motion: reduce) { .svc-loading { animation: none; } }
 .svc-title .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .svc-head { display: flex; align-items: center; gap: 8px; min-height: 26px; flex-wrap: wrap; }
 .svc-pods { margin: 4px 0 2px 18px; display: flex; flex-direction: column; gap: 2px; }

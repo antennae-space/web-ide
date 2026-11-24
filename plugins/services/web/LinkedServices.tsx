@@ -1,7 +1,7 @@
 // The services of the other pods of the account (docs/design/relay.md, *Services*), on the home
 // page: each with a switch that links it to a port of this machine, the route it takes (the LAN
 // first, else the relay), its state and what went through it.
-import { createSignal, For, onCleanup, Show } from 'solid-js'
+import { createEffect, createSignal, For, onCleanup, Show } from 'solid-js'
 import { api, errorToast, t } from './plugin'
 import { createInventory, healthReason, type Health } from './inventory'
 import { ServiceRow, localBrowser } from './ServiceRow'
@@ -22,60 +22,61 @@ type LinkView = {
   requests: number
   bytes: number
 }
-type RemoteService = { id: string; name: string; health?: Health; link?: LinkView; lastOn?: boolean; cached?: boolean; gone?: boolean }
+type RemoteService = { id: string; name: string; health?: Health; link?: LinkView; lastOn?: boolean; lastLink?: Pick<LinkView, 'on' | 'port' | 'listen' | 'scope' | 'state'>; cached?: boolean; gone?: boolean }
 type RemotePod = { key: string; name: string; online: boolean; route: Route; services: RemoteService[]; catalog?: boolean; pending?: boolean }
 
-function stateText(l: LinkView): string {
-  switch (l.state) {
+function stateText(state: LinkView['state'] | undefined, pod: string, port?: number): string {
+  switch (state) {
     case 'offline':
-      return t('{pod} offline, retrying', { pod: l.podName })
+      return t('{pod} offline, retrying', { pod })
     case 'cut':
-      return t('cut by {pod}', { pod: l.podName })
+      return t('cut by {pod}', { pod })
     case 'gone':
-      return t('no longer shared by {pod}', { pod: l.podName })
+      return t('no longer shared by {pod}', { pod })
     case 'port-taken':
-      return t('port {port} taken on this machine', { port: l.port })
+      return t('port {port} taken on this machine', { port: port ?? 0 })
   }
   return ''
 }
 
 function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolean; unavailable: boolean; manage: boolean; expand: () => void }) {
   const reachability = () => {
-    if (props.unavailable) return t('Service status unavailable.')
-    if (props.checking || props.pod.pending) return t('Checking…')
     if (props.s.gone) return t('no longer shared by {pod}', { pod: props.pod.name })
-    if (!props.pod.online) return t('{pod} offline, retrying', { pod: props.pod.name })
-    return healthReason(props.s.cached ? 'checking' : props.s.health)
+    if (!props.pod.pending && props.pod.online === false) return t('{pod} offline, retrying', { pod: props.pod.name })
+    return healthReason(props.s.health)
   }
   const l = () => props.s.link
-  const checked = () => l()?.on ?? props.s.lastOn ?? false
-  const [port, setPort] = createSignal(l()?.port ? String(l()!.port) : '')
-  const [scope, setScope] = createSignal<'local' | 'lan'>(l()?.scope ?? 'local')
+  const listener = () => l() ?? props.s.lastLink
+  const checked = () => listener()?.on ?? props.s.lastOn ?? false
+  const [port, setPort] = createSignal(listener()?.port ? String(listener()!.port) : '')
+  const [scope, setScope] = createSignal<'local' | 'lan'>(listener()?.scope ?? 'local')
   const set = (on: boolean) =>
     api.rpc('services.link', { pod: props.pod.key, podName: props.pod.name, service: props.s.id, name: props.s.name, port: Number(port()) || 0, scope: scope(), on })
-  const address = () => `http://${scope() === 'lan' ? location.hostname : '127.0.0.1'}:${l()?.listen}`
+  const url = () => {
+    const link = listener()
+    if (!link?.on || !link.listen || !Number.isInteger(link.listen) || link.listen < 1 || link.listen > 65535) return
+    return `http://${link.scope === 'lan' ? location.hostname : '127.0.0.1'}:${link.listen}`
+  }
   const reason = () => {
-    const link = l()
+    const link = listener()
     // An existing listener tries its route again on the next request. Once the
     // pod is back online, a failure from an earlier request cannot block it.
-    if (link && !(link.state === 'offline' && link.listen && props.pod.online)) {
-      return stateText(link) || reachability()
-    }
-    return reachability()
+    const state = link?.state
+    if (state === 'offline' && link?.listen && props.pod.online) return reachability()
+    return stateText(state, props.pod.name, link?.port) || reachability()
   }
   const controlsReady = () => !props.checking && !props.unavailable && !props.pod.pending && !props.s.cached
-  const url = () => l()?.on && l()?.listen ? address() : undefined
   return (
     <ServiceRow name={props.s.name} pod={props.pod.name} checked={checked()}
-      disabled={!controlsReady() || (!l()?.on && !!reachability())}
-      checking={reason() === t('Checking…')} reason={reason()} url={url()}
-      canOpen={!reason() && (localBrowser() || (scope() === 'lan' && api.podPath('/') === '/'))}
+      disabled={!controlsReady() || (!checked() && (!props.pod.online || props.s.gone === true))}
+      reason={reason()} url={url()}
+      canOpen={localBrowser() || (listener()?.scope === 'lan' && api.podPath('/') === '/')}
       action={checked() ? t('Linked: turn off') : t('Link it to a port of this machine')}
       testID={`link-${props.pod.name}-${props.s.name}`} checkID="link-on" reasonID="link-state"
       expanded={props.manage} expand={props.expand} toggle={set}>
-      <Show when={url()}>
+      <Show when={url() && l()}>
         <div class="svc-head">
-          <span class="mono muted" data-testid="link-address">{address()}</span>
+          <span class="mono muted" data-testid="link-address">{url()}</span>
           <RouteBadge route={l()!.route} />
           <span class="small muted">{api.tn(l()!.requests, '{n} request', '{n} requests')} · {api.fmtSize(l()!.bytes)}</span>
         </div>
@@ -106,7 +107,9 @@ function ServiceLink(props: { pod: RemotePod; s: RemoteService; checking: boolea
 }
 
 function serviceSnapshot(s: RemoteService) {
-  return { id: s.id, name: s.name, lastOn: s.link?.on ?? s.lastOn ?? false }
+  const link = s.link ?? s.lastLink
+  const lastLink = link && { on: link.on, port: link.port, listen: link.listen, scope: link.scope, state: link.state }
+  return { id: s.id, name: s.name, health: s.health, gone: s.gone, lastLink }
 }
 
 // The directory can answer before it has read an advertisement from a known pod.
@@ -117,7 +120,7 @@ function keepUndiscovered(received: RemotePod[], previous: RemotePod[]) {
     if (pod?.catalog) continue
     const missing = old.services
       .filter((s) => !pod?.services.some((known) => known.id === s.id))
-      .map((s) => ({ ...serviceSnapshot(s), cached: true }))
+      .map((s) => ({ id: s.id, name: s.name, health: s.health, cached: true }))
     if (missing.length) {
       pods.set(old.key, pod ? { ...pod, services: [...pod.services, ...missing] } : { ...old, online: false, pending: true, services: missing })
     }
@@ -125,24 +128,36 @@ function keepUndiscovered(received: RemotePod[], previous: RemotePod[]) {
   return [...pods.values()]
 }
 
-export function LinkedServices() {
+export function LinkedServices(props: { onLoading: (loading: boolean) => void }) {
   const [expanded, setExpanded] = createSignal('')
   const discoveryEnds = Date.now() + 15_000
-  const inventory = createInventory<RemotePod>('services.remote', ({ key, name, services }) => ({
-    key, name, services: services.map(serviceSnapshot),
+  const inventory = createInventory<RemotePod>('services.remote', ({ key, name, online, services }) => ({
+    key, name, online, services: services.map(serviceSnapshot),
   }), {
     params: { catalog: true },
     reconcile: (received, previous) => Date.now() < discoveryEnds ? keepUndiscovered(received, previous) : received,
   })
   const pods = () => inventory.entries()?.filter((pod) => pod.services.length)
-  onCleanup(api.on('services.links', () => inventory.refetch()))
-  onCleanup(api.on('pods.changed', () => inventory.refetch()))
-  // The route moves by itself (the LAN link comes and goes, a tunnel goes idle).
-  const timer = setInterval(inventory.refetch, 5000)
+  createEffect(() => props.onLoading(inventory.loading() || !!pods()?.some((p) => p.pending || p.services.some((s) => s.cached))))
+  // A slow directory reply still counts. Coalesce changes that arrive while it is in flight.
+  let changedWhileLoading = false
+  const changed = () => {
+    if (inventory.loading()) changedWhileLoading = true
+    else inventory.refetch()
+  }
+  createEffect(() => {
+    if (!inventory.loading() && changedWhileLoading) {
+      changedWhileLoading = false
+      inventory.refetch()
+    }
+  })
+  onCleanup(api.on('services.links', changed))
+  onCleanup(api.on('pods.changed', changed))
+  const timer = setInterval(() => { if (!inventory.loading()) inventory.refetch() }, 5000)
   onCleanup(() => clearInterval(timer))
   return (
     <div class="linked-services" data-testid="home-linked-services" aria-busy={inventory.checking()}>
-      <Show when={inventory.unavailable() && !pods()?.length}><p class="muted small">{t('Service status unavailable.')}</p></Show>
+      <Show when={inventory.unavailable()}><p class="muted small">{t('Service status unavailable.')}</p></Show>
       <For each={pods()}>{(p) =>
         <For each={p.services}>{(s) => {
           const key = JSON.stringify([p.key, s.id])

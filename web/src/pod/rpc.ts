@@ -2,7 +2,7 @@
 // reconnection and throughput measurement (sliding window of one second). It runs over a
 // Transport (see pod/transport.ts): a WebSocket on 127.0.0.1, or the DataChannel of the
 // relay through the bootstrap page.
-import { createSignal } from 'solid-js'
+import { createSignal, untrack } from 'solid-js'
 import { lang, onLangChange, t } from '../i18n'
 import { base as pageBase } from '../app/base'
 import { askPort, type Channel, inTunnel, wsChannel } from './transport'
@@ -129,6 +129,7 @@ function attach(c: Channel) {
   c.onClose(() => {
     if (chan !== c) return
     chan = null
+    queue.length = 0
     setState('disconnected')
     for (const [id, p] of pending) {
       p.reject(new RpcError('disconnected', t('connection to the pod lost')))
@@ -172,7 +173,8 @@ window.addEventListener('online', () => void checkLink())
 
 function send(text: string, on?: Channel) {
   const c = on ?? chan
-  if (c) {
+  // The WebSocket exists before its open event. Keep startup requests in order until then.
+  if (c && (on || untrack(state) === 'connected')) {
     sample(up, text.length)
     c.send(text)
   } else {
