@@ -9,13 +9,18 @@ import (
 	"sync"
 )
 
-// Caps are the inputs and features a model accepts.
+// Caps are the inputs and features a model accepts, and what it outputs.
 type Caps struct {
 	Vision   bool `json:"vision"`
 	Video    bool `json:"video"`
 	Audio    bool `json:"audio"`
 	Tools    bool `json:"tools"`
 	Thinking bool `json:"thinking"`
+	// OutputModalities: what the model produces, spelled by the server ("text", "image",
+	// "audio", "video"); empty when it tells nothing (Ollama, a model typed by hand). The three
+	// fields above are inputs, on the other side: a model that reads images and writes text has
+	// Vision true and OutputModalities ["text"] (#275).
+	OutputModalities []string `json:"outputModalities,omitempty"`
 	// Known is false when the server could not tell (model not loaded): the page then
 	// lets the user try.
 	Known bool `json:"known"`
@@ -32,6 +37,34 @@ type Caps struct {
 // systemTurns: the families whose template renders a system message anywhere.
 func systemTurns(id string) bool {
 	return strings.Contains(strings.ToLower(id), "deepseek")
+}
+
+// The output modalities, as the servers spell them.
+const (
+	OutputText  = "text"
+	OutputImage = "image"
+)
+
+// HasOutput: the model is known to produce this kind of output.
+func (c Caps) HasOutput(kind string) bool {
+	for _, o := range c.OutputModalities {
+		if strings.EqualFold(o, kind) {
+			return true
+		}
+	}
+	return false
+}
+
+// CanChat: the model writes text. Its outputs are accepted when the server tells none (Ollama,
+// a model typed by hand): the lists then show it, like the other unknown capabilities.
+func (c Caps) CanChat() bool {
+	return len(c.OutputModalities) == 0 || c.HasOutput(OutputText)
+}
+
+// CanGenerate: the model makes images, through the images API of its server. Unknown outputs are
+// accepted, as in CanChat.
+func (c Caps) CanGenerate() bool {
+	return len(c.OutputModalities) == 0 || c.HasOutput(OutputImage)
 }
 
 type Model struct {
@@ -86,6 +119,45 @@ func (m *Manager) Models(ctx context.Context, serverID string) (*ModelList, erro
 
 // ---------- llama.cpp (and other OpenAI compatible servers) ----------
 
+// modelEntry is one entry of the "data" of /v1/models, with the fields read by the llama.cpp and
+// the OpenAI-compatible decoders: llama-swap and OpenRouter spell what a model outputs the same
+// way (architecture.output_modalities, capabilities.image_generation).
+type modelEntry struct {
+	ID           string `json:"id"`
+	OwnedBy      string `json:"owned_by"`
+	Context      int    `json:"context_length"`
+	Architecture *struct {
+		Input  []string `json:"input_modalities"`
+		Output []string `json:"output_modalities"`
+	} `json:"architecture"`
+	Capabilities *struct {
+		ImageGeneration bool `json:"image_generation"`
+	} `json:"capabilities"`
+	Params []string `json:"supported_parameters"`
+	Status *struct {
+		Value string   `json:"value"`
+		Args  []string `json:"args"`
+	} `json:"status"`
+	Meta *struct {
+		NCtx   int   `json:"n_ctx"`
+		Params int64 `json:"n_params"`
+		Size   int64 `json:"size"`
+	} `json:"meta"`
+}
+
+// outputs are the modalities the model produces, as the server spells them; empty when it tells
+// none. The image_generation flag of llama-swap stands for an image output when no list comes
+// with it. Nothing else is guessed: the name of a model never decides its outputs.
+func (e *modelEntry) outputs() []string {
+	if e.Architecture != nil && len(e.Architecture.Output) > 0 {
+		return e.Architecture.Output
+	}
+	if e.Capabilities != nil && e.Capabilities.ImageGeneration {
+		return []string{OutputImage}
+	}
+	return nil
+}
+
 type llamaProps struct {
 	Role       string `json:"role"`
 	Modalities *struct {
@@ -116,18 +188,7 @@ func (p *llamaProps) apply(md *Model) {
 
 func (m *Manager) llamacppModels(ctx context.Context, s Server) ([]Model, error) {
 	var list struct {
-		Data []struct {
-			ID     string `json:"id"`
-			Status *struct {
-				Value string   `json:"value"`
-				Args  []string `json:"args"`
-			} `json:"status"`
-			Meta *struct {
-				NCtx   int   `json:"n_ctx"`
-				Params int64 `json:"n_params"`
-				Size   int64 `json:"size"`
-			} `json:"meta"`
-		} `json:"data"`
+		Data []modelEntry `json:"data"`
 	}
 	if err := m.getJSON(ctx, s, "/v1/models", &list); err != nil {
 		return nil, err
@@ -139,7 +200,7 @@ func (m *Manager) llamacppModels(ctx context.Context, s Server) ([]Model, error)
 	models := make([]Model, len(list.Data))
 	var wg sync.WaitGroup
 	for i, d := range list.Data {
-		md := Model{ID: d.ID, Caps: Caps{Tools: true, Thinking: true}}
+		md := Model{ID: d.ID, Caps: Caps{Tools: true, Thinking: true, OutputModalities: d.outputs()}}
 		if d.Meta != nil {
 			md.Context, md.Size = d.Meta.NCtx, d.Meta.Size
 			if d.Meta.Params > 0 {
@@ -199,6 +260,8 @@ func trimFloat(f float64) string {
 // ---------- typed models ----------
 
 // withTyped adds the models typed by the user, whose capabilities win over the listed ones.
+// What a typed model outputs comes from the server only (ModelConf knows the inputs): a typed
+// entry the server does not list stays unclassified.
 func withTyped(models []Model, typed []ModelConf) []Model {
 	for _, t := range typed {
 		if strings.TrimSpace(t.ID) == "" {
@@ -211,6 +274,7 @@ func withTyped(models []Model, typed []ModelConf) []Model {
 				if md.Context == 0 {
 					md.Context = models[i].Context
 				}
+				md.Caps.OutputModalities = models[i].Caps.OutputModalities
 				md.Size, md.Details, md.State = models[i].Size, models[i].Details, models[i].State
 				models[i], found = md, true
 			}
@@ -228,27 +292,16 @@ func withTyped(models []Model, typed []ModelConf) []Model {
 const DefaultContext = 128000
 
 func (m *Manager) openaiModels(ctx context.Context, s Server) ([]Model, error) {
-	// OpenRouter adds the context size and the input modalities; llama-swap the state.
+	// OpenRouter adds the context size and the modalities; llama-swap the state.
 	var list struct {
-		Data []struct {
-			ID           string `json:"id"`
-			OwnedBy      string `json:"owned_by"`
-			Context      int    `json:"context_length"`
-			Architecture *struct {
-				Input []string `json:"input_modalities"`
-			} `json:"architecture"`
-			Params []string `json:"supported_parameters"`
-			Status *struct {
-				Value string `json:"value"`
-			} `json:"status"`
-		} `json:"data"`
+		Data []modelEntry `json:"data"`
 	}
 	if err := m.getJSON(ctx, s, "/v1/models", &list); err != nil {
 		return nil, err
 	}
 	models := make([]Model, 0, len(list.Data))
 	for _, d := range list.Data {
-		md := Model{ID: d.ID, Context: d.Context, Caps: Caps{Tools: true}}
+		md := Model{ID: d.ID, Context: d.Context, Caps: Caps{Tools: true, OutputModalities: d.outputs()}}
 		if d.OwnedBy == "llama-swap" {
 			// Local servers behind llama-swap: reasoning_content is shown when the model sends it.
 			md.Caps.Thinking = true

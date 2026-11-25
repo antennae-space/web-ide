@@ -775,5 +775,14 @@
   "Searches the web": "Cherche sur le web",
   "Reads the page": "Lit la page",
   "unknown web search provider: %s": "fournisseur de recherche web inconnu : %s",
-  "the address of the SearXNG is missing": "l'adresse du SearXNG manque"
+  "the address of the SearXNG is missing": "l'adresse du SearXNG manque",
+  "vision": "vision",
+  "text": "texte",
+  "Outputs": "Sorties",
+  "no text output": "sans sortie texte",
+  "no image output": "sans sortie image",
+  "Show the other models ({n})": "Voir les autres modèles ({n})",
+  "Hide the other models": "Masquer les autres modèles",
+  "Chosen: kept in the list, shown even when it excludes it": "Choisi : gardé dans la liste, montré même quand le filtre l'exclut",
+  "generate_image calls the images API of the server (/v1/images/generations, /v1/images/edits): the server must answer it for the chosen model. The list shows the models the server marks as making images, and those whose outputs it does not tell; being marked for images is not enough when the server has no images API.": "generate_image appelle l'API des images du serveur (/v1/images/generations, /v1/images/edits) : le serveur doit y répondre pour le modèle choisi. La liste montre les modèles que le serveur marque comme produisant des images, et ceux dont il ne précise pas les sorties ; être marqué pour les images ne suffit pas quand le serveur n'a pas d'API des images."
 }

@@ -61,6 +61,24 @@ const web = http.createServer((req, res) => {
   res.writeHead(404).end()
 })
 
+// A second model server whose catalog declares no chat model: its image model makes images, its
+// audio model speaks only (#275).
+const only = http.createServer((req, res) => {
+  if (req.url === '/api/version') return res.writeHead(404).end()
+  if (req.url === '/v1/models')
+    return res.end(
+      JSON.stringify({
+        data: [
+          { id: 'only-audio', status: { value: 'loaded' }, architecture: { output_modalities: ['audio'] } },
+          { id: 'only-image', status: { value: 'unloaded' }, architecture: { output_modalities: ['image'] }, capabilities: { image_generation: true } },
+        ],
+      }),
+    )
+  if (req.url.startsWith('/props'))
+    return res.end(JSON.stringify(req.url === '/props' ? { role: 'router' } : { chat_template_caps: { supports_tools: true }, default_generation_settings: { n_ctx: 8192 } }))
+  res.writeHead(404).end()
+})
+
 const answer = [
   'I renamed the message.\n\n',
   '```go\nfunc (g Greeter) Hello() string {\n\treturn fmt.Sprintf("Salut %s", g.Name)\n}\n```\n\n',
@@ -69,7 +87,22 @@ const answer = [
 
 const fake = http.createServer(async (req, res) => {
   if (req.url === '/api/version') return res.writeHead(404).end()
-  if (req.url === '/v1/models') return res.end(JSON.stringify({ data: [{ id: 'fake-model', status: { value: 'loaded' } }, { id: 'other-model', status: { value: 'loaded' } }] }))
+  // A catalog that mixes the output kinds a server declares (#275): audio-gen sorts first and is
+  // loaded, yet writes no text; zz-image makes images only; other-model does both; plain-model
+  // tells nothing about its outputs.
+  if (req.url === '/v1/models')
+    return res.end(
+      JSON.stringify({
+        data: [
+          { id: 'audio-gen', status: { value: 'loaded' }, architecture: { output_modalities: ['audio'] } },
+          { id: 'fake-model', status: { value: 'loaded' }, architecture: { output_modalities: ['text'] } },
+          { id: 'other-model', status: { value: 'loaded' }, architecture: { output_modalities: ['text', 'image'] } },
+          { id: 'plain-model', status: { value: 'loaded' } },
+          { id: 'video-gen', status: { value: 'unloaded' }, architecture: { output_modalities: ['video'] } },
+          { id: 'zz-image', status: { value: 'unloaded' }, architecture: { output_modalities: ['image'] }, capabilities: { image_generation: true } },
+        ],
+      }),
+    )
   if (req.url.startsWith('/props')) {
     if (req.url === '/props') return res.end(JSON.stringify({ role: 'router' }))
     return res.end(JSON.stringify({ modalities: { vision: true }, chat_template_caps: { supports_tools: true }, default_generation_settings: { n_ctx: 8192 } }))
@@ -201,8 +234,10 @@ run(async ({ page, ctx }) => {
   // The Go blocks of the answers are highlighted by the language pack lang-go (#146).
   await installOfficial('lang-go')
   await new Promise((r) => fake.listen(0, '127.0.0.1', r))
+  await new Promise((r) => only.listen(0, '127.0.0.1', r))
   await new Promise((r) => web.listen(webPort, '127.0.0.1', r))
   const port = fake.address().port
+  const onlyPort = only.address().port
   page.on('dialog', (d) => d.accept())
   try {
     await openProject(page)
@@ -217,12 +252,97 @@ run(async ({ page, ctx }) => {
     await page.waitForSelector('.ai-server-row:has-text("127.0.0.1")')
     await page.click('.ai-servers .modal-head button')
     await page.waitForSelector('[data-testid=model-pill]:has-text("fake-model")', { timeout: 5000 })
-    assert(true, 'server added, model chosen automatically')
-    await page.click('[data-testid=model-pill]')
-    assert(await page.isVisible('.ai-model-item.active .badge:has-text("image")'), 'capabilities of the model shown in the model picker')
-    await page.keyboard.press('Escape')
+    assert(true, 'server added, the model chosen automatically is a chat one (audio-gen is loaded and sorts first)')
     const stored = JSON.parse(fs.readFileSync(process.env.E2E_WS + '/../data/llm.json', 'utf8'))
     assert(stored.servers[0].url === `http://127.0.0.1:${port}` && stored.model === 'fake-model', 'configuration saved in llm.json')
+
+    // The lists follow what each model outputs (#275), and the badges tell "vision" (reading
+    // images) from "image" (making them).
+    const readLlm = () => JSON.parse(fs.readFileSync(process.env.E2E_WS + '/../data/llm.json', 'utf8'))
+    const pillItems = async () => (await page.$$eval('.ai-model-item', (e) => e.map((x) => x.dataset.model)))
+    const optValues = async (sel) => (await page.$$eval(`${sel} option`, (e) => e.map((o) => o.value)))
+    await page.click('[data-testid=model-pill]')
+    assert((await pillItems()).join() === 'fake-model,other-model,plain-model', 'the chat picker hides the audio, video and image-only models: ' + (await pillItems()).join())
+    assert(await page.isVisible('.ai-model-item.active .badge:has-text("vision")'), 'capabilities of the model shown in the model picker, reading images marked "vision"')
+    assert(await page.isVisible('.ai-model-item[data-model="other-model"] .badge.out:has-text("image")'), 'a model that makes images is marked "image"')
+    await page.click('[data-testid=model-reveal]')
+    assert((await pillItems()).join() === 'audio-gen,fake-model,other-model,plain-model,video-gen,zz-image', 'the reveal line of the picker lists the models its filter hides')
+    await page.click('.ai-model-item[data-model="zz-image"]')
+    await page.waitForSelector('[data-testid=model-pill]:has-text("zz-image")')
+    await page.click('[data-testid=model-pill]')
+    assert((await pillItems()).join() === 'fake-model,other-model,plain-model,zz-image', 'the saved model the chat filter excludes stays in the list, and the reveal is forgotten')
+    assert(await page.isVisible('.ai-model-item.active .badge.warn:has-text("no text output")'), 'the saved model excluded by the filter is marked')
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(400)
+    assert(readLlm().model === 'zz-image', 'a chat model saved out of the filter is kept as it is')
+    await page.click('[data-testid=model-pill]')
+    await page.click('.ai-model-item[data-model="fake-model"]')
+    await page.waitForSelector('[data-testid=model-pill]:has-text("fake-model")')
+
+    // The four settings pickers apply the same rule, each with its own reveal line.
+    await page.click('[data-testid=assistant-settings]')
+    await page.click('.ai-tab:has-text("Plan mode")')
+    await page.selectOption('[data-testid=plan-settings] select[name=planServer]', { index: 1 })
+    await page.waitForSelector('[data-testid=plan-settings] select[name=planModel] option[value="plain-model"]', { state: 'attached' })
+    assert((await optValues('[data-testid=plan-settings] select[name=planModel]')).join() === ',fake-model,other-model,plain-model,+', 'the Plan mode select lists the chat models with its reveal line')
+    await page.selectOption('[data-testid=plan-settings] select[name=planModel]', '+')
+    await page.waitForSelector('[data-testid=planModel-hide]')
+    assert((await optValues('[data-testid=plan-settings] select[name=planModel]')).join().includes('audio-gen'), 'its reveal line shows the hidden models')
+    await page.click('[data-testid=planModel-hide]')
+    assert(!(await page.isVisible('[data-testid=planModel-hide]')), 'the line hides them again')
+    await page.selectOption('[data-testid=plan-settings] select[name=planServer]', { index: 0 })
+    await page.click('.ai-tab:has-text("Servers")')
+    await page.click('.ai-server-row button:has-text("Edit")')
+    await page.check('.ai-servers input[name=children]')
+    await page.click('.ai-servers button:has-text("Save")')
+    await page.click('.ai-tab:has-text("Sub-agents")')
+    await page.selectOption('[data-testid=subagent-settings] select[name=childServer]', { index: 1 })
+    await page.waitForSelector('[data-testid=subagent-settings] select[name=childModel] option[value="plain-model"]', { state: 'attached' })
+    assert((await optValues('[data-testid=subagent-settings] select[name=childModel]')).join() === ',fake-model,other-model,plain-model,+', 'the default model of the sub-agents is picked among the chat models')
+    await page.selectOption('[data-testid=subagent-settings] select[name=childServer]', { index: 0 })
+    await page.click('.ai-tab:has-text("Compaction")')
+    await page.selectOption('[data-testid=compaction-settings] select[name=compactServer]', { index: 1 })
+    await page.waitForSelector('[data-testid=compaction-settings] select[name=compactModel] option[value="plain-model"]', { state: 'attached' })
+    assert((await optValues('[data-testid=compaction-settings] select[name=compactModel]')).join() === ',fake-model,other-model,plain-model,+', 'the summarizing model select lists the chat models')
+    await page.selectOption('[data-testid=compaction-settings] select[name=compactServer]', { index: 0 })
+    await page.click('.ai-tab:has-text("Image generation")')
+    assert((await page.textContent('[data-testid=image-settings]')).includes('/v1/images/generations'), 'the images API generate_image calls is told in the picker')
+    await page.selectOption('[data-testid=image-settings] select[name=imageServer]', { index: 1 })
+    await page.waitForSelector('[data-testid=image-settings] select[name=imageModel] option[value="zz-image"]', { state: 'attached' })
+    assert((await optValues('[data-testid=image-settings] select[name=imageModel]')).join() === ',other-model,plain-model,zz-image,+', 'the images select takes image models, dual models and the unclassified ones')
+    await page.selectOption('[data-testid=image-settings] select[name=imageModel]', 'zz-image')
+    await page.waitForTimeout(400)
+    assert((await page.inputValue('[data-testid=image-settings] select[name=imageModel]')) === 'zz-image' && readLlm().imageModel === 'zz-image', 'the image model chosen is saved and shown')
+
+    // A server whose catalog declares no chat model: the choice stays empty, and a picker with
+    // nothing eligible still offers the models it hides.
+    await page.click('.ai-tab:has-text("Servers")')
+    await page.fill('.ai-servers form.fieldset input[name=url]', `127.0.0.1:${onlyPort}`)
+    await page.click('.ai-servers button:has-text("Add")')
+    await page.waitForSelector(`.ai-server-row:has-text("${onlyPort}")`)
+    await page.click('.ai-servers .modal-head button')
+    await page.click('[data-testid=model-pill]')
+    await page.selectOption('.ai-model-pop select', { index: 1 })
+    await page.waitForSelector('[data-testid=model-pill]:has-text("Choose a model")', { timeout: 5000 })
+    await page.waitForTimeout(400)
+    assert(!readLlm().model, 'a server with no model that writes text leaves the choice empty')
+    await page.click('[data-testid=assistant-settings]')
+    await page.click('.ai-tab:has-text("Plan mode")')
+    await page.selectOption('[data-testid=plan-settings] select[name=planServer]', { index: 2 })
+    await page.waitForSelector('[data-testid=plan-settings] select[name=planModel] option[value="+"]', { state: 'attached' })
+    assert((await optValues('[data-testid=plan-settings] select[name=planModel]')).join() === ',+', 'the reveal line shows over a list the filter empties')
+    await page.selectOption('[data-testid=plan-settings] select[name=planServer]', { index: 0 })
+    await page.click('.ai-tab:has-text("Image generation")')
+    await page.selectOption('[data-testid=image-settings] select[name=imageServer]', { index: 2 })
+    await page.waitForSelector('[data-testid=image-settings] select[name=imageModel] option[value="only-image"]', { state: 'attached' })
+    assert((await optValues('[data-testid=image-settings] select[name=imageModel]')).join() === ',only-image,+', 'the images select of that server takes its image model only')
+    await page.selectOption('[data-testid=image-settings] select[name=imageServer]', { index: 0 })
+    await page.click('.ai-servers .modal-head button')
+    await page.click('[data-testid=model-pill]')
+    await page.selectOption('.ai-model-pop select', { index: 0 })
+    await page.waitForSelector('[data-testid=model-pill]:has-text("fake-model")', { timeout: 5000 })
+    assert((await pillItems()).join() === 'fake-model,other-model,plain-model', 'back on the first server: its chat list, the reveal forgotten with the server')
+    await page.keyboard.press('Escape')
 
     // A second window showing another conversation is told when this one waits for the user.
     const other = await ctx.newPage()
@@ -524,6 +644,7 @@ run(async ({ page, ctx }) => {
     assert(remoteImgs === 0 && !webHits.some((u) => u.startsWith('/pixel')), 'a remote image in an answer does not load: ' + webHits.join(' '))
   } finally {
     fake.close()
+    only.close()
     web.close()
   }
 })

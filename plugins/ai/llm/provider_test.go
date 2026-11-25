@@ -28,7 +28,10 @@ func TestOpenAIProvider(t *testing.T) {
 		}
 		switch r.URL.Path {
 		case "/api/v1/models":
-			fmt.Fprint(w, `{"data":[{"id":"big/coder","context_length":200000,"architecture":{"input_modalities":["text","image"]},"supported_parameters":["tools","reasoning"]},{"id":"small"}]}`)
+			fmt.Fprint(w, `{"data":[{"id":"big/coder","context_length":200000,"architecture":{"input_modalities":["text","image"],"output_modalities":["text"]},"supported_parameters":["tools","reasoning"]},`+
+				`{"id":"sd","architecture":{"input_modalities":["text"],"output_modalities":["image"]},"capabilities":{"image_generation":true}},`+
+				`{"id":"dual","architecture":{"output_modalities":["image","text"]}},`+
+				`{"id":"small"}]}`)
 		case "/api/v1/chat/completions":
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			switch body["model"] {
@@ -57,7 +60,7 @@ func TestOpenAIProvider(t *testing.T) {
 	st, _ := store.Open(t.TempDir())
 	m := New(st)
 	srv := Server{ID: "or", Name: "OpenRouter", Kind: "openai", URL: ts.URL + "/api/v1", APIKey: "sk-test", Note: "strong, paid", Children: true,
-		Models: []ModelConf{{ID: "small", Context: 32000, Tools: true}, {ID: "typed-only", Tools: true}}}
+		Models: []ModelConf{{ID: "small", Context: 32000, Tools: true}, {ID: "typed-only", Tools: true}, {ID: "sd", Vision: true, Tools: true}}}
 	if err := m.SaveServer(srv, false); err != nil {
 		t.Fatal(err)
 	}
@@ -74,11 +77,32 @@ func TestOpenAIProvider(t *testing.T) {
 	for _, md := range list.Models {
 		got[md.ID] = md
 	}
-	if b := got["big/coder"]; list.Kind != "openai" || b.Context != 200000 || !b.Caps.Vision || !b.Caps.Tools || !b.Caps.Thinking {
+	b := got["big/coder"]
+	if list.Kind != "openai" || b.Context != 200000 || !b.Caps.Vision || !b.Caps.Tools || !b.Caps.Thinking {
 		t.Fatalf("listed model: %+v", b)
 	}
-	if s := got["small"]; s.Context != 32000 || !s.Caps.Tools || got["typed-only"].ID == "" || len(list.Models) != 3 {
+	if s := got["small"]; s.Context != 32000 || !s.Caps.Tools || got["typed-only"].ID == "" || len(list.Models) != 5 {
 		t.Fatalf("typed models: %+v", list.Models)
+	}
+	// Outputs as the provider spells them (OpenRouter: architecture.output_modalities on every
+	// model; llama-swap adds capabilities.image_generation). Inputs and outputs stay apart:
+	// big/coder reads images and writes text only. A typed model overrides the inputs the user
+	// describes and keeps the outputs the server told; typed-only has none, so it is
+	// unclassified and fits every list.
+	if strings.Join(b.Caps.OutputModalities, ",") != "text" || !b.Caps.CanChat() || b.Caps.CanGenerate() {
+		t.Fatalf("text output: %+v", b.Caps)
+	}
+	if sd := got["sd"]; !sd.Caps.Vision || strings.Join(sd.Caps.OutputModalities, ",") != "image" || sd.Caps.CanChat() || !sd.Caps.CanGenerate() {
+		t.Fatalf("typed over an image model: %+v", sd)
+	}
+	if dual := got["dual"]; !dual.Caps.CanChat() || !dual.Caps.CanGenerate() {
+		t.Fatalf("dual output: %+v", dual.Caps)
+	}
+	if small := got["small"]; len(small.Caps.OutputModalities) != 0 || !small.Caps.CanChat() || !small.Caps.CanGenerate() {
+		t.Fatalf("no output info: %+v", small.Caps)
+	}
+	if only := got["typed-only"]; len(only.Caps.OutputModalities) != 0 || !only.Caps.CanChat() {
+		t.Fatalf("typed only: %+v", only.Caps)
 	}
 
 	res, err := m.Chat(ctx, ChatRequest{Server: "or", Model: "big/coder", Messages: []Message{{Role: "user", Content: json.RawMessage(`"hi"`)}}}, nil)

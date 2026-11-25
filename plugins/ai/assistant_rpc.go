@@ -702,7 +702,7 @@ func (s *A) registerAssistant() {
 			return nil, err
 		}
 		chat := &engine.Chat{Mode: a.Mode}
-		return s.systemPrompt(&assistantRun{loc: cc.loc, root: cc.root, project: c.project}, ref, chat, true), nil
+		return s.systemPrompt(&assistantRun{ctx: ctx, loc: cc.loc, root: cc.root, project: c.project}, ref, chat, true), nil
 	}))
 }
 

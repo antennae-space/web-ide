@@ -41,6 +41,10 @@ export interface Caps {
   tools: boolean
   thinking: boolean
   known: boolean
+  /** What the model produces, spelled by the server ("text", "image", "audio", "video").
+   *  Empty when it says nothing (Ollama, a model typed by hand): the model is then
+   *  unclassified and every list shows it (#275). The fields above are its inputs. */
+  outputModalities?: string[]
 }
 
 export interface Model {
@@ -50,6 +54,48 @@ export interface Model {
   state?: string
   context?: number
   caps: Caps
+}
+
+/** Which list of the Assistant a model is offered to: the chat pickers (the model of the
+ *  conversation, the Plan mode, the sub-agents, the summarizing model) take the models that
+ *  write text; the Image generation picker those that make images. */
+export type ModelUse = 'chat' | 'image'
+
+/** A model fits a list when it outputs what the list sends: chat sends text, Image generation
+ *  sends an image prompt. Unknown outputs (no list: Ollama, a typed model, a server that gives no
+ *  metadata) fit both, like the other unknown capabilities. */
+export function fitsModel(m: Model, use: ModelUse): boolean {
+  const out = m.caps.outputModalities ?? []
+  if (!out.length) return true
+  return out.includes(use === 'chat' ? 'text' : 'image')
+}
+
+/** The models a picker shows: the eligible ones, the saved choice kept among them (a saved
+ *  model is never hidden, never reset: it stays selected and marked, and an id the server does
+ *  not list appears as an unlisted choice), and all of them once the user asks for the others. */
+export function shownModels(models: Model[], use: ModelUse, saved: string, reveal = false): Model[] {
+  const list = models.filter((m) => reveal || fitsModel(m, use) || m.id === saved)
+  if (saved && !list.some((m) => m.id === saved)) {
+    list.push({ id: saved, caps: { vision: false, video: false, audio: false, tools: false, thinking: false, known: false } })
+  }
+  return list
+}
+
+/** How many models a picker hides: the "Show the other models" line. */
+export function hiddenModels(models: Model[], use: ModelUse, saved: string): number {
+  return models.filter((m) => !fitsModel(m, use) && m.id !== saved).length
+}
+
+/** The model loadModels picks on a server with no chosen model: a loaded model that declares its
+ *  text output first, then a loaded unclassified one, each group in the order the server lists
+ *  them. Undefined when nothing writes text. */
+export function pickChatModel(models: Model[]): Model | undefined {
+  const chat = models.filter((m) => fitsModel(m, 'chat'))
+  for (const group of [chat.filter((m) => (m.caps.outputModalities?.length ?? 0) > 0), chat.filter((m) => !(m.caps.outputModalities?.length ?? 0))]) {
+    const pick = group.find((m) => m.state === 'loaded') ?? group[0]
+    if (pick) return pick
+  }
+  return undefined
 }
 
 export interface ToolCall {
@@ -526,21 +572,23 @@ on('pod.reconnected', () => {
 let modelsSeq = 0
 export async function loadModels() {
   const seq = ++modelsSeq
-  if (!config.server) {
+  const asked = config.server
+  if (!asked) {
     setModels([])
     return
   }
   setModelsLoading(true)
   setModelsError('')
   try {
-    const r = await request<{ kind: string; models: Model[] }>('llm.models', { server: config.server })
+    const r = await request<{ kind: string; models: Model[] }>('llm.models', { server: asked })
     if (seq !== modelsSeq) return
     setModels(r.models)
     setServerKind(r.kind)
-    if (!r.models.some((m) => m.id === config.model)) {
-      const pick = r.models.find((m) => m.state === 'loaded') ?? r.models[0]
-      await select(config.server, pick?.id ?? '')
-    }
+    // A saved choice is never replaced, and neither is one made while the list was loading:
+    // only a server with no chosen model picks one, and only among the models that write text
+    // (#275). The server left, nothing is picked.
+    if (config.model || config.server !== asked) return
+    await select(asked, pickChatModel(r.models)?.id ?? '')
   } catch (e) {
     if (seq !== modelsSeq) return
     setModels([])

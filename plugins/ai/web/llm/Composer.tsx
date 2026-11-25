@@ -9,6 +9,8 @@ import {
   contextSize,
   contextUsed,
   currentModel,
+  fitsModel,
+  hiddenModels,
   incomingDraft,
   live,
   loadModels,
@@ -22,6 +24,7 @@ import {
   setChat,
   setIncomingDraft,
   setPrefs,
+  shownModels,
   type Attachment,
   type Effort,
   type Model,
@@ -184,7 +187,7 @@ function HelpCard() {
 
 function capsText(m: Model) {
   const c: string[] = []
-  if (m.caps.vision) c.push(t('image'))
+  if (m.caps.vision) c.push(t('vision'))
   if (m.caps.video) c.push(t('video'))
   if (m.caps.audio) c.push(t('audio'))
   if (m.caps.tools) c.push(t('tools'))
@@ -192,19 +195,39 @@ function capsText(m: Model) {
   return c
 }
 
+/** What a model outputs, told by its server: "image" here is a model that makes images, on the
+ *  other side of "vision" (reading them). */
+function outText(m: Model) {
+  const words: Record<string, string> = { text: 'text', image: 'image', audio: 'audio', video: 'video' }
+  return (m.caps.outputModalities ?? []).map((o) => t(words[o] ?? o))
+}
+
 function ModelPicker(props: { onSettings: () => void }) {
   const [filter, setFilter] = createSignal('')
+  // The models the chat filter hides are shown on request, for this opening of the picker only.
+  const [reveal, setReveal] = createSignal(false)
+  const hidden = () => hiddenModels(models(), 'chat', config.model)
   const shown = () => {
     const q = filter().toLowerCase()
-    return models().filter((m) => !q || m.id.toLowerCase().includes(q))
+    return shownModels(models(), 'chat', config.model, reveal()).filter((m) => !q || m.id.toLowerCase().includes(q))
   }
+  const excluded = (m: Model) => m.id === config.model && !fitsModel(m, 'chat')
   const label = () => config.model || (config.servers.length ? t('Choose a model') : t('No server'))
   return (
     <Popover
       align="right"
       class="ai-model-pop"
       trigger={(toggle, open) => (
-        <button class="ai-pill" classList={{ open }} onClick={toggle} title={t('Model')} data-testid="model-pill">
+        <button
+          class="ai-pill"
+          classList={{ open }}
+          onClick={() => {
+            setReveal(false)
+            toggle()
+          }}
+          title={t('Model')}
+          data-testid="model-pill"
+        >
           <Show when={currentModel()?.state === 'loaded'}>
             <span class="ai-loaded-dot" />
           </Show>
@@ -224,6 +247,7 @@ function ModelPicker(props: { onSettings: () => void }) {
               title={t('Server')}
               onChange={(e) => {
                 const v = e.currentTarget.value
+                setReveal(false)
                 if (v === '+') {
                   close()
                   props.onSettings()
@@ -252,6 +276,7 @@ function ModelPicker(props: { onSettings: () => void }) {
                   <button
                     class="ai-model-item"
                     classList={{ active: m.id === config.model }}
+                    data-model={m.id}
                     onClick={() => {
                       select(config.server, m.id).catch(errorToast)
                       close()
@@ -270,6 +295,12 @@ function ModelPicker(props: { onSettings: () => void }) {
                       </span>
                       <span class="ai-model-caps">
                         <For each={capsText(m)}>{(c) => <span class="badge">{c}</span>}</For>
+                        <For each={outText(m)}>{(o) => <span class="badge out" title={t('Outputs')}>{o}</span>}</For>
+                        <Show when={excluded(m)}>
+                          <span class="badge warn" title={t('Chosen: kept in the list, shown even when it excludes it')}>
+                            {t('no text output')}
+                          </span>
+                        </Show>
                         <Show when={!m.caps.known}>
                           <span class="badge" title={t('Capabilities known once the model is loaded')}>?</span>
                         </Show>
@@ -280,6 +311,11 @@ function ModelPicker(props: { onSettings: () => void }) {
               </For>
             </Show>
           </div>
+          <Show when={hidden() > 0}>
+            <button class="btn small ai-model-more" data-testid="model-reveal" onClick={() => setReveal(!reveal())}>
+              {reveal() ? t('Hide the other models') : t('Show the other models ({n})', { n: hidden() })}
+            </button>
+          </Show>
         </>
       )}
     </Popover>
