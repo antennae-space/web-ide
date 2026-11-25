@@ -345,6 +345,21 @@ Any model at work in a project: the assistant or an agent.
 An endpoint that serves models: llama.cpp, Ollama, an OpenAI-compatible cloud.
 _Avoid_: backend, provider
 
+**Input modality**
+What a model accepts in a request: text, images, video, audio. Told by the model server for a loaded model (`Caps.Vision`, `Caps.Video`, `Caps.Audio`); a model that reads images has *vision*.
+
+**Output modality**
+What a model produces: text, images, audio, video. Told by the model server in `/v1/models` (`architecture.output_modalities`, `capabilities.image_generation`), kept apart of the inputs (`Caps.OutputModalities`). The lists of the assistant filter on them: the chat lists take the models that write text, the *Image generation* picker those that make images.
+_Avoid_: capability (the inputs and features a model accepts), bare "modality" (say input or output)
+
+**Vision**
+The input of a model that reads images. The word is kept for the input, so that *image* names the output of a model that makes images.
+_Avoid_: image (for an input), multimodal
+
+**Unclassified model**
+A model whose server tells nothing about its outputs (Ollama, a model typed by hand, a provider with no metadata). Every list shows it, like the other capabilities a server does not tell.
+_Avoid_: unknown model (the inputs have their own `Caps.Known`)
+
 **Assistant**
 The AI built into the IDE: it runs in the pod against a model server, in the Assistant tool.
 _Avoid_: AI assistant, integrated assistant, local assistant, agent
