@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -286,6 +287,104 @@ func TestModels(t *testing.T) {
 		if md := got[id]; len(md.Caps.OutputModalities) != 0 || !md.Caps.CanChat() || !md.Caps.CanGenerate() {
 			t.Fatalf("%s unclassified: %+v", id, md.Caps)
 		}
+	}
+}
+
+// astraCatalog: the presets of a llama-swap of the user, read from its /v1/models on
+// 2026-11-25 (37 models: 18 write text, 4 make images, 8 speak, 7 make video, none silent about
+// its outputs). The lists of the assistant filter on these outputs (#275).
+var astraCatalog = []struct {
+	ID  string
+	Out string
+}{
+	{ID: "ACE-Step-1.5", Out: "audio"},
+	{ID: "DeepSeek-V4.1-Flash", Out: "text"},
+	{ID: "Hy4-Flash-SQ-64", Out: "text"},
+	{ID: "Hy4-Flash-SQ-64-1M", Out: "text"},
+	{ID: "Hy4-Flash-SQ-64-512K", Out: "text"},
+	{ID: "Inkling-2-Mini", Out: "text"},
+	{ID: "Inkling-2-Mini-Strata", Out: "text"},
+	{ID: "Inkling-2-Mini-Strata-1M", Out: "text"},
+	{ID: "Inkling-2-Mini-Strata-256K", Out: "text"},
+	{ID: "Inkling-2-Mini-Strata-2x256K", Out: "text"},
+	{ID: "LTX-2.5", Out: "video"},
+	{ID: "MOSSTTS", Out: "audio"},
+	{ID: "MiniMax-H3", Out: "video"},
+	{ID: "MiniMax-H3-Ref", Out: "video"},
+	{ID: "MiniMax-Music-3", Out: "audio"},
+	{ID: "NoobAI-XL", Out: "image"},
+	{ID: "OmniVoice", Out: "audio"},
+	{ID: "PocketTTS", Out: "audio"},
+	{ID: "PocketTTS-24L", Out: "audio"},
+	{ID: "PocketTTS-CPP", Out: "audio"},
+	{ID: "Qwen-Image-2.1", Out: "image"},
+	{ID: "Qwen-Image-2.1-Turbo-Uncensored", Out: "image"},
+	{ID: "Qwen3.8-27B", Out: "text"},
+	{ID: "Qwen3.8-27B-Turbo-735", Out: "text"},
+	{ID: "Qwen3.8-Flash", Out: "text"},
+	{ID: "Qwen3.8-Flash-Long", Out: "text"},
+	{ID: "Qwen3.8-Flash-Multi", Out: "text"},
+	{ID: "Qwen3TTS-CustomVoice", Out: "audio"},
+	{ID: "Swift-1.5-Flash", Out: "text"},
+	{ID: "Swift-1.5-Flash-Long", Out: "text"},
+	{ID: "Swift-1.5-Flash-Multi", Out: "text"},
+	{ID: "Tiel-Coder-35B-A3B", Out: "text"},
+	{ID: "Wan-2.1-T2V-1.3B", Out: "video"},
+	{ID: "Wan-2.2-I2V", Out: "video"},
+	{ID: "Wan-2.2-T2V", Out: "video"},
+	{ID: "Wan-2.2-TI2V-5B", Out: "video"},
+	{ID: "Z-Image-Turbo", Out: "image"},
+}
+
+func TestAstraCatalog(t *testing.T) {
+	var data []map[string]any
+	for _, md := range astraCatalog {
+		entry := map[string]any{
+			"id":       md.ID,
+			"owned_by": "llama-swap",
+			"status":   map[string]any{"value": "unloaded"},
+			"architecture": map[string]any{
+				"input_modalities":  []string{"text"},
+				"output_modalities": strings.Split(md.Out, ","),
+			},
+		}
+		if md.Out == "image" {
+			entry["capabilities"] = map[string]any{"image_generation": true}
+		}
+		data = append(data, entry)
+	}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+	}))
+	defer ts.Close()
+	m, id := newManager(t, ts.URL, "openai")
+	list, err := m.Models(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chat, image := 0, 0
+	var images []string
+	for _, md := range list.Models {
+		if md.Caps.CanChat() {
+			chat++
+		}
+		if md.Caps.CanGenerate() {
+			image++
+			images = append(images, md.ID)
+		}
+	}
+	// The chat lists take the 18 text models, the images picker the 4 image models; the audio
+	// and video ones (15) fit neither.
+	if len(list.Models) != 37 || chat != 18 || image != 4 {
+		t.Fatalf("astra: %d models, %d chat, %d image", len(list.Models), chat, image)
+	}
+	sort.Strings(images)
+	if strings.Join(images, ",") != "NoobAI-XL,Qwen-Image-2.1,Qwen-Image-2.1-Turbo-Uncensored,Z-Image-Turbo" {
+		t.Fatalf("image models: %v", images)
 	}
 }
 
