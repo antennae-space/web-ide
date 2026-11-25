@@ -1,0 +1,15 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "web-ide": {
+        "enabled": true,
+        "type": "remote",
+        "url": "http://127.0.0.1:4433/mcp",
+        "headers": {
+          "Authorization": "Bearer {env:WEB_IDE_MCP_TOKEN}"
+        }
+      }
+    }
+  }
+}

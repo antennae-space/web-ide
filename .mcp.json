@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "web-ide": {
+      "type": "http",
+      "url": "http://127.0.0.1:4433/mcp",
+      "headers": {
+        "Authorization": "Bearer ${WEB_IDE_MCP_TOKEN}"
+      },
+      "description": "Web IDE pod \u2014 saved commands, consoles, previews, kanban, databases."
+    }
+  }
+}
