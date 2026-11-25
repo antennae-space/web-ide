@@ -1,7 +1,7 @@
 // Settings of the assistant besides the servers: system prompt and instructions, and
 // compaction of long conversations.
-import { createResource, createSignal, For, Index, onMount, Show } from 'solid-js'
-import { applyConfig, config, loadModels, prefs, savePrefs, select, setPrefs, type Mode, type Model, type ModelConf, type ServerView } from './state'
+import { createEffect, createResource, createSignal, For, Index, onMount, Show } from 'solid-js'
+import { applyConfig, config, fitsModel, hiddenModels, loadModels, prefs, savePrefs, select, setPrefs, shownModels, type Mode, type Model, type ModelConf, type ModelUse, type ServerView } from './state'
 import { languages, probeGpu, speech, whisperModels } from './transcribe'
 import { formatSize } from './parts'
 import { aliases, aliasName, aliasText, saveAliases } from './aliases'
@@ -9,6 +9,56 @@ import { defaultTemplate, loadPromptContext, promptContext, storedTemplates, sys
 import { errorToast, fmtSize, Icon, Modal, openTextTab, relPath, request, t, toast } from '../plugin'
 
 const size = (n: number) => fmtSize(n)
+
+/**
+ * The model select of a picker: the models of a server that fit what the picker sends (chat
+ * sends text, Image generation sends an image prompt). A saved choice is never hidden nor
+ * reset: a model the filter excludes stays selected and marked, an id the server does not
+ * list shows as an unlisted choice. The models left out come with a line the user asks for;
+ * the picker forgets it when the server changes (#275).
+ */
+function ModelSelect(props: { models: Model[]; value: string; use: ModelUse; server: string; name: string; onPick: (id: string) => void }) {
+  const [reveal, setReveal] = createSignal(false)
+  createEffect(() => {
+    props.server
+    setReveal(false)
+  })
+  const hidden = () => hiddenModels(props.models, props.use, props.value)
+  return (
+    <>
+      <select
+        value={props.value}
+        name={props.name}
+        onChange={(e) => {
+          const v = e.currentTarget.value
+          if (v === '+') {
+            setReveal(true)
+            return
+          }
+          props.onPick(v)
+        }}
+      >
+        <option value="">{t('— choose —')}</option>
+        <For each={shownModels(props.models, props.use, props.value, reveal())}>
+          {(m) => (
+            <option value={m.id} selected={m.id === props.value}>
+              {m.id}
+              {m.id === props.value && !fitsModel(m, props.use) ? ` · ${props.use === 'chat' ? t('no text output') : t('no image output')}` : ''}
+            </option>
+          )}
+        </For>
+        <Show when={hidden() > 0 && !reveal()}>
+          <option value="+">{t('Show the other models ({n})', { n: hidden() })}</option>
+        </Show>
+      </select>
+      <Show when={hidden() > 0 && reveal()}>
+        <button type="button" class="btn small ai-model-hide" data-testid={`${props.name}-hide`} onClick={() => setReveal(false)}>
+          {t('Hide the other models')}
+        </button>
+      </Show>
+    </>
+  )
+}
 
 export function PromptSettings() {
   const [scope, setScope] = createSignal<'project' | 'global'>('project')
@@ -180,10 +230,7 @@ export function PlanSettings() {
         <Show when={prefs.planServer}>
           <label class="field grow">
             <span>{t('Model')}</span>
-            <select value={prefs.planModel} onChange={(e) => set('planModel', e.currentTarget.value)} name="planModel">
-              <option value="">{t('— choose —')}</option>
-              <For each={list() ?? []}>{(m) => <option value={m.id} selected={m.id === prefs.planModel}>{m.id}</option>}</For>
-            </select>
+            <ModelSelect models={list() ?? []} value={prefs.planModel} use="chat" server={prefs.planServer} name="planModel" onPick={(v) => set('planModel', v)} />
           </label>
         </Show>
       </div>
@@ -213,10 +260,7 @@ export function SubAgentSettings() {
         <Show when={config.childServer}>
           <label class="field grow">
             <span>{t('Model')}</span>
-            <select value={config.childModel ?? ''} onChange={(e) => set(config.childServer!, e.currentTarget.value)} name="childModel">
-              <option value="">{t('— choose —')}</option>
-              <For each={list() ?? []}>{(m) => <option value={m.id} selected={m.id === config.childModel}>{m.id}</option>}</For>
-            </select>
+            <ModelSelect models={list() ?? []} value={config.childModel ?? ''} use="chat" server={config.childServer ?? ''} name="childModel" onPick={(v) => set(config.childServer!, v)} />
           </label>
         </Show>
       </div>
@@ -235,6 +279,9 @@ export function ImageSettings() {
       <p class="muted small">
         {t('The assistant can make and change images (generate_image) with an image model of a server that speaks the OpenAI images API: stable-diffusion.cpp behind llama-swap, or a cloud provider. On one GPU, llama-swap unloads the model of the conversation for the image, then loads it again.')}
       </p>
+      <p class="muted small">
+        {t('generate_image calls the images API of the server (/v1/images/generations, /v1/images/edits): the server must answer it for the chosen model. The list shows the models the server marks as making images, and those whose outputs it does not tell; being marked for images is not enough when the server has no images API.')}
+      </p>
       <div class="field-row">
         <label class="field grow">
           <span>{t('Server of the images')}</span>
@@ -246,10 +293,7 @@ export function ImageSettings() {
         <Show when={config.imageServer}>
           <label class="field grow">
             <span>{t('Model')}</span>
-            <select value={config.imageModel ?? ''} onChange={(e) => set(config.imageServer!, e.currentTarget.value)} name="imageModel">
-              <option value="">{t('— choose —')}</option>
-              <For each={list() ?? []}>{(m) => <option value={m.id} selected={m.id === config.imageModel}>{m.id}</option>}</For>
-            </select>
+            <ModelSelect models={list() ?? []} value={config.imageModel ?? ''} use="image" server={config.imageServer ?? ''} name="imageModel" onPick={(v) => set(config.imageServer!, v)} />
           </label>
         </Show>
       </div>
@@ -344,10 +388,7 @@ export function CompactionSettings() {
         <Show when={prefs.compactServer}>
           <label class="field grow">
             <span>{t('Model')}</span>
-            <select value={prefs.compactModel} onChange={(e) => set('compactModel', e.currentTarget.value)} name="compactModel">
-              <option value="">{t('— choose —')}</option>
-              <For each={list() ?? []}>{(m) => <option value={m.id} selected={m.id === prefs.compactModel}>{m.id}</option>}</For>
-            </select>
+            <ModelSelect models={list() ?? []} value={prefs.compactModel} use="chat" server={prefs.compactServer} name="compactModel" onPick={(v) => set('compactModel', v)} />
           </label>
         </Show>
       </div>
@@ -624,7 +665,7 @@ export function SettingsModal(props: { onClose: () => void }) {
                   </label>
                   <label class="check small">
                     <input type="checkbox" checked={m.vision} onChange={(e) => setModel(i(), { vision: e.currentTarget.checked })} />
-                    {t('image')}
+                    {t('vision')}
                   </label>
                   <label class="check small">
                     <input type="checkbox" checked={m.thinking} onChange={(e) => setModel(i(), { thinking: e.currentTarget.checked })} />
