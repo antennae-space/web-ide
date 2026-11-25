@@ -214,13 +214,16 @@ func TestSubAgents(t *testing.T) {
 func TestSubAgentServers(t *testing.T) {
 	s, ts := newServer(t)
 	local, cloud := &fakeModel{}, &fakeModel{}
+	// The cloud lists its models and tells what they output: big writes text, broke only
+	// images, dual does both; "own" is typed only, so its outputs are unknown (#275).
+	cloud.models = []string{"big", "broke", "dual"}
+	cloud.outputs = map[string][]string{"big": {"text"}, "broke": {"image"}, "dual": {"image", "text"}}
 	lts, cts := local.serve(t), cloud.serve(t)
 	if err := llmOf(s).SaveServer(llm.Server{ID: "s1", Kind: "llamacpp", URL: lts.URL, Parallel: 4}, false); err != nil {
 		t.Fatal(err)
 	}
-	// The fake answers /v1/models with 404: the typed models are the list.
 	if err := llmOf(s).SaveServer(llm.Server{ID: "c1", Name: "Cloud", Kind: "openai", URL: cts.URL, APIKey: "sk", Parallel: 4, Children: true, Note: "strong at code, paid",
-		Models: []llm.ModelConf{{ID: "big", Tools: true}, {ID: "broke", Tools: true}}}, false); err != nil {
+		Models: []llm.ModelConf{{ID: "big", Tools: true}, {ID: "broke", Tools: true}, {ID: "dual", Tools: true}, {ID: "own", Tools: true}}}, false); err != nil {
 		t.Fatal(err)
 	}
 	a, _ := dial(t, ts, "secret-token-0123456789abcdef0123")
@@ -261,11 +264,13 @@ func TestSubAgentServers(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if !strings.Contains(system, "- Cloud, models: big, broke — strong at code, paid (4 at once)") {
+	// The parent prompt lists the candidates that write text: broke (images only) is left out,
+	// own (typed, the server says nothing about it) stays.
+	if !strings.Contains(system, "- Cloud, models: big, dual, own — strong at code, paid (4 at once)") {
 		t.Fatalf("servers not in the parent prompt:\n%s", system)
 	}
 	pc := contents("p")
-	if !strings.Contains(pc, `Cloud has no model "missing" (models: big, broke)`) || !strings.Contains(pc, "started on Cloud (big): Cloudy") {
+	if !strings.Contains(pc, `Cloud has no model "missing" (chat models: big, dual, own)`) || !strings.Contains(pc, "started on Cloud (big): Cloudy") {
 		t.Fatalf("parent:\n%s", pc)
 	}
 	kids := a.call("assistant.open", map[string]any{"id": "p"})["result"].(map[string]any)["chat"].(map[string]any)["children"].([]any)

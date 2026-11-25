@@ -55,19 +55,26 @@ type cachedModels struct {
 	list *llm.ModelList
 }
 
-func (s *A) modelInfo(ctx context.Context, server, model string) modelInfo {
-	var list *llm.ModelList
+// modelsOf is the model list of a server, kept 30 s as modelInfo does (listing the models asks
+// the server). nil when it does not answer.
+func (s *A) modelsOf(ctx context.Context, server string) *llm.ModelList {
 	if v, ok := s.modelCache.Load(server); ok && time.Since(v.(cachedModels).at) < 30*time.Second {
-		list = v.(cachedModels).list
-	} else {
-		c, cancel := context.WithTimeout(ctx, 10*time.Second)
-		l, err := s.LLM.Models(c, server)
-		cancel()
-		if err != nil {
-			return modelInfo{}
-		}
-		list = l
-		s.modelCache.Store(server, cachedModels{time.Now(), l})
+		return v.(cachedModels).list
+	}
+	c, cancel := context.WithTimeout(ctx, 10*time.Second)
+	l, err := s.LLM.Models(c, server)
+	cancel()
+	if err != nil {
+		return nil
+	}
+	s.modelCache.Store(server, cachedModels{time.Now(), l})
+	return l
+}
+
+func (s *A) modelInfo(ctx context.Context, server, model string) modelInfo {
+	list := s.modelsOf(ctx, server)
+	if list == nil {
+		return modelInfo{}
 	}
 	for _, m := range list.Models {
 		if m.ID == model {
@@ -448,7 +455,7 @@ func (s *A) systemPrompt(r *assistantRun, ref *runtimeRef, c *engine.Chat, tools
 	}
 	if tools && engine.CanSpawn(c) {
 		text += "\n\n" + engine.ParentText
-		if servers := s.childServers(); servers != "" {
+		if servers := s.childServers(r.ctx); servers != "" {
 			text += "\n" + servers
 		}
 	}

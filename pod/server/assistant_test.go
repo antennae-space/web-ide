@@ -28,6 +28,9 @@ type fakeModel struct {
 	answer   func(req map[string]any) []string
 	// models: the ids listed by /v1/models (none: the server lists nothing, capabilities unknown).
 	models []string
+	// outputs: the output modalities /v1/models tells for a model (absent: the server says
+	// nothing about it, unclassified) (#275).
+	outputs map[string][]string
 	// delay between two chunks of an answer.
 	delay time.Duration
 	// notes: the requests keep the note of the date and the active file at the end of the
@@ -85,9 +88,18 @@ func (f *fakeModel) serve(t *testing.T) *httptest.Server {
 				http.NotFound(w, r)
 				return
 			}
-			var data []map[string]string
+			var data []map[string]any
 			for _, id := range f.models {
-				data = append(data, map[string]string{"id": id})
+				entry := map[string]any{"id": id}
+				if out := f.outputs[id]; len(out) > 0 {
+					entry["architecture"] = map[string]any{"output_modalities": out}
+					for _, o := range out {
+						if o == "image" {
+							entry["capabilities"] = map[string]any{"image_generation": true}
+						}
+					}
+				}
+				data = append(data, entry)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
 		default:

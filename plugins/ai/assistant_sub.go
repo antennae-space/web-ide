@@ -9,6 +9,7 @@ import (
 
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/plugins/ai/engine"
+	"antennae.space/ide/plugins/ai/llm"
 	"antennae.space/ide/pod/assistant"
 )
 
@@ -242,7 +243,8 @@ func (s *A) childTarget(r *assistantRun, server, model, parentServer, parentMode
 		}
 		return "", "", failf("give the model of the child on %s", s.LLM.ServerName(found))
 	}
-	// The model must be one of the server (when it can list them).
+	// The model must be one of the server (when it can list them). The ones that write no text
+	// are not offered as alternatives: a sub-agent runs a chat model (#275).
 	ctx, cancel := context.WithTimeout(r.ctx, 15*time.Second)
 	defer cancel()
 	if list, err := s.LLM.Models(ctx, found); err == nil {
@@ -251,18 +253,25 @@ func (s *A) childTarget(r *assistantRun, server, model, parentServer, parentMode
 			if m.ID == model {
 				return found, model, nil
 			}
-			ids = append(ids, m.ID)
+			if m.Caps.CanChat() {
+				ids = append(ids, m.ID)
+			}
 		}
 		if len(ids) > 30 {
 			ids = append(ids[:30], "…")
 		}
-		return "", "", failf("%s has no model %q (models: %s)", s.LLM.ServerName(found), model, strings.Join(ids, ", "))
+		return "", "", failf("%s has no model %q (chat models: %s)", s.LLM.ServerName(found), model, strings.Join(ids, ", "))
 	}
 	return found, model, nil
 }
 
-// childServers tells the parent the servers it may give its sub-agents.
-func (s *A) childServers() string {
+// childServers tells the parent the servers it may give its sub-agents. The models suggested are
+// the ones that write text: the typed list of the server is the set of candidates, matched
+// against the outputs its model list tells (#275).
+func (s *A) childServers(ctx context.Context) string {
+	if ctx == nil {
+		ctx = context.Background() // the preview of a prompt is asked outside any run
+	}
 	list := s.LLM.ForChildren()
 	if len(list) == 0 {
 		return ""
@@ -277,11 +286,7 @@ func (s *A) childServers() string {
 	}
 	for _, v := range list {
 		fmt.Fprintf(&b, "\n- %s", v.Name)
-		var models []string
-		for _, m := range v.Models {
-			models = append(models, m.ID)
-		}
-		if len(models) > 0 {
+		if models := s.chatCandidates(ctx, v); len(models) > 0 {
 			fmt.Fprintf(&b, ", models: %s", strings.Join(models, ", "))
 		}
 		if v.Note != "" {
@@ -292,6 +297,42 @@ func (s *A) childServers() string {
 		}
 	}
 	return b.String()
+}
+
+// chatCandidates are the typed models of a server that a sub-agent can run: the server excludes
+// a model whose outputs are known and hold no text. The model list is read from the cache of
+// modelInfo under a bounded deadline, outside the locks of the run. A server that does not
+// answer leaves the candidates unclassified, as before; a typed model it does not list stays a
+// candidate too.
+func (s *A) chatCandidates(ctx context.Context, v llm.ServerView) []string {
+	var ids []string
+	for _, m := range v.Models {
+		if strings.TrimSpace(m.ID) != "" {
+			ids = append(ids, m.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	c, cancel := context.WithTimeout(ctx, 5*time.Second)
+	list := s.modelsOf(c, v.ID)
+	cancel()
+	if list == nil {
+		return ids
+	}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		eligible := true
+		for _, m := range list.Models {
+			if m.ID == id {
+				eligible = m.Caps.CanChat()
+			}
+		}
+		if eligible {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // waitIdle waits a little for a child whose run is ending (it just asked or reported).

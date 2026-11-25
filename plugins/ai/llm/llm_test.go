@@ -232,7 +232,11 @@ func TestModels(t *testing.T) {
 		case "/api/version?":
 			http.NotFound(w, r)
 		case "/v1/models?":
-			io.WriteString(w, `{"data":[{"id":"b","status":{"value":"unloaded","args":["--mmproj","x"]}},{"id":"a","status":{"value":"loaded"}},{"id":"DeepSeek-V4.1","status":{"value":"unloaded"}}]}`)
+			io.WriteString(w, `{"data":[{"id":"b","status":{"value":"unloaded","args":["--mmproj","x"]}},{"id":"a","status":{"value":"loaded"},"architecture":{"output_modalities":["text"]}},{"id":"DeepSeek-V4.1","status":{"value":"unloaded"}},`+
+				`{"id":"img","status":{"value":"unloaded"},"architecture":{"output_modalities":["image"]},"capabilities":{"image_generation":true}},`+
+				`{"id":"dual","status":{"value":"unloaded"},"architecture":{"output_modalities":["image","text"]}},`+
+				`{"id":"flag","status":{"value":"unloaded"},"capabilities":{"image_generation":true}},`+
+				`{"id":"void","status":{"value":"unloaded"},"architecture":{"output_modalities":[]}}]}`)
 		case "/props?":
 			io.WriteString(w, `{"role":"router"}`)
 		case "/props?model=a":
@@ -247,7 +251,11 @@ func TestModels(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, b, d := list.Models[0], list.Models[1], list.Models[2]
+	got := map[string]Model{}
+	for _, md := range list.Models {
+		got[md.ID] = md
+	}
+	a, b, d := got["a"], got["b"], got["DeepSeek-V4.1"]
 	// Local models; DeepSeek's template takes a system turn anywhere (#217).
 	if !a.Caps.Local || a.Caps.SystemTurns || d.ID != "DeepSeek-V4.1" || !d.Caps.Local || !d.Caps.SystemTurns {
 		t.Fatalf("local caps: %+v %+v", a, d)
@@ -257,6 +265,27 @@ func TestModels(t *testing.T) {
 	}
 	if b.State != "unloaded" || !b.Caps.Vision || b.Caps.Known {
 		t.Fatalf("b: %+v", b)
+	}
+	// Outputs (llama-swap spells them in /v1/models, loaded or not): text-only, image-only with
+	// the flag, dual, the flag alone, an empty list, and no info at all. They stay apart of the
+	// inputs: a reads images (the props) and writes text only; a model with no output info is
+	// unclassified and fits every list.
+	if strings.Join(a.Caps.OutputModalities, ",") != "text" || !a.Caps.CanChat() || a.Caps.CanGenerate() {
+		t.Fatalf("a outputs: %+v", a.Caps)
+	}
+	if img := got["img"]; len(img.Caps.OutputModalities) != 1 || img.Caps.OutputModalities[0] != "image" || img.Caps.CanChat() || !img.Caps.CanGenerate() {
+		t.Fatalf("img: %+v", img)
+	}
+	if dual := got["dual"]; !dual.Caps.CanChat() || !dual.Caps.CanGenerate() {
+		t.Fatalf("dual: %+v", dual.Caps)
+	}
+	if flag := got["flag"]; strings.Join(flag.Caps.OutputModalities, ",") != "image" || flag.Caps.Known {
+		t.Fatalf("flag only: %+v", flag.Caps)
+	}
+	for _, id := range []string{"b", "DeepSeek-V4.1", "void"} {
+		if md := got[id]; len(md.Caps.OutputModalities) != 0 || !md.Caps.CanChat() || !md.Caps.CanGenerate() {
+			t.Fatalf("%s unclassified: %+v", id, md.Caps)
+		}
 	}
 }
 
