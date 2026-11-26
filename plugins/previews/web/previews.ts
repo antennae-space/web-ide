@@ -28,7 +28,7 @@ export function previews(): Preview[] {
   return store.list()
 }
 
-export const sameSpec = (p: PreviewSpec, s: PreviewSpec) => p.project === s.project && p.command === s.command && (p.cwd ?? '') === (s.cwd ?? '') && p.port === s.port
+export const sameSpec = (p: PreviewSpec, s: PreviewSpec) => p.project === s.project && p.commandId === s.commandId && p.command === s.command && (p.cwd ?? '') === (s.cwd ?? '') && p.port === s.port
 
 /**
  * URL of a preview. On 127.0.0.1 the URL of the pod; in the tunnel of the relay, the page
@@ -36,7 +36,15 @@ export const sameSpec = (p: PreviewSpec, s: PreviewSpec) => p.project === s.proj
  * through the DataChannel.
  */
 export function previewUrl(p: Preview): string {
-  if (!api.transport.inTunnel()) return p.url
+  if (!api.transport.inTunnel()) {
+    const host = location.hostname
+    if (p.gatewayUrl && location.pathname.startsWith('/_lan/pod/') && (host === '127.0.0.1' || host === 'localhost')) {
+      const url = new URL(p.gatewayUrl)
+      url.hostname = host
+      return url.href
+    }
+    return p.url
+  }
   return `${location.origin}/__preview/${p.id}/`
 }
 

@@ -198,6 +198,8 @@ type Pod interface {
 	AdvertiseChanged()
 	// Peers is the way to the other pods of the account: their routes of the pods (/_peer/).
 	Peers() Peers
+	// Gateway returns this pod and the elected gateway of its cluster, by device key.
+	Gateway() (own, elected string)
 }
 
 // Peers reaches the other pods of the account (the linked services).
@@ -265,6 +267,8 @@ type Call struct {
 	Lang    string
 	// Window is the window of an RPC call (nil for an assistant tool).
 	Window Window
+	// EntryPod is the authenticated LAN pod serving this window, when it passed through one.
+	EntryPod string
 	// Emit sends an event to every window of the project (nil for an assistant tool);
 	// EmitOthers to every one but the window that called; EmitFamily to the windows of the
 	// main project and of its worktrees.

@@ -2,7 +2,7 @@
 // every project of the pod. A preview stops with its command.
 import { For, Show } from 'solid-js'
 import { errorToast, Icon, t } from './plugin'
-import { closePreview, previews, setPublic } from './previews'
+import { closePreview, openPreview, previews, previewUrl, setPublic } from './previews'
 
 export function PreviewsTab() {
   return (
@@ -13,7 +13,18 @@ export function PreviewsTab() {
           <div class="dk-forward" data-testid={`preview-${p.port}`}>
             <span class="dk-dot up" />
             <b class="ellipsis">{p.title}</b>
-            <a class="mono ellipsis" href={p.url} target="_blank" rel="noopener" title={t('Open in the browser')}>
+            <a
+              class="mono ellipsis"
+              href={previewUrl(p)}
+              target="_blank"
+              rel="noopener"
+              title={t('Open in the browser')}
+              onClick={(event) => {
+                if (!p.commandId) return
+                event.preventDefault()
+                void openPreview(p).catch(errorToast)
+              }}
+            >
               {p.url}
             </a>
             <span class="muted small mono ellipsis">

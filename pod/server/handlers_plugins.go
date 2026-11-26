@@ -13,6 +13,7 @@ import (
 	"antennae.space/ide/pod/commands"
 
 	"antennae.space/ide/lib/i18n"
+	"antennae.space/ide/lib/identity"
 	"antennae.space/ide/lib/tunnel"
 	"antennae.space/ide/pod/assistant"
 	"antennae.space/ide/pod/desks"
@@ -399,7 +400,13 @@ func (h pluginHost) HandleGlobal(method string, f plugins.Handler) {
 		panic(fmt.Sprintf("plugin %s: method %s is taken", h.id, name))
 	}
 	h.s.handle(name, func(ctx context.Context, c *Client, p json.RawMessage) (any, error) {
-		return f(ctx, plugins.Call{Params: p, Lang: c.language(), Window: clientWindow{c},
+		var entry string
+		if strings.HasPrefix(baseOf(c.ctx), "/_lan/pod/") {
+			if peer := identity.PeerOf(c.ctx); peer != nil && peer.Kind == identity.KindPod {
+				entry = peer.Key
+			}
+		}
+		return f(ctx, plugins.Call{Params: p, Lang: c.language(), Window: clientWindow{c}, EntryPod: entry,
 			Emit:       func(event string, data any) { h.s.broadcast(event, data, nil) },
 			EmitOthers: func(event string, data any) { h.s.broadcast(event, data, nil) },
 			EmitFamily: func(event string, data any) { h.s.broadcast(event, data, nil) }})
@@ -474,6 +481,13 @@ func (s *Server) Advertised() map[string]any {
 		out[name] = f()
 	}
 	return out
+}
+
+func (p podLend) Gateway() (string, string) {
+	if p.s.Pods == nil {
+		return "", ""
+	}
+	return p.s.Pods.Own(), p.s.Pods.Gateway()
 }
 
 func (p podLend) Peers() plugins.Peers {

@@ -53,6 +53,12 @@ WSL 2 runs with **NAT**, its default: the virtual machine has its own address, h
 - **Wake-on-LAN** from this pod: the networks of the virtual machine are not the LAN, so the pod reads the IPv4 networks of Windows and sends the magic packet through `powershell.exe` (the WSL interop, `pod/power/wsl.go`). The interop must be on.
 - Mirrored networking (`networkingMode=mirrored` in `.wslconfig`) is an option the authors have not tried: the code does not rule it out, but does not count on a broadcast leaving the machine either.
 
+## Open a preview from Windows
+
+When the pod in WSL is the Gateway, open its IDE at `http://127.0.0.1:4433/` in the Windows browser and open the project on the other pod from there. Open the saved serve command’s preview. The browser opens a free port on the Gateway.
+
+If the preview port is refused in NAT mode, set `localhostForwarding=true` under `[wsl2]` in `%UserProfile%\.wslconfig`. Run `wsl --shutdown` from PowerShell to apply the setting. Start the distribution and the pod again, reopen the IDE from Windows, and open the preview again. See [WSL configuration](https://learn.microsoft.com/en-us/windows/wsl/wsl-config).
+
 ## Check
 
 In the WSL terminal:

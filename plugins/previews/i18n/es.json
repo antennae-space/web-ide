@@ -1,4 +1,6 @@
 {
+  "The preview has closed.": "La vista previa se ha cerrado.",
+  "Could not open the preview on the Gateway: %v": "No se pudo abrir la vista previa en la pasarela: %v",
   "Port forwards": "Reenvíos de puertos",
   "Open port forwards": "Reenvíos de puertos abiertos",
   "They close 5 minutes after the last window of the pod.": "Se cierran 5 minutos después de la última ventana del pod.",

@@ -36,24 +36,26 @@ var (
 // Spec is what starts a preview: the command of the app and its port. CommandID: a saved
 // command of the project (its console, one per command), which gives the others.
 type Spec struct {
-	Project   string `json:"project"`
-	Title     string `json:"title"`
-	Command   string `json:"command"`
-	Cwd       string `json:"cwd"`
-	AppPort   int    `json:"port"`
-	CommandID string `json:"commandId,omitempty"`
+	Project    string `json:"project"`
+	Title      string `json:"title"`
+	Command    string `json:"command"`
+	Cwd        string `json:"cwd"`
+	AppPort    int    `json:"port"`
+	CommandID  string `json:"commandId,omitempty"`
+	SavedServe bool   `json:"-"`
 }
 
 func (s Spec) same(o Spec) bool {
-	return s.Project == o.Project && s.Command == o.Command && s.Cwd == o.Cwd && s.AppPort == o.AppPort
+	return s.Project == o.Project && s.CommandID == o.CommandID && s.Command == o.Command && s.Cwd == o.Cwd && s.AppPort == o.AppPort
 }
 
 // State is a running preview.
 type State struct {
 	Spec
-	ID      string `json:"id"`
-	Console string `json:"console"`
-	URL     string `json:"url"`
+	ID         string `json:"id"`
+	Console    string `json:"console"`
+	URL        string `json:"url"`
+	GatewayURL string `json:"gatewayUrl,omitempty"`
 	// PublicURL carries the token of the preview; empty while private.
 	PublicURL string `json:"publicUrl,omitempty"`
 	Public    bool   `json:"public"`
@@ -85,7 +87,18 @@ func (m *Manager) Handler(id string) (http.Handler, bool) {
 	if p == nil {
 		return nil, false
 	}
-	return m.handler(p, nil), true
+	return m.handler(p, p.proxy), true
+}
+
+// PeerProxy serves a preview after the caller has checked the gateway identity.
+func (m *Manager) PeerProxy(id string) (http.Handler, context.Context, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	p := m.previews[id]
+	if p == nil || !p.SavedServe || p.Console == "" {
+		return nil, nil, false
+	}
+	return p.proxy, p.ctx, true
 }
 
 type preview struct {
@@ -96,6 +109,9 @@ type preview struct {
 	serve  int // tailnet port, 0 without Tailscale
 	funnel int
 	alive  func() bool
+	proxy  http.Handler
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 type Manager struct {
@@ -183,9 +199,18 @@ func (m *Manager) Start(s Spec, console string, dial Dialer, alive func() bool) 
 	if err != nil {
 		return State{}, err
 	}
-	p := &preview{State: State{Spec: s, ID: newToken(4), Console: console, Started: time.Now().UnixMilli()},
+	p := &preview{State: State{Spec: s, ID: newToken(16), Console: console, Started: time.Now().UnixMilli()},
 		token: newToken(16), l: l, alive: alive}
-	p.srv = &http.Server{Handler: m.handler(p, dial), ReadHeaderTimeout: 30 * time.Second}
+	p.ctx, p.cancel = context.WithCancel(context.Background())
+	p.proxy = m.proxy(p, dial)
+	p.srv = &http.Server{Handler: m.handler(p, p.proxy), ReadHeaderTimeout: 30 * time.Second,
+		BaseContext: func(net.Listener) context.Context { return p.ctx }}
+	started := false
+	defer func() {
+		if !started {
+			p.cancel()
+		}
+	}()
 	go func() { _ = p.srv.Serve(l) }()
 	local := "http://" + l.Addr().String()
 	p.URL = local
@@ -206,6 +231,7 @@ func (m *Manager) Start(s Spec, console string, dial Dialer, alive func() bool) 
 	}
 	m.mu.Lock()
 	m.previews[p.ID] = p
+	started = true
 	m.mu.Unlock()
 	m.changed()
 	return p.State, nil
@@ -296,6 +322,7 @@ func (m *Manager) Close(id string) {
 	if p == nil {
 		return
 	}
+	p.cancel()
 	_ = p.srv.Close()
 	if p.serve != 0 {
 		_ = m.TS.Off(p.serve, false)
@@ -338,8 +365,7 @@ func (m *Manager) List() []State {
 // cookieName holds the token of a public preview in the browser of a visitor.
 func (p *preview) cookieName() string { return "webide_preview_" + p.ID }
 
-// handler checks the access, then proxies to the app.
-func (m *Manager) handler(p *preview, dial Dialer) http.Handler {
+func (m *Manager) proxy(p *preview, dial Dialer) http.Handler {
 	appHost := "localhost:" + strconv.Itoa(p.AppPort)
 	target := &url.URL{Scheme: "http", Host: "127.0.0.1:" + strconv.Itoa(p.AppPort)}
 	tr := http.DefaultTransport.(*http.Transport).Clone()
@@ -379,6 +405,10 @@ func (m *Manager) handler(p *preview, dial Dialer) http.Handler {
 			page(w, r, http.StatusBadGateway, "The app does not answer yet on port {port}.", map[string]any{"port": p.AppPort})
 		},
 	}
+	return proxy
+}
+
+func (m *Manager) handler(p *preview, proxy http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if m.Authorized != nil && m.Authorized(r) {
 			proxy.ServeHTTP(w, r)

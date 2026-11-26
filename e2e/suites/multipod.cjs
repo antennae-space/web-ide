@@ -73,15 +73,15 @@ function fakeService(name) {
   })
   return srv
 }
-const getText = (port, p) =>
+const getText = (port, p, headers) =>
   new Promise((resolve) => {
     http
-      .get({ host: '127.0.0.1', port, path: p, timeout: 30000 }, (res) => {
+      .get({ host: '127.0.0.1', port, path: p, headers, timeout: 30000 }, (res) => {
         let body = ''
-        let first = 0
+        let first = null
         const t0 = Date.now()
         res.on('data', (d) => {
-          if (!first) first = Date.now() - t0
+          first ??= Date.now() - t0
           body += d
         })
         res.on('end', () => resolve({ status: res.statusCode, body, first, total: Date.now() - t0 }))
@@ -94,9 +94,9 @@ const getText = (port, p) =>
       })
       .on('error', (e) => resolve({ status: 0, body: String(e) }))
   })
-const upgrade = (port) =>
+const upgrade = (port, cookie) =>
   new Promise((resolve) => {
-    const req = http.request({ host: '127.0.0.1', port, path: '/ws', headers: { Connection: 'Upgrade', Upgrade: 'websocket' }, timeout: 30000 })
+    const req = http.request({ host: '127.0.0.1', port, path: '/ws', headers: { Connection: 'Upgrade', Upgrade: 'websocket', ...(cookie ? { Cookie: cookie } : {}) }, timeout: 30000 })
     req.on('upgrade', (res, sock) => {
       sock.once('data', (d) => {
         resolve(String(d))
@@ -115,7 +115,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const listen = (srv, port = 0) => new Promise((resolve) => srv.listen(port, '127.0.0.1', () => resolve(srv.address().port)))
 async function waitFor(f, ms = 20000) {
   for (const end = Date.now() + ms; Date.now() < end; await sleep(200)) {
-    const v = f()
+    const v = await f()
     if (v) return v
   }
   return null
@@ -561,8 +561,42 @@ run(
       const keyC = deviceKey(dataC)
       // Bravo is a peer of the LAN of alpha: its page runs under /_lan/pod/ of alpha. Charlie is
       // of another cluster: alpha dials it pod to pod over WebRTC, under the same path.
-      await openProject(local, local, 'bravo', path.join(TMP, 'mp-bravo', 'ws'), 'alpha')
+      const bravoWorkspace = path.join(TMP, 'mp-bravo', 'ws')
+      const bravoProject = path.join(bravoWorkspace, 'bravo-app')
+      const appPort = await pickPort(LAN_PORT + 74)
+      fs.mkdirSync(path.join(bravoProject, '.ide'), { recursive: true })
+      fs.writeFileSync(path.join(bravoProject, '.ide', 'commands.json'), JSON.stringify({
+        commands: [{ id: 'serve-preview', name: 'Gateway preview', flag: 'serve', command: 'exec node preview.cjs', port: appPort }],
+      }))
+      fs.writeFileSync(path.join(bravoProject, 'preview.cjs'), `const http = require('http')
+const serve = ${fakeService.toString()}
+serve('bravo preview').listen(${appPort}, '127.0.0.1')
+`)
+      await openProject(local, local, 'bravo', bravoWorkspace, 'alpha')
       assert(new URL(local.url()).pathname === `/_lan/pod/${keyB}/project/bravo-app`, 'the page of bravo runs under /_lan/pod/: ' + local.url())
+      // Opening a saved serve command from alpha's browser opens alpha's preview listener.
+      const openGatewayPreview = async () => {
+        await local.click('.console-tabs [data-testid=console-new-tab-button]')
+        const popup = local.waitForEvent('popup')
+        await local.click('[data-testid=cmd-tile]:has-text("Gateway preview") [data-testid=cmd-tile-app]')
+        const tab = await popup
+        await tab.waitForURL((url) => url.hostname === '127.0.0.1')
+        await tab.waitForFunction(() => document.body.textContent.includes('bravo preview /'))
+        const port = Number(new URL(tab.url()).port)
+        await tab.close()
+        return port
+      }
+      const gatewayPreviewPort = await openGatewayPreview()
+      assert(gatewayPreviewPort !== appPort, 'the Gateway allocates its own listener while bravo uses the app port')
+      assert(await openGatewayPreview() === gatewayPreviewPort, 'opening the same preview reuses the listener')
+      assert((await getText(gatewayPreviewPort, '/')).status === 403, 'the Gateway preview requires its IDE cookie')
+      const cookie = 'webide_token=' + TOKEN
+      const streamed = await getText(gatewayPreviewPort, '/stream', { Cookie: cookie })
+      assert(streamed.status === 200 && streamed.body.includes('token 2') && streamed.total - streamed.first >= 900, 'the Gateway preview streams the app response: ' + JSON.stringify(streamed))
+      assert(await upgrade(gatewayPreviewPort, cookie) === 'echo hi', 'the Gateway preview carries WebSockets')
+      await local.locator('.console-tabs .tab:has-text("Gateway preview") .tab-close').click()
+      assert(await waitFor(() => portFree(gatewayPreviewPort).then((free) => free || null), 10000), 'closing the serve console frees the Gateway port')
+
       await local.goto(`http://127.0.0.1:${PORT_A}/?token=${TOKEN}`)
       await local.waitForSelector('.home .home-bar', { timeout: 40000 })
       await openProject(local, local, 'charlie', path.join(TMP, 'mp-charlie', 'ws'), 'alpha')

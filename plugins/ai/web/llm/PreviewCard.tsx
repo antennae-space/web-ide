@@ -30,7 +30,7 @@ export function PreviewCard(props: { spec: PreviewSpec }) {
   const running = () => previews().find((p) => sameSpec(p, props.spec))
   const open = async () => {
     const p = running()
-    if (p) {
+    if (p && !p.commandId) {
       window.open(previewUrl(p), '_blank', 'noopener')
       return
     }
@@ -69,7 +69,18 @@ export function PreviewCard(props: { spec: PreviewSpec }) {
         <Show when={running()}>
           {(p) => (
             <>
-              <a class="mono small ellipsis" href={previewUrl(p())} target="_blank" rel="noopener" data-testid="ai-preview-url">
+              <a
+                class="mono small ellipsis"
+                href={previewUrl(p())}
+                target="_blank"
+                rel="noopener"
+                data-testid="ai-preview-url"
+                onClick={(event) => {
+                  if (!p().commandId) return
+                  event.preventDefault()
+                  void open()
+                }}
+              >
                 {previewUrl(p())}
               </a>
               <Show when={p().tailscale}>

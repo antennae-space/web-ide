@@ -46,6 +46,7 @@ func (p *fakePod) Broadcast(string, any)                                 {}
 func (p *fakePod) Emit(string, string, any)                              {}
 func (p *fakePod) Authorized(*http.Request) bool                         { return false }
 func (p *fakePod) AdvertiseChanged()                                     {}
+func (p *fakePod) Gateway() (string, string)                             { return "", "" }
 func (p *fakePod) Peers() plugins.Peers                                  { return nil }
 func (p *fakePod) EmitFamily(string, string, any, string)                {}
 func (p *fakePod) CloseRuntime(string)                                   {}

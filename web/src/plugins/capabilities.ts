@@ -123,6 +123,7 @@ export interface Preview extends PreviewSpec {
   id: string
   console: string
   url: string
+  gatewayUrl?: string
   publicUrl?: string
   public: boolean
   tailscale: boolean

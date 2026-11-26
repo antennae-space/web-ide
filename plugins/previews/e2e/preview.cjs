@@ -78,7 +78,7 @@ run(async ({ page, ctx }) => {
     await page.waitForSelector('[data-testid=model-pill]:has-text("fake-model")')
 
     await page.fill('.ai-composer .ed-content', 'Let me try the app')
-    await page.keyboard.press('Control+Enter')
+    await page.click('[data-testid=send]')
     await page.waitForSelector('.ai-msg.assistant .md:has-text("Click the card")', { timeout: 20000 })
     await page.waitForSelector('[data-testid=ai-preview]')
     assert((await page.textContent('[data-testid=ai-preview]')).includes('Demo app') && (await page.textContent('[data-testid=ai-preview-open]')).includes('Start and open the app'), 'card of share_preview shown')
@@ -146,7 +146,7 @@ run(async ({ page, ctx }) => {
 
     // share_preview without command: the saved serve command, already running.
     await page.fill('.ai-composer .ed-content', 'Show me the saved one')
-    await page.keyboard.press('Control+Enter')
+    await page.click('[data-testid=send]')
     await page.waitForSelector('[data-testid=ai-preview]:has-text("Saved app")', { timeout: 20000 })
     await page.waitForSelector('[data-testid=ai-preview]:has-text("Saved app") [data-testid=ai-preview-open]:has-text("Open the app")')
     assert(true, 'share_preview offers the saved serve command, running already')

@@ -79,6 +79,7 @@ func open(ctx context.Context, pod plugins.Pod, pv *preview.Manager, sp preview.
 		if sp.AppPort == 0 {
 			sp.AppPort = cmd.Port
 		}
+		sp.SavedServe = cmd.Flag == "serve" && cmd.Port > 0 && sp.AppPort == cmd.Port
 		if strings.TrimSpace(sp.Title) == "" {
 			sp.Title = cmd.Name
 		}
@@ -94,6 +95,13 @@ func open(ctx context.Context, pod plugins.Pod, pv *preview.Manager, sp preview.
 	}
 	dial := dialer(rt)
 	if listens(ctx, dial, sp.AppPort) {
+		if saved != nil {
+			for _, c := range rt.Consoles.OfCommand(saved.ID) {
+				if !c.Exited {
+					return pv.Start(sp, c.ID, dial, func() bool { return consoleRuns(rt, c.ID) })
+				}
+			}
+		}
 		// Already running (started by hand): the preview lives while the port answers.
 		return pv.Start(sp, "", dial, func() bool { return listens(context.Background(), dial, sp.AppPort) })
 	}

@@ -55,9 +55,12 @@ func (p *Plugin) Register(h plugins.Host) {
 	var pv *preview.Manager
 	pv = preview.New(&preview.CLI{}, pod.Authorized, func() { pod.Broadcast("preview.changed", pv.List()) })
 	h.HandlePreview(pv.Handler)
+	links := newGatewayLinks(pod, pv)
+	h.HandlePeer(links)
 	h.OnStop(func() {
 		fw.CloseAll()
 		pv.Shutdown()
+		links.stop()
 	})
 	h.Provide("previews", previewsCap{pod: pod, pv: pv})
 	// The enabled port forwards of an SSH project open with it.
@@ -196,7 +199,11 @@ func (p *Plugin) Register(h plugins.Host) {
 		if sp.Project == "" && c.Window != nil {
 			sp.Project = c.Window.Project()
 		}
-		return open(ctx, pod, pv, sp)
+		st, err := open(ctx, pod, pv, sp)
+		if err != nil {
+			return st, err
+		}
+		return links.open(ctx, st, c.EntryPod)
 	})
 	h.HandleGlobal("preview.list", func(ctx context.Context, c plugins.Call) (any, error) {
 		return pv.List(), nil
