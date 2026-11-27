@@ -20,18 +20,14 @@ import (
 // it asks for and send their results back, until the model answers without tools, the user
 // stops it, or it waits for the user (questions, a plan). Long conversations are compacted.
 
-// startRun saves a conversation and runs it in the background, its messages announced from
-// the index from; false when it already runs.
-func (s *A) startRun(loc llm.ChatLocation, root, project, lang string, c *engine.Chat, from int) bool {
-	s.assistants.mu.Lock()
-	if s.assistants.runs[c.ID] != nil {
-		s.assistants.mu.Unlock()
-		return false
+var errRunActive = i18n.New("the conversation is running")
+
+// startRun saves a conversation and runs it in the background, announcing messages from from.
+func (s *A) startRun(loc llm.ChatLocation, root, project, lang string, c *engine.Chat, from int) error {
+	r := &assistantRun{id: c.ID, loc: loc, root: root, project: project, lang: lang, chat: c, state: "running"}
+	if err := s.registerRun(r); err != nil {
+		return err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	r := &assistantRun{id: c.ID, loc: loc, root: root, project: project, lang: lang, ctx: ctx, cancel: cancel, chat: c, state: "running"}
-	s.assistants.runs[c.ID] = r
-	s.assistants.mu.Unlock()
 	s.saveRunning()
 	r.mu.Lock()
 	c.Running = &engine.Running{}
@@ -39,7 +35,27 @@ func (s *A) startRun(loc llm.ChatLocation, root, project, lang string, c *engine
 	s.publish(r, from)
 	r.mu.Unlock()
 	go s.loop(r)
-	return true
+	return nil
+}
+
+func (s *A) registerRun(r *assistantRun) error {
+	if r.chat.MCPDevelopment {
+		r.project = r.chat.MCPProject
+	}
+	s.assistants.mu.Lock()
+	defer s.assistants.mu.Unlock()
+	if s.assistants.runs[r.id] != nil {
+		return errRunActive
+	}
+	if t := r.chat.Ticket; t != nil && r.chat.Parent == "" && (t.Role == "dev" || t.Role == "correction") {
+		if err := s.reserveDevelopment(r.project, t.ID, r.id); err != nil {
+			return err
+		}
+		r.devKey = devKey(r.project, t.ID)
+	}
+	r.ctx, r.cancel = contextWithCancel()
+	s.assistants.runs[r.id] = r
+	return nil
 }
 
 // modelInfo tells what a model can do and its context size (cached a little: listing the
@@ -424,14 +440,17 @@ func (s *A) systemPrompt(r *assistantRun, ref *runtimeRef, c *engine.Chat, tools
 	if c.MCPTextOnly {
 		return "Answer the request using the conversation. You have no tools or access to project files."
 	}
-	if c.MCPProject != "" {
+	if c.MCPProject != "" && !c.MCPDevelopment {
 		return "Answer the request using the conversation. Use ask_user if you need input from the user."
 	}
-	ctx := s.LLM.LoadContext(llm.Project{Root: ref.rt.Root, FS: ref.rt.FS, IdeDir: ref.rt.IdeDir})
+	var ctx *llm.Context
+	if !c.MCPDevelopment {
+		ctx = s.LLM.LoadContext(llm.Project{Root: ref.rt.Root, FS: ref.rt.FS, IdeDir: ref.rt.IdeDir})
+	}
 	// A compaction dropped the tool results that carried the instructions of the subfolders:
 	// they come back with the others.
 	for _, n := range c.Nested {
-		if n.At <= c.ResetAt {
+		if ctx != nil && n.At <= c.ResetAt {
 			if f, ok := llm.ReadNested(ref.rt.FS, ref.rt.Root, n.Path); ok {
 				f.Path = path.Join(ref.rt.Root, n.Path)
 				ctx.Files = append(ctx.Files, f)
@@ -454,6 +473,9 @@ func (s *A) systemPrompt(r *assistantRun, ref *runtimeRef, c *engine.Chat, tools
 		mode = engine.Build
 	}
 	text := engine.SystemPrompt(ctx, vars, tools, mode, ticket)
+	if c.MCPDevelopment {
+		return text + "\n\nRead AGENTS.md in the worktree if it exists. Use the tools offered for this worktree and ticket. Shell commands require the user's approval."
+	}
 	if tools && c.Agent != nil && c.Agent.Adopted {
 		text += "\n\n" + engine.AdoptedText
 	} else if tools && c.Parent != "" {
@@ -496,13 +518,16 @@ func (s *A) loop(r *assistantRun) {
 			r.chat.Agent.Status, r.chat.Agent.Question = engine.AgentRunning, ""
 		}
 		r.done = true
+		s.publish(r, from)
 		s.assistants.mu.Lock()
 		delete(s.assistants.runs, r.id)
+		if !again && r.devKey != "" {
+			s.devReserve.release(r.devKey, r.id)
+		}
 		s.assistants.mu.Unlock()
 		if !s.stopping() {
 			s.saveRunning()
 		}
-		s.publish(r, from)
 		r.mu.Unlock()
 		r.cancel()
 		if again {
@@ -580,7 +605,9 @@ func (s *A) loop(r *assistantRun) {
 			mode = r.chat.Mode
 			system := s.systemPrompt(r, ref, r.chat, tools)
 			req = llm.ChatRequest{Server: server, Model: model}
-			if tools && r.chat.MCPProject != "" {
+			if tools && r.chat.MCPDevelopment {
+				req.Tools = s.offered(ref.rt, mcpDevelopmentDefs(r.chat))
+			} else if tools && r.chat.MCPProject != "" {
 				req.Tools = []json.RawMessage{assistant.AskUserDef.JSON}
 			} else if tools {
 				adopted := r.chat.Agent != nil && r.chat.Agent.Adopted
@@ -786,12 +813,13 @@ func (s *A) runCalls(r *assistantRun, ref *runtimeRef, calls []engine.ToolCall, 
 			continue
 		}
 		name := call.Function.Name
-		if r.chat.MCPTextOnly || r.chat.MCPProject != "" && name != "ask_user" {
+		dev := r.chat.MCPDevelopment
+		if r.chat.MCPTextOnly || dev && !mcpDevelopmentTool(name) || r.chat.MCPProject != "" && !dev && name != "ask_user" {
 			r.chat.Messages = append(r.chat.Messages, &engine.Message{Role: "tool", ToolCallID: call.ID, Name: name,
 				Content: assistant.String("Tool unavailable in this MCP conversation."), Status: "denied", Summary: assistant.T("not allowed", nil).Raw()})
 			s.publish(r, len(r.chat.Messages)-1)
 			r.mu.Unlock()
-			stop = true
+			stop = stop || !dev
 			continue
 		}
 		var args map[string]json.RawMessage

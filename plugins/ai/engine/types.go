@@ -33,11 +33,13 @@ type Chat struct {
 	Running *Running        `json:"running,omitempty"`
 	Queue   []QueuedMessage `json:"queue,omitempty"`
 	// MCP conversations keep their origin on resume and through the UI.
-	MCPOwner    string      `json:"mcpOwner,omitempty"`
-	MCPProject  string      `json:"mcpProject,omitempty"`
-	MCPTextOnly bool        `json:"mcpTextOnly,omitempty"`
-	Mode        string      `json:"mode,omitempty"`
-	Ticket      *TicketLink `json:"ticket,omitempty"`
+	MCPOwner    string `json:"mcpOwner,omitempty"`
+	MCPProject  string `json:"mcpProject,omitempty"`
+	MCPTextOnly bool   `json:"mcpTextOnly,omitempty"`
+	// MCPDevelopment limits a development started with a Developer grant to worktree tools.
+	MCPDevelopment bool        `json:"mcpDevelopment,omitempty"`
+	Mode           string      `json:"mode,omitempty"`
+	Ticket         *TicketLink `json:"ticket,omitempty"`
 	// Options of the user for this conversation, sent with each message.
 	Options *assistant.Options `json:"options,omitempty"`
 	// Approval waiting for the user (a file change, a command).

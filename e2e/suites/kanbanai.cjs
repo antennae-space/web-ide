@@ -3,9 +3,11 @@
 // Briefing mode (tickets created and linked to the conversation).
 const http = require('http')
 const fs = require('fs')
+const { execFileSync } = require('child_process')
 const { run, openProject, mcpToken, mcp, assert, unfold, OUT, WS, installOfficial, acceptConfirms, inFrames, dropNotes } = require('../common.cjs')
 
 const requests = []
+let continueDevelopment
 const sse = (res, delta) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`)
 // Each answer lasts a little: the ticket shows the time of the answers.
 function end(res, reason = 'stop') {
@@ -31,6 +33,27 @@ const fake = http.createServer(async (req, res) => {
   const msgs = r.messages
   const last = msgs[msgs.length - 1]
   const firstUser = text(msgs.find((m) => m.role === 'user') ?? {})
+  if (firstUser.includes('“MCP worktree fixture”')) {
+    if (last === msgs[1]) {
+      await new Promise((resolve) => { continueDevelopment = resolve })
+      sse(res, { tool_calls: calls([
+        ['wt', 'read_file', { path: 'worktree-marker.txt' }],
+        ['outside', 'read_file', { path: '../outside.txt' }],
+        ['write', 'write_file', { path: 'worktree-result.txt', content: 'Written by the Assistant' }],
+      ]) })
+      return end(res, 'tool_calls')
+    }
+    if (last.tool_call_id === 'write') {
+      sse(res, { content: 'Worktree read: ' + text(msgs.find((m) => m.tool_call_id === 'wt')) })
+      return end(res)
+    }
+    if (last.role === 'user' && text(last).includes('Check the output format')) {
+      sse(res, { tool_calls: calls([['format', 'ask_user', { questions: [{ question: 'Which format for this ticket?', options: [{ label: 'CSV' }, { label: 'JSON' }] }] }]]) })
+      return end(res, 'tool_calls')
+    }
+    sse(res, { content: 'Development answer: ' + text(last) })
+    return end(res)
+  }
   if (firstUser === 'Supervisor conversation') {
     sse(res, { tool_calls: calls([['mcp-command', 'bash', { command: 'touch mcp-forbidden' }]]) })
     return end(res, 'tool_calls')
@@ -623,7 +646,74 @@ run(async ({ page }) => {
     await kp.waitForSelector('[data-testid=ai-ask-offpath]')
     const offCard = await kp.textContent('[data-testid=ai-ask]:has([data-testid=ai-ask-offpath])')
     assert(offCard.includes('Solo') && offCard.includes('Medium') && !offCard.includes('Platform?'), 'folded card: the path and the badge: ' + offCard)
+
+    {
+      // MCP development in a Git worktree. Earlier cases use the non-Git development path.
+      const repo = WS + '/demo'
+      const git = (...args) => execFileSync('git', args, { cwd: repo })
+      git('init', '-q')
+      git('add', 'src/main.go')
+      git('-c', 'user.name=e2e', '-c', 'user.email=e2e@x', 'commit', '-qm', 'Initial state')
+      const mcpText = (response) => response.result.content[0].text
+      const ok = async (name, args) => {
+        const response = await mcp(name, args)
+        assert(!response.result.isError, name + ': ' + mcpText(response))
+        return mcpText(response)
+      }
+      const created = await ok('kanban_create', { title: 'MCP worktree fixture' })
+      const id = Number(created.match(/Ticket #(\d+) created/i)?.[1])
+      assert(id > 0, 'ticket created: ' + created)
+      await ok('kanban_set_plan', { id, plan: 'Read the marker', goals: [{ title: 'Read the marker' }], size: 's', complexity: 'medium' })
+      const missing = await mcp('kanban_develop', { id })
+      assert(missing.result.isError && mcpText(missing).includes('call kanban_start first'), 'MCP development requires a worktree')
+      const prepared = await ok('kanban_start', { id, base: git('branch', '--show-current').toString().trim() })
+      const cwd = prepared.match(/^Worktree: (.+)$/m)?.[1]
+      assert(cwd, 'kanban_start returns the worktree')
+      fs.writeFileSync(cwd + '/worktree-marker.txt', 'from the ticket worktree')
+      const started = await ok('kanban_develop', { id })
+      const chat = started.match(/conversation (\w+)\./)?.[1]
+      assert(chat, 'development returns the conversation id: ' + started)
+      const duplicate = await mcp('kanban_develop', { id })
+      assert(duplicate.result.isError && mcpText(duplicate).includes(chat), 'MCP development rejects a second start during the first turn')
+      const sup = mcpToken('supervisor')
+      const agent = await mcp('agent_start', { cwd, id, provider: 'claude' }, sup)
+      assert(agent.result.isError && mcpText(agent).includes(chat), 'ACP cannot start while the Assistant owns the development')
+      const ticket = await ok('kanban_get', { id })
+      assert(ticket.includes('Linked conversations') && ticket.includes(chat), 'kanban_get lists the development conversation')
+
+      const card = '[data-testid=ticket-card-' + id + ']'
+      if (!(await kp.isVisible('[data-testid=kanban-panel]'))) await kp.click('.rail-left .rail-btn[title^="Kanban"]')
+      await kp.waitForSelector(card)
+      await kp.click(card)
+      await kp.waitForSelector('[data-testid=ticket-view]:has-text("MCP worktree fixture")', { timeout: 15000 })
+      if (await kp.isVisible('.tk-section.folded .tk-section-toggle:has-text("Development conversations")')) await unfold(page, 'Development conversations')
+      await kp.click('[data-testid=ticket-chat]:has-text("MCP worktree fixture")')
+      await kp.waitForSelector('.ai-msg.user:has-text("following its plan.")')
+      assert((await kp.textContent('[data-testid=ai-role]')) === 'Development', 'the Assistant opens the linked development')
+      const deadline = Date.now() + 10000
+      while (!continueDevelopment && Date.now() < deadline) await page.waitForTimeout(50)
+      assert(continueDevelopment, 'the default model received the first prompt')
+      continueDevelopment()
+      await kp.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("from the ticket worktree")', { timeout: 15000 })
+      const args = { cwd, id, chat }
+      const transcript = await ok('kanban_conversation', { ...args, tools: true })
+      assert(transcript.includes('Develop ticket #' + id) && transcript.includes('from the ticket worktree'), 'kanban_conversation returns the first prompt and the worktree result')
+      assert(transcript.includes('the path is outside the ticket worktree'), 'the Assistant rejects reads outside the worktree')
+      assert(fs.readFileSync(cwd + '/worktree-result.txt', 'utf8') === 'Written by the Assistant', 'the Assistant writes in the worktree')
+      await ok('kanban_reply', { ...args, message: 'Check the output format' })
+      await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Which format for this ticket?")')
+      await kp.waitForSelector('[data-testid=send]')
+      await ok('kanban_answer', { ...args, answers: [['CSV']] })
+      await kp.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("Development answer:"):has-text("CSV")', { timeout: 15000 })
+      await kp.waitForSelector('[data-testid=send]')
+      const acp = await mcp('agent_start', { cwd, id, provider: 'claude', message: 'Wait until later' }, sup)
+      assert(!acp.result.isError, 'ACP can start after the Assistant turn: ' + mcpText(acp))
+      const session = mcpText(acp).match(/Session (\w+) of/)?.[1]
+      const busy = await mcp('kanban_develop', { cwd, id })
+      assert(session && busy.result.isError && mcpText(busy).includes(session), 'the Assistant cannot start while ACP owns the development')
+    }
   } finally {
+    continueDevelopment?.()
     fake.close()
   }
 })

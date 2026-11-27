@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/plugins/ai/acp"
 	"antennae.space/ide/plugins/ai/engine"
 	"antennae.space/ide/plugins/ai/llm"
@@ -14,8 +15,9 @@ import (
 )
 
 // Tools of the MCP endpoint on the conversations linked to a ticket (Host.MCPTool): Claude
-// Code reads one (kanban_conversation), or takes part in it: it writes a message
-// (kanban_reply) or answers the questions waiting for the user (kanban_answer). Its messages
+// Code starts the development of a ticket (kanban_develop), reads a conversation
+// (kanban_conversation), or takes part in it: it writes a message (kanban_reply) or answers
+// the questions waiting for the user (kanban_answer). Its messages
 // carry the author "claude" and the conversation goes on as if the user had sent them. They
 // need the tickets of the Kanban, whose scope and ticket binding they share.
 
@@ -27,6 +29,25 @@ func (s *A) registerMCP() {
 
 func (s *A) mcpTools() []plugins.MCPTool {
 	return []plugins.MCPTool{
+		{
+			Name:        "kanban_develop",
+			Needs:       "tickets",
+			Description: "Starts a Build conversation linked to a To do or In progress ticket in its worktree. Call kanban_start first if the ticket has no worktree. Returns the conversation id for kanban_conversation, kanban_reply and kanban_answer.",
+			Props: map[string]any{"id": ticketID,
+				"server": plugins.Str("Model server id (default: the one of the assistant settings)"),
+				"model":  plugins.Str("Model (default: the one of the assistant settings)")},
+			Run: ticketTool(s, func(ctx context.Context, sc plugins.MCPScope, id int64, a struct{ Server, Model string }) (string, error) {
+				dc, err := s.developChat(ctx, sc, id, a.Server, a.Model)
+				if err != nil {
+					return "", err
+				}
+				if err := s.startRun(chatLocOf(sc.Root), sc.Root.ID, dc.Ticket.Project, sc.Lang, dc, 0); err != nil {
+					return "", err
+				}
+				return fmt.Sprintf("Development of ticket #%d started: conversation %s.\n"+
+					"Read it with kanban_conversation, guide it with kanban_reply, and answer its questions with kanban_answer.", id, dc.ID), nil
+			}),
+		},
 		{
 			Name:        "kanban_conversation",
 			Needs:       "tickets",
@@ -160,6 +181,68 @@ func (s *A) ticketChatProject(ctx context.Context, sc plugins.MCPScope, t *kbTic
 	return sc.Root.ID
 }
 
+func (s *A) developChat(ctx context.Context, sc plugins.MCPScope, id int64, server, model string) (*engine.Chat, error) {
+	t, err := s.kanbanGet(ctx, sc.Root.ID, id)
+	if err != nil {
+		return nil, err
+	}
+	if t.Status != "todo" && t.Status != "in_progress" {
+		return nil, i18n.Errorf("ticket #%d must be To do or In progress", id)
+	}
+	owner := t
+	if t.Worktree == "" && t.Parent != 0 {
+		owner, err = s.kanbanGet(ctx, sc.Root.ID, t.Parent)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if owner.Worktree == "" {
+		return nil, i18n.Errorf("ticket #%d has no worktree: call kanban_start first", id)
+	}
+	project, ticket := s.Projects.ChildAt(sc.Root.ID, owner.Worktree)
+	if project == "" || ticket != owner.ID {
+		return nil, i18n.Errorf("the worktree of ticket #%d is not registered in the IDE: open the worktree first", owner.ID)
+	}
+	if sc.AllowsProject != nil && !sc.AllowsProject(project, sc.Root.ID) {
+		return nil, i18n.New("the worktree is outside the MCP grant")
+	}
+	for _, c := range t.ChatList {
+		if s.Running(c.ChatID) {
+			return nil, i18n.Errorf("conversation %s of ticket #%d is running", c.ChatID, id)
+		}
+	}
+	defServer, defModel := s.LLM.Default()
+	if server == "" {
+		server = defServer
+	}
+	if model == "" && server == defServer {
+		model = defModel
+	}
+	if server == "" || model == "" {
+		return nil, i18n.New("Choose a server and a model")
+	}
+	if s.LLM.ServerName(server) == "" {
+		return nil, i18n.Errorf("unknown model server %q", server)
+	}
+	title := i18n.T(sc.Lang, "#%d Development · %s", id, t.Title)
+	if r := []rune(title); len(r) > 80 {
+		title = string(r[:80])
+	}
+	text := i18n.T(sc.Lang, "Develop ticket #%d “%s” following its plan.", id, t.Title)
+	effort := "auto"
+	switch t.Complexity {
+	case "high":
+		effort = "xhigh"
+	case "low":
+		effort = "low"
+	}
+	chat := &engine.Chat{ID: assistant.NewID(), Title: title, Server: server, Model: model, Mode: engine.Build,
+		MCPOwner: sc.Identity, MCPProject: project, MCPDevelopment: true,
+		Ticket: &engine.TicketLink{ID: id, Role: "dev", Project: project, Effort: effort}}
+	chat.AddUser(&engine.Message{Role: "user", Content: assistant.String(text), Display: text, Author: assistant.AuthorClaude})
+	return chat, nil
+}
+
 // reply queues a message from an MCP client during a turn, or starts a new turn.
 func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang, id, text, author string) (string, error) {
 	if strings.TrimSpace(text) == "" {
@@ -201,8 +284,8 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 	}
 	from := minFrom(len(chat.Messages), skipQuestions(chat))
 	chat.AddUser(&engine.Message{Role: "user", Content: assistant.String(text), Display: text, Author: author})
-	if !s.startRun(loc, root, project, lang, chat, from) {
-		return "", fmt.Errorf("the conversation started meanwhile: send your message again")
+	if err := s.startRun(loc, root, project, lang, chat, from); err != nil {
+		return "", err
 	}
 	reader := "kanban_conversation"
 	if author == assistant.AuthorMCP {
@@ -251,8 +334,8 @@ func (s *A) answer(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lan
 	m.Answers, m.Notes, m.Path, m.OffPath, m.AskState, m.Author = answers, notes, path, nil, "answered", assistant.AuthorClaude
 	m.Content = assistant.String("Claude Code answered for the user.\n" + assistant.AnswersText(m.Questions, answers, notes, path, nil))
 	m.Summary = assistant.T("answers received", nil).Raw()
-	if !s.startRun(loc, root, project, lang, chat, index) {
-		return "", fmt.Errorf("the conversation started meanwhile: read it again")
+	if err := s.startRun(loc, root, project, lang, chat, index); err != nil {
+		return "", err
 	}
 	return "Answers sent: the assistant goes on.", nil
 }

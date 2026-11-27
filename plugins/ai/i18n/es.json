@@ -798,5 +798,11 @@
   "cwd must be the worktree of ticket #%d (%s)": "cwd debe ser el worktree del ticket #%d (%s)",
   "the worktree is outside the MCP grant": "el worktree está fuera del permiso MCP",
   "ticket #%d is not the step to develop of its lineage: the active step is #%d": "el ticket #%d no es la etapa a desarrollar de su linaje: la etapa activa es el #%d",
-  "ticket #%d is developed by a conversation of the assistant: one development at a time": "el ticket #%d es desarrollado por una conversación del asistente: un desarrollo a la vez"
+  "ticket #%d is developed by a conversation of the assistant: one development at a time": "el ticket #%d es desarrollado por una conversación del asistente: un desarrollo a la vez",
+  "#%d Development · %s": "#%d Desarrollo · %s",
+  "Develop ticket #%d “%s” following its plan.": "Desarrolla el ticket #%d «%s» siguiendo su plan.",
+  "ticket #%d must be To do or In progress": "el ticket #%d debe estar Por hacer o En curso",
+  "ticket #%d has no worktree: call kanban_start first": "el ticket #%d no tiene worktree: llama primero a kanban_start",
+  "conversation %s of ticket #%d is running": "la conversación %s del ticket #%d está en curso",
+  "unknown model server %q": "servidor de modelos desconocido: %q"
 }

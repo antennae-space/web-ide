@@ -56,9 +56,11 @@ func (s *A) deliver(r *assistantRun, target string, ev engine.AgentEvent, wake b
 	if !wake {
 		return s.publishIdle(r.loc, r.root, c, from)
 	}
-	if !s.startRun(r.loc, r.root, s.runProject(c, r.root, r.project), r.lang, c, from) {
+	if err := s.startRun(r.loc, r.root, s.runProject(c, r.root, r.project), r.lang, c, from); err == errRunActive {
 		// Started meanwhile: queued instead.
 		return s.deliver(r, target, ev, false)
+	} else if err != nil {
+		return err
 	}
 	return nil
 }
@@ -584,8 +586,8 @@ func (s *A) agentResume(r *assistantRun, a assistant.Args) (assistant.ToolResult
 		ev := engine.AgentEvent{Child: id, Title: parentTitle, Type: "message", Text: engine.AdoptText + " Your last answer failed: go on from where you stopped."}
 		c.AddUser(&engine.Message{Role: "user", Kind: "agent_event", Content: assistant.String(engine.EventText(ev)), Event: &ev})
 	}
-	if !s.startRun(r.loc, r.root, s.runProject(c, r.root, r.project), r.lang, c, from) {
-		return assistant.ToolResult{}, failf("%s is running already", id)
+	if err := s.startRun(r.loc, r.root, s.runProject(c, r.root, r.project), r.lang, c, from); err != nil {
+		return assistant.ToolResult{}, err
 	}
 	text := fmt.Sprintf("Conversation %s %q resumed from its last completed step.", id, c.Title)
 	if adopted {

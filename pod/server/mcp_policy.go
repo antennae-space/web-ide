@@ -93,7 +93,7 @@ func (s *Server) allowsMCPTool(i mcpIdentity, t mcpTarget) bool {
 			return i.Assistant
 		case "kanban_conversation":
 			return developer
-		case "kanban_reply", "kanban_answer":
+		case "kanban_develop", "kanban_reply", "kanban_answer":
 			return developer && i.Assistant
 		case "agent_providers", "agent_list", "agent_read", "agent_start", "agent_send", "agent_stop":
 			// The Supervisor profile steers the agent sessions of the tickets.
@@ -187,7 +187,7 @@ func (s *Server) authorizeMCPResource(ctx context.Context, ac mcpAccess, t mcpTa
 		// The tool resolves the ticket and its worktree from the kanban of the main project.
 		return fmt.Errorf("starting an agent session requires a grant on the main project and its worktrees")
 	}
-	if t.plugin == "kanban" || t.plugin == "ai" && slices.Contains([]string{"kanban_conversation", "kanban_reply", "kanban_answer"}, t.name) {
+	if t.plugin == "kanban" || t.plugin == "ai" && slices.Contains([]string{"kanban_develop", "kanban_conversation", "kanban_reply", "kanban_answer"}, t.name) {
 		if err := authorizeKanbanOperation(ac, t.name, a); err != nil {
 			return err
 		}

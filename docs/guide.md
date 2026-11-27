@@ -88,6 +88,10 @@ To revoke a manual client, remove its entry. To rotate its bearer, generate a fr
 
 Set `assistant` to `true` on the credential. Use `assistant_list` to find a conversation by title or list active conversations. Use `assistant_read` to read its messages. Use `assistant_send` to send a message. The message waits if a turn is running. Use `assistant_start` with a message to start a conversation in Build mode with the configured model. You can specify a mode or a model server and model.
 
+With a Developer credential that has this grant, use `kanban_develop` to start a conversation for a To do or In progress ticket. Prepare its worktree with `kanban_start` first if needed. Pass the ticket number to `kanban_develop` and use the returned conversation ID with `kanban_conversation`, `kanban_reply` or `kanban_answer`. You can also open the conversation from the ticket in the IDE.
+
+The Assistant can read and edit files in the worktree and update the linked ticket. Approve shell commands in the IDE.
+
 A Supervisor credential can use only its own text conversations. Developer conversations started or steered through MCP can also ask the user questions in the IDE. These limits stay with the conversation when the pod reloads it.
 
 ### Steer an agent session from an MCP client

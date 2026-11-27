@@ -130,6 +130,19 @@ func (m *Manager) View() map[string]any {
 		"web": map[string]any{"search": m.cfg.Web.Search, "searxng": m.cfg.Web.SearXNG, "hasBraveKey": m.cfg.Web.BraveKey != ""}}
 }
 
+// Default is the default server and model of the conversations ("" when unset or when its
+// server is no longer listed).
+func (m *Manager) Default() (string, string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, s := range m.cfg.Servers {
+		if s.ID == m.cfg.Server {
+			return m.cfg.Server, m.cfg.Model
+		}
+	}
+	return "", ""
+}
+
 // SetChildDefault sets the default server and model of the sub-agents.
 func (m *Manager) SetChildDefault(server, model string) error {
 	m.mu.Lock()

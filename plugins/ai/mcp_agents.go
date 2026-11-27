@@ -179,9 +179,6 @@ func (s *A) mcpAgentStart(ctx context.Context, sc plugins.MCPScope, raw json.Raw
 	if step.ID != a.ID {
 		return "", i18n.Errorf("ticket #%d is not the step to develop of its lineage: the active step is #%d", a.ID, step.ID)
 	}
-	if s.assistantDeveloping(sc.Root.ID, a.ID) {
-		return "", i18n.Errorf("ticket #%d is developed by a conversation of the assistant: one development at a time", a.ID)
-	}
 	// The provider must be installed; the model is applied by the session before its first
 	// prompt, and the session carries its error.
 	if _, err := (acp.Catalog{Dir: s.Store.Path("acp")}).Command(a.Provider); err != nil {
@@ -319,26 +316,6 @@ func (s *A) mcpAgentStop(_ context.Context, sc plugins.MCPScope, raw json.RawMes
 		return "", err
 	}
 	return fmt.Sprintf("Session %s stopped: its turn is cancelled and its queued prompts dropped, so nothing resumes. It stays visible in the Agents tool of the IDE with its thread; read it with agent_read.", a.Session), nil
-}
-
-// assistantDeveloping tells that a conversation of the assistant is working on the ticket
-// (its development, or a feedback): one development at a time for a ticket.
-func (s *A) assistantDeveloping(root string, ticket int64) bool {
-	s.assistants.mu.Lock()
-	defer s.assistants.mu.Unlock()
-	for _, r := range s.assistants.runs {
-		r.mu.Lock()
-		t, done := r.chat.Ticket, r.done
-		role := ""
-		if t != nil {
-			role = t.Role
-		}
-		r.mu.Unlock()
-		if t != nil && t.ID == ticket && r.root == root && (role == "dev" || role == "correction") && !done {
-			return true
-		}
-	}
-	return false
 }
 
 // sessionLine is one agent session as agent_list gives it.

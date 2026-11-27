@@ -34,6 +34,9 @@ type Deps struct {
 	// Command overrides the command line of an agent (tests).
 	Command func(agent string) ([]string, error)
 	Emit    func(event string, data any)
+	// BeforePrompt reserves the ticket before sending a prompt. OnPromptError releases it.
+	BeforePrompt  func(info Info) error
+	OnPromptError func(info Info)
 	// OnTurn: a turn ended (the daily quota is read again, the development of a ticket is freed).
 	OnTurn func(info Info)
 	// OnState: a session went to error (a start that failed frees its ticket).
@@ -61,6 +64,8 @@ type Header struct {
 
 // Options of a new session.
 type Options struct {
+	// ID is set by a caller that reserves the ticket before the session starts.
+	ID string
 	// Title replaces the name of the agent (and the title the agent gives).
 	Title string
 	// Ticket the session works on.
@@ -303,7 +308,10 @@ func (m *Manager) CreateWith(agent, cwd string, o Options) (Info, error) {
 	if o.Title != "" {
 		title = o.Title
 	}
-	s := m.newSession(Info{ID: newID(), Agent: agent, Name: a.Name, Title: title, Cwd: cwd, State: Starting, Started: time.Now().UnixMilli(), Ticket: o.Ticket})
+	if o.ID == "" {
+		o.ID = newID()
+	}
+	s := m.newSession(Info{ID: o.ID, Agent: agent, Name: a.Name, Title: title, Cwd: cwd, State: Starting, Started: time.Now().UnixMilli(), Ticket: o.Ticket})
 	s.first, s.wantModel = o.Prompt, o.Model
 	_ = os.MkdirAll(m.Dir, 0o700)
 	_ = os.WriteFile(m.logFile(s.info.ID), nil, 0o600)
