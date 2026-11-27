@@ -47,6 +47,7 @@ type ChatRequest struct {
 	// Sent to llama.cpp-style servers in chat_template_kwargs, as Qwen's template reads it.
 	Effort      string   `json:"effort,omitempty"`
 	Temperature *float64 `json:"temperature,omitempty"`
+	MaxTokens   int      `json:"maxTokens,omitempty"`
 }
 
 type Usage struct {
@@ -225,6 +226,9 @@ func (m *Manager) openaiChat(ctx context.Context, s Server, req ChatRequest, b *
 	}
 	if req.Temperature != nil {
 		body["temperature"] = *req.Temperature
+	}
+	if req.MaxTokens > 0 {
+		body["max_tokens"] = req.MaxTokens
 	}
 	m.mu.Lock()
 	swap := m.swaps[s.URL]
@@ -515,6 +519,9 @@ func (m *Manager) ollamaChat(ctx context.Context, s Server, req ChatRequest, b *
 	}
 	if req.Temperature != nil {
 		opts["temperature"] = *req.Temperature
+	}
+	if req.MaxTokens > 0 {
+		opts["num_predict"] = req.MaxTokens
 	}
 	if len(opts) > 0 {
 		body["options"] = opts

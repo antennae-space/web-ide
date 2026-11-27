@@ -14,7 +14,7 @@
       { "id": "assistant.doodle", "label": "New doodle", "category": "Tools", "inTerminal": true },
       { "id": "assistant.fullComposer", "label": "Message box in full screen", "category": "Tools" }
     ],
-    "mcpTools": ["assistant_list", "assistant_read", "assistant_send", "assistant_start", "kanban_develop", "kanban_conversation", "kanban_reply", "kanban_answer", "agent_providers", "agent_start", "agent_list", "agent_read", "agent_send", "agent_stop"],
+    "mcpTools": ["assistant_list", "assistant_read", "assistant_send", "assistant_start", "assistant_wait", "assistant_stop", "kanban_develop", "kanban_conversation", "kanban_reply", "kanban_answer", "agent_providers", "agent_start", "agent_list", "agent_read", "agent_send", "agent_stop"],
     "settings": {
       "properties": {
         "daily_budget": { "type": "number", "title": "Daily budget (dollars)", "description": "Without a Claude subscription signed in Claude Code, the bars of the Assistant and the Agents tool show what is left of it today: the cost of the agents and the assistant since midnight, at API prices. 0: no budget.", "default": 0 }

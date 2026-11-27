@@ -182,6 +182,11 @@ func (s *A) openChat(cc chatCtx, id string) (*engine.Chat, error) {
 		return nil, err
 	}
 	if c.Running != nil || c.Approval != nil {
+		if c.Delegation != nil {
+			interruptDelegation(c)
+			_ = s.saveChat(cc.loc, c)
+			return c, nil
+		}
 		c.Running, c.Approval = nil, nil
 		if c.Agent != nil && c.Agent.Status == engine.AgentRunning {
 			c.Agent.Status, c.Agent.Error = engine.AgentError, "Interrupted: the pod stopped."
@@ -375,7 +380,11 @@ func (s *A) registerAssistant() {
 			return nil, err
 		}
 		if r := s.run(a.ID); r != nil {
-			r.cancel()
+			r.mu.Lock()
+			if root, err := s.Projects.Root(c.project); err == nil && r.root == root.ID {
+				s.stopRun(r)
+			}
+			r.mu.Unlock()
 		}
 		return nil, nil
 	})

@@ -2,7 +2,9 @@
 
 The MCP tools `assistant_list`, `assistant_read`, `assistant_send` and `assistant_start` use the same conversations and turn loop as the Assistant tool. The MCP grant and `cwd` select the project. A Supervisor can use its own text conversations with an Assistant grant. Conversations started or steered by Developer through MCP can ask the user for input.
 
-A Developer with an Assistant grant can use `kanban_develop` to start a linked Build conversation in a prepared ticket worktree. It uses the model chosen in Assistant settings when no override is supplied. The Assistant and ACP share the development reservation for the ticket.
+A Developer with an Assistant grant can use `kanban_develop` to start a linked Build conversation in a prepared ticket worktree. The Assistant and ACP share the development reservation for the worktree. Manual Developers use the usual Assistant model by default.
+
+The managed ACP Developer credential can start read-only analysis and access the conversations the ACP session owns. It also has `assistant_wait` and `assistant_stop`. Both analysis and linked development use the sub-agent model and the limits in [ACP Assistant delegation](../../docs/design/kanban.md#acp-assistant-delegation). The wait reads the persisted turn and subscribes to updates published after each save. The stop uses the Assistant cancellation path. The IDE keeps the complete transcript. See [the smoke test](../../docs/guide.md#delegate-to-the-assistant-from-an-acp-session).
 
 The MCP tools `agent_providers`, `agent_start`, `agent_list`, `agent_read`, `agent_send` and `agent_stop` (`mcp_agents.go`) run the same session path as the Agents tool, for the Supervisor profile only.
 

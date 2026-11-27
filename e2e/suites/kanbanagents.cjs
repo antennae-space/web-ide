@@ -51,7 +51,10 @@ run(async ({ page }) => {
   assert(text.includes('Briefing received (ticket #1). MCP web-ide:') && text.includes('Data export'), 'briefing received, kanban_get through the MCP server of the IDE: ' + text)
   const cwd = repo + '/.ide/worktrees/1-data-export'
   const worktreeID = JSON.parse(fs.readFileSync(process.env.E2E_DATA + '/projects.json', 'utf8')).find((p) => p.path === cwd).id
-  const managed = fs.readFileSync(process.env.E2E_DATA + '/mcp-managed/' + worktreeID, 'utf8')
+  const credentials = process.env.E2E_DATA + '/mcp-sessions/' + worktreeID
+  const sessions = fs.readdirSync(credentials)
+  assert(sessions.length === 1, 'the ACP session has a dedicated credential')
+  const managed = fs.readFileSync(credentials + '/' + sessions[0], 'utf8')
   const mainDenied = await mcp('list_commands', { cwd: repo }, managed)
   assert(mainDenied.result.isError && mainDenied.result.content[0].text.includes('not granted'), 'the managed bearer cannot act in the main project')
   const unrelated = await mcp('kanban_create', { title: 'An unrelated ticket' })

@@ -226,7 +226,12 @@ func (m *Manager) GetChat(loc ChatLocation, id string) (json.RawMessage, error) 
 	}
 	var title, server, model, extra string
 	var created, updated int64
-	err = db.QueryRow(`SELECT title, created, updated, server, model, extra FROM chats WHERE id = ?`, id).Scan(&title, &created, &updated, &server, &model, &extra)
+	tx, err := db.BeginTx(context.Background(), &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	err = tx.QueryRow(`SELECT title, created, updated, server, model, extra FROM chats WHERE id = ?`, id).Scan(&title, &created, &updated, &server, &model, &extra)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, i18n.New("conversation not found")
 	}
@@ -235,7 +240,7 @@ func (m *Manager) GetChat(loc ChatLocation, id string) (json.RawMessage, error) 
 	}
 	chat := map[string]any{}
 	_ = json.Unmarshal([]byte(extra), &chat)
-	rows, err := db.Query(`SELECT data FROM messages WHERE chat_id = ? ORDER BY seq`, id)
+	rows, err := tx.Query(`SELECT data FROM messages WHERE chat_id = ? ORDER BY seq`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -247,6 +252,9 @@ func (m *Manager) GetChat(loc ChatLocation, id string) (json.RawMessage, error) 
 			return nil, err
 		}
 		msgs = append(msgs, json.RawMessage(d))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	chat["id"], chat["title"], chat["created"], chat["updated"] = id, title, created, updated
 	chat["server"], chat["model"], chat["messages"] = server, model, msgs

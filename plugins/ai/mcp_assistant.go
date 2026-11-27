@@ -3,7 +3,6 @@ package ai
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"antennae.space/ide/lib/i18n"
@@ -37,10 +36,17 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 					c, err := s.loadChat(chatLocOf(sc.Root), id)
 					return err == nil && s.mcpChatAllowed(sc, c)
 				})
+				if sc.ACPParent != "" && (sc.RefreshACPGrant == nil || !sc.RefreshACPGrant()) {
+					return "", errMCPConversation
+				}
 				if err == nil && len(lines) == 0 {
 					return "No conversation.", nil
 				}
-				return strings.Join(lines, "\n"), err
+				text := strings.Join(lines, "\n")
+				if sc.ACPParent != "" {
+					text = delegationCut(text)
+				}
+				return text, err
 			},
 		},
 		{
@@ -61,24 +67,27 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 				if err != nil {
 					return "", err
 				}
-				data, err := s.LLM.GetChat(chatLocOf(sc.Root), a.Chat)
+				c, err := s.loadMCPChat(sc, a.Chat)
 				if err != nil {
 					return "", err
 				}
-				var c engine.Chat
-				if err := json.Unmarshal(data, &c); err != nil {
+				data, err := json.Marshal(c)
+				if err != nil {
 					return "", err
 				}
-				if !s.mcpChatAllowed(sc, &c) {
-					return "", fmt.Errorf("conversation is outside the MCP grant")
+				text := conversationText(data, a.Last, a.Tools) + pendingQuestions(c, "The user can answer in the Questions tool of the IDE.")
+				if c.Delegation != nil {
+					if !sc.RefreshACPGrant() {
+						return "", errMCPConversation
+					}
+					text = delegationCut(text)
 				}
-				text := conversationText(data, a.Last, a.Tools)
-				return text + pendingQuestions(&c, "The user can answer in the Questions tool of the IDE."), nil
+				return text, nil
 			},
 		},
 		{
 			Name:        "assistant_send",
-			Description: "Sends a message to an existing Assistant conversation. Queues it if the conversation is running. Read the answer later with assistant_read.",
+			Description: "Sends or queues a message to the Assistant. ACP delegation returns the turn id for assistant_wait.",
 			Props:       map[string]any{"chat": chat, "message": message},
 			Required:    []string{"chat", "message"},
 			Run: func(_ context.Context, sc plugins.MCPScope, raw json.RawMessage) (string, error) {
@@ -91,11 +100,11 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 		},
 		{
 			Name:        "assistant_start",
-			Description: "Starts a new Assistant conversation in the project of cwd and returns its id. Uses the configured model by default.",
+			Description: "Starts an Assistant conversation in the project of cwd. For ACP, starts bounded analysis on the configured sub-agent model and returns chat and turn ids.",
 			Props: map[string]any{
 				"message": message,
 				"title":   plugins.Str("Conversation title, optional"),
-				"mode":    plugins.Enum("Assistant mode, default build", engine.Briefing, engine.Plan, engine.Build, engine.Orchestrator),
+				"mode":    plugins.Enum("Assistant mode, ACP allows analysis or plan only", "analysis", engine.Briefing, engine.Plan, engine.Build, engine.Orchestrator),
 				"server":  plugins.Str("Model server id, optional with model"),
 				"model":   plugins.Str("Model id, optional with server"),
 			},
@@ -112,6 +121,25 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 	}
 	if strings.TrimSpace(a.Message) == "" {
 		return "", i18n.New("message is empty")
+	}
+	if sc.ACPParent != "" {
+		if a.Mode != "" && a.Mode != "analysis" && a.Mode != engine.Plan {
+			return "", i18n.New("ACP Assistant delegation requires analysis mode")
+		}
+		if len(a.Message) > delegationPromptBytes || len(a.Title) > delegationPromptBytes {
+			return "", i18n.New("Assistant delegation input exceeds 16 KiB")
+		}
+		server, model, err := s.delegationModel(ctx, a.Server, a.Model)
+		if err != nil {
+			return "", err
+		}
+		c := &engine.Chat{MCPOwner: sc.Identity, MCPProject: sc.Here.ID, Delegation: &engine.Delegation{Parent: sc.ACPParent},
+			ID: assistant.NewID(), Title: strings.TrimSpace(a.Title), Mode: engine.Plan, Server: server, Model: model}
+		c.AddUser(&engine.Message{Role: "user", Content: assistant.String(a.Message), Display: a.Message, Author: assistant.AuthorMCP})
+		if err := s.startMCPDelegation(sc, c, 0); err != nil {
+			return "", err
+		}
+		return delegationText(c, "running"), nil
 	}
 	switch a.Mode {
 	case "":
@@ -133,15 +161,39 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 	}
 	c := &engine.Chat{MCPOwner: sc.Identity, MCPProject: sc.Here.ID, MCPTextOnly: sc.Supervisor, ID: assistant.NewID(), Title: strings.TrimSpace(a.Title), Mode: a.Mode, Server: a.Server, Model: a.Model}
 	c.AddUser(&engine.Message{Role: "user", Content: assistant.String(a.Message), Display: a.Message, Author: assistant.AuthorMCP})
-	s.startRun(chatLocOf(sc.Root), sc.Root.ID, sc.Here.ID, sc.Lang, c, 0)
+	if err := s.startRun(chatLocOf(sc.Root), sc.Root.ID, sc.Here.ID, sc.Lang, c, 0); err != nil {
+		return "", err
+	}
 	return c.ID, nil
 }
 
 // An existing chat has the scope of its owner project, not the cwd a client supplies.
 func (s *A) mcpChatAllowed(sc plugins.MCPScope, c *engine.Chat) bool {
+	return mcpChatAllowedIn(sc, c, s.runProject(c, sc.Root.ID, sc.Root.ID))
+}
+
+func mcpChatAllowedIn(sc plugins.MCPScope, c *engine.Chat, project string) bool {
+	if c.Delegation != nil || sc.ACPParent != "" {
+		return c.Delegation != nil && sc.ACPParent != "" && c.Delegation.Parent == sc.ACPParent &&
+			c.MCPOwner == sc.Identity && c.MCPProject == sc.Here.ID && project == c.MCPProject &&
+			sc.AllowsProject != nil && sc.AllowsProject(project, sc.Root.ID) &&
+			sc.RefreshACPGrant != nil && sc.RefreshACPGrant()
+	}
 	if sc.Supervisor && (c.MCPOwner != sc.Identity || !c.MCPTextOnly) {
 		return false
 	}
-	project := s.runProject(c, sc.Root.ID, sc.Root.ID)
 	return sc.AllowsProject == nil || sc.AllowsProject(project, sc.Root.ID)
+}
+
+// Recover an interrupted manual conversation only after checking its grant.
+func (s *A) openMCPChatForTurn(sc plugins.MCPScope, id string) (*engine.Chat, error) {
+	c, err := s.loadMCPChat(sc, id)
+	if err != nil || c.Delegation != nil || c.Running == nil && c.Approval == nil {
+		return c, err
+	}
+	c, err = s.openChat(chatCtx{chatLocOf(sc.Root), sc.Root.ID}, id)
+	if err != nil || !s.mcpChatAllowed(sc, c) {
+		return nil, errMCPConversation
+	}
+	return c, nil
 }

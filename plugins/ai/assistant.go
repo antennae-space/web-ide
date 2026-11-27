@@ -3,8 +3,10 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"antennae.space/ide/lib/i18n"
@@ -42,6 +44,11 @@ type assistantRun struct {
 	resumeCalls  []engine.ToolCall
 	follow       *engine.Running
 	devKey       string // reservation held while this development runs
+	acpParent    string // the authenticated ACP owner
+	turn         string
+	delegation   atomic.Pointer[delegationUpdate]
+	modelSteps   int
+	toolSteps    int
 }
 
 func contextWithCancel() (context.Context, context.CancelFunc) {
@@ -175,15 +182,23 @@ func updateOf(c *engine.Chat, state string, ahead, from int) assistantUpdate {
 
 // publish saves the conversation of a run and sends its changes from a message index.
 // Called with r.mu held.
-func (s *A) publish(r *assistantRun, from int) {
+func (s *A) publish(r *assistantRun, from int) error {
 	if s.stopping() {
-		return // what is saved is what the next pod takes back
+		return errors.New("the pod is stopping")
 	}
-	if err := s.saveChat(r.loc, r.chat); err != nil {
+	if d := r.chat.Delegation; r.acpParent != "" && !r.done && d.State != "stopping" {
+		d.State = r.state
+	}
+	err := s.saveChat(r.loc, r.chat)
+	if err != nil {
 		s.emitAssistant(r.root, "assistant.error", map[string]string{"id": r.id, "error": i18n.Translate(r.lang, err)})
+	}
+	if r.acpParent != "" && !r.done {
+		r.publishDelegation(err)
 	}
 	s.emitAssistant(r.root, "assistant.update", updateOf(r.chat, r.state, r.ahead, from))
 	s.noteAsks(r.root, r.chat, from)
+	return err
 }
 
 // publishIdle saves a conversation that does not run and announces it.

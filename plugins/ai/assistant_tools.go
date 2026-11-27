@@ -57,9 +57,21 @@ func (s *A) assistantTool(r *assistantRun, ref *runtimeRef, call engine.ToolCall
 	r.mu.Lock()
 	tainted := len(r.chat.Tainted) > 0
 	dev := r.chat.MCPDevelopment
+	analysis := r.chat.Delegation != nil && !dev
+	allowed := mcpAssistantToolAllowed(r.chat, name)
 	ticket := r.chat.Ticket
 	options := opt(r.chat)
 	r.mu.Unlock()
+	if !allowed {
+		return fail(r, errors.New("tool unavailable in this MCP conversation"))
+	}
+	if analysis {
+		res, err := s.mcpAnalysisFile(ref.rt, name, a)
+		if err != nil {
+			return fail(r, err)
+		}
+		return res
+	}
 	if dev {
 		if err := checkMCPDevelopmentTool(ref.rt, ticket, name, a); err != nil {
 			return fail(r, err)
@@ -285,7 +297,7 @@ func (s *A) confirm(r *assistantRun, root string, req engine.Approval) bool {
 	r.approve, r.chat.Approval, r.state = nil, nil, prev
 	s.publish(r, -1)
 	r.mu.Unlock()
-	return allowed
+	return allowed && r.ctx.Err() == nil
 }
 
 // confirmTool asks the user before a tool of a plugin or of the kanban that may change
@@ -330,6 +342,10 @@ func listDir(rt *runtime.Runtime, p string) (assistant.ToolResult, error) {
 	if err != nil {
 		return assistant.ToolResult{}, err
 	}
+	return formatAssistantDir(assistant.RelPath(rt.Root, abs), entries), nil
+}
+
+func formatAssistantDir(rel string, entries []fsx.Entry) assistant.ToolResult {
 	sort.Slice(entries, func(i, j int) bool {
 		if entries[i].Dir != entries[j].Dir {
 			return entries[i].Dir
@@ -352,7 +368,7 @@ func listDir(rt *runtime.Runtime, p string) (assistant.ToolResult, error) {
 	if text == "" {
 		text = "(empty folder)"
 	}
-	return assistant.OK(text, assistant.Tn(len(entries), "{n} entry", "{n} entries", nil).With(assistant.RelPath(rt.Root, abs)+": ", "")), nil
+	return assistant.OK(text, assistant.Tn(len(entries), "{n} entry", "{n} entries", nil).With(rel+": ", ""))
 }
 
 // globRegexp is the regular expression of a * ? ** glob (on the whole path when it has a /,
@@ -440,7 +456,11 @@ func readFileTool(rt *runtime.Runtime, p string, start, end int) (assistant.Tool
 	if err != nil {
 		return assistant.ToolResult{}, err
 	}
-	lines := strings.Split(f.Content, "\n")
+	return formatAssistantFile(assistant.RelPath(rt.Root, abs), f.Content, start, end), nil
+}
+
+func formatAssistantFile(rel, content string, start, end int) assistant.ToolResult {
+	lines := strings.Split(content, "\n")
 	from := max(1, start)
 	to := len(lines)
 	if end > 0 && end < to {
@@ -464,7 +484,7 @@ func readFileTool(rt *runtime.Runtime, p string, start, end int) (assistant.Tool
 	if from > len(lines) {
 		out = fmt.Sprintf("(the file has only %d lines)", len(lines))
 	}
-	return assistant.OK(out, assistant.T("{path}: lines {from}-{to} of {total}", map[string]any{"path": assistant.RelPath(rt.Root, abs), "from": from, "to": to, "total": len(lines)})), nil
+	return assistant.OK(out, assistant.T("{path}: lines {from}-{to} of {total}", map[string]any{"path": rel, "from": from, "to": to, "total": len(lines)}))
 }
 
 func (s *A) searchText(ctx context.Context, rt *runtime.Runtime, query string, regex bool, include string) (assistant.ToolResult, error) {

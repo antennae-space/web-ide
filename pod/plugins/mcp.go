@@ -38,6 +38,9 @@ type MCPScope struct {
 	Identity      string
 	Supervisor    bool
 	AllowsProject func(here, root string) bool
+	// ACPParent is the pod's ID of the authenticated parent session.
+	ACPParent       string
+	RefreshACPGrant func() bool
 }
 
 // ProjectURL is the page of a project in the IDE, at the address the user opens it.

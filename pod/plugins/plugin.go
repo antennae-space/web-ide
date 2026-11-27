@@ -241,9 +241,10 @@ type Services struct {
 	Keeper   *keeper.Client
 	Desks    *desks.Store
 	// MCPBase is the address of the MCP endpoint for the agents (else the listen address of Cfg).
-	MCPBase           string
-	MCPDeveloperToken func(project string) (string, error)
-	Version           string
+	MCPBase      string
+	ACPMCPToken  func(project, session string) (string, error)
+	RevokeACPMCP func(project, session string)
+	Version      string
 	// Commands are the saved commands of the project of rt.
 	Commands func(rt *runtime.Runtime) ([]commands.Command, error)
 	// Models caches the speech recognition models downloaded for the page.

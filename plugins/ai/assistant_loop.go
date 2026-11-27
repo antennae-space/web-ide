@@ -24,22 +24,30 @@ var errRunActive = i18n.New("the conversation is running")
 
 // startRun saves a conversation and runs it in the background, announcing messages from from.
 func (s *A) startRun(loc llm.ChatLocation, root, project, lang string, c *engine.Chat, from int) error {
+	return s.startRunGranted(loc, root, project, lang, c, from, nil)
+}
+
+func (s *A) startRunGranted(loc llm.ChatLocation, root, project, lang string, c *engine.Chat, from int, grant func() bool) error {
 	r := &assistantRun{id: c.ID, loc: loc, root: root, project: project, lang: lang, chat: c, state: "running"}
-	if err := s.registerRun(r); err != nil {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := s.registerRun(r, grant); err != nil {
+		return err
+	}
+	c.Running = &engine.Running{}
+	c.Dismissed = false
+	if err := s.publish(r, from); err != nil {
+		s.unregisterRun(r, false)
+		r.cancel()
 		return err
 	}
 	s.saveRunning()
-	r.mu.Lock()
-	c.Running = &engine.Running{}
-	c.Dismissed = false
-	s.publish(r, from)
-	r.mu.Unlock()
 	go s.loop(r)
 	return nil
 }
 
-func (s *A) registerRun(r *assistantRun) error {
-	if r.chat.MCPDevelopment {
+func (s *A) registerRun(r *assistantRun, grant func() bool) error {
+	if r.chat.MCPDevelopment || r.chat.Delegation != nil {
 		r.project = r.chat.MCPProject
 	}
 	s.assistants.mu.Lock()
@@ -47,15 +55,54 @@ func (s *A) registerRun(r *assistantRun) error {
 	if s.assistants.runs[r.id] != nil {
 		return errRunActive
 	}
-	if t := r.chat.Ticket; t != nil && r.chat.Parent == "" && (t.Role == "dev" || t.Role == "correction") {
+	d := r.chat.Delegation
+	if d != nil {
+		if grant != nil && !grant() {
+			return errMCPConversation
+		}
+		if !s.delegationModelConfigured(r.chat.Server, r.chat.Model) {
+			return i18n.New("this model is not configured for Assistant delegation")
+		}
+		for _, active := range s.assistants.runs {
+			if active.acpParent == d.Parent && active.project == r.project {
+				return i18n.New("this ACP session already has an active Assistant delegation")
+			}
+		}
+		if d.Turn != "" {
+			saved, err := s.loadChat(r.loc, r.id)
+			if err != nil || saved.Delegation == nil || saved.Delegation.Turn != d.Turn ||
+				saved.Delegation.State != d.State {
+				return errMCPConversation
+			}
+		}
+		r.acpParent = d.Parent
+	}
+	if t := r.chat.Ticket; t != nil && r.chat.Parent == "" && (r.chat.MCPDevelopment || t.Role == "dev" || t.Role == "correction") {
 		if err := s.reserveDevelopment(r.project, t.ID, r.id); err != nil {
 			return err
 		}
-		r.devKey = devKey(r.project, t.ID)
+		r.devKey = r.project
 	}
-	r.ctx, r.cancel = contextWithCancel()
+	if d != nil {
+		d.Turn, d.State, d.Error = assistant.NewID(), "running", ""
+		r.turn = d.Turn
+		d.From = len(r.chat.Messages)
+		r.ctx, r.cancel = context.WithTimeout(context.Background(), delegationDuration)
+		r.publishDelegation(nil)
+	} else {
+		r.ctx, r.cancel = contextWithCancel()
+	}
 	s.assistants.runs[r.id] = r
 	return nil
+}
+
+func (s *A) unregisterRun(r *assistantRun, again bool) {
+	s.assistants.mu.Lock()
+	defer s.assistants.mu.Unlock()
+	delete(s.assistants.runs, r.id)
+	if !again && r.devKey != "" {
+		s.devReserve.release(r.devKey, r.id)
+	}
 }
 
 // modelInfo tells what a model can do and its context size (cached a little: listing the
@@ -234,7 +281,7 @@ var contextError = regexp.MustCompile(`(?i)context|exceed|too long|too many toke
 // target is the server and the model of the next request: the Plan model in Plan mode when
 // one is chosen.
 func target(c *engine.Chat) (string, string) {
-	if c.Mode == engine.Plan && c.Options != nil && c.Options.PlanServer != "" && c.Options.PlanModel != "" {
+	if c.Delegation == nil && c.Mode == engine.Plan && c.Options != nil && c.Options.PlanServer != "" && c.Options.PlanModel != "" {
 		return c.Options.PlanServer, c.Options.PlanModel
 	}
 	return c.Server, c.Model
@@ -440,6 +487,9 @@ func (s *A) systemPrompt(r *assistantRun, ref *runtimeRef, c *engine.Chat, tools
 	if c.MCPTextOnly {
 		return "Answer the request using the conversation. You have no tools or access to project files."
 	}
+	if c.Delegation != nil && !c.MCPDevelopment {
+		return "Analyze the request using the conversation and the read-only file tools of this worktree. Return a concise answer. Use ask_user if you need input from the user."
+	}
 	if c.MCPProject != "" && !c.MCPDevelopment {
 		return "Answer the request using the conversation. Use ask_user if you need input from the user."
 	}
@@ -492,18 +542,23 @@ func (s *A) systemPrompt(r *assistantRun, ref *runtimeRef, c *engine.Chat, tools
 
 // loop runs the turns of a conversation until it stops.
 func (s *A) loop(r *assistantRun) {
-	defer func() {
+	for {
+		s.runTurn(r)
 		if s.stopping() {
-			return // the pod stops: the run stays as saved, to be taken back
+			return // the pod stops: the run stays as saved
 		}
 		r.mu.Lock()
+		if r.acpParent != "" && r.ctx.Err() == nil && len(r.chat.Queue) > 0 && !waitsForUser(r.chat) {
+			r.mu.Unlock()
+			continue // keep the turn ID, limits and reservation across queued messages
+		}
 		r.chat.Running, r.chat.Approval = nil, nil
 		r.state = "idle"
 		ended := childEnded(r)
 		parent := r.chat.Parent
 		// Messages queued as the run ended start it again (unless stopped, or waiting for
 		// the user).
-		again := r.ctx.Err() == nil && len(r.chat.Queue) > 0 && !waitsForUser(r.chat)
+		again := r.acpParent == "" && r.ctx.Err() == nil && len(r.chat.Queue) > 0 && !waitsForUser(r.chat)
 		// A turn of a root conversation that ends by itself is a push notification: the assistant
 		// finished, or asks the user (a question, a plan).
 		if parent == "" && !again && r.ctx.Err() == nil {
@@ -513,18 +568,19 @@ func (s *A) loop(r *assistantRun) {
 			go s.quotaTurn()
 		}
 		from := -1
+		if r.acpParent != "" {
+			from = finishDelegation(r)
+		}
 		if again && r.chat.Agent != nil {
 			from = skipParentWait(r.chat)
 			r.chat.Agent.Status, r.chat.Agent.Question = engine.AgentRunning, ""
 		}
 		r.done = true
-		s.publish(r, from)
-		s.assistants.mu.Lock()
-		delete(s.assistants.runs, r.id)
-		if !again && r.devKey != "" {
-			s.devReserve.release(r.devKey, r.id)
+		saveErr := s.publish(r, from)
+		s.unregisterRun(r, again)
+		if r.acpParent != "" {
+			r.publishDelegation(saveErr)
 		}
-		s.assistants.mu.Unlock()
 		if !s.stopping() {
 			s.saveRunning()
 		}
@@ -536,7 +592,11 @@ func (s *A) loop(r *assistantRun) {
 		if ended != nil {
 			s.toParent(r, parent, *ended, true)
 		}
-	}()
+		return
+	}
+}
+
+func (s *A) runTurn(r *assistantRun) {
 	ref, err := s.assistantRuntime(r.project)
 	if err != nil {
 		r.mu.Lock()
@@ -565,6 +625,13 @@ func (s *A) loop(r *assistantRun) {
 		if r.ctx.Err() != nil {
 			return
 		}
+		if r.acpParent != "" {
+			if r.modelSteps >= delegationModelSteps {
+				r.failDelegation()
+				return
+			}
+			r.modelSteps++
+		}
 		var req llm.ChatRequest
 		var server, model, mode, effort, stream string
 		started := time.Now()
@@ -590,7 +657,7 @@ func (s *A) loop(r *assistantRun) {
 			info := s.modelInfo(r.ctx, server, model)
 			r.mu.Lock()
 			o := opt(r.chat)
-			needs := boolOr(o.AutoCompact, true) && info.context > 0 && contextUsed(r.chat) > info.context*max(o.CompactAt, 75)/100
+			needs := r.acpParent == "" && boolOr(o.AutoCompact, true) && info.context > 0 && contextUsed(r.chat) > info.context*max(o.CompactAt, 75)/100
 			r.mu.Unlock()
 			if needs {
 				if err := s.compact(r, false, ""); err == nil {
@@ -605,8 +672,13 @@ func (s *A) loop(r *assistantRun) {
 			mode = r.chat.Mode
 			system := s.systemPrompt(r, ref, r.chat, tools)
 			req = llm.ChatRequest{Server: server, Model: model}
+			if r.acpParent != "" {
+				req.MaxTokens = 4096
+			}
 			if tools && r.chat.MCPDevelopment {
 				req.Tools = s.offered(ref.rt, mcpDevelopmentDefs(r.chat))
+			} else if tools && r.acpParent != "" {
+				req.Tools = s.offered(ref.rt, mcpAnalysisDefs(r.chat))
 			} else if tools && r.chat.MCPProject != "" {
 				req.Tools = []json.RawMessage{assistant.AskUserDef.JSON}
 			} else if tools {
@@ -661,7 +733,7 @@ func (s *A) loop(r *assistantRun) {
 		if err != nil && !looped {
 			canceled := r.ctx.Err() != nil
 			r.mu.Unlock()
-			if !canceled && !compactedForError && ans.content == "" && contextError.MatchString(err.Error()) {
+			if r.acpParent == "" && !canceled && !compactedForError && ans.content == "" && contextError.MatchString(err.Error()) {
 				compactedForError = true
 				if s.compact(r, false, "") == nil {
 					continue
@@ -806,6 +878,13 @@ func (s *A) runCalls(r *assistantRun, ref *runtimeRef, calls []engine.ToolCall, 
 			return true // the next pod runs it
 		}
 		r.mu.Lock()
+		if r.acpParent != "" && r.ctx.Err() == nil {
+			if r.toolSteps >= delegationToolSteps {
+				r.limitDelegation()
+			} else {
+				r.toolSteps++
+			}
+		}
 		if r.ctx.Err() != nil {
 			r.chat.Messages = append(r.chat.Messages, &engine.Message{Role: "tool", ToolCallID: call.ID, Name: call.Function.Name, Content: assistant.String("Canceled by the user."), Status: "denied", Summary: assistant.T("canceled", nil).Raw()})
 			s.publish(r, len(r.chat.Messages)-1)
@@ -814,12 +893,12 @@ func (s *A) runCalls(r *assistantRun, ref *runtimeRef, calls []engine.ToolCall, 
 		}
 		name := call.Function.Name
 		dev := r.chat.MCPDevelopment
-		if r.chat.MCPTextOnly || dev && !mcpDevelopmentTool(name) || r.chat.MCPProject != "" && !dev && name != "ask_user" {
+		if !mcpAssistantToolAllowed(r.chat, name) {
 			r.chat.Messages = append(r.chat.Messages, &engine.Message{Role: "tool", ToolCallID: call.ID, Name: name,
 				Content: assistant.String("Tool unavailable in this MCP conversation."), Status: "denied", Summary: assistant.T("not allowed", nil).Raw()})
 			s.publish(r, len(r.chat.Messages)-1)
 			r.mu.Unlock()
-			stop = stop || !dev
+			stop = stop || !dev && r.acpParent == ""
 			continue
 		}
 		var args map[string]json.RawMessage

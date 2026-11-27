@@ -46,7 +46,7 @@ type Deps struct {
 	Version  string
 	// MCP are the MCP servers given to the sessions (the one of the IDE), to the agents that
 	// support them over HTTP.
-	MCP func() []MCPServer
+	MCP func(session string) []MCPServer
 }
 
 // MCPServer is an MCP server over HTTP as ACP passes it in session/new.
@@ -267,6 +267,13 @@ func (m *Manager) adopt(s *Session, sv saved, p keeper.Proc) bool {
 		_ = m.Keeper.Forget(p.ID)
 		return false
 	}
+	reserved := sv.Prompt != 0 && m.BeforePrompt != nil
+	if reserved {
+		if err := m.BeforePrompt(s.info); err != nil {
+			_ = m.Keeper.Forget(p.ID)
+			return false
+		}
+	}
 	s.gen++
 	gen := s.gen
 	ev := events{
@@ -275,6 +282,9 @@ func (m *Manager) adopt(s *Session, sv saved, p keeper.Proc) bool {
 	}
 	kp, err := followKeeper(m.Keeper, p.ID, sv.Offset, s.q, ev)
 	if err != nil {
+		if reserved && m.OnPromptError != nil {
+			m.OnPromptError(s.info)
+		}
 		log.Printf("acp: %s not adopted: %v", s.info.ID, err)
 		_ = m.Keeper.Forget(p.ID)
 		return false

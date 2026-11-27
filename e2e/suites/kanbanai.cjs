@@ -4,7 +4,7 @@
 const http = require('http')
 const fs = require('fs')
 const { execFileSync } = require('child_process')
-const { run, openProject, mcpToken, mcp, assert, unfold, OUT, WS, installOfficial, acceptConfirms, inFrames, dropNotes } = require('../common.cjs')
+const { run, openProject, mcpToken, mcp, mcpRPC, assert, unfold, OUT, WS, installOfficial, acceptConfirms, inFrames, dropNotes } = require('../common.cjs')
 
 const requests = []
 let continueDevelopment
@@ -33,6 +33,19 @@ const fake = http.createServer(async (req, res) => {
   const msgs = r.messages
   const last = msgs[msgs.length - 1]
   const firstUser = text(msgs.find((m) => m.role === 'user') ?? {})
+  if (firstUser === 'Check the ACP fixture') {
+    if (last === msgs[1]) {
+      sse(res, { tool_calls: calls([['acp-question', 'ask_user', { questions: [{ question: 'Which marker should I check?' }] }]]) })
+      return end(res, 'tool_calls')
+    }
+    if (text(last) === 'Hold this turn') {
+      sse(res, { content: 'Partial review.' })
+      await new Promise((resolve) => res.once('close', resolve))
+      return
+    }
+    sse(res, { content: 'ACP review finished.' })
+    return end(res)
+  }
   if (firstUser.includes('“MCP worktree fixture”')) {
     if (last === msgs[1]) {
       await new Promise((resolve) => { continueDevelopment = resolve })
@@ -651,12 +664,12 @@ run(async ({ page }) => {
       // MCP development in a Git worktree. Earlier cases use the non-Git development path.
       const repo = WS + '/demo'
       const git = (...args) => execFileSync('git', args, { cwd: repo })
-      git('init', '-q')
+      git('init', '-q', '-b', 'main')
       git('add', 'src/main.go')
       git('-c', 'user.name=e2e', '-c', 'user.email=e2e@x', 'commit', '-qm', 'Initial state')
       const mcpText = (response) => response.result.content[0].text
-      const ok = async (name, args) => {
-        const response = await mcp(name, args)
+      const ok = async (name, args, token) => {
+        const response = await mcp(name, args, token)
         assert(!response.result.isError, name + ': ' + mcpText(response))
         return mcpText(response)
       }
@@ -666,7 +679,12 @@ run(async ({ page }) => {
       await ok('kanban_set_plan', { id, plan: 'Read the marker', goals: [{ title: 'Read the marker' }], size: 's', complexity: 'medium' })
       const missing = await mcp('kanban_develop', { id })
       assert(missing.result.isError && mcpText(missing).includes('call kanban_start first'), 'MCP development requires a worktree')
-      const prepared = await ok('kanban_start', { id, base: git('branch', '--show-current').toString().trim() })
+      const sup = mcpToken('supervisor')
+      const supervisorTools = (await (await mcpRPC('tools/list', {}, sup)).json()).result.tools
+      const supervisorPrepares = supervisorTools.some((tool) => tool.name === 'kanban_start')
+      const prepared = supervisorPrepares
+        ? await ok('kanban_start', { id }, sup)
+        : await ok('kanban_start', { id, base: 'main' })
       const cwd = prepared.match(/^Worktree: (.+)$/m)?.[1]
       assert(cwd, 'kanban_start returns the worktree')
       fs.writeFileSync(cwd + '/worktree-marker.txt', 'from the ticket worktree')
@@ -675,7 +693,6 @@ run(async ({ page }) => {
       assert(chat, 'development returns the conversation id: ' + started)
       const duplicate = await mcp('kanban_develop', { id })
       assert(duplicate.result.isError && mcpText(duplicate).includes(chat), 'MCP development rejects a second start during the first turn')
-      const sup = mcpToken('supervisor')
       const agent = await mcp('agent_start', { cwd, id, provider: 'claude' }, sup)
       assert(agent.result.isError && mcpText(agent).includes(chat), 'ACP cannot start while the Assistant owns the development')
       const ticket = await ok('kanban_get', { id })
@@ -711,6 +728,44 @@ run(async ({ page }) => {
       const session = mcpText(acp).match(/Session (\w+) of/)?.[1]
       const busy = await mcp('kanban_develop', { cwd, id })
       assert(session && busy.result.isError && mcpText(busy).includes(session), 'the Assistant cannot start while ACP owns the development')
+
+      // The ACP credential is issued by the pod as part of session/new.
+      const data = process.env.E2E_DATA
+      const project = JSON.parse(fs.readFileSync(data + '/projects.json', 'utf8')).find((p) => p.path === cwd)
+      assert(project?.id, 'the worktree is registered')
+      const credential = data + '/mcp-sessions/' + project.id + '/' + session
+      const readyBy = Date.now() + 10000
+      while (!fs.existsSync(credential) && Date.now() < readyBy) await page.waitForTimeout(30)
+      assert(fs.existsSync(credential), 'ACP received its managed credential')
+      const owner = fs.readFileSync(credential, 'utf8')
+      await kp.click('[data-testid=assistant-settings]')
+      await kp.click('.ai-tab:has-text("Servers")')
+      await kp.click('.ai-server-row button:has-text("Edit")')
+      await kp.check('.ai-servers input[name=children]')
+      await kp.click('.ai-servers button:has-text("Save")')
+      await kp.click('.ai-tab:has-text("Sub-agents")')
+      await page.selectOption('select[name=childServer]', { index: 1 })
+      await page.selectOption('select[name=childModel]', 'fake-model')
+      await kp.click('.ai-servers :is(.modal-head, .ide-modal-head) button')
+      const call = async (name, args) => JSON.parse(await ok(name, { cwd, ...args }, owner))
+      const delegated = await call('assistant_start', { title: 'ACP fixture review', message: 'Check the ACP fixture' })
+      const question = await call('assistant_wait', { chat: delegated.chat, turn: delegated.turn })
+      assert(question.state === 'waiting_user' && question.question.includes('Which marker should I check?'), 'MCP reports the pending question')
+      await page.goto(process.env.E2E_URL + '/project/' + project.parent + '?chat=' + encodeURIComponent(delegated.chat))
+      await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Which marker should I check?")')
+      const answer = await call('assistant_send', { chat: delegated.chat, message: 'Use the file marker' })
+      const result = await call('assistant_wait', { chat: answer.chat, turn: answer.turn })
+      assert(result.state === 'completed' && result.answer === 'ACP review finished.', 'MCP reports the delegated answer')
+      await kp.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("ACP review finished.")')
+      const held = await call('assistant_send', { chat: delegated.chat, message: 'Hold this turn' })
+      await kp.waitForSelector('.ai-msg.user:has-text("Hold this turn")')
+      await call('assistant_send', { chat: delegated.chat, message: 'Queued message to discard' })
+      await call('assistant_stop', { chat: held.chat, turn: held.turn })
+      const stopped = await call('assistant_wait', { chat: held.chat, turn: held.turn })
+      assert(stopped.state === 'cancelled', 'MCP reports the cancelled turn')
+      await kp.waitForSelector('.ai-msg.assistant:has-text("Stopped.")')
+      await kp.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("ACP review finished.")')
+      assert(!(await kp.isVisible('.ai-msg.user:has-text("Queued message to discard")')), 'the stopped turn clears the queue and keeps the earlier result')
     }
   } finally {
     continueDevelopment?.()

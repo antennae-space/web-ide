@@ -208,7 +208,7 @@ func TestMCPDevelop(t *testing.T) {
 	}
 	competing := make(chan error, 1)
 	go func() {
-		_, err := call(5)
+		_, err := call(9)
 		competing <- err
 	}()
 	var duplicate error
@@ -238,13 +238,36 @@ func TestMCPDevelop(t *testing.T) {
 	if err != nil || saved.Ticket == nil || saved.Ticket.Role != "dev" || saved.Title != "#5 Développement · Export" {
 		t.Fatalf("saved: %+v %v", saved, err)
 	}
-	if owner := s.devReserve.take(devKey(c.Ticket.Project, 5), "retry"); owner != "" {
+	if owner := s.devReserve.take(c.Ticket.Project, "retry"); owner != "" {
 		t.Fatalf("reservation held after the turn ended: %s", owner)
 	}
-	s.devReserve.release(devKey(c.Ticket.Project, 5), "retry")
+	s.devReserve.release(c.Ticket.Project, "retry")
 	read, err := callMCP(t, s, "kanban_conversation", sc, map[string]any{"id": 5, "chat": id[1]})
 	if err != nil || !strings.Contains(read, c.Messages[0].Display) {
 		t.Fatalf("linked conversation: %s, %v", read, err)
+	}
+	child, _ := s.Projects.Get(c.Ticket.Project)
+	owner := plugins.MCPScope{Here: child, Root: root, Ticket: 5, ACPParent: "parent", Identity: "acp:parent",
+		AllowsProject: func(here, _ string) bool { return here == child.ID }, RefreshACPGrant: func() bool { return true }}
+	saved.Delegation = &engine.Delegation{Parent: owner.ACPParent, Turn: "turn", State: "failed"}
+	saved.MCPOwner = owner.Identity
+	if err := s.saveChat(chatLocOf(root), saved); err != nil {
+		t.Fatal(err)
+	}
+	linked := map[string]any{"id": 5, "chat": saved.ID, "message": "steer", "answers": [][]string{{"yes"}}}
+	if _, err := callMCP(t, s, "kanban_conversation", owner, linked); err != nil {
+		t.Fatal(err)
+	}
+	sibling := owner
+	sibling.ACPParent, sibling.Identity = "sibling", "acp:sibling"
+	revoked := owner
+	revoked.RefreshACPGrant = func() bool { return false }
+	for _, tool := range []string{"kanban_conversation", "kanban_reply", "kanban_answer"} {
+		for _, scope := range []plugins.MCPScope{sc, sibling, revoked} {
+			if _, err := callMCP(t, s, tool, scope, linked); !errors.Is(err, errMCPConversation) {
+				t.Fatalf("%s allowed a foreign credential: %v", tool, err)
+			}
+		}
 	}
 
 	mu.Lock()

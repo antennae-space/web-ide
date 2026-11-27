@@ -293,6 +293,7 @@ func TestAgentOneDevelopmentPerTicket(t *testing.T) {
 	}
 	id := sessionID(text)
 	m := agentsOfTest(t, s, child)
+	t.Cleanup(m.CloseAll)
 	sess, err := m.Get(id)
 	if err != nil {
 		t.Fatal(err)
@@ -311,7 +312,7 @@ func TestAgentOneDevelopmentPerTicket(t *testing.T) {
 	}
 
 	waitFor(t, "session ready", func() bool { return sess.Info().State == acp.Ready })
-	text, err = callMCP(t, s, "agent_start", sc, map[string]any{"cwd": wt, "id": 1, "provider": "claude", "model": "opus", "message": "one more change"})
+	text, err = callMCP(t, s, "agent_start", sc, map[string]any{"cwd": wt, "id": 1, "provider": "claude", "model": "opus", "message": "one more change later"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -330,6 +331,11 @@ func TestAgentOneDevelopmentPerTicket(t *testing.T) {
 		return kb.call(project, method, params)
 	}
 	brief3 := caps.TicketBrief{ID: 3, Parent: 1, Role: "dev", Title: "Rows", Branch: "ticket/1-data-export"}
+	if _, _, err := (agentsCap{s}).Develop(child, "claude", brief3); err == nil ||
+		!strings.Contains(err.Error(), "active development (session "+id) {
+		t.Fatalf("lineage step shared the active worktree: %v", err)
+	}
+	waitFor(t, "the root turn released the worktree", func() bool { return sess.Info().State == acp.Ready })
 	sess3, created, err := (agentsCap{s}).Develop(child, "claude", brief3)
 	if err != nil || !created {
 		t.Fatalf("UI start: %v (%+v)", err, sess3)
