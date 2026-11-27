@@ -283,7 +283,8 @@ func TestAgentModelRejected(t *testing.T) {
 // UI path, and the idle session of the ticket is reused by a later agent_start.
 func TestAgentOneDevelopmentPerTicket(t *testing.T) {
 	dir := t.TempDir()
-	s, main, child, wt := testAgents(t, dir, ticket1(dir), 1)
+	tickets := ticket1(dir)
+	s, main, child, wt := testAgents(t, dir, tickets, 1)
 	sc := agentScope(t, s, main, child, true)
 
 	text, err := callMCP(t, s, "agent_start", sc, map[string]any{"cwd": wt, "id": 1, "provider": "claude", "model": "opus"})
@@ -319,6 +320,23 @@ func TestAgentOneDevelopmentPerTicket(t *testing.T) {
 	}
 	if len(m.List()) != 1 {
 		t.Fatalf("%d sessions", len(m.List()))
+	}
+
+	// The Kanban UI path first: the reservation it takes is shared with the MCP tools, so the
+	// start of the same ticket through MCP is refused.
+	tickets[3] = kbTicket{ID: 3, Title: "Rows", Parent: 1, Branch: "ticket/1-data-export"}
+	s.host.Pod().(*fakePod).kanban = func(project, method string, params json.RawMessage) (json.RawMessage, error) {
+		kb := &fakeKanban{tickets: tickets, step: 3}
+		return kb.call(project, method, params)
+	}
+	brief3 := caps.TicketBrief{ID: 3, Parent: 1, Role: "dev", Title: "Rows", Branch: "ticket/1-data-export"}
+	sess3, created, err := (agentsCap{s}).Develop(child, "claude", brief3)
+	if err != nil || !created {
+		t.Fatalf("UI start: %v (%+v)", err, sess3)
+	}
+	_, err = callMCP(t, s, "agent_start", sc, map[string]any{"cwd": wt, "id": 3, "provider": "claude"})
+	if err == nil || !strings.Contains(err.Error(), "active development (session "+sess3.ID) {
+		t.Fatalf("MCP after the UI path: %v", err)
 	}
 }
 
@@ -397,6 +415,31 @@ func TestAgentWorktreeScope(t *testing.T) {
 	}
 	if len(m.List()) != 0 {
 		t.Fatalf("%d sessions started by refused calls", len(m.List()))
+	}
+
+	// A session id of another project is not found in the manager of cwd: the tools refuse it
+	// and change nothing of the session.
+	text, err := callMCP(t, s, "agent_start", sc, map[string]any{"cwd": wt, "id": 1, "provider": "claude"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := sessionID(text)
+	sess, err := m.Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "session ready", func() bool { return sess.Info().State == acp.Ready })
+	for _, name := range []string{"agent_read", "agent_send", "agent_stop"} {
+		_, err := callMCP(t, s, name, agentScope(t, s, main, main, true), map[string]any{"cwd": dir, "session": id, "message": "zzz out of scope"})
+		if err == nil || !strings.Contains(err.Error(), "agent session not found") {
+			t.Fatalf("%s with a session of another project: %v", name, err)
+		}
+	}
+	if len(agentsOfTest(t, s, main).List()) != 0 {
+		t.Fatalf("the main project has %d sessions", len(agentsOfTest(t, s, main).List()))
+	}
+	if sess.Info().State != acp.Ready || len(sess.Info().Queue) != 0 {
+		t.Fatalf("the session changed: %+v", sess.Info())
 	}
 }
 
