@@ -293,6 +293,7 @@ func TestAgentOneDevelopmentPerTicket(t *testing.T) {
 	}
 	id := sessionID(text)
 	m := agentsOfTest(t, s, child)
+	t.Cleanup(m.CloseAll)
 	sess, err := m.Get(id)
 	if err != nil {
 		t.Fatal(err)
@@ -311,7 +312,7 @@ func TestAgentOneDevelopmentPerTicket(t *testing.T) {
 	}
 
 	waitFor(t, "session ready", func() bool { return sess.Info().State == acp.Ready })
-	text, err = callMCP(t, s, "agent_start", sc, map[string]any{"cwd": wt, "id": 1, "provider": "claude", "model": "opus", "message": "one more change"})
+	text, err = callMCP(t, s, "agent_start", sc, map[string]any{"cwd": wt, "id": 1, "provider": "claude", "model": "opus", "message": "one more change later"})
 	if err != nil {
 		t.Fatal(err)
 	}

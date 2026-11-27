@@ -169,15 +169,31 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 
 // An existing chat has the scope of its owner project, not the cwd a client supplies.
 func (s *A) mcpChatAllowed(sc plugins.MCPScope, c *engine.Chat) bool {
+	return mcpChatAllowedIn(sc, c, s.runProject(c, sc.Root.ID, sc.Root.ID))
+}
+
+func mcpChatAllowedIn(sc plugins.MCPScope, c *engine.Chat, project string) bool {
 	if c.Delegation != nil || sc.ACPParent != "" {
 		return c.Delegation != nil && sc.ACPParent != "" && c.Delegation.Parent == sc.ACPParent &&
-			c.MCPOwner == sc.Identity && c.MCPProject == sc.Here.ID &&
-			sc.AllowsProject != nil && sc.AllowsProject(c.MCPProject, sc.Root.ID) &&
+			c.MCPOwner == sc.Identity && c.MCPProject == sc.Here.ID && project == c.MCPProject &&
+			sc.AllowsProject != nil && sc.AllowsProject(project, sc.Root.ID) &&
 			sc.RefreshACPGrant != nil && sc.RefreshACPGrant()
 	}
 	if sc.Supervisor && (c.MCPOwner != sc.Identity || !c.MCPTextOnly) {
 		return false
 	}
-	project := s.runProject(c, sc.Root.ID, sc.Root.ID)
 	return sc.AllowsProject == nil || sc.AllowsProject(project, sc.Root.ID)
+}
+
+// Recover an interrupted manual conversation only after checking its grant.
+func (s *A) openMCPChatForTurn(sc plugins.MCPScope, id string) (*engine.Chat, error) {
+	c, err := s.loadMCPChat(sc, id)
+	if err != nil || c.Delegation != nil || c.Running == nil && c.Approval == nil {
+		return c, err
+	}
+	c, err = s.openChat(chatCtx{chatLocOf(sc.Root), sc.Root.ID}, id)
+	if err != nil || !s.mcpChatAllowed(sc, c) {
+		return nil, errMCPConversation
+	}
+	return c, nil
 }

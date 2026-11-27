@@ -292,7 +292,7 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 	}
 	if r := s.run(id); r != nil {
 		r.mu.Lock()
-		if r.root != root || sc.AllowsProject != nil && !sc.AllowsProject(r.project, root) || !s.mcpChatAllowed(sc, r.chat) {
+		if r.root != root || !mcpChatAllowedIn(sc, r.chat, r.project) {
 			r.mu.Unlock()
 			return "", errMCPConversation
 		}
@@ -327,7 +327,7 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 		}
 		r.mu.Unlock()
 	}
-	chat, err := s.loadMCPChat(sc, id)
+	chat, err := s.openMCPChatForTurn(sc, id)
 	if err != nil {
 		return "", err
 	}
@@ -363,7 +363,7 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 // answer answers the questions of ask_user waiting in a conversation (kanban_answer of the
 // MCP), then starts it.
 func (s *A) answer(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang, id string, answers [][]string, notes []string) (string, error) {
-	chat, err := s.loadMCPChat(sc, id)
+	chat, err := s.openMCPChatForTurn(sc, id)
 	if err != nil || chat.Parent != "" || chat.Agent != nil {
 		return "", errMCPConversation
 	}
