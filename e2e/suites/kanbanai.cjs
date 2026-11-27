@@ -4,7 +4,7 @@
 const http = require('http')
 const fs = require('fs')
 const { execFileSync } = require('child_process')
-const { run, openProject, mcpToken, mcp, assert, unfold, OUT, WS, installOfficial, acceptConfirms, inFrames, dropNotes } = require('../common.cjs')
+const { run, openProject, addProjectFolder, mcpToken, mcp, assert, unfold, OUT, WS, installOfficial, acceptConfirms, inFrames, dropNotes } = require('../common.cjs')
 
 const requests = []
 let continueDevelopment
@@ -541,12 +541,20 @@ run(async ({ page }) => {
       const reply = await response.json()
       return reply.result?.content[0]?.text.includes('## Assistant\nMCP received MCP follow-up')
     }, { url: process.env.E2E_URL + '/mcp', token: mcpToken(), cwd: WS + '/demo', chat: externalChat })
+    const developerRequest = requests.find((req) => text(req.messages.find((msg) => msg.role === 'user')) === 'MCP first message')
+    assert(toolNames(developerRequest).join(',') === 'ask_user', 'Developer assistant_start receives the question tool')
 
     const observer = mcpToken('observer')
     const foreignChat = await mcp('assistant_send', { chat: externalChat, message: 'unexpected' }, observer)
     assert(foreignChat.result.isError, 'Supervisor cannot steer another credential’s conversation')
-    const supervisorChat = await mcp('assistant_start', { message: 'Supervisor conversation' }, observer)
+    const historyButton = '.ai-panel button[title="Conversations of the project"]'
+    await kp.click(historyButton)
+    await kp.waitForSelector('.ai-chat-open:has-text("MCP conversation")')
+    const supervisorRow = page.locator('.ai-chat-open').filter({ hasText: 'Supervisor smoke test' })
+    const supervisorChat = await mcp('assistant_start', { title: 'Supervisor smoke test', message: 'Supervisor conversation' }, observer)
     assert(!supervisorChat.result.isError, 'an explicit Supervisor Assistant grant starts a conversation')
+    await supervisorRow.waitFor({ timeout: 5000 })
+    assert(true, 'the open Assistant sidebar lists a new Supervisor conversation')
     const supervisorID = supervisorChat.result.content[0].text
     const until = Date.now() + 10000
     let transcript = ''
@@ -559,6 +567,12 @@ run(async ({ page }) => {
     assert(supervisorRequest && toolNames(supervisorRequest).length === 0, 'Supervisor Assistant receives no nested tools')
     assert(transcript.includes('Tool unavailable in this MCP conversation'), 'the Assistant rejects a tool emitted despite discovery')
     assert(!fs.existsSync(WS + '/demo/mcp-forbidden'), 'the denied Assistant tool creates no file')
+    await page.reload()
+    await supervisorRow.waitFor({ timeout: 10000 })
+    await supervisorRow.click()
+    await kp.waitForSelector('.ai-msg.user:has-text("Supervisor conversation")')
+    assert(true, 'the Assistant sidebar reopens the MCP conversation after reload')
+    if (await kp.isVisible('[data-testid=ai-sidebar]')) await kp.click(historyButton)
 
     // Mobile: the idea is answered by swiping the card (right = Yes), and the compare stacks.
     await kp.click('[data-testid=assistant-new]')
@@ -669,6 +683,67 @@ run(async ({ page }) => {
       const prepared = await ok('kanban_start', { id, base: git('branch', '--show-current').toString().trim() })
       const cwd = prepared.match(/^Worktree: (.+)$/m)?.[1]
       assert(cwd, 'kanban_start returns the worktree')
+
+      // The standalone conversation belongs to the project family of cwd.
+      const worktree = await page.context().newPage()
+      const other = await page.context().newPage()
+      try {
+        // Delay the first history response until the update for the new conversation has arrived.
+        let holdList
+        const staleList = new Promise((resolve) => {
+          holdList = resolve
+        })
+        await worktree.routeWebSocket('**/ws', (ws) => {
+          const server = ws.connectToServer()
+          let firstList
+          ws.onMessage((msg) => {
+            const req = JSON.parse(msg)
+            if (firstList === undefined && req.method === 'llm.chats.list') firstList = req.id
+            server.send(msg)
+          })
+          server.onMessage((msg) => {
+            if (firstList !== undefined && JSON.parse(msg).id === firstList && holdList) {
+              holdList(() => ws.send(msg))
+              holdList = undefined
+            } else ws.send(msg)
+          })
+        })
+        const worktreeURL = prepared.match(/^Worktree in the IDE: (.+)$/m)[1]
+        await worktree.goto(worktreeURL + '/tool/assistant')
+        await worktree.locator('.ai-chat-open').filter({ hasText: 'MCP conversation' }).waitFor()
+        const releaseStale = await staleList
+
+        await other.goto(process.env.E2E_URL)
+        await addProjectFolder(other, 'other')
+        await other.waitForURL('**/project/*')
+        await other.goto(other.url() + '/tool/assistant')
+        await other.getByTestId('ai-sidebar').waitFor()
+
+        await kp.click(historyButton)
+        await kp.waitForSelector('[data-testid=ai-sidebar]')
+        const title = 'MCP worktree conversation'
+        const chatID = await ok('assistant_start', { cwd, title, message: 'MCP first message' })
+        const row = (p) => p.locator('.ai-chat-open').filter({ hasText: title })
+        await Promise.all([row(page).waitFor({ timeout: 5000 }), row(worktree).waitFor({ timeout: 5000 })])
+        assert(true, 'a worktree MCP conversation appears in both open Assistant sidebars')
+        releaseStale()
+        const disappeared = await row(worktree).waitFor({ state: 'hidden', timeout: 1000 }).then(() => true, () => false)
+        assert(!disappeared, 'a late history response does not hide the new MCP conversation')
+        const read = await ok('assistant_read', { cwd, chat: chatID })
+        assert(read.includes('MCP first message'), 'the MCP worktree can read its conversation')
+        const foreign = await mcp('assistant_read', { cwd: WS + '/other', chat: chatID })
+        assert(foreign.result.isError, 'the MCP grant rejects a read from an unrelated project')
+
+        await Promise.all([worktree.reload(), other.reload()])
+        await row(worktree).click({ timeout: 10000 })
+        await worktree.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("MCP received MCP first message")')
+        await other.waitForSelector('.ai-side-empty:has-text("No conversation for this project.")')
+        assert(!(await row(other).count()), 'the worktree transcript survives reload and is absent from the unrelated project')
+      } finally {
+        await Promise.all([worktree.close(), other.close()])
+        if (await kp.isVisible('[data-testid=ai-sidebar]')) await kp.click(historyButton)
+      }
+
       fs.writeFileSync(cwd + '/worktree-marker.txt', 'from the ticket worktree')
       const started = await ok('kanban_develop', { id })
       const chat = started.match(/conversation (\w+)\./)?.[1]

@@ -607,12 +607,12 @@ export async function select(server: string, model: string) {
 
 // ---------- conversations ----------
 
+let chatListSeq = 0
 export async function refreshChats() {
-  try {
-    setChatList(await request<ChatInfo[]>('llm.chats.list'))
-  } catch {
-    setChatList([])
-  }
+  const seq = ++chatListSeq
+  const list = await request<ChatInfo[]>('llm.chats.list').catch(() => [])
+  // A refresh after an Assistant update can finish before the refresh at opening.
+  if (seq === chatListSeq) setChatList(list)
 }
 
 // ---------- history of the conversations shown ----------
