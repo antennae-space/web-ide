@@ -289,10 +289,13 @@ func (s *A) mcpAgentSend(_ context.Context, sc plugins.MCPScope, raw json.RawMes
 	if err != nil {
 		return "", err
 	}
+	// The state before the prompt: a session that is running queues the message, a ready one
+	// sends it now.
+	state := sess.Info().State
 	if err := sess.Prompt(a.Message); err != nil {
 		return "", err
 	}
-	switch sess.Info().State {
+	switch state {
 	case acp.Starting, acp.Busy, acp.Asking:
 		return "The session is running: your message is queued and sent at its next step. Read it later with agent_read.", nil
 	}
