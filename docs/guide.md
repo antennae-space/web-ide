@@ -94,13 +94,24 @@ The Assistant can read and edit files in the worktree and update the linked tick
 
 A Supervisor credential can use only its own text conversations. Developer conversations started or steered through MCP can also ask the user questions in the IDE. These limits stay with the conversation when the pod reloads it.
 
+### Delegate to the Assistant from an ACP session
+
+In **Assistant settings > Sub-agents**, choose a default server and a low-cost chat model. The IDE provides the ACP session with a Developer credential for its registered project or worktree. Use that directory as `cwd` in every call. Each session can access its own Assistant delegations.
+
+1. Call `assistant_start` with a short analysis request. The response gives the conversation ID in `chat` and the turn ID in `turn`.
+2. Call `assistant_wait` with both IDs. It returns the state and the applicable answer, error or question. The default wait is 15 seconds, the maximum is 20 seconds, and zero returns a snapshot. `timed_out` says that the turn is still running when the wait expires.
+3. Open the conversation in the Assistant tool. Check that it shows the same answer. If the turn needs input, answer in Questions or use `assistant_send` to provide more context. Use the turn ID returned by `assistant_send` for the next wait.
+4. Call `assistant_stop` on a running turn. Wait for `cancelled` and check that the transcript is still in the Assistant tool.
+
+Analysis can list directories and read files within the registered project. Use `kanban_develop` for writing in a prepared worktree. An active ACP turn or Assistant development in that worktree holds the development reservation. Shell commands require IDE approval. See [the delegation limits](design/kanban.md#acp-assistant-delegation).
+
 ### Steer an agent session from an MCP client
 
 The six tools of the **Supervisor** profile run the same development path as the *Dev session* button of the Kanban, so the session appears in the *Agents* tool with its tab, its thread and its statistics. `agent_providers` lists the CLI agents the pod can run, and the models a session of this project tells. `agent_start` takes a ticket number, a provider id, an optional model and a message. It answers the session id at once, while the agent initializes. Its first prompt is the ticket's briefing, then your message.
 
 The ticket must already have its worktree: you or a Developer prepare it first. The grant must cover the main project and its worktrees, `cwd` must be that worktree, and the ticket must be the step to develop of its lineage. The model you give is applied and confirmed before the first prompt; a session that cannot take it ends with its error, and a retry with a valid model opens a new session.
 
-One ticket has one active development. A second start through MCP is refused while a turn runs, and so is a start from the Kanban UI, and a development of the same ticket by a conversation of the assistant.
+A worktree has one development reservation. The pod refuses a second development while an ACP turn or Assistant development holds the worktree.
 
 `agent_list` lists the sessions of the project with their state, provider, model, ticket, queued prompts and statistics. `agent_read` reads one thread, bounded by `last` and by `tools` (the tool calls, the plan, the permissions asked). `agent_send` sends a prompt; it waits in the queue while a turn runs. `agent_stop` cancels the turn running and drops the prompts waiting, so nothing resumes. The session and its thread stay visible.
 

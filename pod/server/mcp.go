@@ -239,6 +239,9 @@ func mcpToolError(message string) map[string]any {
 
 func (s *Server) mcpInstructions(identity mcpIdentity) string {
 	text := mcpInstructions
+	if identity.acpSession != "" {
+		text += "\nUse assistant_start for bounded read-only analysis in this project. Use assistant_wait with the returned chat and turn IDs. The user can answer questions in the IDE. Use assistant_stop to stop the delegated task."
+	}
 	if identity.Profile == mcpSupervisor {
 		text = "You have the Supervisor profile. Use tools/list to find the allowed operations. Pass an absolute cwd inside a granted project."
 		if identity.Assistant {

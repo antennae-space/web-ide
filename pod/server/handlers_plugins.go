@@ -623,5 +623,6 @@ func (p podLend) StartSaved(rt *runtime.Runtime, id string, restart bool) (comma
 func (p podLend) Services() *plugins.Services {
 	s := p.s
 	return &plugins.Services{Store: s.Store, Projects: s.Projects, Cfg: s.Cfg, Keeper: s.Keeper, Desks: s.Desks,
-		MCPBase: s.MCPBase, MCPDeveloperToken: s.managedMCPToken, Version: s.Version, Commands: s.projectCommands, Models: s.Models}
+		MCPBase: s.MCPBase, ACPMCPToken: s.acpMCPToken, RevokeACPMCP: s.revokeACPMCPToken,
+		Version: s.Version, Commands: s.projectCommands, Models: s.Models}
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -29,7 +30,7 @@ type wsClient struct {
 	c      *websocket.Conn
 	nextID int64
 	events chan map[string]any
-	resps  map[int64]chan map[string]any
+	resps  sync.Map
 }
 
 func newServer(t *testing.T) (*Server, *httptest.Server) { return newServerWith(t, nil) }
@@ -65,7 +66,7 @@ func dial(t *testing.T, ts *httptest.Server, token string) (*wsClient, error) {
 		return nil, err
 	}
 	c.SetReadLimit(64 << 20)
-	w := &wsClient{t: t, c: c, events: make(chan map[string]any, 100), resps: map[int64]chan map[string]any{}}
+	w := &wsClient{t: t, c: c, events: make(chan map[string]any, 100)}
 	go func() {
 		for {
 			_, data, err := c.Read(context.Background())
@@ -76,8 +77,8 @@ func dial(t *testing.T, ts *httptest.Server, token string) (*wsClient, error) {
 			json.Unmarshal(data, &m)
 			if _, ok := m["event"]; ok {
 				w.events <- m
-			} else if ch, ok := w.resps[int64(m["id"].(float64))]; ok {
-				ch <- m
+			} else if ch, ok := w.resps.Load(int64(m["id"].(float64))); ok {
+				ch.(chan map[string]any) <- m
 			}
 		}
 	}()
@@ -94,7 +95,8 @@ func (w *wsClient) callRawIn(project, method string, params any) map[string]any 
 	w.nextID++
 	id := w.nextID
 	ch := make(chan map[string]any, 1)
-	w.resps[id] = ch
+	w.resps.Store(id, ch)
+	defer w.resps.Delete(id)
 	data, _ := json.Marshal(map[string]any{"id": id, "method": method, "params": params, "project": project})
 	if err := w.c.Write(context.Background(), websocket.MessageText, data); err != nil {
 		w.t.Fatal(err)

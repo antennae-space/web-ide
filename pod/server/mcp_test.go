@@ -15,6 +15,8 @@ import (
 // agent_stop), listed by the AI plugin.
 const supervisorOnly = 6
 
+const acpAssistantOnly = 2 // assistant_wait and assistant_stop
+
 func newMCPClient(t *testing.T, s *Server, url, project string) *mcpClient {
 	t.Helper()
 	token, err := s.managedMCPToken(project)
@@ -108,7 +110,7 @@ func TestMCP(t *testing.T) {
 	}
 	// The six tools of the Agents (agent_*) are granted to the Supervisor profile only, so a
 	// Developer bearer lists the rest.
-	if tools := m.rpc("tools/list", nil)["tools"].([]any); len(tools) != len(mcpTools)+len(s.plugins.tools)+len(s.plugins.mcp)-supervisorOnly {
+	if tools := m.rpc("tools/list", nil)["tools"].([]any); len(tools) != len(mcpTools)+len(s.plugins.tools)+len(s.plugins.mcp)-supervisorOnly-acpAssistantOnly {
 		t.Fatalf("tools: %d", len(tools))
 	}
 

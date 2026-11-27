@@ -191,13 +191,24 @@ The pod authenticates each `POST /mcp` request with a separate MCP bearer. The g
 | Start or steer an ACP session | Yes | — |
 | Start a ticket-linked Assistant development in a prepared worktree | — | With an Assistant grant |
 | Use the Assistant | With a grant, own text conversations | With a grant, scoped conversations and user questions |
+| Wait for or stop an Assistant delegation | — | Only the owning ACP session |
 | Invoke other external plugin tools | — | With an explicit plugin and tool grant |
 
 The user or a Developer prepares the worktree before a Supervisor uses it. The external Kanban's current start operation combines worktree creation with setup. The pod refuses this operation for Supervisor before calling the plugin. It also checks the action of multipurpose Kanban tools before dispatch.
 
 The pod resolves `cwd` once and uses the resulting project and worktree for dispatch. A worktree credential can act on tickets in its lineage. Main project operations such as creating tickets or listing all milestones require a main project grant. Starting an ACP development requires a main project grant. Starting an Assistant development requires access to the ticket worktree. Console IDs belong to their runtime. Conversation IDs are resolved in the granted project, and linked conversation tools also verify the ticket.
 
-Managed sessions get a random Developer bearer for their project. A main project includes its registered worktrees. A worktree grant includes only that worktree. The pod stores the bearer in a private file under `mcp-managed` in its data folder and reads it again when the agent opens or loads a session. Remove the project credential file to revoke that bearer. The next new or reloaded session gets a fresh bearer. Set `disableManagedMcp` in the pod configuration and restart to turn off managed credentials.
+Each managed Developer bearer belongs to one ACP session and its exact registered project or worktree. The pod stores the bearer under `mcp-sessions/<project>/<session>` in its data folder and reuses it on a normal ACP reload. Closing the session removes the bearer. Removing that credential file revokes the bearer. Set `disableManagedMcp` in the pod configuration and restart to turn off managed credentials.
+
+### ACP Assistant delegation
+
+`assistant_start` defaults to read-only analysis for an ACP session. Its file tools check the registered project and worktree. The Assistant can also ask the user a question. `kanban_develop` starts a Build conversation for a ticket in the session's prepared worktree. The development reservation covers the whole worktree, including steps of the same lineage. The existing shell approval flow applies.
+
+The configured sub-agent server and model in `llm.json` supply the default. An explicit alternative must be listed on a server marked *Available to sub-agents*. The model must support chat. The pod gives each parent one executing turn and uses the model server's shared concurrency slots. A prompt can contain up to 16 KiB and an answer, error or question returned by the wait can contain up to 8 KiB. Each turn has up to two minutes, eight model requests and 24 tool calls. Each request asks the model server for at most 4,096 output tokens.
+
+`assistant_wait` returns the state for the specified turn. It returns `queued`, `running`, `waiting_user`, `completed`, `failed`, `stopping` or `cancelled`. A wait expires after 15 seconds by default, with a maximum of 20 seconds. A timeout of zero reads the state immediately. An expired wait sets `timed_out` while the turn continues. A disconnect ends the wait. A new HTTP connection can read the saved result of the current turn. After a new turn starts, a new wait for the previous turn is refused. An interrupted turn after a pod restart reports an error.
+
+`assistant_stop` cancels the turn, clears queued follow-ups and keeps the saved transcript. Wait for `cancelled` before starting more work. The linked ticket routes also check the ACP parent, the credential, the exact project and the ticket. Manual Developer clients retain scoped conversation access. Supervisor Assistant grants remain limited to their own text conversations. See [the smoke test](../guide.md#delegate-to-the-assistant-from-an-acp-session).
 
 ## Supervisor tools on the agent sessions
 
@@ -205,7 +216,7 @@ The six tools of the Supervisor profile (`plugins/ai/mcp_agents.go`, in the AI p
 
 - `agent_providers` lists the catalog (`acp/catalog.go`): each agent, installed or not, and the models a session of this project told. `agent_start` takes a ticket, a provider id, an optional model and a message: ids only, no command line, no executable. It answers the session id at once, while ACP initializes.
 - The worktree is prepared by the user or a Developer: the ticket's own, else its lineage root's (`kanban.worktreeTicket`). Its project must be registered, `cwd` must be that folder, the grant must include the main project and its worktrees, and the ticket must be the step to develop of its lineage. The model is applied and confirmed before the first prompt; a session that fails ends with its error and a retry opens a new session.
-- The Kanban UI, `agent_start` and `kanban_develop` share the development reservation. ACP holds it while the first prompt is scheduled and while a turn runs. The Assistant holds it while a development conversation runs. Another development of the same ticket is refused. The reservation is released when the turn ends or the start fails.
+- The Kanban UI, `agent_start` and `kanban_develop` share a development reservation for the worktree. ACP holds it while the first prompt is scheduled and while a turn runs. The Assistant holds it while a development conversation runs. The reservation is released when the turn ends or the start fails.
 - `agent_list` gives the session snapshots bounded by `limit` (state, provider, model, ticket, queued prompts, turns, work time, cost); `agent_read` a bounded thread (`last`, `tools`); `agent_send` sends a prompt, queued while a turn runs; `agent_stop` cancels the turn and drops the queue. The session and its thread stay visible.
 - The permission cards, the forms and the `ask_user` questions of the session go to the Questions tool of the IDE, as for a session opened in the UI. A call refused by the grant, the worktree or the lineage changes nothing in the sessions.
 

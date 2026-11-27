@@ -3,11 +3,16 @@ package ai
 import (
 	"encoding/json"
 	"errors"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
+	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/plugins/ai/engine"
 	"antennae.space/ide/pod/assistant"
+	"antennae.space/ide/pod/fsx"
 	"antennae.space/ide/pod/runtime"
 )
 
@@ -23,16 +28,106 @@ func mcpDevelopmentTool(name string) bool {
 }
 
 func mcpDevelopmentDefs(c *engine.Chat) []json.RawMessage {
+	return mcpScopedDefs(c, mcpDevelopmentTool)
+}
+
+func mcpAnalysisTool(name string) bool {
+	return name == "read_file" || name == "list_dir" || name == "ask_user"
+}
+
+func mcpAnalysisDefs(c *engine.Chat) []json.RawMessage {
+	return mcpScopedDefs(c, mcpAnalysisTool)
+}
+
+func mcpAssistantToolAllowed(c *engine.Chat, name string) bool {
+	switch {
+	case c.MCPTextOnly:
+		return false
+	case c.MCPDevelopment:
+		return mcpDevelopmentTool(name)
+	case c.Delegation != nil:
+		return mcpAnalysisTool(name)
+	case c.MCPProject != "":
+		return name == "ask_user"
+	default:
+		return true
+	}
+}
+
+func mcpScopedDefs(c *engine.Chat, allowed func(string) bool) []json.RawMessage {
 	var out []json.RawMessage
 	for _, d := range engine.ToolsFor(c.Mode, c.Ticket, false, false, false) {
 		var f struct {
 			Function struct{ Name string } `json:"function"`
 		}
-		if json.Unmarshal(d, &f) == nil && mcpDevelopmentTool(f.Function.Name) {
+		if json.Unmarshal(d, &f) == nil && allowed(f.Function.Name) {
 			out = append(out, d)
 		}
 	}
 	return out
+}
+
+// Analysis reads through an os.Root, so a path swapped after validation cannot
+// leave the worktree. The registered project check also excludes nested projects.
+func (s *A) mcpAnalysisFile(rt *runtime.Runtime, name string, a assistant.Args) (assistant.ToolResult, error) {
+	path := assistant.AbsPath(rt.Root, a.Str("path"))
+	if err := checkMCPWorktreePath(rt.Root, path); err != nil {
+		return assistant.ToolResult{}, err
+	}
+	rel, _ := filepath.Rel(rt.Root, path)
+	p, ok := s.Projects.At(path)
+	data := s.Store.Dir()
+	worktrees := filepath.Join(rt.Root, ".ide", "worktrees")
+	if !ok || p.ID != rt.P.ID || fsx.Within(data, path) || fsx.Within(worktrees, path) ||
+		rel == ".git" || strings.HasPrefix(rel, ".git"+string(filepath.Separator)) {
+		return assistant.ToolResult{}, i18n.New("the path is outside the Assistant delegation")
+	}
+	dir, err := os.OpenRoot(rt.Root)
+	if err != nil {
+		return assistant.ToolResult{}, err
+	}
+	defer dir.Close()
+	if name == "list_dir" {
+		entries, err := fs.ReadDir(dir.FS(), rel)
+		if err != nil {
+			return assistant.ToolResult{}, err
+		}
+		var list []fsx.Entry
+		for _, entry := range entries {
+			child := filepath.Join(path, entry.Name())
+			p, ok := s.Projects.At(child)
+			if !ok || p.ID != rt.P.ID || entry.Name() == ".git" || fsx.Within(data, child) || fsx.Within(worktrees, child) ||
+				!entry.IsDir() && !entry.Type().IsRegular() {
+				continue
+			}
+			if info, err := entry.Info(); err == nil {
+				list = append(list, fsx.Entry{Name: entry.Name(), Dir: entry.IsDir(), Size: info.Size()})
+			}
+		}
+		return formatAssistantDir(rel, list), nil
+	}
+	if a.Str("path") == "" {
+		return assistant.ToolResult{}, assistant.Usagef("path is missing")
+	}
+	f, err := dir.Open(rel)
+	if err != nil {
+		return assistant.ToolResult{}, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	const maxRead = 10 << 20
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxRead {
+		return assistant.ToolResult{}, i18n.New("the path must be a regular text file in the worktree")
+	}
+	raw, err := io.ReadAll(io.LimitReader(f, maxRead+1))
+	if err != nil {
+		return assistant.ToolResult{}, err
+	}
+	content, _, ok := runtime.DecodeText(raw)
+	if !ok || len(raw) > maxRead {
+		return assistant.ToolResult{}, i18n.New("the path must be a regular text file in the worktree")
+	}
+	return formatAssistantFile(rel, content, a.Num("start_line"), a.Num("end_line")), nil
 }
 
 func checkMCPDevelopmentTool(rt *runtime.Runtime, ticket *engine.TicketLink, name string, a assistant.Args) error {

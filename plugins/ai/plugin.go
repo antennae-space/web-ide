@@ -40,7 +40,7 @@ type A struct {
 	assistants assistants
 	asking     asking
 	agentParts agentParts
-	// devReserve keeps one active development per ticket across the Assistant and ACP.
+	// devReserve keeps one active development per worktree across the Assistant and ACP.
 	devReserve devReserve
 	// testAgentCommand overrides the command line of every agent, in the tests only.
 	testAgentCommand func(agent string) ([]string, error)

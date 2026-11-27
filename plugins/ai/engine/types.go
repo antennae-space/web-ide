@@ -38,6 +38,7 @@ type Chat struct {
 	MCPTextOnly bool   `json:"mcpTextOnly,omitempty"`
 	// MCPDevelopment limits a development started with a Developer grant to worktree tools.
 	MCPDevelopment bool        `json:"mcpDevelopment,omitempty"`
+	Delegation     *Delegation `json:"delegation,omitempty"`
 	Mode           string      `json:"mode,omitempty"`
 	Ticket         *TicketLink `json:"ticket,omitempty"`
 	// Options of the user for this conversation, sent with each message.
@@ -78,6 +79,16 @@ type Chat struct {
 	// WebURLs: the URLs web_fetch may take besides the ones of the user (search results,
 	// links of pages fetched), as keys of webURL.
 	WebURLs []string `json:"webUrls,omitempty"`
+}
+
+// Delegation records the ACP parent independently of the Assistant's sub-agent tree.
+// The current turn and its state are saved with the transcript.
+type Delegation struct {
+	Parent string `json:"parent"`
+	Turn   string `json:"turn"`
+	From   int    `json:"from"`
+	State  string `json:"state"`
+	Error  string `json:"error,omitempty"`
 }
 
 // EffortNote is a change of the reasoning effort for a local model, written into the history

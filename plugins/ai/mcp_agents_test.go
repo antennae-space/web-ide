@@ -330,6 +330,11 @@ func TestAgentOneDevelopmentPerTicket(t *testing.T) {
 		return kb.call(project, method, params)
 	}
 	brief3 := caps.TicketBrief{ID: 3, Parent: 1, Role: "dev", Title: "Rows", Branch: "ticket/1-data-export"}
+	if _, _, err := (agentsCap{s}).Develop(child, "claude", brief3); err == nil ||
+		!strings.Contains(err.Error(), "active development (session "+id) {
+		t.Fatalf("lineage step shared the active worktree: %v", err)
+	}
+	waitFor(t, "the root turn released the worktree", func() bool { return sess.Info().State == acp.Ready })
 	sess3, created, err := (agentsCap{s}).Develop(child, "claude", brief3)
 	if err != nil || !created {
 		t.Fatalf("UI start: %v (%+v)", err, sess3)

@@ -25,6 +25,9 @@ func (s *A) registerMCP() {
 	for _, t := range append(append(s.mcpTools(), s.agentMCPTools()...), s.assistantMCPTools()...) {
 		s.host.MCPTool(t)
 	}
+	for _, t := range s.delegationMCPTools() {
+		s.host.MCPTool(t)
+	}
 }
 
 func (s *A) mcpTools() []plugins.MCPTool {
@@ -40,6 +43,12 @@ func (s *A) mcpTools() []plugins.MCPTool {
 				dc, err := s.developChat(ctx, sc, id, a.Server, a.Model)
 				if err != nil {
 					return "", err
+				}
+				if dc.Delegation != nil {
+					if err := s.startMCPDelegation(sc, dc, 0); err != nil {
+						return "", err
+					}
+					return delegationText(dc, "running"), nil
 				}
 				if err := s.startRun(chatLocOf(sc.Root), sc.Root.ID, dc.Ticket.Project, sc.Lang, dc, 0); err != nil {
 					return "", err
@@ -61,6 +70,12 @@ func (s *A) mcpTools() []plugins.MCPTool {
 				Last  int
 				Tools bool
 			}) (string, error) {
+				if sc.ACPParent != "" {
+					c, err := s.loadMCPChat(sc, a.Chat)
+					if err != nil || c.Ticket == nil || c.Ticket.ID != id {
+						return "", errMCPConversation
+					}
+				}
 				t, err := s.kanbanGet(ctx, sc.Root.ID, id)
 				if err != nil {
 					return "", err
@@ -80,11 +95,17 @@ func (s *A) mcpTools() []plugins.MCPTool {
 					return "", err
 				}
 				text := conversationText(raw, a.Last, a.Tools)
+				var chat engine.Chat
+				_ = json.Unmarshal(raw, &chat)
+				if !s.mcpChatAllowed(sc, &chat) {
+					return "", errMCPConversation
+				}
+				if chat.Delegation != nil {
+					return delegationCut(text + pendingQuestions(&chat, "The user can answer in the Questions tool of the IDE.")), nil
+				}
 				if s.Running(a.Chat) {
 					return text + "\n\n(The assistant is answering now: read the conversation again later.)", nil
 				}
-				var chat engine.Chat
-				_ = json.Unmarshal(raw, &chat)
 				return text + pendingQuestions(&chat, "Answer with kanban_answer, one list of strings per question, in this order (an option label, several for a multiple choice, or a free text):"), nil
 			}),
 		},
@@ -137,6 +158,12 @@ type linkedChat struct {
 }
 
 func (s *A) linkedChat(ctx context.Context, sc plugins.MCPScope, id int64, chatID string) (linkedChat, error) {
+	if sc.ACPParent != "" {
+		c, err := s.loadMCPChat(sc, chatID)
+		if err != nil || c.Ticket == nil || c.Ticket.ID != id {
+			return linkedChat{}, errMCPConversation
+		}
+	}
 	t, err := s.kanbanGet(ctx, sc.Root.ID, id)
 	if err != nil {
 		return linkedChat{}, err
@@ -206,9 +233,18 @@ func (s *A) developChat(ctx context.Context, sc plugins.MCPScope, id int64, serv
 	if sc.AllowsProject != nil && !sc.AllowsProject(project, sc.Root.ID) {
 		return nil, i18n.New("the worktree is outside the MCP grant")
 	}
+	if sc.ACPParent != "" && project != sc.Here.ID {
+		return nil, i18n.New("the worktree is outside the MCP grant")
+	}
 	for _, c := range t.ChatList {
 		if s.Running(c.ChatID) {
 			return nil, i18n.Errorf("conversation %s of ticket #%d is running", c.ChatID, id)
+		}
+	}
+	if sc.ACPParent != "" {
+		server, model, err = s.delegationModel(ctx, server, model)
+		if err != nil {
+			return nil, err
 		}
 	}
 	defServer, defModel := s.LLM.Default()
@@ -239,6 +275,9 @@ func (s *A) developChat(ctx context.Context, sc plugins.MCPScope, id int64, serv
 	chat := &engine.Chat{ID: assistant.NewID(), Title: title, Server: server, Model: model, Mode: engine.Build,
 		MCPOwner: sc.Identity, MCPProject: project, MCPDevelopment: true,
 		Ticket: &engine.TicketLink{ID: id, Role: "dev", Project: project, Effort: effort}}
+	if sc.ACPParent != "" {
+		chat.Delegation = &engine.Delegation{Parent: sc.ACPParent}
+	}
 	chat.AddUser(&engine.Message{Role: "user", Content: assistant.String(text), Display: text, Author: assistant.AuthorClaude})
 	return chat, nil
 }
@@ -248,16 +287,37 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 	if strings.TrimSpace(text) == "" {
 		return "", fmt.Errorf("message is empty")
 	}
+	if sc.ACPParent != "" && len(text) > delegationPromptBytes {
+		return "", i18n.New("Assistant delegation input exceeds 16 KiB")
+	}
 	if r := s.run(id); r != nil {
 		r.mu.Lock()
-		if r.root != root || sc.AllowsProject != nil && !sc.AllowsProject(r.project, root) || sc.Supervisor && (r.chat.MCPOwner != sc.Identity || !r.chat.MCPTextOnly) {
+		if r.root != root || sc.AllowsProject != nil && !sc.AllowsProject(r.project, root) || !s.mcpChatAllowed(sc, r.chat) {
 			r.mu.Unlock()
-			return "", fmt.Errorf("conversation %s is not in this project", id)
+			return "", errMCPConversation
 		}
 		if !r.done {
 			if r.chat.Parent != "" || r.chat.Agent != nil {
 				r.mu.Unlock()
 				return "", fmt.Errorf("MCP cannot steer a delegated conversation")
+			}
+			if r.chat.Delegation != nil {
+				defer r.mu.Unlock()
+				if r.ctx.Err() != nil {
+					return "", errMCPConversation
+				}
+				size := len(text)
+				for _, q := range r.chat.Queue {
+					size += len(q.Text)
+				}
+				if size > delegationPromptBytes || len(r.chat.Queue) >= delegationModelSteps {
+					return "", i18n.New("Assistant delegation input exceeds the queue limit")
+				}
+				r.chat.Queue = append(r.chat.Queue, engine.QueuedMessage{ID: assistant.NewID(), Text: text, Author: author})
+				if err := s.publish(r, -1); err != nil {
+					return "", err
+				}
+				return delegationText(r.chat, r.chat.Delegation.State), nil
 			}
 			r.chat.MCPProject = r.project
 			r.chat.Queue = append(r.chat.Queue, engine.QueuedMessage{ID: assistant.NewID(), Text: text, Author: author})
@@ -267,12 +327,12 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 		}
 		r.mu.Unlock()
 	}
-	chat, err := s.openChat(chatCtx{loc, root}, id)
+	chat, err := s.loadMCPChat(sc, id)
 	if err != nil {
 		return "", err
 	}
-	if !s.mcpChatAllowed(sc, chat) || chat.Parent != "" || chat.Agent != nil {
-		return "", fmt.Errorf("conversation is outside the MCP grant")
+	if chat.Parent != "" || chat.Agent != nil {
+		return "", errMCPConversation
 	}
 	if chat.Server == "" || chat.Model == "" {
 		return "", fmt.Errorf("this conversation has no model yet: the user must send its first message")
@@ -284,6 +344,12 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 	}
 	from := minFrom(len(chat.Messages), skipQuestions(chat))
 	chat.AddUser(&engine.Message{Role: "user", Content: assistant.String(text), Display: text, Author: author})
+	if chat.Delegation != nil {
+		if err := s.startMCPDelegation(sc, chat, from); err != nil {
+			return "", err
+		}
+		return delegationText(chat, "running"), nil
+	}
 	if err := s.startRun(loc, root, project, lang, chat, from); err != nil {
 		return "", err
 	}
@@ -297,15 +363,12 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 // answer answers the questions of ask_user waiting in a conversation (kanban_answer of the
 // MCP), then starts it.
 func (s *A) answer(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang, id string, answers [][]string, notes []string) (string, error) {
+	chat, err := s.loadMCPChat(sc, id)
+	if err != nil || chat.Parent != "" || chat.Agent != nil {
+		return "", errMCPConversation
+	}
 	if s.run(id) != nil {
 		return "", fmt.Errorf("the conversation is running: no question waits for an answer")
-	}
-	chat, err := s.openChat(chatCtx{loc, root}, id)
-	if err != nil {
-		return "", err
-	}
-	if !s.mcpChatAllowed(sc, chat) || chat.Parent != "" || chat.Agent != nil {
-		return "", fmt.Errorf("conversation is outside the MCP grant")
 	}
 	project = s.runProject(chat, root, project)
 	chat.MCPProject = project
@@ -334,6 +397,15 @@ func (s *A) answer(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lan
 	m.Answers, m.Notes, m.Path, m.OffPath, m.AskState, m.Author = answers, notes, path, nil, "answered", assistant.AuthorClaude
 	m.Content = assistant.String("Claude Code answered for the user.\n" + assistant.AnswersText(m.Questions, answers, notes, path, nil))
 	m.Summary = assistant.T("answers received", nil).Raw()
+	if chat.Delegation != nil {
+		if len(m.Content) > delegationPromptBytes {
+			return "", i18n.New("Assistant delegation input exceeds 16 KiB")
+		}
+		if err := s.startMCPDelegation(sc, chat, index); err != nil {
+			return "", err
+		}
+		return delegationText(chat, "running"), nil
+	}
 	if err := s.startRun(loc, root, project, lang, chat, index); err != nil {
 		return "", err
 	}

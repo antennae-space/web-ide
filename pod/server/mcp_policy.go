@@ -91,8 +91,10 @@ func (s *Server) allowsMCPTool(i mcpIdentity, t mcpTarget) bool {
 		switch t.name {
 		case "assistant_list", "assistant_read", "assistant_send", "assistant_start":
 			return i.Assistant
+		case "assistant_wait", "assistant_stop":
+			return developer && i.Assistant && i.acpSession != ""
 		case "kanban_conversation":
-			return developer
+			return developer && (i.acpSession == "" || i.Assistant)
 		case "kanban_develop", "kanban_reply", "kanban_answer":
 			return developer && i.Assistant
 		case "agent_providers", "agent_list", "agent_read", "agent_start", "agent_send", "agent_stop":
@@ -157,6 +159,9 @@ func (s *Server) authorizeMCPCall(ctx context.Context, i mcpIdentity, t mcpTarge
 	}
 	if !i.matches(sc) {
 		return ctx, nil, fmt.Errorf("MCP credential is not granted this project")
+	}
+	if i.acpSession != "" && !s.validACPGrant(i) {
+		return ctx, nil, fmt.Errorf("MCP credential is no longer granted")
 	}
 	access := mcpAccess{i, sc}
 	ctx = context.WithValue(ctx, mcpAccessKey{}, access)
@@ -265,5 +270,6 @@ func (s *Server) authorizeMCPTicket(ctx context.Context, ac mcpAccess, a assista
 func (s *Server) mcpPluginScope(ctx context.Context) plugins.MCPScope {
 	a := accessForMCP(ctx)
 	return plugins.MCPScope{Here: a.here, Root: a.root, Ticket: a.ticket, URL: s.publicURL(), Lang: s.uiLanguage(),
+		ACPParent: a.acpSession, RefreshACPGrant: func() bool { return s.validACPGrant(a.mcpIdentity) },
 		Identity: a.key, Supervisor: a.Profile == mcpSupervisor, AllowsProject: a.allows}
 }

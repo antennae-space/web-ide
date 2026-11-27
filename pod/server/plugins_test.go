@@ -47,7 +47,7 @@ func TestPlugins(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := &mcpClient{t: t, url: ts.URL, token: token}
-	if tools := m.rpc("tools/list", nil)["tools"].([]any); len(tools) != len(mcpTools)+len(s.plugins.mcp)+1-supervisorOnly {
+	if tools := m.rpc("tools/list", nil)["tools"].([]any); len(tools) != len(mcpTools)+len(s.plugins.mcp)+1-supervisorOnly-acpAssistantOnly {
 		t.Fatalf("tools/list: %d tools", len(tools))
 	}
 	if text := m.ok("hello_greet", map[string]any{"cwd": dir, "name": "y"}); text != "Hello y from "+name {

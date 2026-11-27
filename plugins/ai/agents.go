@@ -66,19 +66,14 @@ func (r *agentParts) list() []*agentsPart {
 	return out
 }
 
-// devKey is the reservation key of a ticket's development in the project of its worktree.
-func devKey(project string, ticket int64) string {
-	return project + ":" + strconv.FormatInt(ticket, 10)
-}
-
-// devReserve keeps one active development per ticket, owned by an Assistant conversation
+// devReserve keeps one active development per worktree, owned by an Assistant conversation
 // or an ACP session.
 type devReserve struct {
 	mu sync.Mutex
 	by map[string]string
 }
 
-// take returns the other development's id if the ticket is already reserved.
+// take returns the other development's id if the worktree is already reserved.
 func (r *devReserve) take(key, id string) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -114,27 +109,36 @@ func (s *A) agentsOf(rt *runtime.Runtime) *acp.Manager {
 	return rt.Part("agents", func() any {
 		p := &agentsPart{a: s, project: rt.P.ID}
 		free := func(info acp.Info) {
-			if info.Ticket != 0 {
-				s.devReserve.release(devKey(rt.P.ID, info.Ticket), info.ID)
-			}
+			s.devReserve.release(rt.P.ID, info.ID)
 		}
 		p.m = acp.NewManager(acp.Deps{Keeper: s.Keeper, Owner: rt.P.ID, Dir: s.Store.Path("agents", rt.P.ID), Root: rt.Root,
-			Catalog: acp.Catalog{Dir: s.Store.Path("acp")}, Version: s.Version, Command: s.testAgentCommand, MCP: func() []acp.MCPServer { return s.agentsMCP(rt.P.ID) }, Emit: rt.Emit,
+			Catalog: acp.Catalog{Dir: s.Store.Path("acp")}, Version: s.Version, Command: s.testAgentCommand,
+			MCP: func(session string) []acp.MCPServer { return s.agentsMCP(rt.P.ID, session) }, Emit: rt.Emit,
 			BeforePrompt: func(info acp.Info) error {
-				if info.Ticket != 0 {
+				if info.Ticket != 0 || rt.P.Parent != "" {
 					return s.reserveDevelopment(rt.P.ID, info.Ticket, info.ID)
 				}
 				return nil
 			},
-			OnPromptError: free, OnTurn: func(info acp.Info) { free(info); go s.quotaTurn() }, OnState: free, OnClosed: free})
+			OnPromptError: free, OnTurn: func(info acp.Info) { free(info); go s.quotaTurn() }, OnState: free,
+			OnClosed: func(info acp.Info) {
+				if revoke := s.pod.Services().RevokeACPMCP; revoke != nil {
+					revoke(rt.P.ID, info.ID)
+				}
+				s.stopDelegation(rt.P.ID, info.ID)
+				free(info)
+			}})
 		s.agentParts.add(p)
 		return p
 	}).(*agentsPart).m
 }
 
 func (s *A) reserveDevelopment(project string, ticket int64, id string) error {
-	if owner := s.devReserve.take(devKey(project, ticket), id); owner != "" {
-		return i18n.Errorf("ticket #%d already has an active development (session %s)", ticket, owner)
+	if owner := s.devReserve.take(project, id); owner != "" {
+		if ticket != 0 {
+			return i18n.Errorf("ticket #%d already has an active development (session %s)", ticket, owner)
+		}
+		return i18n.Errorf("the worktree already has an active development (session %s)", owner)
 	}
 	return nil
 }
@@ -142,7 +146,7 @@ func (s *A) reserveDevelopment(project string, ticket int64, id string) error {
 // agentsMCP is the MCP server of the IDE as the sessions of the Agents tool reach it: the
 // listen address of the pod, a Developer credential as a bearer. Named like the server users add to Claude
 // Code (web-ide), so that the session's one replaces it instead of doubling its tools.
-func (s *A) agentsMCP(project string) []acp.MCPServer {
+func (s *A) agentsMCP(project, session string) []acp.MCPServer {
 	svc := s.pod.Services() // read again: the address may be set after the registration
 	base := svc.MCPBase
 	if base == "" && svc.Cfg != nil && svc.Cfg.Addr != "" {
@@ -155,10 +159,10 @@ func (s *A) agentsMCP(project string) []acp.MCPServer {
 		}
 		base = "http://" + net.JoinHostPort(host, port)
 	}
-	if base == "" || svc.MCPDeveloperToken == nil {
+	if base == "" || svc.ACPMCPToken == nil {
 		return nil
 	}
-	token, err := svc.MCPDeveloperToken(project)
+	token, err := svc.ACPMCPToken(project, session)
 	if err != nil {
 		return nil
 	}
@@ -249,7 +253,7 @@ func (s *A) developTicket(project, agent string, t caps.TicketBrief) (caps.Agent
 	if t.Text != "" {
 		prompt += "\n\n---\n\n" + t.Text
 	}
-	key := devKey(project, t.ID)
+	key := project
 	id := assistant.NewID()
 	if err := s.reserveDevelopment(project, t.ID, id); err != nil {
 		return caps.AgentSession{}, false, err

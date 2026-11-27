@@ -110,6 +110,20 @@ func (s *A) ResumeRuns() {
 // resumeRun starts the run of c again where it was; "" when it cannot (it is then closed as
 // interrupted when opened, as without keeper).
 func (s *A) resumeRun(e runningEntry, c *engine.Chat, relays map[string]bool) string {
+	if c.Delegation != nil {
+		// Never replay work with a new execution budget or repeat a delegated tool call.
+		if run := c.Running; run != nil {
+			if run.Stream != "" {
+				_ = s.Keeper.ForgetHTTP(run.Stream)
+			}
+			if run.Proc != "" {
+				_ = s.Keeper.Forget(run.Proc)
+			}
+		}
+		interruptDelegation(c)
+		_ = s.saveChat(e.Loc, c)
+		return ""
+	}
 	run := c.Running
 	if run == nil {
 		run = &engine.Running{}
@@ -143,7 +157,7 @@ func (s *A) resumeRun(e runningEntry, c *engine.Chat, relays map[string]bool) st
 		}
 	}
 	c.Approval = nil
-	if err := s.registerRun(r); err != nil {
+	if err := s.registerRun(r, nil); err != nil {
 		return ""
 	}
 	go s.loop(r)

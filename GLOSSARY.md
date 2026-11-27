@@ -396,7 +396,10 @@ _Avoid_: tool
 An MCP identity that manages work in granted projects and reads their state. It can optionally use its own text conversations in the Assistant.
 
 **Developer**
-An MCP identity that uses development tools in granted projects or worktrees. An agent session started in the IDE receives a managed Developer credential.
+An MCP identity that uses development tools in granted projects or worktrees. The IDE gives each ACP session its own managed Developer credential for its registered project.
+
+**Assistant delegation**
+A bounded Assistant task owned by the ACP session that requests it. It has a conversation in the Assistant tool.
 
 **Instructions**
 The files a project gives every AI: `AGENTS.md` at the root and in its folders.
@@ -488,7 +491,7 @@ A ticket of another lineage that must be merged before this one starts.
 _Avoid_: blocker, prerequisite
 
 **Development reservation**
-The claim one session holds on a ticket's development, so a ticket has one active development at a time. The Kanban UI, the MCP Supervisor tools and the assistant share it; it is released when the turn ends, the session fails, or it is stopped.
+The claim one ACP session or Assistant conversation holds on a worktree during development. It covers every ticket developed in that worktree.
 
 **Complexity**
 How hard a ticket's work is (low, medium, high); it picks the model and the effort of its conversations and sessions.

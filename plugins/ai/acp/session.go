@@ -367,15 +367,15 @@ func (s *Session) open(load bool) error {
 	s.caps = init.AgentCapabilities.PromptCapabilities
 	s.info.Caps = s.caps
 	acpID, cwd := s.acp, s.info.Cwd
-	s.mu.Unlock()
 	// The MCP server of the IDE, for the agents that reach a server over HTTP.
 	mcp := []any{}
 	noMCP := s.m.MCP != nil && !init.AgentCapabilities.MCPCapabilities.HTTP
-	if !noMCP && s.m.MCP != nil {
-		for _, m := range s.m.MCP() {
+	if !s.closed && !s.released && !noMCP && s.m.MCP != nil {
+		for _, m := range s.m.MCP(s.info.ID) {
 			mcp = append(mcp, m)
 		}
 	}
+	s.mu.Unlock()
 
 	var opened struct {
 		SessionID     string         `json:"sessionId"`
