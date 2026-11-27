@@ -343,9 +343,9 @@ func (s *Session) open(load bool) error {
 	s.mu.Unlock()
 	// The MCP server of the IDE, for the agents that reach a server over HTTP.
 	mcp := []any{}
-	noMCP := len(s.m.MCP) > 0 && !init.AgentCapabilities.MCPCapabilities.HTTP
-	if !noMCP {
-		for _, m := range s.m.MCP {
+	noMCP := s.m.MCP != nil && !init.AgentCapabilities.MCPCapabilities.HTTP
+	if !noMCP && s.m.MCP != nil {
+		for _, m := range s.m.MCP() {
 			mcp = append(mcp, m)
 		}
 	}

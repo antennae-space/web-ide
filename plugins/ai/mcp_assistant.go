@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"antennae.space/ide/lib/i18n"
@@ -32,7 +33,10 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 				if err != nil {
 					return "", err
 				}
-				lines, err := s.conversationLines(chatLocOf(sc.Root), "", a.Query, a.Limit, a.Active)
+				lines, err := s.conversationLines(chatLocOf(sc.Root), "", a.Query, a.Limit, a.Active, func(id string) bool {
+					c, err := s.loadChat(chatLocOf(sc.Root), id)
+					return err == nil && s.mcpChatAllowed(sc, c)
+				})
 				if err == nil && len(lines) == 0 {
 					return "No conversation.", nil
 				}
@@ -65,6 +69,9 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 				if err := json.Unmarshal(data, &c); err != nil {
 					return "", err
 				}
+				if !s.mcpChatAllowed(sc, &c) {
+					return "", fmt.Errorf("conversation is outside the MCP grant")
+				}
 				text := conversationText(data, a.Last, a.Tools)
 				return text + pendingQuestions(&c, "The user can answer in the Questions tool of the IDE."), nil
 			},
@@ -79,7 +86,7 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 				if err != nil {
 					return "", err
 				}
-				return s.reply(chatLocOf(sc.Root), sc.Root.ID, sc.Here.ID, sc.Lang, a.Chat, a.Message, assistant.AuthorMCP)
+				return s.reply(sc, chatLocOf(sc.Root), sc.Root.ID, sc.Here.ID, sc.Lang, a.Chat, a.Message, assistant.AuthorMCP)
 			},
 		},
 		{
@@ -124,8 +131,17 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 	if !s.modelInfo(ctx, a.Server, a.Model).found {
 		return "", i18n.Errorf("model %q is not available on server %q", a.Model, a.Server)
 	}
-	c := &engine.Chat{ID: assistant.NewID(), Title: strings.TrimSpace(a.Title), Mode: a.Mode, Server: a.Server, Model: a.Model}
+	c := &engine.Chat{MCPOwner: sc.Identity, MCPProject: sc.Here.ID, MCPTextOnly: sc.Supervisor, ID: assistant.NewID(), Title: strings.TrimSpace(a.Title), Mode: a.Mode, Server: a.Server, Model: a.Model}
 	c.AddUser(&engine.Message{Role: "user", Content: assistant.String(a.Message), Display: a.Message, Author: assistant.AuthorMCP})
 	s.startRun(chatLocOf(sc.Root), sc.Root.ID, sc.Here.ID, sc.Lang, c, 0)
 	return c.ID, nil
+}
+
+// An existing chat has the scope of its owner project, not the cwd a client supplies.
+func (s *A) mcpChatAllowed(sc plugins.MCPScope, c *engine.Chat) bool {
+	if sc.Supervisor && (c.MCPOwner != sc.Identity || !c.MCPTextOnly) {
+		return false
+	}
+	project := s.runProject(c, sc.Root.ID, sc.Root.ID)
+	return sc.AllowsProject == nil || sc.AllowsProject(project, sc.Root.ID)
 }

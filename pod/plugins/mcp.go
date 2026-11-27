@@ -34,6 +34,10 @@ type MCPScope struct {
 	URL string
 	// Lang is the language of the interface (the errors shown in a conversation).
 	Lang string
+	// Identity and AllowsProject come from the authenticated MCP grant.
+	Identity      string
+	Supervisor    bool
+	AllowsProject func(here, root string) bool
 }
 
 // ProjectURL is the page of a project in the IDE, at the address the user opens it.

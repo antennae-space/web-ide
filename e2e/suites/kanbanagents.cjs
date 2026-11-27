@@ -49,6 +49,20 @@ run(async ({ page }) => {
   const answer = await kp.waitForSelector('[data-testid=agent-message]:has-text("Briefing received")', { timeout: 15000 })
   const text = await answer.textContent()
   assert(text.includes('Briefing received (ticket #1). MCP web-ide:') && text.includes('Data export'), 'briefing received, kanban_get through the MCP server of the IDE: ' + text)
+  const cwd = repo + '/.ide/worktrees/1-data-export'
+  const worktreeID = JSON.parse(fs.readFileSync(process.env.E2E_DATA + '/projects.json', 'utf8')).find((p) => p.path === cwd).id
+  const managed = fs.readFileSync(process.env.E2E_DATA + '/mcp-managed/' + worktreeID, 'utf8')
+  const mainDenied = await mcp('list_commands', { cwd: repo }, managed)
+  assert(mainDenied.result.isError && mainDenied.result.content[0].text.includes('not granted'), 'the managed bearer cannot act in the main project')
+  const unrelated = await mcp('kanban_create', { title: 'An unrelated ticket' })
+  assert(!unrelated.result.isError, 'the Developer can create another ticket in the main project')
+  const ticketDenied = await mcp('kanban_get', { cwd, id: 2 }, managed)
+  assert(ticketDenied.result.isError && ticketDenied.result.content[0].text.includes('outside the MCP worktree'), 'the managed bearer cannot read another lineage')
+  const lineage = await mcp('kanban_create', { title: 'A step of this ticket', parent: 1 })
+  assert(!lineage.result.isError, 'the main project Developer can create a step in the worktree lineage')
+  const step = await mcp('kanban_get', { cwd, id: 3 }, managed)
+  assert(!step.result.isError && step.result.content[0].text.includes('A step of this ticket'), 'the managed bearer can read a step in its lineage')
+
   const prompt = await kp.textContent('[data-testid=agent-user]')
   assert(prompt.includes('You **develop** this ticket on the branch ticket/1-data-export') && prompt.includes('Develop ticket #1'), 'first prompt: the role, the ticket and the message')
   assert(prompt.includes('# How you work and write') && prompt.includes('one action and one expected result each'), 'first prompt: the rules of every AI (#228)')

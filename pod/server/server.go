@@ -76,7 +76,8 @@ type Server struct {
 	Name string
 	// MCPBase is the address the agents of the Agents tool reach the pod at (default: from
 	// Cfg.Addr), for its MCP endpoint.
-	MCPBase string
+	MCPBase        string
+	mcpCredentials sync.Mutex
 	// RelayURL is the relay the pod registers with (empty: no relay, the pod is local only).
 	RelayURL string
 	// ForceTurn tells the bootstrap page to run the tunnel through TURN (no direct path).
@@ -236,7 +237,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// Claude Code authenticates with the token as a bearer, not with the cookie.
+	// MCP authenticates with a scoped bearer. /open uses normal pod authentication.
 	if r.URL.Path == mcpPath {
 		s.serveMCP(w, r)
 		return

@@ -74,16 +74,16 @@ func (s *A) agentsOf(rt *runtime.Runtime) *acp.Manager {
 	return rt.Part("agents", func() any {
 		p := &agentsPart{a: s, project: rt.P.ID}
 		p.m = acp.NewManager(acp.Deps{Keeper: s.Keeper, Owner: rt.P.ID, Dir: s.Store.Path("agents", rt.P.ID), Root: rt.Root,
-			Catalog: acp.Catalog{Dir: s.Store.Path("acp")}, Version: s.Version, MCP: s.agentsMCP(), Emit: rt.Emit, OnTurn: s.quotaTurn})
+			Catalog: acp.Catalog{Dir: s.Store.Path("acp")}, Version: s.Version, MCP: func() []acp.MCPServer { return s.agentsMCP(rt.P.ID) }, Emit: rt.Emit, OnTurn: s.quotaTurn})
 		s.agentParts.add(p)
 		return p
 	}).(*agentsPart).m
 }
 
 // agentsMCP is the MCP server of the IDE as the sessions of the Agents tool reach it: the
-// listen address of the pod, the token as a bearer. Named like the server users add to Claude
+// listen address of the pod, a Developer credential as a bearer. Named like the server users add to Claude
 // Code (web-ide), so that the session's one replaces it instead of doubling its tools.
-func (s *A) agentsMCP() []acp.MCPServer {
+func (s *A) agentsMCP(project string) []acp.MCPServer {
 	svc := s.pod.Services() // read again: the address may be set after the registration
 	base := svc.MCPBase
 	if base == "" && svc.Cfg != nil && svc.Cfg.Addr != "" {
@@ -96,11 +96,15 @@ func (s *A) agentsMCP() []acp.MCPServer {
 		}
 		base = "http://" + net.JoinHostPort(host, port)
 	}
-	if base == "" {
+	if base == "" || svc.MCPDeveloperToken == nil {
+		return nil
+	}
+	token, err := svc.MCPDeveloperToken(project)
+	if err != nil {
 		return nil
 	}
 	return []acp.MCPServer{{Type: "http", Name: "web-ide", URL: strings.TrimSuffix(base, "/") + plugins.MCPPath,
-		Headers: []acp.Header{{Name: "Authorization", Value: "Bearer " + svc.Token}}}}
+		Headers: []acp.Header{{Name: "Authorization", Value: "Bearer " + token}}}}
 }
 
 // rootOf is the main project of a project (a worktree's parent), whose windows show its

@@ -40,7 +40,7 @@ A built-in plugin has the same shape, with its sources instead of built files: `
 | Tab view | `TabKind` (`state/project.ts`) becomes open: `plugin:<id>/<view>`, with a serializable state for the desk (diff, table, ticket today) |
 | Alternative view | by file pattern (`openWith`), source ↔ rendered toggle or side by side; the editor is the default view of text |
 | Tool | `zones.ts` takes plugin ids, each with a default zone (after the tools of the core), and keeps the place of a disabled one; a badge on the rail icon (like Problems); a tool also renders as a tile ([desks](desks.md)) |
-| Assistant tools | schema + backend handler, offered to the assistant, to Claude Code (`/mcp`) and to the ACP agents from one declaration. The assistant gets those of the plugins enabled on its project; the MCP endpoint serves every project (the `cwd` comes with each call), so it lists them all and refuses a call where the plugin is disabled |
+| Assistant tools | schema + backend handler, offered to the assistant, to Claude Code (`/mcp`) and to the ACP agents from one declaration. The assistant gets those of the plugins enabled on its project; the MCP endpoint serves every project (the `cwd` comes with each call), so it filters discovery by the MCP grant and refuses a call where the plugin is disabled |
 | Commands | Search Everywhere, keymap shortcuts, menus (explorer, editor, tab context menus) |
 | Settings | a JSON schema rendered as a section of the settings, synced like the others |
 | Languages | grammars (already one module per language), language server command, test patterns |
@@ -50,6 +50,13 @@ A built-in plugin has the same shape, with its sources instead of built files: `
 | Tool corner | the buttons of a tool in the [corner](../../GLOSSARY.md) of the zone or of the tile that shows it, before the ⋮ (#176): `toolCorner[toolId or viewId]()` — a tool keeps no button of its own in its head |
 
 Phase 1 opens the points the moved tools need: tool, tab view, assistant tools, commands (#113). The others open when a plugin needs them.
+
+### MCP authorization
+
+The pod applies the [MCP profile matrix](kanban.md#mcp-capability-profiles) to the resolved tool and its owner. It uses the same owner and tool checks for discovery and calls. Plugin enablement and capability requirements still apply to the authorized project. A manifest declaration, including an action that declares read access, does not grant MCP access.
+
+An operator may add a `pluginTools` object to a Developer credential in `mcp-clients.json`. Map a plugin ID to a list of exact tool names. This grants the plugin the requested operation with its existing permissions on the granted main project or family. Grant it only for reviewed tools. The pod reserves the policies for the AI, Kanban, database and Docker plugins.
+
 
 ## Capabilities between plugins
 

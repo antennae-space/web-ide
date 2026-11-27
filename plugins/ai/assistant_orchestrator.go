@@ -30,7 +30,7 @@ func (s *A) orchestratorTool(r *assistantRun, ref *runtimeRef, name string, a as
 }
 
 func (s *A) listConversations(r *assistantRun, query string, limit int) (assistant.ToolResult, error) {
-	lines, err := s.conversationLines(r.loc, r.id, query, limit, false)
+	lines, err := s.conversationLines(r.loc, r.id, query, limit, false, nil)
 	if err != nil {
 		return assistant.ToolResult{}, err
 	}
@@ -41,7 +41,7 @@ func (s *A) listConversations(r *assistantRun, query string, limit int) (assista
 	return assistant.OK(text, assistant.Tn(len(lines), "{n} conversation", "{n} conversations", nil)), nil
 }
 
-func (s *A) conversationLines(loc llm.ChatLocation, exclude, query string, limit int, active bool) ([]string, error) {
+func (s *A) conversationLines(loc llm.ChatLocation, exclude, query string, limit int, active bool, allowed func(string) bool) ([]string, error) {
 	list, err := s.LLM.ListChats(loc)
 	if err != nil {
 		return nil, err
@@ -53,6 +53,9 @@ func (s *A) conversationLines(loc llm.ChatLocation, exclude, query string, limit
 	var lines []string
 	for _, c := range list {
 		if c.ID == exclude || q != "" && !strings.Contains(strings.ToLower(c.Title), q) {
+			continue
+		}
+		if allowed != nil && !allowed(c.ID) {
 			continue
 		}
 		state, _ := s.stateOf(c.ID)

@@ -154,13 +154,36 @@ exports.run = (body, opts) =>
 /** Text of the active editor (without the trailing sentinel newline). */
 exports.text = (page) => page.evaluate(() => document.querySelector('.pane.active .ed-content').textContent.slice(0, -1))
 
-/** Calls a tool of the MCP endpoint of the pod, as Claude Code does (in the demo project by default). */
-exports.mcp = (name, args = {}) =>
+// Install an explicit grant for the demo after the browser registers it.
+const mcpTokens = { developer: crypto.randomBytes(32).toString('hex'), supervisor: crypto.randomBytes(32).toString('hex'), observer: crypto.randomBytes(32).toString('hex') }
+exports.mcpToken = (profile = 'developer') => {
+  const data = process.env.E2E_DATA
+  const projects = JSON.parse(fs.readFileSync(path.join(data, 'projects.json'), 'utf8'))
+  const demo = projects.find((p) => p.path === path.join(exports.WS, 'demo') && !p.parent)
+  if (!demo) throw new Error('The demo project must be registered before using MCP')
+  const grants = Object.fromEntries(Object.entries(mcpTokens).map(([name, token]) => [name, {
+    profile: name === 'observer' ? 'supervisor' : name,
+    tokenSha256: crypto.createHash('sha256').update(token).digest('hex'),
+    projects: { [demo.id]: true },
+    assistant: name !== 'supervisor',
+    pluginTools: name === 'developer' ? { hello: ['hello_greet'], alpha: ['alpha_where'] } : undefined,
+  }]))
+  const file = path.join(data, 'mcp-clients.json')
+  fs.writeFileSync(file + '.tmp', JSON.stringify(grants), { mode: 0o600 })
+  fs.renameSync(file + '.tmp', file)
+  return mcpTokens[profile]
+}
+
+exports.mcpRPC = (method, params, token = exports.mcpToken()) =>
   fetch(process.env.E2E_URL + '/mcp', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + process.env.E2E_TOKEN },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: { cwd: exports.WS + '/demo', ...args } } }),
-  }).then((r) => r.json())
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+  })
+
+/** Calls a scoped MCP tool in the demo project by default. */
+exports.mcp = (name, args = {}, token) =>
+  exports.mcpRPC('tools/call', { name, arguments: { cwd: exports.WS + '/demo', ...args } }, token).then((r) => r.json())
 
 /** Opens a folded section of the ticket view by its title. */
 exports.unfold = (page, title) => exports.inFrames(page).click(`.tk-section.folded .tk-section-toggle:has-text("${title}")`)

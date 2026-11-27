@@ -29,8 +29,9 @@ type mcpAnswer struct {
 }
 
 type mcpAsk struct {
-	q    Question
-	root string
+	q     Question
+	root  string
+	owner string
 	// done holds the answers until a call takes them (answered: no longer listed).
 	done     chan mcpAnswer
 	answered bool
@@ -46,7 +47,6 @@ var mcpAskTool = mcpTool{
 	},
 	run: func(ctx context.Context, s *Server, raw json.RawMessage) (string, error) {
 		var a struct {
-			Cwd       string          `json:"cwd"`
 			Questions json.RawMessage `json:"questions"`
 			Context   string          `json:"context"`
 			Wait      string          `json:"wait"`
@@ -54,16 +54,14 @@ var mcpAskTool = mcpTool{
 		if err := json.Unmarshal(raw, &a); err != nil {
 			return "", err
 		}
-		sc, err := s.mcpScope(a.Cwd)
-		if err != nil {
-			return "", err
-		}
+		access := accessForMCP(ctx)
+		sc := access.mcpScope
 		var ask *mcpAsk
 		if a.Wait != "" {
 			s.asks.mu.Lock()
 			ask = s.asks.items[a.Wait]
 			s.asks.mu.Unlock()
-			if ask == nil || ask.root != sc.root.ID {
+			if ask == nil || ask.q.Project != sc.here.ID || ask.owner != access.key {
 				return "", fmt.Errorf("no open questions %q: they were answered or the IDE restarted; ask again", a.Wait)
 			}
 		} else {
@@ -71,7 +69,7 @@ var mcpAskTool = mcpTool{
 			if err != nil {
 				return "", err
 			}
-			ask = s.newMCPAsk(sc, qs, a.Context)
+			ask = s.newMCPAsk(sc, qs, a.Context, access.key)
 		}
 		select {
 		case ans := <-ask.done:
@@ -93,7 +91,7 @@ var mcpAskTool = mcpTool{
 func init() { mcpTools = append(mcpTools, mcpAskTool) }
 
 // newMCPAsk puts questions of an MCP client in the Questions tool of its project.
-func (s *Server) newMCPAsk(sc mcpScope, qs []assistant.Question, context string) *mcpAsk {
+func (s *Server) newMCPAsk(sc mcpScope, qs []assistant.Question, context, owner string) *mcpAsk {
 	s.asks.mu.Lock()
 	s.asks.next++
 	id := "mcp:" + strconv.Itoa(s.asks.next)
@@ -101,7 +99,7 @@ func (s *Server) newMCPAsk(sc mcpScope, qs []assistant.Question, context string)
 	if sc.ticket != 0 {
 		title = fmt.Sprintf("#%d · %s", sc.ticket, title)
 	}
-	a := &mcpAsk{root: sc.root.ID, done: make(chan mcpAnswer, 1),
+	a := &mcpAsk{root: sc.root.ID, owner: owner, done: make(chan mcpAnswer, 1),
 		q: Question{ID: id, Source: "mcp", Project: sc.here.ID, Name: "Claude Code", Title: title, Kind: "ask", Questions: qs, Last: context, Time: time.Now().UnixMilli()}}
 	s.asks.items[id] = a
 	s.asks.mu.Unlock()

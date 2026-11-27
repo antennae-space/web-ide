@@ -105,7 +105,7 @@ func TestPushNotifications(t *testing.T) {
 	// A device subscribed in French (the feedback of the Kanban notifies through notify, #156).
 	a.call("client.lang", map[string]any{"lang": "fr"})
 	a.call("push.subscribe", map[string]any{"device": "dev1", "sub": "sub1", "p256dh": identity.B64u(ua.PublicKey().Bytes()), "auth": identity.B64u(auth)})
-	mc := &mcpClient{t: t, url: ts.URL, token: s.Token}
+	mc := newMCPClient(t, s, ts.URL, id)
 
 	// A question of an agent through MCP (Questions tool): the agent asks.
 	done := make(chan string, 1)

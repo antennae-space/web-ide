@@ -39,7 +39,7 @@ type Deps struct {
 	Version string
 	// MCP are the MCP servers given to the sessions (the one of the IDE), to the agents that
 	// support them over HTTP.
-	MCP []MCPServer
+	MCP func() []MCPServer
 }
 
 // MCPServer is an MCP server over HTTP as ACP passes it in session/new.

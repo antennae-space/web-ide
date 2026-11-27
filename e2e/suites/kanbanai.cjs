@@ -2,7 +2,8 @@
 // kanban_create / kanban_list from any conversation, writing tools only when linked,
 // Briefing mode (tickets created and linked to the conversation).
 const http = require('http')
-const { run, openProject, assert, unfold, OUT, WS, installOfficial, acceptConfirms, inFrames, dropNotes } = require('../common.cjs')
+const fs = require('fs')
+const { run, openProject, mcpToken, mcp, assert, unfold, OUT, WS, installOfficial, acceptConfirms, inFrames, dropNotes } = require('../common.cjs')
 
 const requests = []
 const sse = (res, delta) => res.write(`data: ${JSON.stringify({ choices: [{ index: 0, delta, finish_reason: null }] })}\n\n`)
@@ -30,6 +31,10 @@ const fake = http.createServer(async (req, res) => {
   const msgs = r.messages
   const last = msgs[msgs.length - 1]
   const firstUser = text(msgs.find((m) => m.role === 'user') ?? {})
+  if (firstUser === 'Supervisor conversation') {
+    sse(res, { tool_calls: calls([['mcp-command', 'bash', { command: 'touch mcp-forbidden' }]]) })
+    return end(res, 'tool_calls')
+  }
   if (firstUser === 'MCP first message') {
     sse(res, { content: 'MCP received ' + text(last) })
     return end(res)
@@ -473,7 +478,7 @@ run(async ({ page }) => {
     const mcpTool = (name, args) =>
       fetch(process.env.E2E_URL + '/mcp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + process.env.E2E_TOKEN },
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + mcpToken() },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: { cwd: WS + '/demo', id: 2, ...args } } }),
       })
         .then((r) => r.json())
@@ -512,7 +517,25 @@ run(async ({ page }) => {
       })
       const reply = await response.json()
       return reply.result?.content[0]?.text.includes('## Assistant\nMCP received MCP follow-up')
-    }, { url: process.env.E2E_URL + '/mcp', token: process.env.E2E_TOKEN, cwd: WS + '/demo', chat: externalChat })
+    }, { url: process.env.E2E_URL + '/mcp', token: mcpToken(), cwd: WS + '/demo', chat: externalChat })
+
+    const observer = mcpToken('observer')
+    const foreignChat = await mcp('assistant_send', { chat: externalChat, message: 'unexpected' }, observer)
+    assert(foreignChat.result.isError, 'Supervisor cannot steer another credential’s conversation')
+    const supervisorChat = await mcp('assistant_start', { message: 'Supervisor conversation' }, observer)
+    assert(!supervisorChat.result.isError, 'an explicit Supervisor Assistant grant starts a conversation')
+    const supervisorID = supervisorChat.result.content[0].text
+    const until = Date.now() + 10000
+    let transcript = ''
+    while (Date.now() < until && !transcript.includes('Tool unavailable in this MCP conversation')) {
+      const response = await mcp('assistant_read', { chat: supervisorID, tools: true }, observer)
+      transcript = response.result.content[0].text
+      await page.waitForTimeout(100)
+    }
+    const supervisorRequest = requests.find((req) => req.messages.some((msg) => msg.content === 'Supervisor conversation'))
+    assert(supervisorRequest && toolNames(supervisorRequest).length === 0, 'Supervisor Assistant receives no nested tools')
+    assert(transcript.includes('Tool unavailable in this MCP conversation'), 'the Assistant rejects a tool emitted despite discovery')
+    assert(!fs.existsSync(WS + '/demo/mcp-forbidden'), 'the denied Assistant tool creates no file')
 
     // Mobile: the idea is answered by swiping the card (right = Yes), and the compare stacks.
     await kp.click('[data-testid=assistant-new]')
