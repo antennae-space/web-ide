@@ -56,13 +56,55 @@ The pictures of this guide are made with Qwen3.8 27B on llama.cpp.
 
 **Aliases** are short texts you keep at hand. Type `/` in the message box of the assistant or of an agent and pick one (`/scr`, `/ref` and `/q` are there at the start): its text goes in the box, and you can change it before you send. Edit them in the *Aliases* tab of the settings of the assistant; they are the same in every project. When a command has the same name, the command stays in the list and the alias does not show in that box.
 
+### Connect an MCP client
+
+Use a dedicated bearer for each client. Choose the **Developer** profile for a local coding client or the **Supervisor** profile for a remote client that manages tickets. Give each call an absolute `cwd` within a granted local project. The pod resolves symbolic links and selects the deepest registered project or worktree.
+
+1. Find the ID of the project in its IDE URL or in `~/.web-ide/projects.json`. A registered worktree has its own ID.
+2. Generate a dedicated bearer and its SHA-256 digest on the pod machine. Keep the bearer private.
+   ```sh
+   umask 077
+   export WEB_IDE_MCP_TOKEN="$(openssl rand -hex 32)"
+   printf '%s' "$WEB_IDE_MCP_TOKEN" | openssl dgst -sha256
+   ```
+3. Create or edit `mcp-clients.json` in the pod data folder (default `~/.web-ide`). Set its permissions to `0600`. Each entry identifies a client. Replace the digest and project ID in this example with your own. Set the project value to `true` to include its registered worktrees or `false` for only that project.
+   ```json
+   {
+     "local-coding-client": {
+       "tokenSha256": "<hex SHA-256 digest>",
+       "profile": "developer",
+       "projects": {"<project-id>": true},
+       "assistant": true
+     }
+   }
+   ```
+4. Configure the client to call `http://127.0.0.1:4433/mcp` with the header `Authorization: Bearer <credential>`. The example configuration for this repository reads `WEB_IDE_MCP_TOKEN` for Claude Code and opencode. Give a remote client an HTTPS address for the pod. Use the granted working directory on the pod in its tool calls.
+
+Replace the bearer in every existing MCP configuration, including Claude Code entries added from Kanban settings. Keep the access token in your browser and normal pod integrations. The pod rejects it at `/mcp`.
+
+To revoke a manual client, remove its entry. To rotate its bearer, generate a fresh bearer and replace the digest in the same entry. The pod reads the file for each request. Use an atomic file replacement with the same private permissions. See the [MCP profile matrix](design/kanban.md#mcp-capability-profiles).
+
 ### Use the Assistant from an MCP client
 
-Give each call your absolute project folder as `cwd`. Use `assistant_list` to find a conversation by title or list active conversations. Use `assistant_read` to read its messages and pending questions. Use `assistant_send` to send a message. The message waits if a turn is running. Use `assistant_start` with a message to start a conversation in Build mode with the configured model. You can specify a mode or a model server and model. The normal approval and question cards appear in the IDE.
+Set `assistant` to `true` on the credential. Use `assistant_list` to find a conversation by title or list active conversations. Use `assistant_read` to read its messages. Use `assistant_send` to send a message. The message waits if a turn is running. Use `assistant_start` with a message to start a conversation in Build mode with the configured model. You can specify a mode or a model server and model.
+
+A Supervisor credential can use only its own text conversations. Developer conversations started or steered through MCP can also ask the user questions in the IDE. These limits stay with the conversation when the pod reloads it.
+
+### Steer an agent session from an MCP client
+
+The six tools of the **Supervisor** profile run the same development path as the *Dev session* button of the Kanban, so the session appears in the *Agents* tool with its tab, its thread and its statistics. `agent_providers` lists the CLI agents the pod can run, and the models a session of this project tells. `agent_start` takes a ticket number, a provider id, an optional model and a message. It answers the session id at once, while the agent initializes. Its first prompt is the ticket's briefing, then your message.
+
+The ticket must already have its worktree: you or a Developer prepare it first. The grant must cover the main project and its worktrees, `cwd` must be that worktree, and the ticket must be the step to develop of its lineage. The model you give is applied and confirmed before the first prompt; a session that cannot take it ends with its error, and a retry with a valid model opens a new session.
+
+One ticket has one active development. A second start through MCP is refused while a turn runs, and so is a start from the Kanban UI, and a development of the same ticket by a conversation of the assistant.
+
+`agent_list` lists the sessions of the project with their state, provider, model, ticket, queued prompts and statistics. `agent_read` reads one thread, bounded by `last` and by `tools` (the tool calls, the plan, the permissions asked). `agent_send` sends a prompt; it waits in the queue while a turn runs. `agent_stop` cancels the turn running and drops the prompts waiting, so nothing resumes. The session and its thread stay visible.
+
+The permission cards and the questions of the session stay in the IDE: the user answers them in the *Agents* and *Questions* tools, and `agent_read` shows the outcome. The **Developer** profile has none of these six tools, and the pod refuses its calls. A call refused by the grant changes nothing.
 
 ## Agents: Claude Code, Codex, opencode, pi
 
-To use Codex, install its adapter from the *Agents* tool. Run `codex login` in a terminal on the pod machine as the user running the pod. Open a Codex session in your project. The session receives the MCP server of the IDE, including the kanban tools when the plugin is enabled.
+To use Codex, install its adapter from the *Agents* tool. Run `codex login` in a terminal on the pod machine as the user running the pod. Open a Codex session in your project. The session receives a Developer credential for its project or ticket worktree, including the Kanban tools when the plugin is enabled.
 
 The *Agents* tool (right bar) runs the coding agents installed on your machine in the IDE, through the Agent Client Protocol: Claude Code (with your subscription or API key, as in the terminal), Codex, opencode and pi. Open it, pick an agent: *Install* fetches a missing adapter (`npm`, into the data folder of the pod), opencode is installed by hand. Each session is a tab working in the project: type a prompt in the same box as the assistant (`@` for a file, `/` for the commands of the agent and your aliases, files, images and doodles from the paperclip; Enter sends and Shift+Enter adds a line, ↑ brings back a prompt sent, the dictation shows its status above the box, the draft of each session survives a reload, a prompt sent during a turn waits for its end), follow its messages, tool calls and diffs, answer its permission cards and its questions, change its mode (the colored button, or Shift+Tab) or its model (at the right) under the box, as in the assistant. The options button holds its other settings (effort…); the ring shows the context used, and a click *Compact now*. The bar on top of the message box shows the work time and cost of the session (an API equivalent under a subscription, said in its tooltip, with the total of the ticket), and on the right the ticket of the worktree and the role on it; the assistant's bar shows the cost of the conversation next to its time too, when its model has a price. The bar of a Claude Code session on a subscription shows its **daily quota**: *Day 64 % · 5 h 30 %*, what is left of today's share of the week (a seventh of it: 100 % in the morning when you keep to the pace, more after a quiet day, negative when you go faster) and of the 5-hour window, orange under 20 %, red below zero. A click opens its card: today, the 5 hours and the week with their gauges and resets, the pace of the week marked on its gauge, and Opus when your plan has it. With a *Daily budget* in dollars in Settings > Plugins > AI, the other sessions and the conversations of the assistant on a paid model show what is left of it, from the cost of the agents and the assistant since midnight at API prices; a local model shows nothing. A narrow panel shows the day only. The switch at the top right of a session (*Chat · Board · Stats*, as in the assistant) shows the images you sent in it, to draw on again, and its statistics. The eye turns on the follow mode: each file the agent edits opens in the editor. A session keeps running when you close the window or update the pod. The tabs are those of the **desk**: closing a tab hides the session (it goes on, the `+` lists it to open it again, here or on another desk), *Stop the session* in the menu of its tab ends it. The + menu folds the sessions not open on this desk in **Other sessions**: *Open “…”* brings one here, *Stop “…”* ends it. The button at the left end of the tab bar opens the **sessions panel**: every session of the project, from this desk, from another desk or from an attached worktree, with its agent, its state and the chip of its worktree; a search filters it on the title, the agent or the ticket number; tick rows one by one, or the **Select all** box at the left of the panel's head to take every row the search shows at once (the box shows a mixed state when part of the rows are picked, and clears them when they all are); press *Stop* to end the selected ones, the IDE asks first with their number, and a stopped session goes from the panel, the tabs and the Explorer. The **+** of the tool sits in the corner of its zone, before the **⋮**, like the buttons of every tool; *Help: the Agents tool* is an item of that menu. The assistant too shows the conversation of the desk: each desk keeps its own. The tooltip of a tab, the header of a ticket and the Infos tool show the work time and the cost of the agents (an *API equivalent* under a subscription).
 

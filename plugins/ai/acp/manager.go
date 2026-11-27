@@ -34,12 +34,16 @@ type Deps struct {
 	// Command overrides the command line of an agent (tests).
 	Command func(agent string) ([]string, error)
 	Emit    func(event string, data any)
-	// OnTurn: a turn ended (the daily quota is read again).
-	OnTurn  func()
-	Version string
+	// OnTurn: a turn ended (the daily quota is read again, the development of a ticket is freed).
+	OnTurn func(info Info)
+	// OnState: a session went to error (a start that failed frees its ticket).
+	OnState func(info Info)
+	// OnClosed: a session ended (its ticket is free again).
+	OnClosed func(info Info)
+	Version  string
 	// MCP are the MCP servers given to the sessions (the one of the IDE), to the agents that
 	// support them over HTTP.
-	MCP []MCPServer
+	MCP func() []MCPServer
 }
 
 // MCPServer is an MCP server over HTTP as ACP passes it in session/new.
@@ -63,6 +67,8 @@ type Options struct {
 	Ticket int64
 	// Prompt is sent once the session is open.
 	Prompt string
+	// Model is the model asked for the session, applied before the first prompt.
+	Model string
 }
 
 type Manager struct {
@@ -213,6 +219,7 @@ func (m *Manager) restore() {
 		}
 		s := m.newSession(sv.Info)
 		s.th.Entries, s.acp, s.canLoad, s.nextID, s.first = sv.Entries, sv.ACP, sv.CanLoad, sv.NextID, sv.First
+		s.wantModel = sv.Model
 		s.caps, s.queue, s.images = sv.Caps, sv.Queue, sv.Images
 		s.reportedCost, s.subscription = sv.ReportedCost, sv.Subscription
 		s.info.Subscription = s.subscription
@@ -297,7 +304,7 @@ func (m *Manager) CreateWith(agent, cwd string, o Options) (Info, error) {
 		title = o.Title
 	}
 	s := m.newSession(Info{ID: newID(), Agent: agent, Name: a.Name, Title: title, Cwd: cwd, State: Starting, Started: time.Now().UnixMilli(), Ticket: o.Ticket})
-	s.first = o.Prompt
+	s.first, s.wantModel = o.Prompt, o.Model
 	_ = os.MkdirAll(m.Dir, 0o700)
 	_ = os.WriteFile(m.logFile(s.info.ID), nil, 0o600)
 	m.mu.Lock()
@@ -353,6 +360,7 @@ func (m *Manager) Close(id string) error {
 	m.mu.Unlock()
 	s.mu.Lock()
 	s.closed = true
+	info := s.info
 	if s.proc != nil {
 		s.proc.Kill()
 		s.proc = nil
@@ -367,6 +375,9 @@ func (m *Manager) Close(id string) error {
 	_ = os.RemoveAll(filepath.Join(m.Dir, id))
 	removeQuiet(m.logFile(id))
 	m.emit("agents.closed", map[string]string{"id": id})
+	if m.OnClosed != nil {
+		m.OnClosed(info) // its ticket is free for a new development
+	}
 	return nil
 }
 

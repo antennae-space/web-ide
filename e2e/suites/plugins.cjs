@@ -15,13 +15,13 @@
 const fs = require('fs')
 const path = require('path')
 const { execSync } = require('child_process')
-const { run, openProject, open, assert, mcp, WS, installOfficial, inFrames } = require('../common.cjs')
+const { run, openProject, mcpToken, open, assert, mcp, WS, installOfficial, inFrames } = require('../common.cjs')
 
 const text = (r) => r.result?.content?.[0]?.text ?? JSON.stringify(r)
 const tools = () =>
   fetch(process.env.E2E_URL + '/mcp', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + process.env.E2E_TOKEN },
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + mcpToken() },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
   })
     .then((r) => r.json())

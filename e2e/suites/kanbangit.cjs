@@ -5,7 +5,7 @@ const fs = require('fs')
 const path = require('path')
 const http = require('http')
 const { execSync } = require('child_process')
-const { run, openProject, assert, mcp, unfold, WS, OUT, installOfficial, acceptConfirms, inFrames } = require('../common.cjs')
+const { run, openProject, assert, mcp, mcpToken, unfold, WS, OUT, installOfficial, acceptConfirms, inFrames } = require('../common.cjs')
 
 const repo = WS + '/demo'
 const env = { ...process.env, GIT_AUTHOR_NAME: 'e2e', GIT_AUTHOR_EMAIL: 'e2e@x', GIT_COMMITTER_NAME: 'e2e', GIT_COMMITTER_EMAIL: 'e2e@x' }
@@ -114,10 +114,23 @@ run(async ({ page, ctx }) => {
     await kp.waitForSelector('[data-testid=ticket-status]:has-text("To do")')
     await kp.waitForSelector('[data-testid=ticket-goal]')
 
+    const supervisor = mcpToken('supervisor')
+    const wt = repo + '/.ide/worktrees/1-data-export'
+    const allowed = await mcp('kanban_get', { id: 1 }, supervisor)
+    assert(!allowed.result.isError, 'Supervisor reads the authorized ticket')
+    const forbiddenMove = await mcp('kanban_move', { id: 1, status: 'done' }, supervisor)
+    assert(forbiddenMove.result.isError && forbiddenMove.result.content[0].text.includes('status is not allowed'), 'Supervisor is denied the close action')
+    const ambiguousMove = await mcp('kanban_move', { id: 1, status: 'to_test', 'ſtatus': 'done' }, supervisor)
+    assert(ambiguousMove.result.isError && ambiguousMove.result.content[0].text.includes('must be ASCII'), 'alternate field spellings cannot override an authorized action')
+    const refused = await mcp('kanban_start', { id: 1 }, supervisor)
+    assert(refused.result.isError, 'Supervisor cannot start saved worktree setup')
+    assert(!fs.existsSync(wt), 'the refused start creates no worktree or setup log')
+    const state = await mcp('kanban_get', { id: 1 }, supervisor)
+    assert(state.result.content[0].text.includes('To do'), 'the refused start preserves the ticket status')
+
     // Start: branch + worktree, shown in the same window; Dev session runs the conversation there.
     const pages = ctx.pages().length
     await kp.click('[data-testid=ticket-start]')
-    const wt = repo + '/.ide/worktrees/1-data-export'
     await kp.waitForSelector('[data-testid=worktree-banner]:has-text("Ticket #1")', { timeout: 15000 })
     assert(ctx.pages().length === pages, 'worktree of the ticket shown in the same window')
     assert(fs.existsSync(wt + '/src/main.go'), 'worktree created in .ide/worktrees')

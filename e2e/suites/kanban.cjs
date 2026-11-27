@@ -2,7 +2,7 @@
 // ones folded: description, notes, plan, goals, files, attachments), workflow buttons, test
 // feedback, side panel, sync with a second window.
 const fs = require('fs')
-const { run, openProject, assert, mcp, unfold, WS, OUT, installOfficial, inFrames, acceptConfirms } = require('../common.cjs')
+const { run, openProject, mcpToken, assert, mcp, unfold, WS, OUT, installOfficial, inFrames, acceptConfirms } = require('../common.cjs')
 
 run(async ({ page, ctx }) => {
   // The views of the Kanban are frames of the page (#158).
@@ -254,7 +254,7 @@ run(async ({ page, ctx }) => {
   const tool = (name, args) =>
     fetch(process.env.E2E_URL + '/mcp', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + process.env.E2E_TOKEN },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + mcpToken() },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: { cwd: WS + '/demo', ...args } } }),
     }).then((r) => r.json())
   await tool('kanban_create', { title: 'Lineage root' })

@@ -2,12 +2,33 @@
 // the window, a message, a preview offered, the consoles, and a doodle asked to the user that
 // comes back as an image.
 const fs = require('fs')
-const { run, openProject, assert, mcp, WS, OUT } = require('../common.cjs')
+const { run, openProject, addProjectFolder, assert, mcp, mcpRPC, mcpToken, WS, OUT } = require('../common.cjs')
 
 const text = (r) => r.result?.content?.[0]?.text ?? JSON.stringify(r)
 
-run(async ({ page }) => {
+run(async ({ page, ctx }) => {
   await openProject(page)
+
+  const supervisor = mcpToken('supervisor')
+  const init = await (await mcpRPC('initialize', { clientInfo: { name: 'developer' } }, supervisor)).json()
+  assert(init.result.instructions.includes('Supervisor profile'), 'the bearer determines the profile')
+  assert((await mcpRPC('initialize', {}, process.env.E2E_TOKEN)).status === 401, 'the pod bearer fails at /mcp')
+  const discovered = async (token) => (await (await mcpRPC('tools/list', {}, token)).json()).result.tools.map((t) => t.name)
+  const supervised = await discovered(supervisor)
+  const developer = await discovered(mcpToken())
+  for (const tool of ['console_input', 'run_saved_command', 'share_preview', 'assistant_start']) {
+    assert(developer.includes(tool) && !supervised.includes(tool), 'profile discovery for ' + tool)
+    assert((await mcp(tool, {}, supervisor)).result.isError, 'direct invocation refused for ' + tool)
+  }
+  const other = await ctx.newPage()
+  await other.goto(process.env.E2E_URL + '/')
+  await addProjectFolder(other, 'other')
+  await other.waitForSelector('.menubar')
+  for (const token of [supervisor, mcpToken()]) {
+    const denied = await mcp('list_consoles', { cwd: WS + '/other' }, token)
+    assert(denied.result.isError && text(denied).includes('not granted'), 'a registered second project is out of scope')
+  }
+  await other.close()
 
   // open_file: the file shows in the editor, at its line.
   let r = await mcp('open_file', { path: 'notes.txt', line: 1 })

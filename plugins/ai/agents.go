@@ -65,6 +65,44 @@ func (r *agentParts) list() []*agentsPart {
 	return out
 }
 
+// devKey is the reservation key of a ticket's development in the project of its worktree.
+func devKey(project string, ticket int64) string {
+	return project + ":" + strconv.FormatInt(ticket, 10)
+}
+
+// devReserve keeps one development per ticket: the id of the session that owns its first turn,
+// taken before the prompt is scheduled. The owner is "" while the session is being created.
+type devReserve struct {
+	mu sync.Mutex
+	by map[string]string
+}
+
+// take reserves the ticket, and answers the session that owns its development already ("" when
+// the ticket was free and is now reserved by this call).
+func (r *devReserve) take(key string) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if cur, ok := r.by[key]; ok {
+		return cur
+	}
+	r.by[key] = ""
+	return ""
+}
+
+// setOwner records the session that owns the development.
+func (r *devReserve) setOwner(key, id string) {
+	r.mu.Lock()
+	r.by[key] = id
+	r.mu.Unlock()
+}
+
+// release frees the ticket (the turn ended, the start failed, the session closed).
+func (r *devReserve) release(key string) {
+	r.mu.Lock()
+	delete(r.by, key)
+	r.mu.Unlock()
+}
+
 // agentsOf is the manager of the sessions of the project of rt (nil on an SSH project: local
 // only for now).
 func (s *A) agentsOf(rt *runtime.Runtime) *acp.Manager {
@@ -73,17 +111,23 @@ func (s *A) agentsOf(rt *runtime.Runtime) *acp.Manager {
 	}
 	return rt.Part("agents", func() any {
 		p := &agentsPart{a: s, project: rt.P.ID}
+		free := func(info acp.Info) {
+			if info.Ticket != 0 {
+				s.devReserve.release(devKey(rt.P.ID, info.Ticket))
+			}
+		}
 		p.m = acp.NewManager(acp.Deps{Keeper: s.Keeper, Owner: rt.P.ID, Dir: s.Store.Path("agents", rt.P.ID), Root: rt.Root,
-			Catalog: acp.Catalog{Dir: s.Store.Path("acp")}, Version: s.Version, MCP: s.agentsMCP(), Emit: rt.Emit, OnTurn: s.quotaTurn})
+			Catalog: acp.Catalog{Dir: s.Store.Path("acp")}, Version: s.Version, Command: s.testAgentCommand, MCP: func() []acp.MCPServer { return s.agentsMCP(rt.P.ID) }, Emit: rt.Emit,
+			OnTurn: func(info acp.Info) { s.quotaTurn(); free(info) }, OnState: free, OnClosed: free})
 		s.agentParts.add(p)
 		return p
 	}).(*agentsPart).m
 }
 
 // agentsMCP is the MCP server of the IDE as the sessions of the Agents tool reach it: the
-// listen address of the pod, the token as a bearer. Named like the server users add to Claude
+// listen address of the pod, a Developer credential as a bearer. Named like the server users add to Claude
 // Code (web-ide), so that the session's one replaces it instead of doubling its tools.
-func (s *A) agentsMCP() []acp.MCPServer {
+func (s *A) agentsMCP(project string) []acp.MCPServer {
 	svc := s.pod.Services() // read again: the address may be set after the registration
 	base := svc.MCPBase
 	if base == "" && svc.Cfg != nil && svc.Cfg.Addr != "" {
@@ -96,11 +140,15 @@ func (s *A) agentsMCP() []acp.MCPServer {
 		}
 		base = "http://" + net.JoinHostPort(host, port)
 	}
-	if base == "" {
+	if base == "" || svc.MCPDeveloperToken == nil {
+		return nil
+	}
+	token, err := svc.MCPDeveloperToken(project)
+	if err != nil {
 		return nil
 	}
 	return []acp.MCPServer{{Type: "http", Name: "web-ide", URL: strings.TrimSuffix(base, "/") + plugins.MCPPath,
-		Headers: []acp.Header{{Name: "Authorization", Value: "Bearer " + svc.Token}}}}
+		Headers: []acp.Header{{Name: "Authorization", Value: "Bearer " + token}}}}
 }
 
 // rootOf is the main project of a project (a worktree's parent), whose windows show its
@@ -165,8 +213,12 @@ func (s *A) answerAgent(root, id string, a plugins.Answer) error {
 // agentsCap is the agents capability, as the Kanban uses it (pod/caps).
 type agentsCap struct{ s *A }
 
-func (c agentsCap) Develop(project, agent string, t caps.TicketBrief) (caps.AgentSession, bool, error) {
-	s := c.s
+// developTicket schedules the work of a ticket in its session, in the project of its worktree:
+// the path shared by the Kanban UI (caps.Agents) and the MCP supervisor tools. It reuses the
+// idle session of the ticket when the provider and the model match, else opens a new one. The
+// ticket is reserved before the first prompt is scheduled, so that a second development of the
+// same ticket fails cleanly.
+func (s *A) developTicket(project, agent string, t caps.TicketBrief) (caps.AgentSession, bool, error) {
 	if _, ok := engine.RoleInstructions[t.Role]; !ok {
 		return caps.AgentSession{}, false, i18n.Errorf("unknown role: %s", t.Role)
 	}
@@ -182,25 +234,47 @@ func (c agentsCap) Develop(project, agent string, t caps.TicketBrief) (caps.Agen
 	if t.Text != "" {
 		prompt += "\n\n---\n\n" + t.Text
 	}
+	key := devKey(project, t.ID)
+	if owner := s.devReserve.take(key); owner != "" {
+		return caps.AgentSession{}, false, i18n.Errorf("ticket #%d already has an active development (session %s)", t.ID, owner)
+	}
 	for _, info := range m.List() {
 		if info.Ticket != t.ID {
 			continue
+		}
+		if info.Agent != agent || (t.Model != "" && info.Model() != t.Model) {
+			continue
+		}
+		if info.State == acp.Starting || info.State == acp.Busy || info.State == acp.Asking {
+			s.devReserve.release(key)
+			return caps.AgentSession{}, false, i18n.Errorf("ticket #%d has a development running (session %s, %s)", t.ID, info.ID, info.State)
+		}
+		if info.State == acp.Failed {
+			continue // its end is in the thread: a retry opens a new session
 		}
 		sess, err := m.Get(info.ID)
 		if err != nil {
 			break
 		}
 		if err := sess.Prompt(prompt); err != nil {
+			s.devReserve.release(key)
 			return caps.AgentSession{}, false, err
 		}
+		s.devReserve.setOwner(key, info.ID)
 		return sessionOf(info), false, nil
 	}
-	info, err := m.CreateWith(agent, "", acp.Options{Title: "#" + strconv.FormatInt(t.ID, 10) + " " + t.Title, Ticket: t.ID, Prompt: prompt})
+	info, err := m.CreateWith(agent, "", acp.Options{Title: "#" + strconv.FormatInt(t.ID, 10) + " " + t.Title, Ticket: t.ID, Prompt: prompt, Model: t.Model})
 	if err != nil {
+		s.devReserve.release(key)
 		return caps.AgentSession{}, false, err
 	}
+	s.devReserve.setOwner(key, info.ID)
 	s.pod.Emit(project, "agents.created", info)
 	return sessionOf(info), true, nil
+}
+
+func (c agentsCap) Develop(project, agent string, t caps.TicketBrief) (caps.AgentSession, bool, error) {
+	return c.s.developTicket(project, agent, t)
 }
 
 func (c agentsCap) TicketSession(project string, ticket int64) (caps.AgentSession, bool) {

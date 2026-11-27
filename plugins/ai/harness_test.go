@@ -28,6 +28,8 @@ type fakePod struct {
 	rts map[string]*runtime.Runtime
 	// tools: the assistant tools of other plugins, by name: read only or not.
 	tools map[string]bool
+	// kanban answers the methods of the Kanban (the tests of the MCP agent tools set it).
+	kanban func(project, method string, params json.RawMessage) (json.RawMessage, error)
 }
 
 func (p *fakePod) setRuntime(project string, rt *runtime.Runtime) {
@@ -37,7 +39,10 @@ func (p *fakePod) setRuntime(project string, rt *runtime.Runtime) {
 	p.rts[project] = rt
 }
 
-func (p *fakePod) Runtime(string) (*runtime.Runtime, error) {
+func (p *fakePod) Runtime(project string) (*runtime.Runtime, error) {
+	if rt := p.rts[project]; rt != nil {
+		return rt, nil
+	}
 	return nil, errors.New("no runtime in the tests")
 }
 func (p *fakePod) OpenRuntime(project string) *runtime.Runtime           { return p.rts[project] }
@@ -74,8 +79,15 @@ func (p *fakePod) AssistantTools(*runtime.Runtime) []json.RawMessage { return ni
 func (p *fakePod) Notify(plugins.Note)                               {}
 func (p *fakePod) QuestionsChanged(string, string)                   {}
 func (p *fakePod) Plugin(id string) (plugins.Plugin, bool)           { return nil, false }
-func (p *fakePod) CallPlugin(context.Context, string, string, any) (json.RawMessage, error) {
-	return nil, errors.New("no Kanban in the tests of the AI")
+func (p *fakePod) CallPlugin(ctx context.Context, project, method string, params any) (json.RawMessage, error) {
+	if p.kanban == nil {
+		return nil, errors.New("no Kanban in the tests of the AI")
+	}
+	raw, err := json.Marshal(params)
+	if err != nil {
+		return nil, err
+	}
+	return p.kanban(project, method, raw)
 }
 func (p *fakePod) UICall(context.Context, string, string, string, any, bool, time.Duration) (plugins.UIResult, bool, bool) {
 	return plugins.UIResult{}, false, false
@@ -96,12 +108,16 @@ func (p *fakePod) StartSaved(*runtime.Runtime, string, bool) (commands.Command, 
 	return commands.Command{}, "", "", errors.New("no command in the tests")
 }
 
-type fakeHost struct{ pod *fakePod }
+// fakeHost records the MCP tools the plugin registers, so the tests call them as a client does.
+type fakeHost struct {
+	pod *fakePod
+	mcp map[string]plugins.MCPTool
+}
 
 func (h fakeHost) Handle(string, plugins.Handler)                  {}
 func (h fakeHost) HandleGlobal(string, plugins.Handler)            {}
 func (h fakeHost) AssistantTool(plugins.AssistantTool)             {}
-func (h fakeHost) MCPTool(plugins.MCPTool)                         {}
+func (h fakeHost) MCPTool(t plugins.MCPTool)                       { h.mcp[t.Name] = t }
 func (h fakeHost) Pod() plugins.Pod                                { return h.pod }
 func (h fakeHost) OnProjectOpen(func(rt *runtime.Runtime))         {}
 func (h fakeHost) OnWindows(func(n int))                           {}
@@ -128,6 +144,6 @@ func newTestA(t *testing.T, dir string) (*A, string) {
 	}
 	pod := &fakePod{svc: &plugins.Services{Store: st, Projects: reg}}
 	s := New()
-	s.Register(fakeHost{pod})
+	s.Register(fakeHost{pod: pod, mcp: map[string]plugins.MCPTool{}})
 	return s, p.ID
 }

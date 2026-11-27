@@ -2,6 +2,8 @@ package server
 
 import (
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -10,12 +12,15 @@ import (
 // The tools of the IDE in the MCP (#68): consoles, Docker, previews, and the tools a window
 // runs (answered here by the test client as the page would).
 func TestMCPIDETools(t *testing.T) {
-	_, ts := newServer(t)
+	s, ts := newServer(t)
 	a, _ := dial(t, ts, "secret-token-0123456789abcdef0123")
 	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.go"), nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
 	id := a.call("projects.create", map[string]any{"type": "local", "path": dir})["result"].(map[string]any)["id"].(string)
 	a.call("project.open", map[string]any{"id": id})
-	m := &mcpClient{t: t, url: ts.URL, token: "secret-token-0123456789abcdef0123"}
+	m := newMCPClient(t, s, ts.URL, id)
 	cwd := map[string]any{"cwd": dir}
 	with := func(kv ...any) map[string]any {
 		out := map[string]any{"cwd": dir}
@@ -70,7 +75,7 @@ func TestMCPIDETools(t *testing.T) {
 	done := make(chan string, 1)
 	go func() { done <- m.ok("open_file", with("path", "a.go", "line", 3)) }()
 	ev = answer("open_file", map[string]any{"content": "a.go opened in the editor, line 3.", "status": "ok"})
-	if args := ev["args"].(map[string]any); args["path"] != "a.go" || args["line"].(float64) != 3 || ev["project"] != id {
+	if args := ev["args"].(map[string]any); args["path"] != filepath.Join(dir, "a.go") || args["line"].(float64) != 3 || ev["project"] != id {
 		t.Fatalf("open_file event: %+v", ev)
 	}
 	if out := <-done; out != "a.go opened in the editor, line 3." {
@@ -100,9 +105,10 @@ func TestMCPIDETools(t *testing.T) {
 
 	// Without a window of the project, the tools of the window fail.
 	other := t.TempDir()
-	a.call("projects.create", map[string]any{"type": "local", "path": other})
+	otherID := a.call("projects.create", map[string]any{"type": "local", "path": other})["result"].(map[string]any)["id"].(string)
+	otherMCP := newMCPClient(t, s, ts.URL, otherID)
 	start := time.Now()
-	if out, failed := m.tool("show_message", map[string]any{"cwd": other, "text": "hi"}); !failed || !strings.Contains(out, "no window of the IDE is open") || time.Since(start) > 2*time.Second {
+	if out, failed := otherMCP.tool("show_message", map[string]any{"cwd": other, "text": "hi"}); !failed || !strings.Contains(out, "no window of the IDE is open") || time.Since(start) > 2*time.Second {
 		t.Fatalf("no window: %s", out)
 	}
 }

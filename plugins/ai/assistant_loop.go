@@ -421,6 +421,12 @@ func (s *A) complete(r *assistantRun, req llm.ChatRequest, stream string, resume
 // systemPrompt builds the system prompt of a run: the template of its mode, the
 // instructions and skills of the project, the ticket linked to the conversation.
 func (s *A) systemPrompt(r *assistantRun, ref *runtimeRef, c *engine.Chat, tools bool) string {
+	if c.MCPTextOnly {
+		return "Answer the request using the conversation. You have no tools or access to project files."
+	}
+	if c.MCPProject != "" {
+		return "Answer the request using the conversation. Use ask_user if you need input from the user."
+	}
 	ctx := s.LLM.LoadContext(llm.Project{Root: ref.rt.Root, FS: ref.rt.FS, IdeDir: ref.rt.IdeDir})
 	// A compaction dropped the tool results that carried the instructions of the subfolders:
 	// they come back with the others.
@@ -570,11 +576,13 @@ func (s *A) loop(r *assistantRun) {
 				return
 			}
 			r.mu.Lock()
-			tools := boolOr(o.Tools, true) && (!info.found || info.caps.Tools)
+			tools := !r.chat.MCPTextOnly && boolOr(o.Tools, true) && (!info.found || info.caps.Tools)
 			mode = r.chat.Mode
 			system := s.systemPrompt(r, ref, r.chat, tools)
 			req = llm.ChatRequest{Server: server, Model: model}
-			if tools {
+			if tools && r.chat.MCPProject != "" {
+				req.Tools = []json.RawMessage{assistant.AskUserDef.JSON}
+			} else if tools {
 				adopted := r.chat.Agent != nil && r.chat.Agent.Adopted
 				req.Tools = append(s.offered(ref.rt, engine.ToolsFor(mode, r.chat.Ticket, r.chat.Parent != "" && !adopted, engine.CanSpawn(r.chat), adopted)), s.pod.AssistantTools(ref.rt)...)
 			}
@@ -588,7 +596,7 @@ func (s *A) loop(r *assistantRun) {
 						// One effort per conversation, its changes in the history (#217).
 						req.Effort = localEffort(r.chat, model, effort, info.caps.SystemTurns)
 					}
-					if tools && o.EffortTool && dynamicEffort(o) {
+					if tools && r.chat.MCPProject == "" && o.EffortTool && dynamicEffort(o) {
 						req.Tools = append(req.Tools, engine.SetEffortDef.JSON)
 					}
 				}
@@ -778,6 +786,14 @@ func (s *A) runCalls(r *assistantRun, ref *runtimeRef, calls []engine.ToolCall, 
 			continue
 		}
 		name := call.Function.Name
+		if r.chat.MCPTextOnly || r.chat.MCPProject != "" && name != "ask_user" {
+			r.chat.Messages = append(r.chat.Messages, &engine.Message{Role: "tool", ToolCallID: call.ID, Name: name,
+				Content: assistant.String("Tool unavailable in this MCP conversation."), Status: "denied", Summary: assistant.T("not allowed", nil).Raw()})
+			s.publish(r, len(r.chat.Messages)-1)
+			r.mu.Unlock()
+			stop = true
+			continue
+		}
 		var args map[string]json.RawMessage
 		_ = json.Unmarshal([]byte(orEmpty(call.Function.Arguments)), &args)
 		switch name {

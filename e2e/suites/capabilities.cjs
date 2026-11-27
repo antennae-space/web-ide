@@ -8,7 +8,7 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { execFileSync } = require('child_process')
-const { run, openProject, assert, installOfficial, mcp, WS } = require('../common.cjs')
+const { run, openProject, assert, installOfficial, mcp, mcpToken, mcpRPC, WS } = require('../common.cjs')
 
 const alphaJS = `
 let count = 0
@@ -188,6 +188,11 @@ run(async ({ page }) => {
   }
   for (let i = 0; i < 30 && (got = await alpha('opened')) !== 'true'; i++) await page.waitForTimeout(100)
   assert(got === 'true', 'project.open reached the backend: ' + got)
+  const supervisor = mcpToken('supervisor')
+  const available = await (await mcpRPC('tools/list', {}, supervisor)).json()
+  assert(!available.result.tools.some((t) => t.name === 'alpha_where'), 'unclassified external tools are hidden from Supervisor')
+  const denied = await mcp('alpha_where', {}, supervisor)
+  assert(denied.result.isError && denied.result.content[0].text.includes('unavailable'), 'external backend call refused for Supervisor')
   const where = await mcp('alpha_where', {})
   const text = where.result?.content?.[0]?.text ?? JSON.stringify(where)
   assert(/^alpha_where: project \S+, main \S+$/.test(text) && !where.result.isError, 'an MCP tool of an external plugin, with its scope: ' + text)

@@ -110,12 +110,14 @@ type Agents interface {
 }
 
 // TicketBrief is what the prompt of a development agent says of its ticket: its role
-// (developer, reviewer…), the feedback it answers (0 for none), the ticket as Markdown and the
-// words of the user (Text).
+// (developer, reviewer…), the feedback it answers (0 for none), the ticket as Markdown, the
+// words of the user (Text) and the model asked for the session (Model, "" for the provider's
+// default).
 type TicketBrief struct {
 	ID, Parent, Feedback int64
 	Role, Title, Branch  string
 	Markdown, Text       string
+	Model                string
 }
 
 // AgentSession is a session of the Agents tool.

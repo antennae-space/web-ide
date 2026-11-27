@@ -52,7 +52,7 @@ func TestMCPRolePrompts(t *testing.T) {
 // after the cut is lost, and the rules come last.
 func TestMCPInstructionsSize(t *testing.T) {
 	s := &Server{Cfg: &config.Config{PublicURL: "https://antennae.space/pod/hYeU_VKC3_2D9fXmnF6npwky9byVv4EVlwvnAbw_hIg", Addr: "127.0.0.1:4433"}}
-	text := s.mcpInstructions()
+	text := s.mcpInstructions(mcpIdentity{mcpGrant: mcpGrant{Profile: mcpDeveloper}})
 	if !strings.HasSuffix(text, assistant.AgentRules) || !strings.Contains(text, "two addresses") {
 		t.Fatal(text)
 	}

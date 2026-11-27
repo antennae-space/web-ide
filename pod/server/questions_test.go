@@ -64,7 +64,7 @@ func TestQuestions(t *testing.T) {
 	}
 
 	// ask_user of a CLI agent through MCP: the call waits for the answer.
-	m := &mcpClient{t: t, url: ts.URL, token: "secret-token-0123456789abcdef0123"}
+	m := newMCPClient(t, s, ts.URL, id)
 	questions := []map[string]any{{"question": "Which database?", "options": []string{"SQLite", "Postgres"}}}
 	got := make(chan string, 1)
 	go func() {

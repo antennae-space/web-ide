@@ -112,7 +112,7 @@ func TestSavedCommandsForModels(t *testing.T) {
 	}
 
 	// The MCP endpoint.
-	m := &mcpClient{t: t, url: ts.URL, token: "secret-token-0123456789abcdef0123"}
+	m := newMCPClient(t, s, ts.URL, id)
 	if text := m.ok("list_commands", map[string]any{"cwd": dir}); !strings.Contains(text, tests+" · test · Tests") {
 		t.Fatalf("mcp list: %s", text)
 	}

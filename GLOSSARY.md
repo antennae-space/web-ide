@@ -392,6 +392,12 @@ _Avoid_: persona
 A function an AI calls (read a file, run a command, an MCP tool of the IDE) and its result.
 _Avoid_: tool
 
+**Supervisor**
+An MCP identity that manages work in granted projects and reads their state. It can optionally use its own text conversations in the Assistant.
+
+**Developer**
+An MCP identity that uses development tools in granted projects or worktrees. An agent session started in the IDE receives a managed Developer credential.
+
 **Instructions**
 The files a project gives every AI: `AGENTS.md` at the root and in its folders.
 _Avoid_: memory, rules
@@ -480,6 +486,9 @@ _Avoid_: epic, chain, children
 **Dependency**
 A ticket of another lineage that must be merged before this one starts.
 _Avoid_: blocker, prerequisite
+
+**Development reservation**
+The claim one session holds on a ticket's development, so a ticket has one active development at a time. The Kanban UI, the MCP Supervisor tools and the assistant share it; it is released when the turn ends, the session fails, or it is stopped.
 
 **Complexity**
 How hard a ticket's work is (low, medium, high); it picks the model and the effort of its conversations and sessions.
