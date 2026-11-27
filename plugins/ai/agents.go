@@ -249,6 +249,9 @@ func (s *A) developTicket(project, agent string, t caps.TicketBrief) (caps.Agent
 			s.devReserve.release(key)
 			return caps.AgentSession{}, false, i18n.Errorf("ticket #%d has a development running (session %s, %s)", t.ID, info.ID, info.State)
 		}
+		if info.State == acp.Failed {
+			continue // its end is in the thread: a retry opens a new session
+		}
 		sess, err := m.Get(info.ID)
 		if err != nil {
 			break

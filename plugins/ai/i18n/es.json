@@ -784,5 +784,19 @@
   "Show the other models ({n})": "Ver los otros modelos ({n})",
   "Hide the other models": "Ocultar los otros modelos",
   "Chosen: kept in the list, shown even when it excludes it": "Elegido: se mantiene en la lista y se muestra aunque el filtro lo excluya",
-  "generate_image calls the images API of the server (/v1/images/generations, /v1/images/edits): the server must answer it for the chosen model. The list shows the models the server marks as making images, and those whose outputs it does not tell; being marked for images is not enough when the server has no images API.": "generate_image llama a la API de imágenes del servidor (/v1/images/generations, /v1/images/edits): el servidor debe responderla para el modelo elegido. La lista muestra los modelos que el servidor marca como productores de imágenes y aquellos cuyas salidas no indica; estar marcado para imágenes no basta cuando el servidor no tiene API de imágenes."
+  "generate_image calls the images API of the server (/v1/images/generations, /v1/images/edits): the server must answer it for the chosen model. The list shows the models the server marks as making images, and those whose outputs it does not tell; being marked for images is not enough when the server has no images API.": "generate_image llama a la API de imágenes del servidor (/v1/images/generations, /v1/images/edits): el servidor debe responderla para el modelo elegido. La lista muestra los modelos que el servidor marca como productores de imágenes y aquellos cuyas salidas no indica; estar marcado para imágenes no basta cuando el servidor no tiene API de imágenes.",
+  "%s does not select a model: none is offered": "%s no selecciona un modelo: no se ofrece ninguno",
+  "model %q is not available for %s: %s": "el modelo %q no está disponible para %s: %s",
+  "the model %q was not applied: %v": "el modelo %q no se aplicó: %v",
+  "%s did not confirm the model %q": "%s no confirmó el modelo %q",
+  "ticket #%d already has an active development (session %s)": "el ticket #%d ya tiene un desarrollo activo (sesión %s)",
+  "ticket #%d has a development running (session %s, %s)": "el ticket #%d tiene un desarrollo en curso (sesión %s, %s)",
+  "id is missing: the ticket to develop": "falta id: el ticket a desarrollar",
+  "provider is missing: pick one in agent_providers": "falta provider: elige uno en agent_providers",
+  "the ticket has no worktree: start its development in the IDE first": "el ticket no tiene worktree: empieza su desarrollo en el IDE primero",
+  "the worktree of ticket #%d is not registered in the IDE: open the worktree first": "el worktree del ticket #%d no está registrado en el IDE: abre el worktree primero",
+  "cwd must be the worktree of ticket #%d (%s)": "cwd debe ser el worktree del ticket #%d (%s)",
+  "the worktree is outside the MCP grant": "el worktree está fuera del permiso MCP",
+  "ticket #%d is not the step to develop of its lineage: the active step is #%d": "el ticket #%d no es la etapa a desarrollar de su linaje: la etapa activa es el #%d",
+  "ticket #%d is developed by a conversation of the assistant: one development at a time": "el ticket #%d es desarrollado por una conversación del asistente: un desarrollo a la vez"
 }
