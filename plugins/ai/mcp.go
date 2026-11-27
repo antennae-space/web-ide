@@ -51,6 +51,9 @@ func (s *A) mcpTools() []plugins.MCPTool {
 				if !linked {
 					return "", fmt.Errorf("conversation %s is not linked to ticket #%d", a.Chat, id)
 				}
+				if sc.AllowsProject != nil && !sc.AllowsProject(s.ticketChatProject(ctx, sc, t, a.Chat), sc.Root.ID) {
+					return "", fmt.Errorf("conversation is outside the MCP grant")
+				}
 				raw, err := s.LLM.GetChat(chatLocOf(sc.Root), a.Chat)
 				if err != nil {
 					return "", err
@@ -75,7 +78,7 @@ func (s *A) mcpTools() []plugins.MCPTool {
 				if err != nil {
 					return "", err
 				}
-				return s.reply(lc.loc, lc.root, lc.project, sc.Lang, a.Chat, a.Message, assistant.AuthorClaude)
+				return s.reply(sc, lc.loc, lc.root, lc.project, sc.Lang, a.Chat, a.Message, assistant.AuthorClaude)
 			}),
 		},
 		{
@@ -99,7 +102,7 @@ func (s *A) mcpTools() []plugins.MCPTool {
 				if err != nil {
 					return "", err
 				}
-				return s.answer(lc.loc, lc.root, lc.project, sc.Lang, a.Chat, a.Answers, a.Notes)
+				return s.answer(sc, lc.loc, lc.root, lc.project, sc.Lang, a.Chat, a.Answers, a.Notes)
 			}),
 		},
 	}
@@ -124,7 +127,11 @@ func (s *A) linkedChat(ctx context.Context, sc plugins.MCPScope, id int64, chatI
 	if err != nil {
 		return linkedChat{}, err
 	}
-	return linkedChat{loc: loc, root: root, project: s.ticketChatProject(ctx, sc, t, chatID)}, nil
+	project := s.ticketChatProject(ctx, sc, t, chatID)
+	if sc.AllowsProject != nil && !sc.AllowsProject(project, root) {
+		return linkedChat{}, fmt.Errorf("conversation is outside the MCP grant")
+	}
+	return linkedChat{loc: loc, root: root, project: project}, nil
 }
 
 // ticketChatProject is where the tools of a linked conversation work: the worktree of the
@@ -154,17 +161,22 @@ func (s *A) ticketChatProject(ctx context.Context, sc plugins.MCPScope, t *kbTic
 }
 
 // reply queues a message from an MCP client during a turn, or starts a new turn.
-func (s *A) reply(loc llm.ChatLocation, root, project, lang, id, text, author string) (string, error) {
+func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang, id, text, author string) (string, error) {
 	if strings.TrimSpace(text) == "" {
 		return "", fmt.Errorf("message is empty")
 	}
 	if r := s.run(id); r != nil {
 		r.mu.Lock()
-		if r.root != root {
+		if r.root != root || sc.AllowsProject != nil && !sc.AllowsProject(r.project, root) || sc.Supervisor && (r.chat.MCPOwner != sc.Identity || !r.chat.MCPTextOnly) {
 			r.mu.Unlock()
 			return "", fmt.Errorf("conversation %s is not in this project", id)
 		}
 		if !r.done {
+			if r.chat.Parent != "" || r.chat.Agent != nil {
+				r.mu.Unlock()
+				return "", fmt.Errorf("MCP cannot steer a delegated conversation")
+			}
+			r.chat.MCPProject = r.project
 			r.chat.Queue = append(r.chat.Queue, engine.QueuedMessage{ID: assistant.NewID(), Text: text, Author: author})
 			s.publish(r, -1)
 			r.mu.Unlock()
@@ -176,11 +188,15 @@ func (s *A) reply(loc llm.ChatLocation, root, project, lang, id, text, author st
 	if err != nil {
 		return "", err
 	}
+	if !s.mcpChatAllowed(sc, chat) || chat.Parent != "" || chat.Agent != nil {
+		return "", fmt.Errorf("conversation is outside the MCP grant")
+	}
 	if chat.Server == "" || chat.Model == "" {
 		return "", fmt.Errorf("this conversation has no model yet: the user must send its first message")
 	}
+	project = s.runProject(chat, root, project)
+	chat.MCPProject = project
 	if author == assistant.AuthorMCP {
-		project = s.runProject(chat, root, project)
 		revive(chat)
 	}
 	from := minFrom(len(chat.Messages), skipQuestions(chat))
@@ -197,7 +213,7 @@ func (s *A) reply(loc llm.ChatLocation, root, project, lang, id, text, author st
 
 // answer answers the questions of ask_user waiting in a conversation (kanban_answer of the
 // MCP), then starts it.
-func (s *A) answer(loc llm.ChatLocation, root, project, lang, id string, answers [][]string, notes []string) (string, error) {
+func (s *A) answer(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang, id string, answers [][]string, notes []string) (string, error) {
 	if s.run(id) != nil {
 		return "", fmt.Errorf("the conversation is running: no question waits for an answer")
 	}
@@ -205,6 +221,11 @@ func (s *A) answer(loc llm.ChatLocation, root, project, lang, id string, answers
 	if err != nil {
 		return "", err
 	}
+	if !s.mcpChatAllowed(sc, chat) || chat.Parent != "" || chat.Agent != nil {
+		return "", fmt.Errorf("conversation is outside the MCP grant")
+	}
+	project = s.runProject(chat, root, project)
+	chat.MCPProject = project
 	index := -1
 	for i, m := range chat.Messages {
 		if m.AskState == "pending" {

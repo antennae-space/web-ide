@@ -129,28 +129,10 @@ func (h pluginHost) MCPTool(t plugins.MCPTool) {
 	h.s.plugins.mcp = append(h.s.plugins.mcp, pluginMCPTool{plugin: h.id, tool: t})
 }
 
-func (s *Server) findPluginMCPTool(name string) *pluginMCPTool {
-	for _, t := range s.allMCPTools() {
-		if t.tool.Name == name {
-			return &t
-		}
-	}
-	return nil
-}
-
 // runPluginMCPTool runs a tool of a plugin offered to the MCP in the project of the folder of
 // the client: refused where the plugin is disabled, or the capability it needs is off.
 func (s *Server) runPluginMCPTool(ctx context.Context, t *pluginMCPTool, args json.RawMessage) (string, error) {
-	a, err := bind[struct {
-		Cwd string `json:"cwd"`
-	}](args)
-	if err != nil {
-		return "", err
-	}
-	sc, err := s.mcpScope(a.Cwd)
-	if err != nil {
-		return "", err
-	}
+	sc := accessForMCP(ctx).mcpScope
 	rt, err := s.openRuntime(sc.here.ID, sshx.Creds{})
 	if err != nil {
 		return "", err
@@ -161,7 +143,7 @@ func (s *Server) runPluginMCPTool(ctx context.Context, t *pluginMCPTool, args js
 	if c := t.tool.Needs; c != "" && !s.capabilityOn(rt, c) {
 		return "", i18n.Errorf("%s needs the %s capability, off on this project (Settings > Plugins)", t.tool.Name, c)
 	}
-	return t.tool.Run(ctx, plugins.MCPScope{Here: sc.here, Root: sc.root, Ticket: sc.ticket, URL: s.publicURL(), Lang: s.uiLanguage()}, args)
+	return t.tool.Run(ctx, s.mcpPluginScope(ctx), args)
 }
 
 func (s *Server) registerPlugins() {
@@ -285,8 +267,7 @@ func (s *Server) findPluginTool(name string) *pluginTool {
 // runPluginTool runs an assistant tool of a plugin on rt's project (the assistant and the MCP).
 func (s *Server) runPluginTool(ctx context.Context, rt *runtime.Runtime, t *pluginTool, args json.RawMessage, lang string, options json.RawMessage) (assistant.ToolResult, error) {
 	if !s.pluginOn(rt, t.plugin) {
-		m, _ := s.Plugins.Get(t.plugin)
-		return assistant.ToolResult{}, i18n.Errorf("the %s plugin is disabled on this project", m.Manifest().Name)
+		return assistant.ToolResult{}, i18n.Errorf("the %s plugin is disabled on this project", s.pluginName(rt, t.plugin))
 	}
 	res, err := t.tool.Run(ctx, plugins.Call{Runtime: rt, Params: args, Lang: lang, Options: options})
 	if err != nil {
@@ -642,5 +623,5 @@ func (p podLend) StartSaved(rt *runtime.Runtime, id string, restart bool) (comma
 func (p podLend) Services() *plugins.Services {
 	s := p.s
 	return &plugins.Services{Store: s.Store, Projects: s.Projects, Cfg: s.Cfg, Keeper: s.Keeper, Desks: s.Desks,
-		Token: s.Token, MCPBase: s.MCPBase, Version: s.Version, Commands: s.projectCommands, Models: s.Models}
+		MCPBase: s.MCPBase, MCPDeveloperToken: s.managedMCPToken, Version: s.Version, Commands: s.projectCommands, Models: s.Models}
 }

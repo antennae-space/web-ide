@@ -7,7 +7,7 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { run, openProject, assert, mcp, installOfficial, WS } = require('../common.cjs')
+const { run, openProject, assert, mcp, mcpToken, installOfficial, WS } = require('../common.cjs')
 
 const DATA = process.env.E2E_DATA
 const frame = (page, view) => page.frameLocator(`iframe.plugin-frame[data-view=${view}]`)
@@ -153,6 +153,9 @@ run(async ({ page }) => {
   assert(r.result?.isError || /readonly|read-only|query_only/i.test(text(r)), 'a write in a read-only query fails in the database: ' + text(r))
   r = await mcp('database_execute', { conn: 'legacy', query: 'DELETE FROM users' })
   assert(r.result?.isError && text(r).includes('read only'), 'execute is read only by default: ' + text(r))
-  r = await mcp('database_query', { conn: 'legacy', query: 'SELECT count(*) AS n FROM users' })
-  assert(text(r).includes('250'), 'nothing deleted: ' + text(r))
+  const supervisor = mcpToken('supervisor')
+  r = await mcp('database_execute', { conn: 'legacy', query: 'DELETE FROM users' }, supervisor)
+  assert(r.result?.isError && text(r).includes('unavailable'), 'Supervisor cannot request a database write')
+  r = await mcp('database_query', { conn: 'legacy', query: 'SELECT count(*) AS n FROM users' }, supervisor)
+  assert(!r.result?.isError && text(r).includes('250'), 'the Supervisor can read and nothing was deleted: ' + text(r))
 })

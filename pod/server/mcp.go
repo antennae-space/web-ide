@@ -11,14 +11,13 @@ import (
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/pod/assistant"
 	"antennae.space/ide/pod/plugins"
-	"antennae.space/ide/pod/runtime"
 )
 
 // MCP endpoint: Claude Code (or any MCP client) reads and changes the tickets of the
 // kanban (the tools of the Kanban and AI plugins), with the rules of the model and the author
 // "claude" (docs/design/kanban.md), runs the saved commands and reaches the IDE. Streamable
 // HTTP transport without streaming: each POST carries JSON-RPC messages and gets its
-// answers as JSON. Authenticated by the token of the pod as a bearer.
+// answers as JSON. Authenticated by a scoped MCP bearer.
 
 const mcpPath = plugins.MCPPath
 
@@ -31,7 +30,7 @@ const mcpInstructions = `Kanban of the Web IDE of the user: tickets go New → T
 Milestones (kanban_milestone) group the tickets of one feature with its spec and user stories; only the user validates them. Objectives (kanban_objective) are named deadlines in order (MVP, a launch), taking tickets of several milestones; a ticket has one at most, apart from its milestone.
 Pass cwd (your working directory) to every tool: it selects the project; in the worktree of a ticket, that ticket is the default id.
 The saved commands of the project (list_commands, run_saved_command) run in consoles of the IDE that the user sees: use them for a development server or a command the user set up.
-The IDE itself: its consoles (list_consoles, read_console, console_input), Docker (docker_ps, docker_logs), app previews to try on any device (share_preview, list_previews), and what shows in its window (open_file, open_diff, focus, show_message, request_doodle for a drawing of the user).
+The IDE itself: its consoles (list_consoles, read_console, console_input), app previews to try on any device (share_preview, list_previews), and what shows in its window (open_file, open_diff, focus, show_message, request_doodle for a drawing of the user).
 When a choice is the user's, ask_user puts your questions in the Questions tool of the IDE and returns the answers.
 Your changes are shown as written by Claude. Keep descriptions under 1500 characters and notes under 1000: notes are for decisions, not reports.
 When you mention a file of the project to the user, write it as a Markdown link to the IDE: [path:line](` + "<ide>" + `/open?path=<absolute path>&line=<line>), so that a click opens it in the IDE.`
@@ -67,9 +66,10 @@ func (s *Server) bearer(r *http.Request) bool {
 }
 
 func (s *Server) serveMCP(w http.ResponseWriter, r *http.Request) {
-	if !s.bearer(r) {
+	identity, ok := s.authenticateMCP(r)
+	if !ok {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="web-ide"`)
-		http.Error(w, "the token of the pod is needed as a bearer (~/.web-ide/token)", http.StatusUnauthorized)
+		http.Error(w, "a scoped MCP bearer is required", http.StatusUnauthorized)
 		return
 	}
 	if r.Method != http.MethodPost {
@@ -102,7 +102,7 @@ func (s *Server) serveMCP(w http.ResponseWriter, r *http.Request) {
 		if len(m.ID) == 0 || m.Method == "" {
 			continue // a notification, or an answer to a request this server never sends
 		}
-		replies = append(replies, s.mcpCall(r.Context(), m))
+		replies = append(replies, s.mcpCall(r.Context(), identity, m))
 	}
 	switch {
 	case len(replies) == 0:
@@ -119,7 +119,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 	_ = json.NewEncoder(w).Encode(v)
 }
 
-func (s *Server) mcpCall(ctx context.Context, m mcpMessage) mcpReply {
+func (s *Server) mcpCall(ctx context.Context, identity mcpIdentity, m mcpMessage) mcpReply {
 	reply := mcpReply{JSONRPC: "2.0", ID: m.ID}
 	fail := func(code int, msg string) mcpReply {
 		reply.Error = &mcpError{code, msg}
@@ -138,23 +138,21 @@ func (s *Server) mcpCall(ctx context.Context, m mcpMessage) mcpReply {
 			"protocolVersion": version,
 			"capabilities":    map[string]any{"tools": map[string]any{}, "prompts": map[string]any{}},
 			"serverInfo":      map[string]any{"name": "web-ide", "title": "Web IDE", "version": s.Version},
-			"instructions":    s.mcpInstructions(),
+			"instructions":    s.mcpInstructions(identity),
 		}
 	case "ping":
 		reply.Result = map[string]any{}
 	case "tools/list":
-		tools := make([]map[string]any, 0, len(mcpTools))
-		for _, t := range mcpTools {
-			tools = append(tools, map[string]any{"name": t.name, "description": t.description, "inputSchema": t.schema()})
+		var tools []map[string]any
+		seen := map[string]bool{}
+		for _, t := range s.mcpTargets() {
+			if !seen[t.name] && s.allowsMCPTool(identity, t) {
+				tools = append(tools, map[string]any{"name": t.name, "description": t.description, "inputSchema": t.schema()})
+			}
+			seen[t.name] = true
 		}
-		// The tools of every plugin: the endpoint serves every project (cwd comes with each call),
-		// a call on a project where its plugin is disabled is refused.
-		for _, p := range s.allPluginTools() {
-			t := mcpTool{props: p.tool.Props, required: p.tool.Required}
-			tools = append(tools, map[string]any{"name": p.tool.Name, "description": p.tool.Description, "inputSchema": t.schema()})
-		}
-		for _, p := range s.allMCPTools() {
-			tools = append(tools, map[string]any{"name": p.tool.Name, "description": p.tool.Description, "inputSchema": plugins.MCPSchema(p.tool.Props, p.tool.Required)})
+		if tools == nil {
+			tools = []map[string]any{}
 		}
 		reply.Result = map[string]any{"tools": tools}
 	case "tools/call":
@@ -165,44 +163,56 @@ func (s *Server) mcpCall(ctx context.Context, m mcpMessage) mcpReply {
 		if err != nil {
 			return fail(-32602, err.Error())
 		}
-		t := findMCPTool(a.Name)
-		if p := s.findPluginMCPTool(a.Name); t == nil && p != nil {
-			t = &mcpTool{run: func(ctx context.Context, s *Server, raw json.RawMessage) (string, error) {
-				return s.runPluginMCPTool(ctx, p, raw)
-			}}
+		var t *mcpTarget
+		for _, target := range s.mcpTargets() {
+			if target.name == a.Name {
+				t = &target
+				break
+			}
 		}
-		if p := s.findPluginTool(a.Name); t == nil && p != nil {
-			t = &mcpTool{run: ideTool(func(ctx context.Context, s *Server, _ assistant.Args, _ mcpScope, rt *runtime.Runtime) (assistant.ToolResult, error) {
-				return s.runPluginTool(ctx, rt, p, a.Arguments, "en", nil)
-			})}
+		if t == nil || !s.allowsMCPTool(identity, *t) {
+			reply.Result = mcpToolError("tool is unavailable to this MCP profile")
+			return reply
 		}
-		if t == nil {
-			return fail(-32602, "unknown tool: "+a.Name)
+		ctx, arguments, err := s.authorizeMCPCall(ctx, identity, *t, a.Arguments)
+		if err != nil {
+			reply.Result = mcpToolError(err.Error())
+			return reply
 		}
 		if needsOf(a.Name) != "" {
-			if _, _, rt, err := s.mcpIDE(a.Arguments); err == nil {
-				if err := s.missingFor(rt, a.Name); err != nil {
-					return mcpReply{JSONRPC: "2.0", ID: m.ID, Result: map[string]any{"content": []any{textContent("Error: " + err.Error())}, "isError": true}}
-				}
+			_, _, rt, err := s.mcpIDE(ctx, arguments)
+			if err == nil {
+				err = s.missingFor(rt, a.Name)
+			}
+			if err != nil {
+				reply.Result = mcpToolError(err.Error())
+				return reply
 			}
 		}
 		var content []any
 		if t.rich != nil {
-			content, err = t.rich(ctx, s, a.Arguments)
+			content, err = t.rich(ctx, s, arguments)
 		} else {
 			var text string
-			text, err = t.run(ctx, s, a.Arguments)
+			text, err = t.run(ctx, s, arguments)
 			content = []any{textContent(text)}
 		}
 		if err != nil {
 			// Tool errors go back to the model, which can correct its call.
-			reply.Result = map[string]any{"content": []any{textContent("Error: " + err.Error())}, "isError": true}
+			reply.Result = mcpToolError(err.Error())
 			return reply
 		}
 		reply.Result = map[string]any{"content": content}
 	case "prompts/list":
-		reply.Result = map[string]any{"prompts": mcpPromptList()}
+		prompts := []map[string]any{}
+		if identity.Profile == mcpDeveloper {
+			prompts = mcpPromptList()
+		}
+		reply.Result = map[string]any{"prompts": prompts}
 	case "prompts/get":
+		if identity.Profile != mcpDeveloper {
+			return fail(-32602, "prompt is unavailable to this MCP profile")
+		}
 		a, err := bind[struct {
 			Name      string            `json:"name"`
 			Arguments map[string]string `json:"arguments"`
@@ -223,8 +233,18 @@ func (s *Server) mcpCall(ctx context.Context, m mcpMessage) mcpReply {
 
 // mcpInstructions names the addresses of the IDE, the public one and the local one beside it,
 // then the rules of every AI.
-func (s *Server) mcpInstructions() string {
+func mcpToolError(message string) map[string]any {
+	return map[string]any{"content": []any{textContent("Error: " + message)}, "isError": true}
+}
+
+func (s *Server) mcpInstructions(identity mcpIdentity) string {
 	text := mcpInstructions
+	if identity.Profile == mcpSupervisor {
+		text = "You have the Supervisor profile. Use tools/list to find the allowed operations. Pass an absolute cwd inside a granted project."
+		if identity.Assistant {
+			text += " You can start and use your own text-only Assistant conversations."
+		}
+	}
 	if pub, local := s.publicURL(), s.localURL(); pub != local {
 		text += strings.ReplaceAll(mcpLocal, "<local>", local)
 	}

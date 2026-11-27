@@ -19,7 +19,9 @@ const DefaultAddr = "127.0.0.1:4433"
 const DefaultRelay = "wss://antennae.space"
 
 type Config struct {
-	Addr string `json:"addr"`
+	// DisableManagedMCP turns off credentials issued to the local Agents tool.
+	DisableManagedMCP bool   `json:"disableManagedMcp,omitempty"`
+	Addr              string `json:"addr"`
 	// Projects is the projects folder: where new projects are made (default ~/Apps).
 	Projects string `json:"projects"`
 	// Workspace is the former key of Projects, still read (and no longer written).

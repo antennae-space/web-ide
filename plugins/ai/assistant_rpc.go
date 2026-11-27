@@ -28,6 +28,9 @@ func (s *A) chatOf(c *Client) (chatCtx, error) {
 // runProject is where the tools of a conversation work: a ticket conversation stays in the
 // project it started in, the others work in the worktree the window names.
 func (s *A) runProject(chat *engine.Chat, root, project string) string {
+	if chat.MCPProject != "" {
+		return chat.MCPProject
+	}
 	if chat.Ticket == nil {
 		return project
 	}

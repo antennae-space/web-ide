@@ -39,7 +39,14 @@ func TestPlugins(t *testing.T) {
 	if defs := s.pluginDefs(rt); len(defs) != 1 || !strings.Contains(string(defs[0]), `"hello_greet"`) {
 		t.Fatalf("assistant tools: %s", defs)
 	}
-	m := &mcpClient{t: t, url: ts.URL, token: s.Token}
+	token := "test-developer-plugin-credential-0123456789"
+	if err := s.Store.WriteJSON(mcpClients, map[string]mcpGrant{"test": {
+		TokenSHA256: mcpDigest(token), Profile: mcpDeveloper, Projects: map[string]bool{id: true}, Assistant: true,
+		PluginTools: map[string][]string{"hello": {"hello_greet"}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	m := &mcpClient{t: t, url: ts.URL, token: token}
 	if tools := m.rpc("tools/list", nil)["tools"].([]any); len(tools) != len(mcpTools)+len(s.plugins.mcp)+1 {
 		t.Fatalf("tools/list: %d tools", len(tools))
 	}

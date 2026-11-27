@@ -240,11 +240,10 @@ type Services struct {
 	Cfg      *config.Config
 	Keeper   *keeper.Client
 	Desks    *desks.Store
-	// Token of the pod and MCPBase, the address of its MCP endpoint for the agents (else the
-	// listen address of Cfg); Version of the pod, told to the agents.
-	Token   string
-	MCPBase string
-	Version string
+	// MCPBase is the address of the MCP endpoint for the agents (else the listen address of Cfg).
+	MCPBase           string
+	MCPDeveloperToken func(project string) (string, error)
+	Version           string
 	// Commands are the saved commands of the project of rt.
 	Commands func(rt *runtime.Runtime) ([]commands.Command, error)
 	// Models caches the speech recognition models downloaded for the page.

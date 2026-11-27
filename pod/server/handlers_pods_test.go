@@ -79,7 +79,7 @@ func TestRelayLinks(t *testing.T) {
 	s, ts := newServer(t)
 	s.Pods = &fakePods{}
 	s.RelayStatus = func() RelayInfo { return RelayInfo{URL: "wss://relay.example"} }
-	text := s.mcpInstructions()
+	text := s.mcpInstructions(mcpIdentity{mcpGrant: mcpGrant{Profile: mcpDeveloper}})
 	local := s.localURL()
 	for _, want := range []string{"(https://relay.example/pod/own/open?path=", "([local](" + local + "/open?path="} {
 		if !strings.Contains(text, want) {

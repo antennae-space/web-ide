@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"antennae.space/ide/pod/plugins"
@@ -45,9 +46,21 @@ func (s *Server) mcpScope(cwd string) (mcpScope, error) {
 	if !filepath.IsAbs(cwd) {
 		return mcpScope{}, fmt.Errorf("cwd must be an absolute path, got %q", cwd)
 	}
-	p, ok := s.Projects.At(cwd)
+	info, err := os.Stat(cwd)
+	if err != nil || !info.IsDir() {
+		return mcpScope{}, fmt.Errorf("cwd is not an existing directory")
+	}
+	return s.mcpPathScope(cwd)
+}
+
+func (s *Server) mcpPathScope(path string) (mcpScope, error) {
+	canonical, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return mcpScope{}, fmt.Errorf("cannot resolve MCP path")
+	}
+	p, ok := s.Projects.At(canonical)
 	if !ok {
-		return mcpScope{}, fmt.Errorf("no project of the IDE holds %s: open the folder as a project in the IDE first", cwd)
+		return mcpScope{}, fmt.Errorf("no project of the IDE holds %s: open the folder as a project in the IDE first", path)
 	}
 	root, err := s.Projects.Root(p.ID)
 	if err != nil {
@@ -61,7 +74,7 @@ var mcpTools = []mcpTool{
 		name:        "list_commands",
 		description: "Lists the saved commands of the project of your folder (Console ▶ menu of the IDE, written by the user): id, flag (serve, build, test, lint, setup, other), name, description, folder, port, whether it runs, and its bash.",
 		run: func(ctx context.Context, s *Server, raw json.RawMessage) (string, error) {
-			_, rt, err := s.mcpRuntime(raw)
+			_, rt, err := s.mcpRuntime(ctx, raw)
 			if err != nil {
 				return "", err
 			}
@@ -76,7 +89,7 @@ var mcpTools = []mcpTool{
 			"timeout": map[string]any{"type": "integer", "description": "Seconds to wait before returning (20 by default, 600 max)"}},
 		required: []string{"id"},
 		run: func(ctx context.Context, s *Server, raw json.RawMessage) (string, error) {
-			a, rt, err := s.mcpRuntime(raw)
+			a, rt, err := s.mcpRuntime(ctx, raw)
 			if err != nil {
 				return "", err
 			}
@@ -87,7 +100,6 @@ var mcpTools = []mcpTool{
 
 // mcpArgs are the arguments of the tools on the saved commands.
 type mcpArgs struct {
-	Cwd     string `json:"cwd"`
 	ID      string `json:"id"`
 	Restart bool   `json:"restart"`
 	Timeout int    `json:"timeout"`
@@ -95,24 +107,12 @@ type mcpArgs struct {
 
 // mcpRuntime opens the runtime of the project of the folder of the client (a worktree has
 // its own).
-func (s *Server) mcpRuntime(raw json.RawMessage) (mcpArgs, *runtime.Runtime, error) {
+func (s *Server) mcpRuntime(ctx context.Context, raw json.RawMessage) (mcpArgs, *runtime.Runtime, error) {
 	a, err := bind[mcpArgs](raw)
 	if err != nil {
 		return a, nil, err
 	}
-	sc, err := s.mcpScope(a.Cwd)
-	if err != nil {
-		return a, nil, err
-	}
+	sc := accessForMCP(ctx).mcpScope
 	rt, err := s.openRuntime(sc.here.ID, sshx.Creds{})
 	return a, rt, err
-}
-
-func findMCPTool(name string) *mcpTool {
-	for i := range mcpTools {
-		if mcpTools[i].name == name {
-			return &mcpTools[i]
-		}
-	}
-	return nil
 }

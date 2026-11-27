@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/pod/assistant"
 	"antennae.space/ide/pod/caps"
+	"antennae.space/ide/pod/console"
 	"antennae.space/ide/pod/plugins"
-
 	"antennae.space/ide/pod/runtime"
 	"antennae.space/ide/pod/sshx"
 )
@@ -25,15 +26,12 @@ import (
 
 // mcpIDE binds the arguments of a tool of the IDE and opens the runtime of the folder of the
 // client (a worktree has its own).
-func (s *Server) mcpIDE(raw json.RawMessage) (assistant.Args, mcpScope, *runtime.Runtime, error) {
+func (s *Server) mcpIDE(ctx context.Context, raw json.RawMessage) (assistant.Args, mcpScope, *runtime.Runtime, error) {
 	var a assistant.Args
 	if err := json.Unmarshal(raw, &a); err != nil {
 		return nil, mcpScope{}, nil, err
 	}
-	sc, err := s.mcpScope(a.Str("cwd"))
-	if err != nil {
-		return nil, sc, nil, err
-	}
+	sc := accessForMCP(ctx).mcpScope
 	rt, err := s.openRuntime(sc.here.ID, sshx.Creds{})
 	return a, sc, rt, err
 }
@@ -52,7 +50,7 @@ func mcpText(res assistant.ToolResult, err error) (string, error) {
 // ideTool is a tool of the IDE answered with text.
 func ideTool(f func(ctx context.Context, s *Server, a assistant.Args, sc mcpScope, rt *runtime.Runtime) (assistant.ToolResult, error)) func(context.Context, *Server, json.RawMessage) (string, error) {
 	return func(ctx context.Context, s *Server, raw json.RawMessage) (string, error) {
-		a, sc, rt, err := s.mcpIDE(raw)
+		a, sc, rt, err := s.mcpIDE(ctx, raw)
 		if err != nil {
 			return "", err
 		}
@@ -91,9 +89,15 @@ func (s *Server) mcpUI(ctx context.Context, sc mcpScope, name string, args any, 
 // uiTextTool is a tool run by a window, answered with the text of the window.
 func uiTextTool(name string, args func(a assistant.Args) any) func(context.Context, *Server, json.RawMessage) (string, error) {
 	return func(ctx context.Context, s *Server, raw json.RawMessage) (string, error) {
-		a, sc, _, err := s.mcpIDE(raw)
+		a, sc, rt, err := s.mcpIDE(ctx, raw)
 		if err != nil {
 			return "", err
+		}
+		if name == "focus" && a.Str("target") == "console" {
+			id := a.Str("console_id")
+			if !slices.ContainsFunc(rt.Consoles.List(), func(c console.Info) bool { return c.ID == id }) {
+				return "", fmt.Errorf("console not found: %s", id)
+			}
 		}
 		res, err := s.mcpUI(ctx, sc, name, args(a), 10*time.Second)
 		return res.Content, err
@@ -139,7 +143,7 @@ var mcpIDETools = []mcpTool{
 		},
 		required: []string{"title"},
 		run: func(ctx context.Context, s *Server, raw json.RawMessage) (string, error) {
-			a, sc, rt, err := s.mcpIDE(raw)
+			a, sc, rt, err := s.mcpIDE(ctx, raw)
 			if err != nil {
 				return "", err
 			}
@@ -165,7 +169,7 @@ var mcpIDETools = []mcpTool{
 		name:        "list_previews",
 		description: "Lists the app previews running for the project (started from share_preview or by the user): title, command, port, URL, and the public URL when the user shared it.",
 		run: func(ctx context.Context, s *Server, raw json.RawMessage) (string, error) {
-			_, sc, rt, err := s.mcpIDE(raw)
+			_, sc, rt, err := s.mcpIDE(ctx, raw)
 			if err != nil {
 				return "", err
 			}
@@ -175,7 +179,7 @@ var mcpIDETools = []mcpTool{
 			}
 			var rows []string
 			for _, p := range pv.List() {
-				if p.Project != sc.here.ID && p.Project != sc.root.ID {
+				if p.Project != sc.here.ID && (p.Project != sc.root.ID || !accessForMCP(ctx).allows(sc.root.ID, sc.root.ID)) {
 					continue
 				}
 				row := fmt.Sprintf("- %s: %s (port %d) → %s", p.Title, p.Command, p.AppPort, p.URL)
@@ -235,7 +239,7 @@ var mcpIDETools = []mcpTool{
 		props:    map[string]any{"title": str(`What to draw, shown on the editor, e.g. "Layout of the settings page"`)},
 		required: []string{"title"},
 		rich: func(ctx context.Context, s *Server, raw json.RawMessage) ([]any, error) {
-			a, sc, _, err := s.mcpIDE(raw)
+			a, sc, _, err := s.mcpIDE(ctx, raw)
 			if err != nil {
 				return nil, err
 			}

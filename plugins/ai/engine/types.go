@@ -32,8 +32,12 @@ type Chat struct {
 	Nested  []NestedFile    `json:"nested,omitempty"`
 	Running *Running        `json:"running,omitempty"`
 	Queue   []QueuedMessage `json:"queue,omitempty"`
-	Mode    string          `json:"mode,omitempty"`
-	Ticket  *TicketLink     `json:"ticket,omitempty"`
+	// MCP conversations keep their origin on resume and through the UI.
+	MCPOwner    string      `json:"mcpOwner,omitempty"`
+	MCPProject  string      `json:"mcpProject,omitempty"`
+	MCPTextOnly bool        `json:"mcpTextOnly,omitempty"`
+	Mode        string      `json:"mode,omitempty"`
+	Ticket      *TicketLink `json:"ticket,omitempty"`
 	// Options of the user for this conversation, sent with each message.
 	Options *assistant.Options `json:"options,omitempty"`
 	// Approval waiting for the user (a file change, a command).

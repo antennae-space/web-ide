@@ -167,16 +167,42 @@ One call may hold a small graph of questions: a question with an `id` is asked o
 The kanban settings choose the **development agent**: the assistant (default) or a CLI agent installed for the Agents tool (Claude Code, Codex, opencode, pi; `meta.devAgent`).
 
 - With an agent, *Start development* creates the branch and the worktree as usual, then *Dev session* gives the ticket to the agent (`kanban.agent`): **one session per ticket** in the Agents tool, in the worktree, named `#<n> <title>`, whose first prompt is the briefing of the role (the instructions of `agent/texts.go`, the ticket in Markdown) followed by the message of the button. *Fix session*, *Fix feedbacks*, *New dev session* and the resolution of a rebase in the worktree send their briefing to the same session (refused while it works).
-- Every session of the Agents tool gets the **MCP server of the IDE** in `session/new` / `session/load` (`http`, `http://127.0.0.1:<port>/mcp`, the token as a bearer, named `web-ide` like the one users add to Claude Code, so it replaces it): the agent reaches the kanban tools with its worktree as `cwd`, which selects its ticket. pi has no MCP over HTTP: its sessions say so in a notice.
+- Every session of the Agents tool gets the **MCP server of the IDE** in `session/new` / `session/load` (`http`, `http://127.0.0.1:<port>/mcp`, a managed Developer bearer, named `web-ide` like the one users add to Claude Code, so it replaces it): the agent reaches the kanban tools with its worktree as `cwd`, which selects its ticket. pi has no MCP over HTTP: its sessions say so in a notice.
 - The ticket view shows an *Agent session* section with *Open the session* (also in *More actions*): the worktree in the window, the Agents tool on that tab. `kanban_get` lists it under *Agent session* with its id; `kanban_conversation` reads it (`chat`: that id); `/review-dev` reviews it, its comments going to the report (`kanban_reply` writes to conversations of the assistant only).
 - The worktree removed (merge, abandon), its sessions end, also when no window had it open (`acp.Purge`: their processes in the keeper, their files).
 
+## MCP capability profiles
+
+The pod authenticates each `POST /mcp` request with a separate MCP bearer. The grant selects the profile, project IDs and optional capabilities. Client names and tool arguments cannot select a profile. See [Connect an MCP client](../guide.md#connect-an-mcp-client) to provision, revoke or rotate a bearer.
+
+| Operation | Supervisor | Developer |
+| --- | --- | --- |
+| Inspect commands, consoles and previews | Yes | Yes |
+| Run saved commands, type in consoles, offer previews | — | Yes |
+| Manage tickets, plans, notes, goals, feedback, milestones and objectives | Yes | Yes |
+| Create a worktree using `kanban_start` and run its saved setup commands | — | Yes |
+| Move a ticket to To test | Yes | Yes |
+| Close a merged ticket and remove its worktree | — | Yes |
+| Query a database | Yes | Yes |
+| Inspect host-wide Docker state and logs | — | — |
+| Request a database write | — | With the database AI write policy |
+| Read a linked ACP transcript | — | Yes |
+| Start or steer an ACP session | — | — |
+| Use the Assistant | With a grant, own text conversations | With a grant, scoped conversations and user questions |
+| Invoke other external plugin tools | — | With an explicit plugin and tool grant |
+
+The user or a Developer prepares the worktree before a Supervisor uses it. The external Kanban's current start operation combines worktree creation with setup. The pod refuses this operation for Supervisor before calling the plugin. It also checks the action of multipurpose Kanban tools before dispatch.
+
+The pod resolves `cwd` once and uses the resulting project and worktree for dispatch. A worktree credential can act on tickets in its lineage. Main project operations such as creating tickets or listing all milestones require a main project grant. Starting development also requires that the grant includes its worktrees. Console IDs belong to their runtime. Conversation IDs are resolved in the granted project, and linked conversation tools also verify the ticket.
+
+Managed sessions get a random Developer bearer for their project. A main project includes its registered worktrees. A worktree grant includes only that worktree. The pod stores the bearer in a private file under `mcp-managed` in its data folder and reads it again when the agent opens or loads a session. Remove the project credential file to revoke that bearer. The next new or reloaded session gets a fresh bearer. Set `disableManagedMcp` in the pod configuration and restart to turn off managed credentials.
+
 ## Claude Code
 
-The pod serves an MCP endpoint (`POST /mcp`, the token of the pod as a bearer) so that Claude Code can work on the kanban next to the assistant: a planning or a debug that needs a stronger model, a task to go faster. Setup, once:
+Connect manually configured Claude Code clients with a [Developer bearer](../guide.md#connect-an-mcp-client). Replace the bearer in the command copied from older Kanban settings.
 
-```
-claude mcp add --transport http --scope user web-ide http://127.0.0.1:4433/mcp --header "Authorization: Bearer $(cat ~/.web-ide/token)"
+```sh
+claude mcp add --transport http --scope user web-ide http://127.0.0.1:4433/mcp --header "Authorization: Bearer ${WEB_IDE_MCP_TOKEN}"
 ```
 
 - Every tool takes `cwd`, the folder Claude works in: the deepest local project holding it gives the kanban; in the worktree of a ticket, that ticket is the default one.
