@@ -9,6 +9,7 @@ import (
 	"antennae.space/ide/lib/i18n"
 	"antennae.space/ide/plugins/ai/acp"
 	"antennae.space/ide/plugins/ai/engine"
+	"antennae.space/ide/pod/assistant"
 	"antennae.space/ide/pod/caps"
 	"antennae.space/ide/pod/plugins"
 	"antennae.space/ide/pod/projects"
@@ -70,22 +71,21 @@ func devKey(project string, ticket int64) string {
 	return project + ":" + strconv.FormatInt(ticket, 10)
 }
 
-// devReserve keeps one development per ticket: the id of the session that owns its first turn,
-// taken before the prompt is scheduled. The owner is "" while the session is being created.
+// devReserve keeps one active development per ticket, owned by an Assistant conversation
+// or an ACP session.
 type devReserve struct {
 	mu sync.Mutex
 	by map[string]string
 }
 
-// take reserves the ticket, and answers the session that owns its development already ("" when
-// the ticket was free and is now reserved by this call).
-func (r *devReserve) take(key string) string {
+// take returns the other development's id if the ticket is already reserved.
+func (r *devReserve) take(key, id string) string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if cur, ok := r.by[key]; ok {
+	if cur := r.by[key]; cur != "" && cur != id {
 		return cur
 	}
-	r.by[key] = ""
+	r.by[key] = id
 	return ""
 }
 
@@ -97,9 +97,11 @@ func (r *devReserve) setOwner(key, id string) {
 }
 
 // release frees the ticket (the turn ended, the start failed, the session closed).
-func (r *devReserve) release(key string) {
+func (r *devReserve) release(key, id string) {
 	r.mu.Lock()
-	delete(r.by, key)
+	if r.by[key] == id {
+		delete(r.by, key)
+	}
 	r.mu.Unlock()
 }
 
@@ -113,15 +115,28 @@ func (s *A) agentsOf(rt *runtime.Runtime) *acp.Manager {
 		p := &agentsPart{a: s, project: rt.P.ID}
 		free := func(info acp.Info) {
 			if info.Ticket != 0 {
-				s.devReserve.release(devKey(rt.P.ID, info.Ticket))
+				s.devReserve.release(devKey(rt.P.ID, info.Ticket), info.ID)
 			}
 		}
 		p.m = acp.NewManager(acp.Deps{Keeper: s.Keeper, Owner: rt.P.ID, Dir: s.Store.Path("agents", rt.P.ID), Root: rt.Root,
 			Catalog: acp.Catalog{Dir: s.Store.Path("acp")}, Version: s.Version, Command: s.testAgentCommand, MCP: func() []acp.MCPServer { return s.agentsMCP(rt.P.ID) }, Emit: rt.Emit,
-			OnTurn: func(info acp.Info) { s.quotaTurn(); free(info) }, OnState: free, OnClosed: free})
+			BeforePrompt: func(info acp.Info) error {
+				if info.Ticket != 0 {
+					return s.reserveDevelopment(rt.P.ID, info.Ticket, info.ID)
+				}
+				return nil
+			},
+			OnPromptError: free, OnTurn: func(info acp.Info) { free(info); go s.quotaTurn() }, OnState: free, OnClosed: free})
 		s.agentParts.add(p)
 		return p
 	}).(*agentsPart).m
+}
+
+func (s *A) reserveDevelopment(project string, ticket int64, id string) error {
+	if owner := s.devReserve.take(devKey(project, ticket), id); owner != "" {
+		return i18n.Errorf("ticket #%d already has an active development (session %s)", ticket, owner)
+	}
+	return nil
 }
 
 // agentsMCP is the MCP server of the IDE as the sessions of the Agents tool reach it: the
@@ -235,19 +250,20 @@ func (s *A) developTicket(project, agent string, t caps.TicketBrief) (caps.Agent
 		prompt += "\n\n---\n\n" + t.Text
 	}
 	key := devKey(project, t.ID)
-	if owner := s.devReserve.take(key); owner != "" {
-		return caps.AgentSession{}, false, i18n.Errorf("ticket #%d already has an active development (session %s)", t.ID, owner)
+	id := assistant.NewID()
+	if err := s.reserveDevelopment(project, t.ID, id); err != nil {
+		return caps.AgentSession{}, false, err
 	}
 	for _, info := range m.List() {
 		if info.Ticket != t.ID {
 			continue
 		}
+		if info.State == acp.Starting || info.State == acp.Busy || info.State == acp.Asking {
+			s.devReserve.release(key, id)
+			return caps.AgentSession{}, false, i18n.Errorf("ticket #%d has a development running (session %s, %s)", t.ID, info.ID, info.State)
+		}
 		if info.Agent != agent || (t.Model != "" && info.Model() != t.Model) {
 			continue
-		}
-		if info.State == acp.Starting || info.State == acp.Busy || info.State == acp.Asking {
-			s.devReserve.release(key)
-			return caps.AgentSession{}, false, i18n.Errorf("ticket #%d has a development running (session %s, %s)", t.ID, info.ID, info.State)
 		}
 		if info.State == acp.Failed {
 			continue // its end is in the thread: a retry opens a new session
@@ -256,19 +272,18 @@ func (s *A) developTicket(project, agent string, t caps.TicketBrief) (caps.Agent
 		if err != nil {
 			break
 		}
+		s.devReserve.setOwner(key, info.ID)
 		if err := sess.Prompt(prompt); err != nil {
-			s.devReserve.release(key)
+			s.devReserve.release(key, info.ID)
 			return caps.AgentSession{}, false, err
 		}
-		s.devReserve.setOwner(key, info.ID)
 		return sessionOf(info), false, nil
 	}
-	info, err := m.CreateWith(agent, "", acp.Options{Title: "#" + strconv.FormatInt(t.ID, 10) + " " + t.Title, Ticket: t.ID, Prompt: prompt, Model: t.Model})
+	info, err := m.CreateWith(agent, "", acp.Options{ID: id, Title: "#" + strconv.FormatInt(t.ID, 10) + " " + t.Title, Ticket: t.ID, Prompt: prompt, Model: t.Model})
 	if err != nil {
-		s.devReserve.release(key)
+		s.devReserve.release(key, id)
 		return caps.AgentSession{}, false, err
 	}
-	s.devReserve.setOwner(key, info.ID)
 	s.pod.Emit(project, "agents.created", info)
 	return sessionOf(info), true, nil
 }

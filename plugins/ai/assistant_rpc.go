@@ -348,7 +348,9 @@ func (s *A) registerAssistant() {
 		}
 		from = minFrom(from, skipQuestions(chat))
 		chat.AddUser(&engine.Message{Role: "user", Content: userContent(a.Text, a.Parts), Display: displayOf(a.Text, a.Display, a.Parts), Attachments: a.Attachments})
-		s.startRun(cc.loc, cc.root, project, c.language(), chat, from)
+		if err := s.startRun(cc.loc, cc.root, project, c.language(), chat, from); err != nil {
+			return nil, err
+		}
 		return map[string]any{"queued": false}, nil
 	}))
 	s.handle("assistant.unqueue", withChat(func(ctx context.Context, c *Client, cc chatCtx, p json.RawMessage) (any, error) {
@@ -400,8 +402,7 @@ func (s *A) registerAssistant() {
 			return err
 		}
 		revive(chat)
-		s.startRun(cc.loc, cc.root, s.runProject(chat, cc.root, c.project), c.language(), chat, from)
-		return nil
+		return s.startRun(cc.loc, cc.root, s.runProject(chat, cc.root, c.project), c.language(), chat, from)
 	}
 	// assistant.resume goes on from the last completed step (after an error or a stop), with
 	// another model when given.

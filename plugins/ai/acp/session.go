@@ -218,7 +218,7 @@ func (s *Session) setState(state, errText string) {
 		s.info.State, s.info.Error = state, errText
 		s.changed()
 		if state == Failed && s.m.OnState != nil {
-			go s.m.OnState(s.info) // the development of a ticket that failed is freed
+			s.m.OnState(s.info) // the development of a ticket that failed is freed
 		}
 	}
 }

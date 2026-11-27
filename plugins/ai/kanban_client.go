@@ -21,12 +21,14 @@ import (
 
 // kbTicket is what the AI reads of a ticket.
 type kbTicket struct {
-	ID       int64  `json:"id"`
-	Title    string `json:"title"`
-	Parent   int64  `json:"parent"`
-	Branch   string `json:"branch"`
-	Worktree string `json:"worktree"`
-	ChatList []struct {
+	ID         int64  `json:"id"`
+	Title      string `json:"title"`
+	Status     string `json:"status"`
+	Complexity string `json:"complexity"`
+	Parent     int64  `json:"parent"`
+	Branch     string `json:"branch"`
+	Worktree   string `json:"worktree"`
+	ChatList   []struct {
 		ChatID string `json:"chatId"`
 		Role   string `json:"role"`
 	} `json:"chatList"`

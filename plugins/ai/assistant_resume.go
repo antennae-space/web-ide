@@ -143,14 +143,9 @@ func (s *A) resumeRun(e runningEntry, c *engine.Chat, relays map[string]bool) st
 		}
 	}
 	c.Approval = nil
-	s.assistants.mu.Lock()
-	if s.assistants.runs[c.ID] != nil {
-		s.assistants.mu.Unlock()
+	if err := s.registerRun(r); err != nil {
 		return ""
 	}
-	r.ctx, r.cancel = contextWithCancel()
-	s.assistants.runs[c.ID] = r
-	s.assistants.mu.Unlock()
 	go s.loop(r)
 	return how
 }

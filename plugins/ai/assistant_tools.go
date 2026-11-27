@@ -54,12 +54,20 @@ func (s *A) assistantTool(r *assistantRun, ref *runtimeRef, call engine.ToolCall
 	if err := json.Unmarshal([]byte(orEmpty(call.Function.Arguments)), &a); err != nil {
 		return fail(r, assistant.Usagef("invalid JSON arguments: %.200s", call.Function.Arguments))
 	}
+	r.mu.Lock()
+	tainted := len(r.chat.Tainted) > 0
+	dev := r.chat.MCPDevelopment
+	ticket := r.chat.Ticket
+	options := opt(r.chat)
+	r.mu.Unlock()
+	if dev {
+		if err := checkMCPDevelopmentTool(ref.rt, ticket, name, a); err != nil {
+			return fail(r, err)
+		}
+	}
 	if res, ok := s.followed(r, ref, call, a); ok {
 		return res
 	}
-	r.mu.Lock()
-	tainted := len(r.chat.Tainted) > 0
-	r.mu.Unlock()
 	if engine.KanbanTools[name] {
 		if tainted && !kanbanReads(name, a) && !s.confirmTool(r, ref.rt.Root, call) {
 			return toolRefused()
@@ -69,17 +77,16 @@ func (s *A) assistantTool(r *assistantRun, ref *runtimeRef, call engine.ToolCall
 	if err := s.missingFor(ref.rt, name); err != nil {
 		return fail(r, err)
 	}
-	r.mu.Lock()
-	options := opt(r.chat)
-	r.mu.Unlock()
-	if readOnly, found := s.pod.AssistantToolReadOnly(name); found && tainted && !readOnly && !s.confirmTool(r, ref.rt.Root, call) {
-		return toolRefused()
-	}
-	if res, found, err := s.pod.RunAssistantTool(r.ctx, ref.rt, name, []byte(orEmpty(call.Function.Arguments)), r.lang, options); found {
-		if err != nil {
-			return fail(r, err)
+	if !dev {
+		if readOnly, found := s.pod.AssistantToolReadOnly(name); found && tainted && !readOnly && !s.confirmTool(r, ref.rt.Root, call) {
+			return toolRefused()
 		}
-		return res
+		if res, found, err := s.pod.RunAssistantTool(r.ctx, ref.rt, name, []byte(orEmpty(call.Function.Arguments)), r.lang, options); found {
+			if err != nil {
+				return fail(r, err)
+			}
+			return res
+		}
 	}
 	root := ref.rt.Root
 	which := map[string]string{engine.Plan: "Plan", engine.Briefing: "Briefing", engine.Orchestrator: "Orchestrator"}[mode]
@@ -104,13 +111,16 @@ func (s *A) assistantTool(r *assistantRun, ref *runtimeRef, call engine.ToolCall
 		if mode != engine.Build {
 			free = assistant.RunsFreely(cmd, root, cwd) || assistant.StaysIn(cmd, cwd, assistant.Scratch)
 		}
-		if (!free || tainted) && !s.confirm(r, root, engine.Approval{Call: call, Kind: "command", Command: cmd, Tainted: tainted}) {
+		if (dev || !free || tainted) && !s.confirm(r, root, engine.Approval{Call: call, Kind: "command", Command: cmd, Tainted: tainted}) {
 			why := "Build mode: commands that touch nothing out of the project and " + assistant.Scratch + " run freely"
 			if mode != engine.Build {
 				why = which + " mode: only reading commands, the build and test commands of the project, and commands confined to " + assistant.Scratch + ", run freely"
 			}
 			if tainted {
 				why = "web content is in this conversation: every command asks the user"
+			}
+			if dev {
+				why = "MCP development: shell commands ask the user"
 			}
 			return assistant.ToolResult{Content: "The user refused this command (" + why + ").", Summary: assistant.T("command refused", nil).Raw(), Status: "denied"}
 		}
@@ -207,7 +217,9 @@ func (s *A) assistantTool(r *assistantRun, ref *runtimeRef, call engine.ToolCall
 	if err != nil {
 		return fail(r, err)
 	}
-	s.addNested(r, ref, name, a, &res)
+	if !dev {
+		s.addNested(r, ref, name, a, &res)
+	}
 	s.addChanged(r, ref, name, a, &res)
 	return res
 }

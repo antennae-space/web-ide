@@ -182,7 +182,7 @@ func TestMCPReplyAndAnswer(t *testing.T) {
 	id := a.call("projects.create", map[string]any{"type": "local", "path": dir})["result"].(map[string]any)["id"].(string)
 	a.call("project.open", map[string]any{"id": id})
 	m := newMCPClient(t, s, ts.URL, id)
-	for _, tool := range []string{"kanban_conversation", "kanban_reply", "kanban_answer"} {
+	for _, tool := range []string{"kanban_develop", "kanban_conversation", "kanban_reply", "kanban_answer"} {
 		if text, failed := m.tool(tool, map[string]any{"cwd": dir, "id": 1, "chat": "c1", "message": "hi"}); !failed || !strings.Contains(text, "needs the tickets capability") {
 			t.Fatalf("%s: %s", tool, text)
 		}
@@ -224,7 +224,7 @@ func TestMCPProfiles(t *testing.T) {
 			t.Fatalf("%s: %s", tool, got)
 		}
 	}
-	for _, name := range []string{"run_saved_command", "console_input", "share_preview", "assistant_start", "assistant_send", "kanban_reply", "kanban_answer"} {
+	for _, name := range []string{"run_saved_command", "console_input", "share_preview", "assistant_start", "assistant_send", "kanban_develop", "kanban_reply", "kanban_answer"} {
 		if listed(supervisor, name) || !listed(developer, name) {
 			t.Fatalf("incorrect discovery for %s", name)
 		}
@@ -235,7 +235,7 @@ func TestMCPProfiles(t *testing.T) {
 	if err := s.Store.WriteJSON(mcpClients, grants); err != nil {
 		t.Fatal(err)
 	}
-	if !listed(supervisor, "assistant_start") || listed(supervisor, "kanban_reply") {
+	if !listed(supervisor, "assistant_start") || listed(supervisor, "kanban_develop") || listed(supervisor, "kanban_reply") {
 		t.Fatal("the Assistant grant must not expose ticket conversation steering")
 	}
 	if got := supervisor.ok("assistant_list", map[string]any{"cwd": dir}); got != "No conversation." {
@@ -266,6 +266,9 @@ func TestMCPProfiles(t *testing.T) {
 	}
 	worker := newMCPClient(t, s, ts.URL, wt.ID)
 	worker.ok("list_commands", map[string]any{"cwd": child})
+	denied(worker, "kanban_develop", map[string]any{"cwd": child, "id": 43}, "outside the MCP worktree")
+	denied(developer, "kanban_develop", map[string]any{"cwd": other, "id": 42}, "not granted")
+	denied(supervisor, "kanban_develop", map[string]any{"cwd": child, "id": 42}, "unavailable")
 	denied(worker, "list_commands", map[string]any{"cwd": dir}, "not granted")
 	denied(worker, "open_file", map[string]any{"cwd": child, "path": dir}, "outside")
 	denied(worker, "assistant_list", map[string]any{"cwd": dir}, "not granted")

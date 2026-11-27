@@ -41,6 +41,7 @@ type assistantRun struct {
 	resumeStream *engine.Running
 	resumeCalls  []engine.ToolCall
 	follow       *engine.Running
+	devKey       string // reservation held while this development runs
 }
 
 func contextWithCancel() (context.Context, context.CancelFunc) {

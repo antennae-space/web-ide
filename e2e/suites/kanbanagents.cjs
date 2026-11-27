@@ -96,7 +96,7 @@ run(async ({ page }) => {
   const asked = await mcp('agent_send', { cwd, session: sid, message: 'permission later' }, sup)
   assert(!asked.result.isError, 'agent_send a permission: ' + say(asked))
   const busy = await mcp('agent_start', { cwd, id: 1, provider: 'claude', model: 'opus' }, sup)
-  assert(busy.result.isError && say(busy).includes('has a development running (session ' + sid), 'one development per ticket: ' + say(busy))
+  assert(busy.result.isError && say(busy).includes('already has an active development (session ' + sid), 'one development per ticket: ' + say(busy))
   await kp.waitForSelector('[data-testid=agent-permission][data-outcome=""]', { timeout: 15000 })
   await kp.click('[data-testid=agent-permission][data-outcome=""] [data-testid=agent-option-allow-once]')
   await kp.waitForSelector('[data-testid=agent-message]:has-text("Edited.")', { timeout: 15000 })

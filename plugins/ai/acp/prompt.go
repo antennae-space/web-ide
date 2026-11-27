@@ -130,9 +130,17 @@ func (s *Session) send(q queued) error {
 	if err != nil {
 		return err
 	}
+	if s.m.BeforePrompt != nil {
+		if err := s.m.BeforePrompt(s.info); err != nil {
+			return err
+		}
+	}
 	s.nextID++
 	id := s.nextID
 	if err := s.request(id, "session/prompt", map[string]any{"sessionId": s.acp, "prompt": content}); err != nil {
+		if s.m.OnPromptError != nil {
+			s.m.OnPromptError(s.info)
+		}
 		return err
 	}
 	s.prompt = id
