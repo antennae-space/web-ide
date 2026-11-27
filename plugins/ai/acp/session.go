@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -102,6 +103,8 @@ type saved struct {
 	Subscription bool       `json:"subscription,omitempty"`
 	// First is the prompt sent once the session is open (a ticket's briefing), until then.
 	First string `json:"first,omitempty"`
+	// Model is the model asked at the start, applied before the first prompt.
+	Model string `json:"model,omitempty"`
 	// Caps, Queue and Images: see Session.
 	Caps   PromptCaps `json:"caps"`
 	Queue  []queued   `json:"queue,omitempty"`
@@ -140,9 +143,10 @@ type Session struct {
 	offset  int64
 	nextID  int64
 	prompt  int64
-	// first: see saved.First.
-	first string
-	proc  proc
+	// first: see saved.First; wantModel: the model asked at the start, see saved.Model.
+	first     string
+	wantModel string
+	proc      proc
 	// gen numbers the processes: the events of an older one are dropped.
 	gen     int
 	pending map[int64]chan response
@@ -167,8 +171,19 @@ type Session struct {
 
 func (s *Session) snapshot() saved {
 	return saved{Info: s.info, Entries: s.th.Entries, ACP: s.acp, CanLoad: s.canLoad, Proc: s.procID, Offset: s.offset, NextID: s.nextID, Prompt: s.prompt,
-		Turn: s.turn, ReportedCost: s.reportedCost, Subscription: s.subscription, First: s.first,
+		Turn: s.turn, ReportedCost: s.reportedCost, Subscription: s.subscription, First: s.first, Model: s.wantModel,
 		Caps: s.caps, Queue: s.queue, Images: s.images}
+}
+
+// Model is the model of the session, as its config option tells it ("" when the provider does
+// not offer one).
+func (i Info) Model() string {
+	for _, c := range i.Config {
+		if c.Category == "model" {
+			return c.CurrentValue
+		}
+	}
+	return ""
 }
 
 // ---------- events to the page (under s.mu) ----------
@@ -202,6 +217,9 @@ func (s *Session) setState(state, errText string) {
 	if s.info.State != state || s.info.Error != errText {
 		s.info.State, s.info.Error = state, errText
 		s.changed()
+		if state == Failed && s.m.OnState != nil {
+			go s.m.OnState(s.info) // the development of a ticket that failed is freed
+		}
 	}
 }
 
@@ -296,8 +314,17 @@ func (s *Session) start(load bool) {
 		return
 	}
 	s.mu.Lock()
-	first := s.first
+	first, want, fresh := s.first, s.wantModel, !load
 	s.mu.Unlock()
+	// The model asked at the start is applied and confirmed before the first prompt.
+	if fresh && want != "" {
+		if err := s.applyModel(want); err != nil {
+			s.mu.Lock()
+			s.setState(Failed, err.Error())
+			s.mu.Unlock()
+			return
+		}
+	}
 	if first != "" {
 		if err := s.Prompt(first); err != nil {
 			log.Printf("acp: %s: first prompt: %v", s.info.ID, err)
@@ -606,6 +633,68 @@ func (s *Session) Cancel() error {
 	}
 	s.cancelAsks()
 	return s.write(map[string]any{"jsonrpc": "2.0", "method": "session/cancel", "params": map[string]string{"sessionId": s.acp}})
+}
+
+// Stop cancels the turn running and drops the prompts waiting: a stopped session resumes
+// nothing. The session and its thread stay.
+func (s *Session) Stop() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.queue) > 0 {
+		s.queue = nil
+		s.queueChanged()
+	}
+	if s.prompt == 0 {
+		return nil
+	}
+	s.cancelAsks()
+	return s.write(map[string]any{"jsonrpc": "2.0", "method": "session/cancel", "params": map[string]string{"sessionId": s.acp}})
+}
+
+// applyModel sets the model asked at the start and confirms it, before the first prompt.
+func (s *Session) applyModel(model string) error {
+	s.mu.Lock()
+	acpID, id, vals, name := s.acp, "", []string(nil), s.info.Name
+	for _, c := range s.info.Config {
+		if c.Category == "model" {
+			id = c.ID
+			var opts []struct {
+				Value string `json:"value"`
+			}
+			if json.Unmarshal(c.Options, &opts) == nil {
+				for _, o := range opts {
+					vals = append(vals, o.Value)
+				}
+			}
+			break
+		}
+	}
+	s.mu.Unlock()
+	switch {
+	case id == "":
+		return i18n.Errorf("%s does not select a model: none is offered", name)
+	case !slices.Contains(vals, model):
+		return i18n.Errorf("model %q is not available for %s: %s", model, name, strings.Join(vals, " | "))
+	}
+	res, err := s.call("session/set_config_option", map[string]string{"sessionId": acpID, "configId": id, "value": model}, 30*time.Second)
+	if err != nil {
+		return i18n.Errorf("the model %q was not applied: %v", model, err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var r struct {
+		ConfigOptions []ConfigOption `json:"configOptions"`
+	}
+	if json.Unmarshal(res, &r) == nil && r.ConfigOptions != nil {
+		s.info.Config = r.ConfigOptions
+	}
+	for _, c := range s.info.Config {
+		if c.Category == "model" && c.CurrentValue == model {
+			s.changed()
+			return nil
+		}
+	}
+	return i18n.Errorf("%s did not confirm the model %q", name, model)
 }
 
 // Answer gives the option chosen for the permission of entry index.

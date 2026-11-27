@@ -20,7 +20,7 @@ import (
 // need the tickets of the Kanban, whose scope and ticket binding they share.
 
 func (s *A) registerMCP() {
-	for _, t := range append(s.mcpTools(), s.assistantMCPTools()...) {
+	for _, t := range append(append(s.mcpTools(), s.agentMCPTools()...), s.assistantMCPTools()...) {
 		s.host.MCPTool(t)
 	}
 }
@@ -46,7 +46,7 @@ func (s *A) mcpTools() []plugins.MCPTool {
 				}
 				linked := t.linked(a.Chat)
 				if info, entries, ok := s.ticketSession(sc.Root.ID, t.ID, t.Parent); !linked && ok && info.ID == a.Chat {
-					return acpThreadText(info, entries, a.Last, a.Tools), nil
+					return acpThreadText(info, entries, a.Last, a.Tools, 0), nil
 				}
 				if !linked {
 					return "", fmt.Errorf("conversation %s is not linked to ticket #%d", a.Chat, id)
@@ -384,7 +384,14 @@ func conversationText(raw json.RawMessage, last int, tools bool) string {
 
 // acpThreadText is the thread of a session of the Agents tool as kanban_conversation gives
 // it: the prompts and answers, the questions; with tools, the tool calls and the notices.
-func acpThreadText(info acp.Info, entries []acp.Entry, last int, tools bool) string {
+// cut bounds the text of each entry (0: no cut), last the entries kept.
+func acpThreadText(info acp.Info, entries []acp.Entry, last int, tools bool, cut int) string {
+	short := func(t string) string {
+		if cut > 0 {
+			return assistant.Cut(t, cut)
+		}
+		return t
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Agent session: %s (%s, %s)\n", info.Title, info.Name, info.State)
 	if last > 0 && last < len(entries) {
@@ -394,9 +401,9 @@ func acpThreadText(info acp.Info, entries []acp.Entry, last int, tools bool) str
 	for _, e := range entries {
 		switch e.Kind {
 		case "user":
-			fmt.Fprintf(&b, "\n## User\n%s\n", strings.TrimSpace(e.Text))
+			fmt.Fprintf(&b, "\n## User\n%s\n", strings.TrimSpace(short(e.Text)))
 		case "agent":
-			fmt.Fprintf(&b, "\n## %s\n%s\n", info.Name, strings.TrimSpace(e.Text))
+			fmt.Fprintf(&b, "\n## %s\n%s\n", info.Name, strings.TrimSpace(short(e.Text)))
 		case "permission":
 			outcome := e.Outcome
 			if outcome == "" {

@@ -39,14 +39,7 @@ func (s *Session) answered() {
 }
 
 // model is the current model of the session, as its config option tells it.
-func (s *Session) model() string {
-	for _, c := range s.info.Config {
-		if c.Category == "model" {
-			return c.CurrentValue
-		}
-	}
-	return ""
-}
+func (s *Session) model() string { return s.info.Model() }
 
 // finishTurn records the turn that ended with result (nil: the agent stopped), and adds it to
 // the totals of the session (under s.mu).
@@ -69,7 +62,7 @@ func (s *Session) finishTurn(result json.RawMessage) {
 	}
 	s.m.record(r)
 	if s.m.OnTurn != nil {
-		go s.m.OnTurn()
+		go s.m.OnTurn(s.info)
 	}
 	if s.info.Stats == nil {
 		s.info.Stats = &Totals{}

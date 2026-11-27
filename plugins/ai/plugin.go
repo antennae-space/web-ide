@@ -40,7 +40,11 @@ type A struct {
 	assistants assistants
 	asking     asking
 	agentParts agentParts
-	quotas     quotas
+	// devReserve keeps one development per ticket (its session owns its first turn).
+	devReserve devReserve
+	// testAgentCommand overrides the command line of every agent, in the tests only.
+	testAgentCommand func(agent string) ([]string, error)
+	quotas           quotas
 	// modelCache: the models of each server, read again after 30 s (modelInfo); one per
 	// plugin, so that pods (the tests) do not share it.
 	modelCache sync.Map // server → cachedModels
@@ -52,7 +56,8 @@ func New() *A {
 		panic(err)
 	}
 	return &A{m: m, assistants: assistants{runs: map[string]*assistantRun{}, slots: map[string]chan struct{}{}, waiting: map[string]int{}},
-		asking: asking{chats: map[string]bool{}}, agentParts: agentParts{open: map[string]*agentsPart{}}}
+		asking: asking{chats: map[string]bool{}}, agentParts: agentParts{open: map[string]*agentsPart{}},
+		devReserve: devReserve{by: map[string]string{}}}
 }
 
 func (s *A) Manifest() plugins.Manifest { return s.m }

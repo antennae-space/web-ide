@@ -10,6 +10,11 @@ import (
 	"testing"
 )
 
+// supervisorOnly is how many tools of the MCP are granted to the Supervisor profile only: the
+// six of the Agents tool (agent_providers, agent_start, agent_list, agent_read, agent_send,
+// agent_stop), listed by the AI plugin.
+const supervisorOnly = 6
+
 func newMCPClient(t *testing.T, s *Server, url, project string) *mcpClient {
 	t.Helper()
 	token, err := s.managedMCPToken(project)
@@ -101,7 +106,9 @@ func TestMCP(t *testing.T) {
 	if res, _ := m.post(map[string]any{"jsonrpc": "2.0", "method": "notifications/initialized"}); res.StatusCode != http.StatusAccepted {
 		t.Fatalf("notification: %d", res.StatusCode)
 	}
-	if tools := m.rpc("tools/list", nil)["tools"].([]any); len(tools) != len(mcpTools)+len(s.plugins.tools)+len(s.plugins.mcp) {
+	// The six tools of the Agents (agent_*) are granted to the Supervisor profile only, so a
+	// Developer bearer lists the rest.
+	if tools := m.rpc("tools/list", nil)["tools"].([]any); len(tools) != len(mcpTools)+len(s.plugins.tools)+len(s.plugins.mcp)-supervisorOnly {
 		t.Fatalf("tools: %d", len(tools))
 	}
 
@@ -263,6 +270,24 @@ func TestMCPProfiles(t *testing.T) {
 	denied(worker, "open_file", map[string]any{"cwd": child, "path": dir}, "outside")
 	denied(worker, "assistant_list", map[string]any{"cwd": dir}, "not granted")
 	supervisor.ok("list_commands", map[string]any{"cwd": child})
+
+	// The six tools of the Agents (agent_*) are for the Supervisor profile only.
+	for _, name := range []string{"agent_providers", "agent_start", "agent_list", "agent_read", "agent_send", "agent_stop"} {
+		if !listed(supervisor, name) || listed(developer, name) || listed(worker, name) {
+			t.Fatalf("incorrect discovery for %s", name)
+		}
+		denied(developer, name, map[string]any{"cwd": dir}, "unavailable")
+	}
+	// A Supervisor granted one worktree cannot start a session: the ticket and its worktree are
+	// resolved from the kanban of the main project.
+	const wtSupervisorToken = "mcp-test-worktree-supervisor-0123456789"
+	grants["worktree"] = mcpGrant{TokenSHA256: mcpDigest(wtSupervisorToken), Profile: mcpSupervisor, Projects: map[string]bool{wt.ID: true}}
+	if err := s.Store.WriteJSON(mcpClients, grants); err != nil {
+		t.Fatal(err)
+	}
+	wtSup := &mcpClient{t: t, url: ts.URL, token: wtSupervisorToken}
+	denied(wtSup, "agent_start", map[string]any{"cwd": child, "id": 42, "provider": "claude"}, "requires a grant on the main project")
+	denied(wtSup, "agent_start", map[string]any{"cwd": dir, "id": 42, "provider": "claude"}, "not granted")
 
 	// A different runtime's console ID must not be usable with a valid cwd.
 	a.call("project.open", map[string]any{"id": otherID})
