@@ -90,6 +90,18 @@ Set `assistant` to `true` on the credential. Use `assistant_list` to find a conv
 
 A Supervisor credential can use only its own text conversations. Developer conversations started or steered through MCP can also ask the user questions in the IDE. These limits stay with the conversation when the pod reloads it.
 
+### Steer an agent session from an MCP client
+
+The six tools of the **Supervisor** profile run the same development path as the *Dev session* button of the Kanban, so the session appears in the *Agents* tool with its tab, its thread and its statistics. `agent_providers` lists the CLI agents the pod can run, and the models a session of this project tells. `agent_start` takes a ticket number, a provider id, an optional model and a message. It answers the session id at once, while the agent initializes. Its first prompt is the ticket's briefing, then your message.
+
+The ticket must already have its worktree: you or a Developer prepare it first. The grant must cover the main project and its worktrees, `cwd` must be that worktree, and the ticket must be the step to develop of its lineage. The model you give is applied and confirmed before the first prompt; a session that cannot take it ends with its error, and a retry with a valid model opens a new session.
+
+One ticket has one active development. A second start through MCP is refused while a turn runs, and so is a start from the Kanban UI, and a development of the same ticket by a conversation of the assistant.
+
+`agent_list` lists the sessions of the project with their state, provider, model, ticket, queued prompts and statistics. `agent_read` reads one thread, bounded by `last` and by `tools` (the tool calls, the plan, the permissions asked). `agent_send` sends a prompt; it waits in the queue while a turn runs. `agent_stop` cancels the turn running and drops the prompts waiting, so nothing resumes. The session and its thread stay visible.
+
+The permission cards and the questions of the session stay in the IDE: the user answers them in the *Agents* and *Questions* tools, and `agent_read` shows the outcome. The **Developer** profile has none of these six tools, and the pod refuses its calls. A call refused by the grant changes nothing.
+
 ## Agents: Claude Code, Codex, opencode, pi
 
 To use Codex, install its adapter from the *Agents* tool. Run `codex login` in a terminal on the pod machine as the user running the pod. Open a Codex session in your project. The session receives a Developer credential for its project or ticket worktree, including the Kanban tools when the plugin is enabled.

@@ -487,6 +487,9 @@ _Avoid_: epic, chain, children
 A ticket of another lineage that must be merged before this one starts.
 _Avoid_: blocker, prerequisite
 
+**Development reservation**
+The claim one session holds on a ticket's development, so a ticket has one active development at a time. The Kanban UI, the MCP Supervisor tools and the assistant share it; it is released when the turn ends, the session fails, or it is stopped.
+
 **Complexity**
 How hard a ticket's work is (low, medium, high); it picks the model and the effort of its conversations and sessions.
 _Avoid_: difficulty
