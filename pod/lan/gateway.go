@@ -109,11 +109,24 @@ func (m *Manager) ServeGateway(w http.ResponseWriter, r *http.Request, base stri
 		},
 		Transport:     m.transport(fp),
 		FlushInterval: -1,
-		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
+		ErrorHandler: func(w http.ResponseWriter, _ *http.Request, _ error) {
+			// A control link can outlive the peer's HTTP listener. Retry IDE
+			// reads through the existing relay route before reporting a failure.
+			if m.cfg.Remote != nil && r.Context().Err() == nil && retryIDERead(r.Method, rest) {
+				m.cfg.Remote.ServeHTTP(w, r)
+				return
+			}
 			http.Error(w, "this pod does not answer", http.StatusBadGateway)
 		},
 	}
 	rp.ServeHTTP(w, r)
+}
+
+func retryIDERead(method, route string) bool {
+	if method != http.MethodGet && method != http.MethodHead || path.Clean("/"+route) != "/"+strings.TrimSuffix(route, "/") {
+		return false
+	}
+	return route == "ws" && method == http.MethodGet || strings.HasPrefix(route, "project/") || strings.HasPrefix(route, "assets/")
 }
 
 // PeerTransport is the way to the pod of key on the LAN, when it is a peer this pod dialed: its
