@@ -96,7 +96,9 @@ A Supervisor credential can use only its own text conversations. The Assistant s
 
 ### Delegate to the Assistant from an ACP session
 
-In **Assistant settings > Sub-agents**, choose a default server and a low-cost chat model. The IDE provides the ACP session with a Developer credential for its registered project or worktree. Use that directory as `cwd` in every call. Each session can access its own Assistant delegations.
+In **Assistant settings > Sub-agents**, choose a default server and a low-cost chat model. If both fields are unset, the pod uses the last Assistant model selection when that model is listed on a server marked *Available to sub-agents*.
+
+The IDE provides the ACP session with a Developer credential for its registered project or worktree. Use that directory as `cwd` in every call. Each session can access its own Assistant delegations.
 
 1. Call `assistant_start` with a short analysis request. The response gives the conversation ID in `chat` and the turn ID in `turn`.
 2. Call `assistant_wait` with both IDs. It returns the state and the applicable answer, error or question. The default wait is 15 seconds, the maximum is 20 seconds, and zero returns a snapshot. `timed_out` says that the turn is still running when the wait expires.
