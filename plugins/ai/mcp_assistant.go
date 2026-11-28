@@ -17,7 +17,7 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 	return []plugins.MCPTool{
 		{
 			Name:        "assistant_list",
-			Description: "Lists Assistant conversations in the project, including conversation ids, modes, tickets, sub-agents and current states.",
+			Description: "Lists Assistant conversations in the project, including conversation ids, modes, tickets, sub-agents and current states. Supervisors can inspect ACP delegations in their grant.",
 			Props: map[string]any{
 				"query":  plugins.Str("Filter by title"),
 				"limit":  map[string]any{"type": "integer", "description": "Maximum number of conversations, default 20"},
@@ -32,9 +32,13 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 				if err != nil {
 					return "", err
 				}
-				lines, err := s.conversationLines(chatLocOf(sc.Root), "", a.Query, a.Limit, a.Active, func(id string) bool {
-					c, err := s.loadChat(chatLocOf(sc.Root), id)
-					return err == nil && s.mcpChatAllowed(sc, c)
+				loc := chatLocOf(sc.Root)
+				lines, err := s.conversationLines(loc, "", a.Query, a.Limit, a.Active, func(id string) (string, bool) {
+					c, err := s.loadChat(loc, id)
+					if err != nil || !s.mcpChatInspectable(sc, c) {
+						return "", false
+					}
+					return mcpInspectionDetails(sc, c), true
 				})
 				if sc.ACPParent != "" && (sc.RefreshACPGrant == nil || !sc.RefreshACPGrant()) {
 					return "", errMCPConversation
@@ -51,7 +55,7 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 		},
 		{
 			Name:        "assistant_read",
-			Description: "Reads an Assistant conversation in the project, including questions waiting for the user.",
+			Description: "Reads an Assistant conversation in the project, including questions waiting for the user. For Supervisor inspection of an ACP delegation, includes the parent session and current turn state.",
 			Props: map[string]any{
 				"chat":  chat,
 				"last":  map[string]any{"type": "integer", "description": "Maximum number of recent messages, default all"},
@@ -67,19 +71,22 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 				if err != nil {
 					return "", err
 				}
-				c, err := s.loadMCPChat(sc, a.Chat)
-				if err != nil {
-					return "", err
+				c, err := s.loadChat(chatLocOf(sc.Root), a.Chat)
+				if err != nil || !s.mcpChatInspectable(sc, c) {
+					return "", errMCPConversation
 				}
 				data, err := json.Marshal(c)
 				if err != nil {
 					return "", err
 				}
 				text := conversationText(data, a.Last, a.Tools) + pendingQuestions(c, "The user can answer in the Questions tool of the IDE.")
+				if details := mcpInspectionDetails(sc, c); details != "" {
+					text = details + "\n\n" + text
+				}
+				if sc.ACPParent != "" && (sc.RefreshACPGrant == nil || !sc.RefreshACPGrant()) {
+					return "", errMCPConversation
+				}
 				if c.Delegation != nil {
-					if !sc.RefreshACPGrant() {
-						return "", errMCPConversation
-					}
 					text = delegationCut(text)
 				}
 				return text, nil
@@ -165,6 +172,33 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 		return "", err
 	}
 	return c.ID, nil
+}
+
+// Only assistant_list and assistant_read accept the Supervisor's inspection grant.
+func (s *A) mcpChatInspectable(sc plugins.MCPScope, c *engine.Chat) bool {
+	if sc.Supervisor && c.Delegation != nil {
+		if c.Delegation.Parent == "" || sc.AllowsProject == nil || !sc.AllowsProject(c.MCPProject, sc.Root.ID) {
+			return false
+		}
+		root, err := s.Projects.Root(c.MCPProject)
+		return err == nil && root.ID == sc.Root.ID
+	}
+	return s.mcpChatAllowed(sc, c)
+}
+
+func mcpInspectionDetails(sc plugins.MCPScope, c *engine.Chat) string {
+	d := c.Delegation
+	if !sc.Supervisor || d == nil {
+		return ""
+	}
+	details := "ACP parent " + d.Parent
+	if d.Turn != "" {
+		details += " · turn " + d.Turn
+	}
+	if d.State != "" {
+		details += " · state " + d.State
+	}
+	return details
 }
 
 // An existing chat has the scope of its owner project, not the cwd a client supplies.

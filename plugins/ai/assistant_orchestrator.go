@@ -41,7 +41,7 @@ func (s *A) listConversations(r *assistantRun, query string, limit int) (assista
 	return assistant.OK(text, assistant.Tn(len(lines), "{n} conversation", "{n} conversations", nil)), nil
 }
 
-func (s *A) conversationLines(loc llm.ChatLocation, exclude, query string, limit int, active bool, allowed func(string) bool) ([]string, error) {
+func (s *A) conversationLines(loc llm.ChatLocation, exclude, query string, limit int, active bool, inspect func(string) (string, bool)) ([]string, error) {
 	list, err := s.LLM.ListChats(loc)
 	if err != nil {
 		return nil, err
@@ -55,8 +55,13 @@ func (s *A) conversationLines(loc llm.ChatLocation, exclude, query string, limit
 		if c.ID == exclude || q != "" && !strings.Contains(strings.ToLower(c.Title), q) {
 			continue
 		}
-		if allowed != nil && !allowed(c.ID) {
-			continue
+		var details string
+		if inspect != nil {
+			var allowed bool
+			details, allowed = inspect(c.ID)
+			if !allowed {
+				continue
+			}
 		}
 		state, _ := s.stateOf(c.ID)
 		if active && state == "idle" && !c.Waiting {
@@ -79,6 +84,9 @@ func (s *A) conversationLines(loc llm.ChatLocation, exclude, query string, limit
 			line += " · waiting for the user"
 		} else if c.Failed {
 			line += " · failed (agent_resume)"
+		}
+		if details != "" {
+			line += " · " + details
 		}
 		lines = append(lines, line)
 		if len(lines) == limit {

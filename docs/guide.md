@@ -92,7 +92,9 @@ With a Developer credential that has this grant, use `kanban_develop` to start a
 
 The Assistant can read and edit files in the worktree and update the linked ticket. Approve shell commands in the IDE.
 
-A Supervisor credential can use only its own text conversations. The Assistant sends the model zero tool schemas for these conversations in every mode, including Build. Developer conversations started or steered through MCP can also ask the user questions in the IDE. These limits stay with the conversation when the pod reloads it.
+A Supervisor can start and steer its own text conversations. The Assistant sends the model zero tool schemas for these conversations in every mode, including Build. Developer conversations started or steered through MCP can also ask the user questions in the IDE. These limits stay with the conversation when the pod reloads it.
+
+With an Assistant grant, a Supervisor can inspect ACP delegations with `assistant_list` and `assistant_read`. Use a `cwd` in the granted project or worktree. Both tools show the parent ACP session ID and the saved turn ID and state when available. The delegation is read-only for the Supervisor.
 
 ### Delegate to the Assistant from an ACP session
 

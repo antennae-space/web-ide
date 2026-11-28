@@ -191,6 +191,7 @@ The pod authenticates each `POST /mcp` request with a separate MCP bearer. The g
 | Start or steer an ACP session | Yes | — |
 | Start a ticket-linked Assistant development in a prepared worktree | — | With an Assistant grant |
 | Use the Assistant | With a grant, own text conversations | With a grant, scoped conversations and user questions |
+| Inspect an ACP Assistant delegation | With an Assistant grant for its project or worktree | Only the owning ACP session |
 | Wait for or stop an Assistant delegation | — | Only the owning ACP session |
 | Invoke other external plugin tools | — | With an explicit plugin and tool grant |
 
@@ -210,7 +211,9 @@ The pod gives each parent one executing turn and uses the model server's shared 
 
 `assistant_wait` returns the state for the specified turn. It returns `queued`, `running`, `waiting_user`, `completed`, `failed`, `stopping` or `cancelled`. A wait expires after 15 seconds by default, with a maximum of 20 seconds. A timeout of zero reads the state immediately. An expired wait sets `timed_out` while the turn continues. A disconnect ends the wait. A new HTTP connection can read the saved result of the current turn. After a new turn starts, a new wait for the previous turn is refused. An interrupted turn after a pod restart reports an error.
 
-`assistant_stop` cancels the turn, clears queued follow-ups and keeps the saved transcript. Wait for `cancelled` before starting more work. The linked ticket routes also check the ACP parent, the credential, the exact project and the ticket. Manual Developer clients retain scoped conversation access. Supervisor Assistant grants remain limited to their own text conversations. See [the smoke test](../guide.md#delegate-to-the-assistant-from-an-acp-session).
+`assistant_stop` cancels the turn, clears queued follow-ups and keeps the saved transcript. Wait for `cancelled` before starting more work. The linked ticket routes also check the ACP parent, the credential, the exact project and the ticket. Manual Developer clients retain scoped conversation access.
+
+With an Assistant grant, a Supervisor can use `assistant_list` and `assistant_read` to inspect ACP delegations in granted projects and worktrees. The pod checks the delegation's saved project against the grant. Both tools show the saved ACP parent session ID, turn ID and state when available. The owning ACP session controls the delegation through MCP. See [the smoke test](../guide.md#delegate-to-the-assistant-from-an-acp-session).
 
 ## Supervisor tools on the agent sessions
 

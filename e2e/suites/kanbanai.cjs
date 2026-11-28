@@ -826,6 +826,10 @@ run(async ({ page }) => {
       const delegated = await call('assistant_start', { title: 'ACP fixture review', message: 'Check the ACP fixture' })
       const question = await call('assistant_wait', { chat: delegated.chat, turn: delegated.turn })
       assert(question.state === 'waiting_user' && question.question.includes('Which marker should I check?'), 'MCP reports the pending question')
+      const delegations = await ok('assistant_list', { query: 'ACP fixture review', active: true }, observer)
+      assert(delegations.includes(delegated.chat) && delegations.includes('ACP parent ' + session) && delegations.includes('state waiting_user'), 'Supervisor lists the delegation while it waits')
+      const waiting = await ok('assistant_read', { cwd, chat: delegated.chat }, observer)
+      assert(waiting.includes('turn ' + delegated.turn) && waiting.includes('Which marker should I check?'), 'Supervisor reads the waiting turn and its question')
       await page.goto(process.env.E2E_URL + '/project/' + project.parent + '?chat=' + encodeURIComponent(delegated.chat))
       await kp.waitForSelector('[data-testid=ai-ask-question]:has-text("Which marker should I check?")')
       const answer = await call('assistant_send', { chat: delegated.chat, message: 'Use the file marker' })
@@ -841,6 +845,8 @@ run(async ({ page }) => {
       await kp.waitForSelector('.ai-msg.assistant:has-text("Stopped.")')
       await kp.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("ACP review finished.")')
       assert(!(await kp.isVisible('.ai-msg.user:has-text("Queued message to discard")')), 'the stopped turn clears the queue and keeps the earlier result')
+      const saved = await ok('assistant_read', { cwd, chat: delegated.chat }, observer)
+      assert(saved.includes('turn ' + held.turn) && saved.includes('state cancelled') && saved.includes(result.answer), 'Supervisor reads the cancelled turn and the earlier result')
     }
   } finally {
     continueDevelopment?.()
