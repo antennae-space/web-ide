@@ -663,15 +663,12 @@ func (s *A) runTurn(r *assistantRun) {
 			mode = r.chat.Mode
 			system := s.systemPrompt(r, ref, r.chat, tools)
 			req = llm.ChatRequest{Server: server, Model: model}
-			if tools && r.chat.MCPDevelopment {
-				req.Tools = s.offered(ref.rt, mcpDevelopmentDefs(r.chat))
-			} else if tools && r.turn != "" {
-				req.Tools = s.offered(ref.rt, mcpAnalysisDefs(r.chat))
-			} else if tools && r.chat.MCPProject != "" {
-				req.Tools = []json.RawMessage{assistant.AskUserDef.JSON}
-			} else if tools {
+			if tools {
 				adopted := r.chat.Agent != nil && r.chat.Agent.Adopted
-				req.Tools = append(s.offered(ref.rt, engine.ToolsFor(mode, r.chat.Ticket, r.chat.Parent != "" && !adopted, engine.CanSpawn(r.chat), adopted)), s.pod.AssistantTools(ref.rt)...)
+				req.Tools = s.offered(ref.rt, engine.ToolsFor(mode, r.chat.Ticket, r.chat.Parent != "" && !adopted, engine.CanSpawn(r.chat), adopted))
+				if r.chat.MCPProject == "" {
+					req.Tools = append(req.Tools, s.pod.AssistantTools(ref.rt)...)
+				}
 			}
 			if info.caps.Thinking {
 				think := boolOr(o.Think, true)
@@ -683,11 +680,12 @@ func (s *A) runTurn(r *assistantRun) {
 						// One effort per conversation, its changes in the history (#217).
 						req.Effort = localEffort(r.chat, model, effort, info.caps.SystemTurns)
 					}
-					if tools && r.chat.MCPProject == "" && o.EffortTool && dynamicEffort(o) {
+					if tools && o.EffortTool && dynamicEffort(o) {
 						req.Tools = append(req.Tools, engine.SetEffortDef.JSON)
 					}
 				}
 			}
+			req.Tools = mcpScopedDefs(r.chat, req.Tools)
 			// After the effort: its note may be the last thing sent.
 			req.Messages = apiMessages(system, r.chat.Messages, !info.found || info.caps.Vision)
 			stream = assistant.NewID()
@@ -880,13 +878,11 @@ func (s *A) runCalls(r *assistantRun, ref *runtimeRef, calls []engine.ToolCall, 
 			continue
 		}
 		name := call.Function.Name
-		dev := r.chat.MCPDevelopment
 		if !mcpAssistantToolAllowed(r.chat, name) {
 			r.chat.Messages = append(r.chat.Messages, &engine.Message{Role: "tool", ToolCallID: call.ID, Name: name,
 				Content: assistant.String("Tool unavailable in this MCP conversation."), Status: "denied", Summary: assistant.T("not allowed", nil).Raw()})
 			s.publish(r, len(r.chat.Messages)-1)
 			r.mu.Unlock()
-			stop = stop || !dev && r.turn == ""
 			continue
 		}
 		var args map[string]json.RawMessage

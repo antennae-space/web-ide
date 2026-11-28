@@ -559,7 +559,7 @@ run(async ({ page, browser }) => {
       return reply.result?.content[0]?.text.includes('## Assistant\nMCP received MCP follow-up')
     }, { url: process.env.E2E_URL + '/mcp', token: mcpToken(), cwd: WS + '/demo', chat: externalChat })
     const developerRequest = requests.find((req) => text(req.messages.find((msg) => msg.role === 'user')) === 'MCP first message')
-    assert(toolNames(developerRequest).join(',') === 'ask_user', 'Developer assistant_start receives the question tool')
+    assert(toolNames(developerRequest).sort().join(',') === 'ask_user,compact_conversation', 'Developer assistant_start can ask questions and compact its conversation')
 
     const observer = mcpToken('observer')
     const foreignChat = await mcp('assistant_send', { chat: externalChat, message: 'unexpected' }, observer)
@@ -587,7 +587,7 @@ run(async ({ page, browser }) => {
     assert(!waited.result.isError && JSON.parse(waited.result.content[0].text).answer === 'Supervisor analysis finished.', 'Supervisor can wait for its answer')
     const transcript = (await mcp('assistant_read', { chat: supervisorID, tools: true }, observer)).result.content[0].text
     const supervisorRequest = requests.find((req) => req.messages.some((msg) => msg.content === 'Supervisor conversation'))
-    assert(supervisorRequest && toolNames(supervisorRequest).sort().join(',') === 'ask_user,list_dir,read_file', 'Supervisor Assistant receives the scoped analysis tools')
+    assert(supervisorRequest && toolNames(supervisorRequest).sort().join(',') === 'ask_user,compact_conversation,list_dir,read_file', 'Supervisor receives scoped analysis tools and normal conversation compaction')
     assert(transcript.includes('Tool unavailable in this MCP conversation'), 'the Assistant rejects a tool emitted despite discovery')
     assert(!fs.existsSync(WS + '/demo/mcp-forbidden'), 'the denied Assistant tool creates no file')
     await page.reload()

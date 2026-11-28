@@ -318,7 +318,7 @@ func TestMCPACPDelegation(t *testing.T) {
 		t.Fatalf("missing tool results: %v", wantTools)
 	}
 	var inspectRequests int
-	analysisTools := []string{"ask_user", "list_dir", "read_file"}
+	analysisTools := []string{"ask_user", "compact_conversation", "list_dir", "read_file"}
 	for {
 		select {
 		case req := <-requests:
@@ -397,12 +397,29 @@ checkedTools:
 		}
 	}
 	var longRequests int
+	commonTools := map[string]string{}
 	for len(requests) > 0 {
 		req := <-requests
 		msgs := req["messages"].([]any)
 		if len(msgs) > 1 && msgs[1].(map[string]any)["content"] == longPrompt {
 			if _, capped := req["max_tokens"]; capped {
 				t.Fatal("a long turn received an implicit output cap")
+			}
+			var shared int
+			for _, raw := range req["tools"].([]any) {
+				name := raw.(map[string]any)["function"].(map[string]any)["name"].(string)
+				if !slices.Contains(analysisTools, name) {
+					continue
+				}
+				shared++
+				def, _ := json.Marshal(raw)
+				if prev := commonTools[name]; prev != "" && prev != string(def) {
+					t.Fatalf("%s has different definitions between launches", name)
+				}
+				commonTools[name] = string(def)
+			}
+			if shared != len(analysisTools) {
+				t.Fatalf("missing a common tool on request %d", longRequests+1)
 			}
 			longRequests++
 		}

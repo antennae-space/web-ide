@@ -58,13 +58,9 @@ func (s *A) assistantTool(r *assistantRun, ref *runtimeRef, call engine.ToolCall
 	tainted := len(r.chat.Tainted) > 0
 	dev := r.chat.MCPDevelopment
 	analysis := r.chat.Delegation != nil && !dev
-	allowed := mcpAssistantToolAllowed(r.chat, name)
 	ticket := r.chat.Ticket
 	options := opt(r.chat)
 	r.mu.Unlock()
-	if !allowed {
-		return fail(r, errors.New("tool unavailable in this MCP conversation"))
-	}
 	if analysis {
 		res, err := s.mcpAnalysisFile(ref.rt, name, a)
 		if err != nil {

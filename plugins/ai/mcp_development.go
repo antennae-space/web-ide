@@ -27,22 +27,20 @@ func mcpDevelopmentTool(name string) bool {
 	return false
 }
 
-func mcpDevelopmentDefs(c *engine.Chat) []json.RawMessage {
-	return mcpScopedDefs(c, mcpDevelopmentTool)
-}
-
 func mcpAnalysisTool(name string) bool {
 	return name == "read_file" || name == "list_dir" || name == "ask_user"
 }
 
-func mcpAnalysisDefs(c *engine.Chat) []json.RawMessage {
-	return mcpScopedDefs(c, mcpAnalysisTool)
-}
-
+// The MCP grant limits which resources the conversation can access. Conversation
+// actions use the Assistant's normal settings and approved model.
 func mcpAssistantToolAllowed(c *engine.Chat, name string) bool {
-	switch {
-	case c.MCPTextOnly:
+	if c.MCPTextOnly {
 		return false
+	}
+	if name == "compact_conversation" || name == "set_effort" {
+		return true
+	}
+	switch {
 	case c.MCPDevelopment:
 		return mcpDevelopmentTool(name)
 	case c.Delegation != nil:
@@ -54,13 +52,18 @@ func mcpAssistantToolAllowed(c *engine.Chat, name string) bool {
 	}
 }
 
-func mcpScopedDefs(c *engine.Chat, allowed func(string) bool) []json.RawMessage {
+// Start from the standard Assistant definitions, then apply the caller's
+// existing resource boundary. Dispatch checks the same boundary.
+func mcpScopedDefs(c *engine.Chat, defs []json.RawMessage) []json.RawMessage {
+	if c.MCPProject == "" && c.Delegation == nil && !c.MCPTextOnly && !c.MCPDevelopment {
+		return defs
+	}
 	var out []json.RawMessage
-	for _, d := range engine.ToolsFor(c.Mode, c.Ticket, false, false, false) {
+	for _, d := range defs {
 		var f struct {
 			Function struct{ Name string } `json:"function"`
 		}
-		if json.Unmarshal(d, &f) == nil && allowed(f.Function.Name) {
+		if json.Unmarshal(d, &f) == nil && mcpAssistantToolAllowed(c, f.Function.Name) {
 			out = append(out, d)
 		}
 	}
