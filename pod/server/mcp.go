@@ -239,7 +239,7 @@ func (s *Server) mcpInstructions(identity mcpIdentity) string {
 		text = "You have the Supervisor profile. Use tools/list to find the allowed operations. Pass an absolute cwd inside a granted project."
 	}
 	if identity.Assistant && (identity.acpSession != "" || identity.Profile == mcpSupervisor) {
-		text += "\nUse assistant_start for bounded read-only analysis in this project. Use assistant_wait with the returned chat and turn IDs. The user can answer questions in the IDE. Use assistant_stop to stop the delegated task."
+		text += "\nUse assistant_start for read-only analysis in this project. Use assistant_wait with the returned chat and turn IDs. The user can answer questions in the IDE. Use assistant_stop to stop the delegated task."
 	}
 	links := s.resourceScope()
 	text += "\nLink to files with the browser machine's local gateway: [path:line](" + links.LocalURL + "/open?path=<URL-encoded absolute path>&line=<line>). Use the resource URLs the tools return."

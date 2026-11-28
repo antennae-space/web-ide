@@ -310,7 +310,7 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 				for _, q := range r.chat.Queue {
 					size += len(q.Text)
 				}
-				if size > delegationPromptBytes || len(r.chat.Queue) >= delegationModelSteps {
+				if size > delegationPromptBytes || len(r.chat.Queue) >= delegationQueueLimit {
 					return "", i18n.New("Assistant delegation input exceeds the queue limit")
 				}
 				r.chat.Queue = append(r.chat.Queue, engine.QueuedMessage{ID: assistant.NewID(), Text: text, Author: author})

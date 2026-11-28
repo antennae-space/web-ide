@@ -75,7 +75,7 @@ func (s *A) registerRun(r *assistantRun, grant func() bool) error {
 				return errMCPConversation
 			}
 		}
-		r.acpParent, r.delegationOwner = d.Parent, r.chat.MCPOwner
+		r.acpParent, r.delegationOwner, r.delegationGrant = d.Parent, r.chat.MCPOwner, grant
 	}
 	if t := r.chat.Ticket; t != nil && r.chat.Parent == "" && (r.chat.MCPDevelopment || t.Role == "dev" || t.Role == "correction") {
 		if err := s.reserveDevelopment(r.project, t.ID, r.id); err != nil {
@@ -83,14 +83,12 @@ func (s *A) registerRun(r *assistantRun, grant func() bool) error {
 		}
 		r.devKey = r.project
 	}
+	r.ctx, r.cancel = contextWithCancel()
 	if d != nil {
 		d.Turn, d.State, d.Error = assistant.NewID(), "running", ""
 		r.turn = d.Turn
 		d.From = len(r.chat.Messages)
-		r.ctx, r.cancel = context.WithTimeout(context.Background(), delegationDuration)
 		r.publishDelegation(nil)
-	} else {
-		r.ctx, r.cancel = contextWithCancel()
 	}
 	s.assistants.runs[r.id] = r
 	return nil
@@ -550,7 +548,7 @@ func (s *A) loop(r *assistantRun) {
 		r.mu.Lock()
 		if r.turn != "" && r.ctx.Err() == nil && len(r.chat.Queue) > 0 && !waitsForUser(r.chat) {
 			r.mu.Unlock()
-			continue // keep the turn ID, limits and reservation across queued messages
+			continue // keep the turn ID and reservation across queued messages
 		}
 		r.chat.Running, r.chat.Approval = nil, nil
 		r.state = "idle"
@@ -625,13 +623,6 @@ func (s *A) runTurn(r *assistantRun) {
 		if r.ctx.Err() != nil {
 			return
 		}
-		if r.turn != "" {
-			if r.modelSteps >= delegationModelSteps {
-				r.failDelegation()
-				return
-			}
-			r.modelSteps++
-		}
 		var req llm.ChatRequest
 		var server, model, mode, effort, stream string
 		started := time.Now()
@@ -657,7 +648,7 @@ func (s *A) runTurn(r *assistantRun) {
 			info := s.modelInfo(r.ctx, server, model)
 			r.mu.Lock()
 			o := opt(r.chat)
-			needs := r.turn == "" && boolOr(o.AutoCompact, true) && info.context > 0 && contextUsed(r.chat) > info.context*max(o.CompactAt, 75)/100
+			needs := boolOr(o.AutoCompact, true) && info.context > 0 && contextUsed(r.chat) > info.context*max(o.CompactAt, 75)/100
 			r.mu.Unlock()
 			if needs {
 				if err := s.compact(r, false, ""); err == nil {
@@ -672,9 +663,6 @@ func (s *A) runTurn(r *assistantRun) {
 			mode = r.chat.Mode
 			system := s.systemPrompt(r, ref, r.chat, tools)
 			req = llm.ChatRequest{Server: server, Model: model}
-			if r.turn != "" {
-				req.MaxTokens = 4096
-			}
 			if tools && r.chat.MCPDevelopment {
 				req.Tools = s.offered(ref.rt, mcpDevelopmentDefs(r.chat))
 			} else if tools && r.turn != "" {
@@ -716,6 +704,10 @@ func (s *A) runTurn(r *assistantRun) {
 		if err != nil {
 			return
 		}
+		if !r.checkDelegationGrant() {
+			release()
+			return
+		}
 		if !resumed {
 			started = time.Now()
 		}
@@ -733,7 +725,7 @@ func (s *A) runTurn(r *assistantRun) {
 		if err != nil && !looped {
 			canceled := r.ctx.Err() != nil
 			r.mu.Unlock()
-			if r.turn == "" && !canceled && !compactedForError && ans.content == "" && contextError.MatchString(err.Error()) {
+			if !canceled && !compactedForError && ans.content == "" && contextError.MatchString(err.Error()) {
 				compactedForError = true
 				if s.compact(r, false, "") == nil {
 					continue
@@ -877,14 +869,10 @@ func (s *A) runCalls(r *assistantRun, ref *runtimeRef, calls []engine.ToolCall, 
 		if s.stopping() {
 			return true // the next pod runs it
 		}
-		r.mu.Lock()
-		if r.turn != "" && r.ctx.Err() == nil {
-			if r.toolSteps >= delegationToolSteps {
-				r.limitDelegation()
-			} else {
-				r.toolSteps++
-			}
+		if r.ctx.Err() == nil {
+			r.checkDelegationGrant()
 		}
+		r.mu.Lock()
 		if r.ctx.Err() != nil {
 			r.chat.Messages = append(r.chat.Messages, &engine.Message{Role: "tool", ToolCallID: call.ID, Name: call.Function.Name, Content: assistant.String("Canceled by the user."), Status: "denied", Summary: assistant.T("canceled", nil).Raw()})
 			s.publish(r, len(r.chat.Messages)-1)
@@ -1142,7 +1130,7 @@ func (s *A) compact(r *assistantRun, manual bool, instructions string) error {
 	if len(transcript) > maxChars {
 		transcript = transcript[len(transcript)-maxChars:]
 	}
-	if o.CompactSrv != "" {
+	if o.CompactSrv != "" && (r.turn == "" || s.delegationModelConfigured(o.CompactSrv, o.CompactMdl)) {
 		server, model = o.CompactSrv, o.CompactMdl
 	}
 	if server == "" || model == "" {
@@ -1165,6 +1153,10 @@ func (s *A) compact(r *assistantRun, manual bool, instructions string) error {
 	release, err := s.slot(r, server)
 	if err != nil {
 		return err
+	}
+	if !r.checkDelegationGrant() {
+		release()
+		return errMCPConversation
 	}
 	no := false
 	res, err := s.LLM.Chat(r.ctx, llm.ChatRequest{Server: server, Model: model, Think: &no, Messages: []llm.Message{
@@ -1189,6 +1181,9 @@ func (s *A) compact(r *assistantRun, manual bool, instructions string) error {
 	}
 	sm := &engine.Message{Role: "user", Kind: "summary", Content: assistant.String(summary), Summarized: keepFrom - start, Model: model}
 	r.chat.Messages = append(r.chat.Messages[:keepFrom], append([]*engine.Message{sm}, r.chat.Messages[keepFrom:]...)...)
+	if d := r.chat.Delegation; d != nil && keepFrom <= d.From {
+		d.From++
+	}
 	r.chat.ResetAt = len(r.chat.Messages)
 	s.publish(r, 0)
 	return nil

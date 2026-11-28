@@ -111,7 +111,8 @@ func (s *A) ResumeRuns() {
 // interrupted when opened, as without keeper).
 func (s *A) resumeRun(e runningEntry, c *engine.Chat, relays map[string]bool) string {
 	if c.Delegation != nil {
-		// Never replay work with a new execution budget or repeat a delegated tool call.
+		// The caller grant is held in the running pod. Do not replay its delegated
+		// tool calls after a restart.
 		if run := c.Running; run != nil {
 			if run.Stream != "" {
 				_ = s.Keeper.ForgetHTTP(run.Stream)

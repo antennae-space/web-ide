@@ -92,7 +92,7 @@ With a Developer credential that has this grant, use `kanban_develop` to start a
 
 The Assistant can read and edit files in the worktree and update the linked ticket. Approve shell commands in the IDE.
 
-A Supervisor can start bounded read-only analysis with `assistant_start`. Use the same start, wait and stop steps as for [ACP delegation](#delegate-to-the-assistant-from-an-acp-session). The delegation belongs to the Supervisor credential and the exact project selected by `cwd`. The Assistant can ask the user questions in the IDE.
+A Supervisor can start read-only analysis with `assistant_start`. Use the same start, wait and stop steps as for [ACP delegation](#delegate-to-the-assistant-from-an-acp-session). The delegation belongs to the Supervisor credential and the exact project selected by `cwd`. The Assistant can ask the user questions in the IDE.
 
 With an Assistant grant, a Supervisor can inspect ACP delegations with `assistant_list` and `assistant_read`. Use a `cwd` in the granted project or worktree. Both tools show the parent ACP session ID and the saved turn ID and state when available. The delegation is read-only for the Supervisor.
 
@@ -103,7 +103,7 @@ In **Assistant settings > Sub-agents**, choose a default server and a low-cost c
 The IDE provides the ACP session with a Developer credential for its registered project or worktree. Use that directory as `cwd` in every call. Each session can access its own Assistant delegations.
 
 1. Call `assistant_start` with a short analysis request. The response gives the conversation ID in `chat`, the turn ID in `turn` and a link in `local_url`. When there is a registered relay route or a configured public address, it also gives a link in `url`.
-2. Call `assistant_wait` with both IDs. It returns the state and the applicable answer, error or question. The default wait is 15 seconds, the maximum is 20 seconds, and zero returns a snapshot. `timed_out` says that the turn is still running when the wait expires.
+2. Call `assistant_wait` with both IDs. It returns the state and the applicable answer, error or question. The default wait is 15 seconds, the maximum is 20 seconds, and zero returns a snapshot. The wait can expire while the Assistant keeps working. Call again with the same IDs to retrieve the result.
 3. Open the conversation from the link or from *Conversations of the project* in the Assistant tool. The local link uses `localhost` and routes through the browser machine’s pod to the pod that owns the conversation. Sign in to the gateway when asked. If the turn needs input, answer in Questions or use `assistant_send` to provide more context. Use the turn ID returned by `assistant_send` for the next wait.
 4. Call `assistant_stop` on a running turn. Wait for `cancelled` and check that the transcript is still in the Assistant tool.
 

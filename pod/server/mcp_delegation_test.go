@@ -48,8 +48,19 @@ func TestMCPACPDelegation(t *testing.T) {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	var next, cancelled atomic.Int32
+	var longReady atomic.Bool
 	var pending sync.WaitGroup
 	block := make(chan struct{})
+	finishLong := make(chan struct{})
+	const longPrompt = "long multi-tool turn"
+	const batches, callsPerBatch = 9, 3
+	longBatch := func(batch int) []string {
+		var calls [][3]string
+		for i := range callsPerBatch {
+			calls = append(calls, [3]string{fmt.Sprintf("long-%d-%d", batch, i), "read_file", `{"path":"inside.txt"}`})
+		}
+		return toolCalls(calls...)
+	}
 	t.Cleanup(pending.Wait)
 	requests := make(chan map[string]any, 64)
 	model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -91,29 +102,36 @@ func TestMCPACPDelegation(t *testing.T) {
 				[3]string{"w", "write_file", `{"path":"forbidden.txt","content":"x"}`},
 				[3]string{"a", "spawn_agent", `{"task":"nested"}`},
 				[3]string{"c", "agent_stop", `{"id":"nested"}`})
-		case "too many model steps":
-			answer = toolCalls([3]string{"loop", "list_dir", `{}`})
-		case "too many tool steps":
-			var calls [][3]string
-			for i := range 25 {
-				calls = append(calls, [3]string{fmt.Sprint(i), "read_file", `{"path":"inside.txt"}`})
-			}
-			answer = toolCalls(calls...)
+		case longPrompt:
+			answer = longBatch(0)
 		case "fail":
 			http.Error(w, "fixture model error", http.StatusBadGateway)
 			return
 		default:
-			switch msg["tool_call_id"] {
-			case "loop":
-				answer = toolCalls([3]string{fmt.Sprintf("loop-%d", len(req["messages"].([]any))), "list_dir", `{}`})
-			case "c":
+			var batch, index int
+			switch id, _ := msg["tool_call_id"].(string); {
+			case id == "c":
 				answer = text(strings.Repeat("été", 2100))
-			default:
-				if strings.HasPrefix(fmt.Sprint(msg["tool_call_id"]), "loop-") {
-					answer = toolCalls([3]string{fmt.Sprintf("loop-%d", len(req["messages"].([]any))), "list_dir", `{}`})
-				} else {
-					answer = text("Result: " + fmt.Sprint(msg["content"]))
+			case strings.HasPrefix(id, "long-"):
+				if _, err := fmt.Sscanf(id, "long-%d-%d", &batch, &index); err != nil {
+					http.Error(w, "unexpected fixture tool call", http.StatusBadRequest)
+					return
 				}
+				if batch+1 < batches {
+					answer = longBatch(batch + 1)
+					break
+				}
+				longReady.Store(true)
+				select {
+				case <-finishLong:
+					answer = text("Long turn completed")
+				case <-r.Context().Done():
+					return
+				case <-block:
+					return
+				}
+			default:
+				answer = text("Result: " + fmt.Sprint(msg["content"]))
 			}
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -304,8 +322,8 @@ func TestMCPACPDelegation(t *testing.T) {
 	for {
 		select {
 		case req := <-requests:
-			if req["max_tokens"] != float64(4096) {
-				t.Fatalf("missing model token cap: %v", req["max_tokens"])
+			if _, capped := req["max_tokens"]; capped {
+				t.Fatalf("unexpected implicit output cap: %v", req["max_tokens"])
 			}
 			defs, _ := req["tools"].([]any)
 			var names []string
@@ -338,15 +356,59 @@ checkedTools:
 	if got := invoke(owner, "assistant_stop", argsFor(question, 0)); got.State != "cancelled" {
 		t.Fatal(got)
 	}
-	for _, message := range []string{"fail", "too many model steps", "too many tool steps"} {
-		failed := start(message)
-		want := "execution limit"
-		if message == "fail" {
-			want = "fixture model error"
+	failed := start("fail")
+	if got := invoke(owner, "assistant_wait", argsFor(failed, 3000)); got.State != "failed" || !strings.Contains(got.Error, "fixture model error") {
+		t.Fatal(got)
+	}
+
+	delegated := start(longPrompt)
+	waitFor(t, "model reached the last request after all tool batches", longReady.Load)
+	if got := invoke(owner, "assistant_wait", argsFor(delegated, 50)); got.State != "running" || !got.TimedOut {
+		t.Fatal(got)
+	}
+	close(finishLong)
+	if got := invoke(owner, "assistant_wait", argsFor(delegated, 3000)); got.State != "completed" || got.Answer != "Long turn completed" {
+		t.Fatal(got)
+	}
+	ui, err := dial(t, ts, s.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ui.c.CloseNow()
+	ui.call("project.open", map[string]any{"id": child.ID})
+	const uiChat = "long-ui-turn"
+	ui.call("assistant.send", map[string]any{"id": uiChat, "text": longPrompt, "mode": "plan", "server": server, "model": "cheap"})
+	ui.waitEvent("assistant.update", func(m map[string]any) bool { return m["id"] == uiChat && m["state"] == "idle" })
+	for _, id := range []string{uiChat, delegated.Chat} {
+		raw, err := llmOf(s).GetChat(loc, id)
+		var saved engine.Chat
+		if err != nil || json.Unmarshal(raw, &saved) != nil {
+			t.Fatalf("missing long turn %s: %v", id, err)
 		}
-		if got := invoke(owner, "assistant_wait", argsFor(failed, 3000)); got.State != "failed" || !strings.Contains(got.Error, want) {
-			t.Fatal(got)
+		var tools int
+		for _, m := range saved.Messages {
+			if m.Role == "tool" && strings.Contains(string(m.Content), "inside marker") {
+				tools++
+			}
 		}
+		last := saved.Messages[len(saved.Messages)-1]
+		if tools != batches*callsPerBatch || !strings.Contains(string(last.Content), "Long turn completed") || last.Error != "" {
+			t.Fatalf("%s: expected %d tool results and a final answer, got %d results and %+v", id, batches*callsPerBatch, tools, last)
+		}
+	}
+	var longRequests int
+	for len(requests) > 0 {
+		req := <-requests
+		msgs := req["messages"].([]any)
+		if len(msgs) > 1 && msgs[1].(map[string]any)["content"] == longPrompt {
+			if _, capped := req["max_tokens"]; capped {
+				t.Fatal("a long turn received an implicit output cap")
+			}
+			longRequests++
+		}
+	}
+	if longRequests != 2*(batches+1) {
+		t.Fatalf("both launch paths should make %d requests, got %d total", batches+1, longRequests)
 	}
 
 	active := start("block")

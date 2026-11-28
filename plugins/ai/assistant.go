@@ -46,10 +46,9 @@ type assistantRun struct {
 	devKey          string // reservation held while this development runs
 	acpParent       string // the parent ACP session, when present
 	delegationOwner string // the authenticated MCP caller
+	delegationGrant func() bool
 	turn            string
 	delegation      atomic.Pointer[delegationUpdate]
-	modelSteps      int
-	toolSteps       int
 }
 
 func contextWithCancel() (context.Context, context.CancelFunc) {

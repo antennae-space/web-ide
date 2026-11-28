@@ -3,7 +3,6 @@ package ai
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -19,9 +18,7 @@ import (
 const (
 	delegationPromptBytes = 16 << 10
 	delegationResultBytes = 8 << 10
-	delegationDuration    = 2 * time.Minute
-	delegationModelSteps  = 8
-	delegationToolSteps   = 24
+	delegationQueueLimit  = 8
 	delegationWaitDefault = 15_000
 	delegationWaitMax     = 20_000
 )
@@ -364,24 +361,21 @@ func stopDelegatedChat(c *engine.Chat) int {
 	return from
 }
 
-// limitDelegation cancels pending work and records why the turn failed.
-// The caller holds r.mu.
-func (r *assistantRun) limitDelegation() {
-	r.chat.Delegation.Error = i18n.T(r.lang, "Assistant delegation reached its execution limit")
-	r.cancel()
-}
-
-func (r *assistantRun) failDelegation() {
+// Check the grant at dispatch so a caller that loses access cannot start another
+// model request or tool call in a running turn.
+func (r *assistantRun) checkDelegationGrant() bool {
+	if r.delegationGrant == nil || r.delegationGrant() {
+		return true
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.limitDelegation()
+	r.chat.Delegation.Error = i18n.Translate(r.lang, errMCPConversation)
+	r.cancel()
+	return false
 }
 
 func finishDelegation(r *assistantRun) int {
 	c, d := r.chat, r.chat.Delegation
-	if errors.Is(r.ctx.Err(), context.DeadlineExceeded) {
-		d.Error = i18n.T(r.lang, "Assistant delegation reached its execution limit")
-	}
 	if d.Error != "" {
 		d.State = "failed"
 		c.Queue = nil

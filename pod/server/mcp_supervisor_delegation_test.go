@@ -9,8 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"antennae.space/ide/plugins/ai/engine"
 	"antennae.space/ide/plugins/ai/llm"
 )
 
@@ -25,18 +27,30 @@ func TestMCPSupervisorDelegation(t *testing.T) {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	release := make(chan struct{}, 1)
+	var revocationRequest atomic.Bool
 	model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/models":
 			writeJSON(w, map[string]any{"data": []map[string]string{{"id": "fixture"}}})
 		case "/v1/chat/completions":
+			var req map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			dropNotes(req)
+			isRevocation := lastMessage(req)["content"] == "Check the grant before a tool runs"
+			if isRevocation {
+				revocationRequest.Store(true)
+			}
 			select {
 			case <-r.Context().Done():
 				return
 			case <-release:
 			}
 			w.Header().Set("Content-Type", "text/event-stream")
-			for _, chunk := range text("Delegated fixture answer") {
+			chunks := text("Delegated fixture answer")
+			if isRevocation {
+				chunks = toolCalls([3]string{"revocation-read", "read_file", `{"path":"grant-marker.txt"}`})
+			}
+			for _, chunk := range chunks {
 				fmt.Fprintf(w, "data: %s\n\n", chunk)
 			}
 			fmt.Fprint(w, "data: [DONE]\n\n")
@@ -186,4 +200,38 @@ func TestMCPSupervisorDelegation(t *testing.T) {
 	family.ok("assistant_stop", args)
 	contains(family.ok("assistant_wait", args), `"state":"cancelled"`)
 	contains(read(family, dir), "state cancelled")
+
+	if err := os.WriteFile(filepath.Join(dir, "grant-marker.txt"), []byte("Revocation fixture marker"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	start["message"] = "Check the grant before a tool runs"
+	raw = family.ok("assistant_start", start)
+	if err := json.Unmarshal([]byte(raw), &turn); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "model request in flight before revocation", revocationRequest.Load)
+	delete(grants, "family")
+	if err := s.Store.WriteJSON(mcpClients, grants); err != nil {
+		t.Fatal(err)
+	}
+	release <- struct{}{}
+	loc, _, err := aiOf(s).ChatLoc(child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "revoked turn ends without dispatching the model's tool", func() bool {
+		raw, err := llmOf(s).GetChat(loc, turn.Chat)
+		if err != nil {
+			return false
+		}
+		var saved engine.Chat
+		if json.Unmarshal(raw, &saved) != nil || saved.Delegation.State != "failed" {
+			return false
+		}
+		contains(string(raw), "conversation is unavailable", "revocation-read")
+		if strings.Contains(string(raw), "Revocation fixture marker") {
+			t.Fatal("the tool read a file after the caller's grant was revoked")
+		}
+		return true
+	})
 }

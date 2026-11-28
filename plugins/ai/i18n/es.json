@@ -7,7 +7,6 @@
   "Assistant delegation input exceeds 16 KiB": "La entrada de la delegación del asistente supera los 16 KiB",
   "Assistant delegation input exceeds the queue limit": "La entrada de la delegación del asistente supera el límite de la cola",
   "this MCP caller already has an active Assistant delegation": "Este cliente MCP ya tiene una delegación activa del asistente",
-  "Assistant delegation reached its execution limit": "La delegación del asistente ha alcanzado su límite de ejecución",
   "Assistant delegation ended without a final answer": "La delegación del asistente terminó sin una respuesta final",
   "the worktree already has an active development (session %s)": "El árbol de trabajo ya tiene un desarrollo activo (sesión %s)",
   "the path is outside the Assistant delegation": "La ruta está fuera de la delegación del asistente",

@@ -112,7 +112,7 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 		},
 		{
 			Name:        "assistant_start",
-			Description: "Starts an Assistant conversation in the project of cwd. Supervisor and managed ACP callers start bounded analysis on the configured sub-agent model and receive chat and turn ids.",
+			Description: "Starts an Assistant conversation in the project of cwd. Supervisor and managed ACP callers start read-only analysis on the configured sub-agent model and receive chat and turn ids.",
 			Props: map[string]any{
 				"message": message,
 				"title":   plugins.Str("Conversation title, optional"),
