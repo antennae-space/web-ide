@@ -3,7 +3,7 @@
 import { createSignal } from 'solid-js'
 import { createStore, reconcile } from 'solid-js/store'
 import type { DoodleDoc } from './doodle/model'
-import { api, detached, on, request } from '../plugin'
+import { api, detached, home, on, request } from '../plugin'
 import type { PreviewSpec, Question } from '../plugin'
 
 export interface ServerView {
@@ -608,11 +608,18 @@ export async function select(server: string, model: string) {
 // ---------- conversations ----------
 
 let chatListSeq = 0
+let chatListProject = ''
 export async function refreshChats() {
+  const project = home()?.id
+  if (!project) return
+  if (project !== chatListProject) {
+    chatListProject = project
+    setChatList([])
+  }
   const seq = ++chatListSeq
-  const list = await request<ChatInfo[]>('llm.chats.list').catch(() => [])
+  const list = await request<ChatInfo[]>('llm.chats.list').catch(() => undefined)
   // A refresh after an Assistant update can finish before the refresh at opening.
-  if (seq === chatListSeq) setChatList(list)
+  if (seq === chatListSeq && home()?.id === project && list) setChatList(list)
 }
 
 // ---------- history of the conversations shown ----------

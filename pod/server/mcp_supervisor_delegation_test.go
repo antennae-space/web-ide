@@ -46,7 +46,10 @@ func TestMCPSupervisorDelegation(t *testing.T) {
 	}))
 	t.Cleanup(model.Close)
 	t.Cleanup(func() { close(release) })
-	s, ts := newServer(t)
+	s, ts := newServerWith(t, func(s *Server) {
+		s.Cfg.Addr = "127.0.0.1:4433"
+		s.Cfg.PublicURL = "https://relay.example/pod/fixture"
+	})
 	ws, err := dial(t, ts, s.Token)
 	if err != nil {
 		t.Fatal(err)
@@ -168,6 +171,8 @@ func TestMCPSupervisorDelegation(t *testing.T) {
 	if err := json.Unmarshal([]byte(raw), &turn); err != nil || turn.Chat == "" || turn.Turn == "" || turn.Model != "fixture" {
 		t.Fatalf("Supervisor start: %s (%v)", raw, err)
 	}
+	path := "/project/" + rootID + "?chat=" + turn.Chat
+	contains(raw, `"url":"https://relay.example/pod/fixture`+path+`"`, `"local_url":"http://127.0.0.1:4433`+path+`"`)
 	contains(read(family, dir), "Supervisor analysis", "MCP delegation", "turn "+turn.Turn)
 	for _, name := range []string{"assistant_read", "assistant_send", "assistant_wait", "assistant_stop"} {
 		denied(owner, name, dir, "conversation is unavailable")

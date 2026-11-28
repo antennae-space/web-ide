@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -157,6 +158,26 @@ func TestOpenLink(t *testing.T) {
 		t.Fatalf("opened: %v", out)
 	}
 	a.waitEvent("ide.open", func(d map[string]any) bool { return d["path"] == file && d["line"] == float64(3) })
+}
+
+func TestAccessTokenReturnsToLink(t *testing.T) {
+	s, ts := newServer(t)
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	for _, tc := range []struct{ next, want string }{
+		{"/project/abc?chat=chat-id&token=ignored", "/project/abc?chat=chat-id"},
+		{"https://elsewhere.example/", "/"},
+		{"//elsewhere.example/", "/"},
+		{"/%5Celsewhere.example/", "/"},
+	} {
+		res, err := client.PostForm(ts.URL+"/auth", url.Values{"token": {s.Token}, "next": {tc.next}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if got := res.Header.Get("Location"); res.StatusCode != http.StatusFound || got != tc.want {
+			t.Errorf("%q: %d %q, want %q", tc.next, res.StatusCode, got, tc.want)
+		}
+	}
 }
 
 // A project opened through a symbolic link is found from the folder the link leads to.

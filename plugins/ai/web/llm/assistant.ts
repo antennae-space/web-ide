@@ -121,16 +121,14 @@ function applyState(state: RunState, ahead = 0) {
 }
 
 on('assistant.update', (u: Update) => {
-  // A conversation that starts or ends moves in the list (active ones first).
-  if ((runStates()[u.id] ?? 'idle') !== u.state) listSoon()
+  // The first update this window sees can be idle, for example after a reconnect.
+  listSoon()
   setRunStates((s) => {
     const next = { ...s }
     if (u.state === 'idle') delete next[u.id]
     else next[u.id] = u.state
     return next
   })
-  // The cards of the sub-agents of the conversation shown follow their state.
-  if (u.parent && u.parent === chat.id) listSoon()
   if (u.id !== chat.id) return
   setChat(
     produce((c) => {
@@ -160,7 +158,6 @@ on('assistant.update', (u: Update) => {
   applyState(u.state, u.ahead)
   attach(u.state === 'idle' ? undefined : u.stream)
   rememberActive()
-  listSoon()
 })
 
 /** The consoles this conversation started that still run (the shells of its bar). */
@@ -237,9 +234,18 @@ function rememberActive() {
   if (!detached() && chat.messages.length && deskChat().get().chat !== chat.id) deskChat().set((s) => (s.chat = chat.id))
 }
 
+let pendingChatOpen: object | undefined
+
 /** Shows a conversation: its messages and its state, then follows it. */
 export async function openChat(id: string, record = true) {
-  const r = await request<{ chat: Chat; state: RunState; ahead: number }>('assistant.open', { id })
+  const pending = {}
+  pendingChatOpen = pending
+  const r = await request<{ chat: Chat; state: RunState; ahead: number }>('assistant.open', { id }).catch((error) => {
+    if (pendingChatOpen === pending) pendingChatOpen = undefined
+    throw error
+  })
+  if (pendingChatOpen !== pending) return
+  pendingChatOpen = undefined
   if (record) leaveChat(id)
   setChat(reconcile({ ...r.chat, queue: r.chat.queue ?? [] }))
   setApproval(r.chat.approval ?? null)
@@ -292,7 +298,7 @@ export async function restoreActive() {
   }
   loadStates()
   if (first && !detached()) createRoot(() => createEffect(track(() => deskChat().get().chat, () => void showDeskChat(), { defer: true })))
-  await showDeskChat()
+  if (!pendingChatOpen) await showDeskChat()
 }
 
 async function showDeskChat() {

@@ -283,7 +283,7 @@ const fake = http.createServer(async (req, res) => {
   end(res)
 })
 
-run(async ({ page }) => {
+run(async ({ page, browser }) => {
   // The views of the Kanban are frames of the page (#158).
   const kp = inFrames(page)
   // The Kanban is an external official plugin (#158): its release, or E2E_PLUGIN_KANBAN.
@@ -581,7 +581,8 @@ run(async ({ page }) => {
     assert(!supervisorChat.result.isError, 'an explicit Supervisor Assistant grant starts a conversation')
     await supervisorRow.waitFor({ timeout: 5000 })
     assert(true, 'the open Assistant sidebar lists a new Supervisor conversation')
-    const { chat: supervisorID, turn: supervisorTurn } = JSON.parse(supervisorChat.result.content[0].text)
+    const { chat: supervisorID, turn: supervisorTurn, url, local_url: localURL } = JSON.parse(supervisorChat.result.content[0].text)
+    assert(url === localURL && new URL(localURL).searchParams.get('chat') === supervisorID, 'MCP returns both conversation links with its resource ID')
     const waited = await mcp('assistant_wait', { chat: supervisorID, turn: supervisorTurn }, observer)
     assert(!waited.result.isError && JSON.parse(waited.result.content[0].text).answer === 'Supervisor analysis finished.', 'Supervisor can wait for its answer')
     const transcript = (await mcp('assistant_read', { chat: supervisorID, tools: true }, observer)).result.content[0].text
@@ -594,6 +595,18 @@ run(async ({ page }) => {
     await supervisorRow.click()
     await kp.waitForSelector('.ai-msg.user:has-text("Supervisor conversation")')
     assert(true, 'the Assistant sidebar reopens the MCP conversation after reload')
+    const coldContext = await browser.newContext()
+    try {
+      const cold = await coldContext.newPage()
+      await cold.goto(localURL)
+      await cold.locator('[name=token]').fill(process.env.E2E_TOKEN)
+      await cold.getByRole('button', { name: 'Open', exact: true }).click()
+      await cold.locator('.ai-msg.user:has-text("Supervisor conversation")').waitFor()
+      await cold.locator('.ai-msg.assistant .md:has-text("Supervisor analysis finished.")').waitFor()
+      assert(true, 'a cold local link opens the MCP conversation after token sign-in')
+    } finally {
+      await coldContext.close()
+    }
     if (await kp.isVisible('[data-testid=ai-sidebar]')) await kp.click(historyButton)
 
     // Mobile: the idea is answered by swiping the card (right = Yes), and the compare stacks.
@@ -714,6 +727,7 @@ run(async ({ page }) => {
       // The standalone conversation belongs to the project family of cwd.
       const worktree = await page.context().newPage()
       const other = await page.context().newPage()
+      const idleTitle = 'MCP conversation seen only at idle'
       try {
         // Delay the first history response until the update for the new conversation has arrived.
         let holdList
@@ -729,7 +743,9 @@ run(async ({ page }) => {
             server.send(msg)
           })
           server.onMessage((msg) => {
-            if (firstList !== undefined && JSON.parse(msg).id === firstList && holdList) {
+            const reply = JSON.parse(msg)
+            if (reply.event === 'assistant.update' && reply.data.title === idleTitle && reply.data.state !== 'idle') return
+            if (firstList !== undefined && reply.id === firstList && holdList) {
               holdList(() => ws.send(msg))
               holdList = undefined
             } else ws.send(msg)
@@ -766,6 +782,10 @@ run(async ({ page }) => {
         await worktree.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("MCP received MCP first message")')
         await other.waitForSelector('.ai-side-empty:has-text("No conversation for this project.")')
         assert(!(await row(other).count()), 'the worktree transcript survives reload and is absent from the unrelated project')
+        const idle = await ok('assistant_start', { cwd, title: idleTitle, message: 'MCP first message' })
+        await worktree.locator('.ai-chat-open').filter({ hasText: idleTitle }).click({ timeout: 5000 })
+        await worktree.waitForSelector('.ai-msg.assistant:not(.live) .md:has-text("MCP received MCP first message")')
+        assert(idle !== chatID, 'the first idle update publishes a new conversation to the open history')
       } finally {
         await Promise.all([worktree.close(), other.close()])
         if (await kp.isVisible('[data-testid=ai-sidebar]')) await kp.click(historyButton)

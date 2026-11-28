@@ -48,7 +48,7 @@ func (s *A) mcpTools() []plugins.MCPTool {
 					if err := s.startMCPDelegation(sc, dc, 0); err != nil {
 						return "", err
 					}
-					return delegationText(dc, "running"), nil
+					return delegationText(sc, dc, "running"), nil
 				}
 				if err := s.startRun(chatLocOf(sc.Root), sc.Root.ID, dc.Ticket.Project, sc.Lang, dc, 0); err != nil {
 					return "", err
@@ -317,7 +317,7 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 				if err := s.publish(r, -1); err != nil {
 					return "", err
 				}
-				return delegationText(r.chat, r.chat.Delegation.State), nil
+				return delegationText(sc, r.chat, r.chat.Delegation.State), nil
 			}
 			r.chat.MCPProject = r.project
 			r.chat.Queue = append(r.chat.Queue, engine.QueuedMessage{ID: assistant.NewID(), Text: text, Author: author})
@@ -348,7 +348,7 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 		if err := s.startMCPDelegation(sc, chat, from); err != nil {
 			return "", err
 		}
-		return delegationText(chat, "running"), nil
+		return delegationText(sc, chat, "running"), nil
 	}
 	if err := s.startRun(loc, root, project, lang, chat, from); err != nil {
 		return "", err
@@ -404,7 +404,7 @@ func (s *A) answer(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lan
 		if err := s.startMCPDelegation(sc, chat, index); err != nil {
 			return "", err
 		}
-		return delegationText(chat, "running"), nil
+		return delegationText(sc, chat, "running"), nil
 	}
 	if err := s.startRun(loc, root, project, lang, chat, index); err != nil {
 		return "", err

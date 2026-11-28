@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"net/url"
 	"strings"
 
 	"antennae.space/ide/lib/i18n"
@@ -89,7 +90,8 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 				if c.Delegation != nil {
 					text = delegationCut(text)
 				}
-				return text, nil
+				public, local := conversationURLs(sc, c.ID)
+				return text + "\n\nConversation in the IDE: " + public + "\nLocal conversation: " + local, nil
 			},
 		},
 		{
@@ -146,7 +148,7 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 		if err := s.startMCPDelegation(sc, c, 0); err != nil {
 			return "", err
 		}
-		return delegationText(c, "running"), nil
+		return delegationText(sc, c, "running"), nil
 	}
 	switch a.Mode {
 	case "":
@@ -172,6 +174,11 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 		return "", err
 	}
 	return c.ID, nil
+}
+
+func conversationURLs(sc plugins.MCPScope, id string) (public, local string) {
+	path := "/project/" + url.PathEscape(sc.Root.ID) + "?chat=" + url.QueryEscape(id)
+	return sc.URL + path, sc.LocalURL + path
 }
 
 // Only assistant_list and assistant_read accept the Supervisor's inspection grant.

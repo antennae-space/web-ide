@@ -39,7 +39,7 @@ import { onMouseNav } from '../keys/mouse'
 import { contextMenu, focusBeforeMenus, prompt, type MenuItem } from '../ui/overlay'
 import { Icon } from '../ui/icons'
 import { offerIdeUntrack } from '../state/ideTracked'
-import { toast } from '../ui/toast'
+import { errorToast, toast } from '../ui/toast'
 import { t, tn } from '../i18n'
 import { ProjectBar } from './ProjectBar'
 import { DeskSwitcher } from '../ui/DeskSwitcher'
@@ -730,19 +730,29 @@ export function ProjectPage(props: { id: string }) {
       const opened = openWithAuth(props.id, urlDesk())
       warmPluginModules(props.id)
       await opened
+      const links = new URLSearchParams(location.search)
       // Opened from a ticket to run its conversation: show the assistant.
-      if (new URLSearchParams(location.search).has('assistant')) {
-        mutate((s) => (s.right.panel = 'assistant'))
+      if (links.has('assistant')) {
+        mutate((s) => showTool(s, 'assistant'))
         history.replaceState(null, '', location.pathname)
       }
       // A link of a plugin (contributes.links): /project/<id>?ticket=<n> of the Kanban.
-      if (openLinks(new URLSearchParams(location.search))) history.replaceState(null, '', location.pathname)
-      // A push notification of a conversation: /project/<id>?chat=<id> shows it in the assistant.
-      const chatId = new URLSearchParams(location.search).get('chat')
+      if (openLinks(links)) history.replaceState(null, '', location.pathname)
+      // /project/<id>?chat=<id> opens the conversation in the Assistant.
+      const chatId = links.get('chat')
       if (chatId) {
-        history.replaceState(null, '', location.pathname)
-        mutate((s) => (s.right.panel = 'assistant'))
-        void whenProvided('assistant').then((a) => a.openChat(chatId)).catch(() => {})
+        void whenProvided('assistant').then(async (a) => {
+          if (home()?.id !== props.id) return
+          await a.openChat(chatId)
+          if (home()?.id !== props.id) return
+          if (tileMode() && !phone()) showToolTile('assistant')
+          else showView('assistant')
+          const url = new URL(location.href)
+          if (url.searchParams.get('chat') === chatId) {
+            url.searchParams.delete('chat')
+            history.replaceState(null, '', url)
+          }
+        }).catch(errorToast)
       }
       // The questions are not on the critical path of a load (#204, #205): a pod slow to list them
       // (its plugins asked one by one) must not hold the page nor its journal, and a question
@@ -761,13 +771,13 @@ export function ProjectPage(props: { id: string }) {
         },
       )
       // A push notification of a question of an agent: /project/<id>?questions shows the first one.
-      if (new URLSearchParams(location.search).has('questions')) {
+      if (links.has('questions')) {
         history.replaceState(null, '', location.pathname)
         mutate((s) => showTool(s, 'questions'))
         void asked.then(() => showQuestion())
       }
       // Opened from a file link of Claude Code while no window had the project.
-      const openArg = new URLSearchParams(location.search).get('open')
+      const openArg = links.get('open')
       if (openArg) {
         history.replaceState(null, '', location.pathname)
         const [, path, line] = /^(.*?)(?::(\d+))?$/.exec(openArg)!

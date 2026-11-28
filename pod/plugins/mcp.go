@@ -32,6 +32,8 @@ type MCPScope struct {
 	Ticket int64
 	// URL is the address the user opens the IDE at (its relay page, else the local one).
 	URL string
+	// LocalURL is the direct address of this pod on the machine.
+	LocalURL string
 	// Lang is the language of the interface (the errors shown in a conversation).
 	Lang string
 	// Identity and AllowsProject come from the authenticated MCP grant.

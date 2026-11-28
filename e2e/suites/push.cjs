@@ -179,6 +179,30 @@ run(
     const opened = await back.evaluate(() => [...document.querySelectorAll('.ai-msg.user')].map((e) => e.textContent).join(' | ')).catch(() => '')
     assert(back.url().includes('/project/') && opened.includes('Hidden window'), 'a click opens the conversation in the app: ' + back.url() + ' ' + opened)
 
+    const base = new URL(back.url()).pathname.match(/^\/pod\/[^/]+/)?.[0]
+    assert(base, 'the relay frame names the paired pod')
+    const path = base + open
+    const local = await browser.newContext()
+    try {
+      const cold = await local.newPage()
+      await cold.goto(process.env.E2E_URL + path)
+      await cold.locator('[name=token]').fill(process.env.E2E_TOKEN)
+      await cold.getByRole('button', { name: 'Open', exact: true }).click()
+      await cold.locator('.ai-msg.user:has-text("Hidden window")').waitFor()
+      assert(new URL(cold.url()).pathname === open.split('?')[0], 'the relay project path works on the local origin')
+    } finally {
+      await local.close()
+    }
+    await page.evaluate(async () => {
+      localStorage.removeItem('webide.relay.pod')
+      await Promise.all((await navigator.serviceWorker.getRegistrations()).map((reg) => reg.unregister()))
+    })
+    await page.goto('about:blank')
+    await page.goto(ORIGIN + path, { waitUntil: 'domcontentloaded' })
+    await page.frameLocator('#frame').locator('.ai-msg.user:has-text("Hidden window")').waitFor({ timeout: 30000 })
+    const bootstrap = new URLSearchParams(new URL(page.url()).hash.slice(1))
+    assert(bootstrap.get('open') === path, 'a cold relay link keeps its conversation path through bootstrap')
+
     // The relay base and its log hold no title nor project name.
     const relayFiles = fs.readdirSync(process.env.E2E_RELAY_DATA).filter((f) => f.startsWith('relay.db'))
     const dump = Buffer.concat([...relayFiles.map((f) => fs.readFileSync(`${process.env.E2E_RELAY_DATA}/${f}`)), fs.readFileSync(process.env.E2E_RELAY_LOG)])

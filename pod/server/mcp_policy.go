@@ -269,7 +269,7 @@ func (s *Server) authorizeMCPTicket(ctx context.Context, ac mcpAccess, a assista
 
 func (s *Server) mcpPluginScope(ctx context.Context) plugins.MCPScope {
 	a := accessForMCP(ctx)
-	return plugins.MCPScope{Here: a.here, Root: a.root, Ticket: a.ticket, URL: s.publicURL(), Lang: s.uiLanguage(),
+	return plugins.MCPScope{Here: a.here, Root: a.root, Ticket: a.ticket, URL: s.publicURL(), LocalURL: s.localURL(), Lang: s.uiLanguage(),
 		ACPParent: a.acpSession, RefreshDelegationGrant: func() bool {
 			if a.acpSession != "" {
 				return s.validACPGrant(a.mcpIdentity)

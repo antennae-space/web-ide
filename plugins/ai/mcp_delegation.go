@@ -38,6 +38,8 @@ type delegationResult struct {
 	Question  string `json:"question,omitempty"`
 	Server    string `json:"server,omitempty"`
 	Model     string `json:"model,omitempty"`
+	URL       string `json:"url,omitempty"`
+	LocalURL  string `json:"local_url,omitempty"`
 	Truncated bool   `json:"truncated,omitempty"`
 }
 
@@ -56,10 +58,11 @@ func (r *assistantRun) publishDelegation(err error) {
 	}
 }
 
-func delegationText(c *engine.Chat, state string) string {
+func delegationText(sc plugins.MCPScope, c *engine.Chat, state string) string {
 	d := c.Delegation
+	public, local := conversationURLs(sc, c.ID)
 	return delegationJSON(delegationResult{Chat: c.ID, Turn: d.Turn, State: state,
-		Server: c.Server, Model: c.Model})
+		Server: c.Server, Model: c.Model, URL: public, LocalURL: local})
 }
 
 func delegationJSON(result delegationResult) string {

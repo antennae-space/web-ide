@@ -14,6 +14,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"path"
 	"strconv"
 	"strings"
@@ -205,7 +206,7 @@ button{padding:10px;border:0;border-radius:6px;background:var(--accent);color:#f
 <p>{{.T "Paste the access token printed by the pod when it starts (also in"}} <code>~/.web-ide/token</code>).</p>
 {{if .Error}}<p class="err">{{.T .Error}}</p>{{end}}
 <input name="token" autocomplete="off" autofocus placeholder="{{.T "access token"}}">
-<input type="hidden" name="next" value="/">
+<input type="hidden" name="next" value="{{.Next}}">
 <button>{{.T "Open"}}</button>
 </form></body></html>`))
 
@@ -213,13 +214,27 @@ button{padding:10px;border:0;border-radius:6px;background:var(--accent);color:#f
 type tokenView struct {
 	Lang  string
 	Error string
+	Next  string
 }
 
 func (v tokenView) T(text string) string { return i18n.T(v.Lang, text) }
 
-func showAccessToken(w http.ResponseWriter, r *http.Request, errText string) {
+// accessNext keeps a deep link through token sign-in. The form can only return to this origin.
+func accessNext(raw string) string {
+	u, err := url.ParseRequestURI(raw)
+	if err != nil || u.IsAbs() || !strings.HasPrefix(u.Path, "/") ||
+		strings.HasPrefix(u.Path, "//") || strings.ContainsAny(u.Path, "\\\r\n") {
+		return "/"
+	}
+	q := u.Query()
+	q.Del("token")
+	u.RawQuery = q.Encode()
+	return u.RequestURI()
+}
+
+func showAccessToken(w http.ResponseWriter, r *http.Request, errText, next string) {
 	lang := i18n.Detect(r.Header.Get("Accept-Language"))
-	_ = tokenPage.Execute(w, tokenView{Lang: lang, Error: errText})
+	_ = tokenPage.Execute(w, tokenView{Lang: lang, Error: errText, Next: next})
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -247,13 +262,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Path == "/auth" && r.Method == http.MethodPost {
+		next := accessNext(r.FormValue("next"))
 		if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(r.FormValue("token"))), []byte(s.Token)) != 1 {
 			w.WriteHeader(http.StatusUnauthorized)
-			showAccessToken(w, r, "Invalid access token.")
+			showAccessToken(w, r, "Invalid access token.", next)
 			return
 		}
 		s.setCookie(w)
-		http.Redirect(w, r, "/", http.StatusFound)
+		http.Redirect(w, r, next, http.StatusFound)
 		return
 	}
 	// The browser fetches the manifest of the installable app without cookies: it and its
@@ -269,12 +285,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusUnauthorized)
-		showAccessToken(w, r, "")
+		showAccessToken(w, r, "", accessNext(r.URL.RequestURI()))
 		return
 	}
 	if r.URL.Path == "/ws" {
 		s.serveWS(w, r)
 		return
+	}
+	// A relay project link pasted with this pod's local origin can drop its relay prefix.
+	if s.Pods != nil {
+		key := s.Pods.Own()
+		if target, ok := strings.CutPrefix(r.URL.RequestURI(), "/pod/"+key); key != "" && ok && strings.HasPrefix(target, "/project/") {
+			http.Redirect(w, r, target, http.StatusFound)
+			return
+		}
 	}
 	// The routes of the pods: a pod of the LAN came through ServeTrusted with its certificate.
 	if strings.HasPrefix(r.URL.Path, podsOnly) {

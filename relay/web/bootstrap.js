@@ -700,13 +700,14 @@ async function enterCluster(l) {
       h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', onclick: () => location.reload() }, words.retry)))
     return lastError
   }
-  const chosen = enterGateway()
+  const target = pods.find((p) => p.key === keyOf(openPath))
+  const chosen = (target && pickGateway(pods, target.site)) || enterGateway()
   rememberCluster(chosen.site)
   pod = chosen.podId
   remember(pod)
   // The Service Worker answers the fetches of the app by finding the bootstrap page by its
   // "pod=": the pod picked here goes in the hash (a hash does not reload the page).
-  location.hash = 'pod=' + pod
+  location.hash = 'pod=' + pod + (openPath ? '&open=' + encodeURIComponent(openPath) : '')
   connecting(1, chosen.name || chosen.podId)
   return ''
 }
@@ -924,7 +925,7 @@ async function enter(mode) {
   entryPod = pod
   // p.site: "site" on the wire: the cluster (GLOSSARY.md)
   entryCluster = p?.site ?? ''
-  shownKey = entryKey
+  shownKey = keyOf(openPath) || entryKey
   connecting(1, p?.name || pod)
   while (early?.successor) early = early.successor // it fell back to the token mode
   if (earlySession) {
