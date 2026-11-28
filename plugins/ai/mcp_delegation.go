@@ -78,12 +78,17 @@ func delegationCut(text string) string {
 	return text[:end]
 }
 
-// Select the configured sub-agent default or an explicitly listed model on a
-// server the user enabled for sub-agents.
+// Use the sub-agent default, or the Assistant's last selection if the user
+// approved it for delegation. An explicit selection uses the same approval check.
 func (s *A) delegationModel(ctx context.Context, server, model string) (string, string, error) {
-	ds, dm := s.LLM.ChildDefault()
 	if server == "" && model == "" {
-		server, model = ds, dm
+		server, model = s.LLM.ChildDefault()
+		if server == "" && model == "" {
+			ds, dm := s.LLM.Default()
+			if s.delegationModelConfigured(ds, dm) {
+				server, model = ds, dm
+			}
+		}
 	}
 	if server == "" || model == "" {
 		return "", "", i18n.New("Configure a server and model for sub-agents in Assistant settings")

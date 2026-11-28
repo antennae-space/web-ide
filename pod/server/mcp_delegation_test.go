@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -200,19 +201,36 @@ func TestMCPACPDelegation(t *testing.T) {
 	}
 	bad := map[string]any{"cwd": dir, "message": "fixture"}
 	denied(owner, "assistant_start", bad, "Configure a server and model for sub-agents")
-	if err := llmOf(s).SetChildDefault("delegate-model", "missing"); err != nil {
-		t.Fatal(err)
-	}
+	ws.call("project.open", map[string]any{"id": rootID})
 	server := "delegate-model"
-	if err := llmOf(s).SaveServer(llm.Server{ID: server, Name: "Delegation fixture", URL: model.URL, Kind: "llamacpp",
-		Children: true, Models: []llm.ModelConf{{ID: "approved"}}}, false); err != nil {
-		t.Fatal(err)
+	settings := llm.Server{ID: server, Name: "Delegation fixture", URL: model.URL, Kind: "llamacpp",
+		Models: []llm.ModelConf{{ID: "approved"}}}
+	ws.call("llm.server.save", settings)
+	ws.call("llm.select", map[string]any{"server": server, "model": "approved"})
+	denied(owner, "assistant_start", bad, "Configure a server and model for sub-agents")
+	settings.Children = true
+	ws.call("llm.server.save", settings)
+	ws.call("llm.select", map[string]any{"server": server, "model": "unapproved"})
+	denied(owner, "assistant_start", bad, "Configure a server and model for sub-agents")
+	ws.call("llm.select", map[string]any{"server": server, "model": "approved"})
+
+	ws.call("project.open", map[string]any{"id": child.ID})
+	if got := ws.call("llm.config", nil)["result"].(map[string]any); got["server"] != server || got["model"] != "approved" || got["childServer"] != "" || got["childModel"] != "" {
+		t.Fatalf("worktree settings: %v", got)
+	}
+	implicit := start("approved default selection")
+	if implicit.Server != server || implicit.Model != "approved" {
+		t.Fatal(implicit)
+	}
+	if turn := invoke(owner, "assistant_wait", argsFor(implicit, 3000)); turn.State != "completed" || turn.Answer != "Result: approved default selection" {
+		t.Fatal(turn)
 	}
 
+	ws.call("llm.children", map[string]any{"server": server, "model": ""})
+	denied(owner, "assistant_start", bad, "Configure a server and model for sub-agents")
+	ws.call("llm.children", map[string]any{"server": server, "model": "missing"})
 	denied(owner, "assistant_start", bad, `model "missing" is not available`)
-	if err := llmOf(s).SetChildDefault(server, "cheap"); err != nil {
-		t.Fatal(err)
-	}
+	ws.call("llm.children", map[string]any{"server": server, "model": "cheap"})
 	denied(owner, "assistant_start", map[string]any{"cwd": dir, "message": "fixture", "mode": "build"}, "analysis mode")
 	denied(owner, "assistant_start", map[string]any{"cwd": dir, "message": strings.Repeat("a", 16385)}, "16 KiB")
 	denied(owner, "assistant_start", map[string]any{"cwd": dir, "message": "fixture", "server": server, "model": "unapproved"}, "not configured")
@@ -266,12 +284,23 @@ func TestMCPACPDelegation(t *testing.T) {
 	if len(chat.Messages) != 10 || chat.Delegation.Parent != session || chat.Parent != "" {
 		t.Fatalf("transcript size %d or parent does not match", len(chat.Messages))
 	}
-	wantTools := map[string]string{"r": "inside marker", "x": "outside the ticket worktree", "l": "regular files or directories", "b": "unavailable", "w": "unavailable", "a": "unavailable", "c": "unavailable"}
+	const unavailable = "Tool unavailable in this MCP conversation."
+	wantTools := map[string]string{"r": "inside marker", "x": "outside the ticket worktree", "l": "regular files or directories", "b": unavailable, "w": unavailable, "a": unavailable, "c": unavailable}
 	for _, msg := range chat.Messages {
-		if want := wantTools[msg.ToolCallID]; want != "" && !strings.Contains(fmt.Sprint(string(msg.Content)), want) {
+		if msg.Role != "tool" {
+			continue
+		}
+		want, ok := wantTools[msg.ToolCallID]
+		if !ok || !strings.Contains(string(msg.Content), want) {
 			t.Fatalf("tool %s: %s", msg.ToolCallID, msg.Content)
 		}
+		delete(wantTools, msg.ToolCallID)
 	}
+	if len(wantTools) != 0 {
+		t.Fatalf("missing tool results: %v", wantTools)
+	}
+	var inspectRequests int
+	analysisTools := []string{"ask_user", "list_dir", "read_file"}
 	for {
 		select {
 		case req := <-requests:
@@ -279,10 +308,19 @@ func TestMCPACPDelegation(t *testing.T) {
 				t.Fatalf("missing model token cap: %v", req["max_tokens"])
 			}
 			defs, _ := req["tools"].([]any)
+			var names []string
 			for _, def := range defs {
 				n := def.(map[string]any)["function"].(map[string]any)["name"].(string)
-				if n != "read_file" && n != "list_dir" && n != "ask_user" {
+				if !slices.Contains(analysisTools, n) {
 					t.Fatalf("offered tool %s", n)
+				}
+				names = append(names, n)
+			}
+			if req["model"] == "cheap" {
+				inspectRequests++
+				slices.Sort(names)
+				if !slices.Equal(names, analysisTools) {
+					t.Fatalf("analysis tools offered: %v", names)
 				}
 			}
 		default:
@@ -290,6 +328,9 @@ func TestMCPACPDelegation(t *testing.T) {
 		}
 	}
 checkedTools:
+	if inspectRequests != 2 {
+		t.Fatalf("expected two analysis model requests, got %d", inspectRequests)
+	}
 	question := start("question")
 	if got := invoke(owner, "assistant_wait", argsFor(question, 3000)); got.State != "waiting_user" || !strings.Contains(got.Question, "Which color?") {
 		t.Fatal(got)
