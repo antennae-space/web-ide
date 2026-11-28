@@ -117,6 +117,10 @@ func TestRelayLinks(t *testing.T) {
 	if public, _ := s.resourceScope().ResourceURLs(path); !strings.Contains(public, "pod=direct-registration") {
 		t.Fatalf("registered owner fallback: %s", public)
 	}
+	pods.podIDs["gateway-key"] = "gateway-registration"
+	if public, _ := s.resourceScope().ResourceURLs(path); !strings.Contains(public, "pod=direct-registration") {
+		t.Fatalf("registered owner should be preferred to the gateway: %s", public)
+	}
 	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/_lan/pod/own"+path, nil)
 	req.AddCookie(&http.Cookie{Name: cookieName, Value: s.Token})
 	hc := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}

@@ -276,11 +276,11 @@ func (s *Server) relayPage() (page, entry string) {
 	if key == "" || u == "" || status.State != "connected" {
 		return "", ""
 	}
-	if gateway := s.Pods.Gateway(); gateway != "" {
-		entry = s.Pods.RelayPodID(gateway)
-	}
+	// Prefer this connection when the owner is registered. The elected gateway
+	// can still appear in presence while its signaling link is unavailable.
+	entry = s.Pods.RelayPodID(key)
 	if entry == "" {
-		entry = s.Pods.RelayPodID(key)
+		entry = s.Pods.RelayPodID(s.Pods.Gateway())
 	}
 	if entry == "" {
 		return "", ""
