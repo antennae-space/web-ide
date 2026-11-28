@@ -102,9 +102,9 @@ In **Assistant settings > Sub-agents**, choose a default server and a low-cost c
 
 The IDE provides the ACP session with a Developer credential for its registered project or worktree. Use that directory as `cwd` in every call. Each session can access its own Assistant delegations.
 
-1. Call `assistant_start` with a short analysis request. The response gives the conversation ID in `chat`, the turn ID in `turn` and links in `url` and `local_url`.
+1. Call `assistant_start` with a short analysis request. The response gives the conversation ID in `chat`, the turn ID in `turn` and a link in `local_url`. When there is a registered relay route or a configured public address, it also gives a link in `url`.
 2. Call `assistant_wait` with both IDs. It returns the state and the applicable answer, error or question. The default wait is 15 seconds, the maximum is 20 seconds, and zero returns a snapshot. `timed_out` says that the turn is still running when the wait expires.
-3. Open the conversation from the link or from *Conversations of the project* in the Assistant tool. On the pod’s machine, the local link opens the conversation after token sign-in. If the turn needs input, answer in Questions or use `assistant_send` to provide more context. Use the turn ID returned by `assistant_send` for the next wait.
+3. Open the conversation from the link or from *Conversations of the project* in the Assistant tool. The local link uses `localhost` and routes through the browser machine’s pod to the pod that owns the conversation. Sign in to the gateway when asked. If the turn needs input, answer in Questions or use `assistant_send` to provide more context. Use the turn ID returned by `assistant_send` for the next wait.
 4. Call `assistant_stop` on a running turn. Wait for `cancelled` and check that the transcript is still in the Assistant tool.
 
 Analysis can list directories and read files within the registered project. Use `kanban_develop` for writing in a prepared worktree. An active ACP turn or Assistant development in that worktree holds the development reservation. Shell commands require IDE approval. See [the delegation limits](design/kanban.md#acp-assistant-delegation).

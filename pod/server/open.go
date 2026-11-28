@@ -60,7 +60,11 @@ func (s *Server) serveOpen(w http.ResponseWriter, r *http.Request) {
 	}
 	n := s.pushOpen(p.ID, path, line)
 	if r.Method == http.MethodPost {
-		writeJSON(w, map[string]any{"opened": n > 0, "project": p.ID, "url": s.publicURL() + target})
+		public, local := s.resourceScope().ResourceURLs(target)
+		if public == "" {
+			public = local
+		}
+		writeJSON(w, map[string]any{"opened": n > 0, "project": p.ID, "url": public, "local_url": local})
 		return
 	}
 	if n == 0 {

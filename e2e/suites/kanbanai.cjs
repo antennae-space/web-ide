@@ -582,7 +582,7 @@ run(async ({ page, browser }) => {
     await supervisorRow.waitFor({ timeout: 5000 })
     assert(true, 'the open Assistant sidebar lists a new Supervisor conversation')
     const { chat: supervisorID, turn: supervisorTurn, url, local_url: localURL } = JSON.parse(supervisorChat.result.content[0].text)
-    assert(url === localURL && new URL(localURL).searchParams.get('chat') === supervisorID, 'MCP returns both conversation links with its resource ID')
+    assert(!url && new URL(localURL).hostname === 'localhost' && new URL(localURL).searchParams.get('chat') === supervisorID, 'MCP returns a localhost conversation link without advertising an unconfigured relay')
     const waited = await mcp('assistant_wait', { chat: supervisorID, turn: supervisorTurn }, observer)
     assert(!waited.result.isError && JSON.parse(waited.result.content[0].text).answer === 'Supervisor analysis finished.', 'Supervisor can wait for its answer')
     const transcript = (await mcp('assistant_read', { chat: supervisorID, tools: true }, observer)).result.content[0].text
@@ -752,7 +752,7 @@ run(async ({ page, browser }) => {
           })
         })
         const worktreeURL = prepared.match(/^Worktree in the IDE: (.+)$/m)[1]
-        await worktree.goto(worktreeURL + '/tool/assistant')
+        await worktree.goto(process.env.E2E_URL + new URL(worktreeURL).pathname + '/tool/assistant')
         await worktree.locator('.ai-chat-open').filter({ hasText: 'MCP conversation' }).waitFor()
         const releaseStale = await staleList
 

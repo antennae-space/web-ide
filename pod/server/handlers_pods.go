@@ -24,6 +24,8 @@ type Pods interface {
 	Cluster() string
 	// Own is the device key of this pod: the home page lists it among the pods.
 	Own() string
+	// RelayPodID resolves a device key using current relay presence.
+	RelayPodID(key string) string
 	// Update carries a signed update request to the pod it names and answers what that pod said
 	// (running, not_service, refused).
 	Update(ctx context.Context, req *identity.UpdateRequest) (any, error)

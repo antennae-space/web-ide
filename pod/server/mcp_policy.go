@@ -269,13 +269,15 @@ func (s *Server) authorizeMCPTicket(ctx context.Context, ac mcpAccess, a assista
 
 func (s *Server) mcpPluginScope(ctx context.Context) plugins.MCPScope {
 	a := accessForMCP(ctx)
-	return plugins.MCPScope{Here: a.here, Root: a.root, Ticket: a.ticket, URL: s.publicURL(), LocalURL: s.localURL(), Lang: s.uiLanguage(),
-		ACPParent: a.acpSession, RefreshDelegationGrant: func() bool {
-			if a.acpSession != "" {
-				return s.validACPGrant(a.mcpIdentity)
-			}
-			current, ok := s.manualMCPIdentity(a.TokenSHA256)
-			return ok && current.key == a.key && current.Profile == mcpSupervisor && current.Assistant && current.matches(a.mcpScope)
-		},
-		Identity: a.key, Supervisor: a.Profile == mcpSupervisor, AllowsProject: a.allows}
+	scope := s.resourceScope()
+	scope.Here, scope.Root, scope.Ticket, scope.Lang = a.here, a.root, a.ticket, s.uiLanguage()
+	scope.ACPParent, scope.Identity, scope.Supervisor, scope.AllowsProject = a.acpSession, a.key, a.Profile == mcpSupervisor, a.allows
+	scope.RefreshDelegationGrant = func() bool {
+		if a.acpSession != "" {
+			return s.validACPGrant(a.mcpIdentity)
+		}
+		current, ok := s.manualMCPIdentity(a.TokenSHA256)
+		return ok && current.key == a.key && current.Profile == mcpSupervisor && current.Assistant && current.matches(a.mcpScope)
+	}
+	return scope
 }

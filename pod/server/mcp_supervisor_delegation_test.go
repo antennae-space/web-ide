@@ -172,7 +172,7 @@ func TestMCPSupervisorDelegation(t *testing.T) {
 		t.Fatalf("Supervisor start: %s (%v)", raw, err)
 	}
 	path := "/project/" + rootID + "?chat=" + turn.Chat
-	contains(raw, `"url":"https://relay.example/pod/fixture`+path+`"`, `"local_url":"http://127.0.0.1:4433`+path+`"`)
+	contains(raw, `"url":"https://relay.example/pod/fixture`+path+`"`, `"local_url":"http://localhost:4433`+path+`"`)
 	contains(read(family, dir), "Supervisor analysis", "MCP delegation", "turn "+turn.Turn)
 	for _, name := range []string{"assistant_read", "assistant_send", "assistant_wait", "assistant_stop"} {
 		denied(owner, name, dir, "conversation is unavailable")

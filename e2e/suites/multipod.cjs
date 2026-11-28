@@ -20,6 +20,7 @@ const path = require('path')
 const http = require('http')
 const dgram = require('dgram')
 const { spawn, execFileSync } = require('child_process')
+const { ws: WebSocket } = require('playwright-core/lib/utilsBundle')
 const { run, assert, text, pushService } = require('../common.cjs')
 
 const BIN = process.env.E2E_BIN
@@ -240,6 +241,28 @@ async function open(page, url) {
 
 const appOf = (page) => page.mainFrame().childFrames()[0]
 
+async function saveChat(port, token, project, id) {
+  const origin = 'http://127.0.0.1:' + port
+  const ws = new WebSocket(origin.replace('http:', 'ws:') + '/ws', { headers: { Origin: origin, Cookie: 'webide_token=' + token } })
+  try {
+    await new Promise((resolve, reject) => {
+      ws.on('error', reject)
+      ws.on('message', (raw) => {
+        const reply = JSON.parse(raw)
+        if (reply.error) return reject(new Error(reply.error.message))
+        if (reply.event === 'hello') ws.send(JSON.stringify({ id: 1, method: 'project.open', params: { id: project } }))
+        if (reply.id === 1) {
+          const chat = { id, title: 'Routed Assistant fixture', mode: 'plan', messages: [{ role: 'user', content: 'Conversation on the owning pod' }] }
+          ws.send(JSON.stringify({ id: 2, method: 'llm.chats.save', params: { chat } }))
+        }
+        if (reply.id === 2) resolve()
+      })
+    })
+  } finally {
+    ws.close()
+  }
+}
+
 /** Opens a project of another pod from the home page and checks the page really runs on that
  * pod: a file edited here lands on that pod, and a terminal runs in its folder. keep: the
  * terminal is left open (the caller types in it afterwards). */
@@ -320,7 +343,7 @@ async function openPods(page) {
 }
 
 run(
-  async ({ page, ctx, errors }) => {
+  async ({ page, ctx, browser, errors }) => {
     let bravo = null
     let charlie = null
     let dataB = ''
@@ -538,6 +561,35 @@ run(
       app = appOf(page)
       await app.waitForSelector('.home .home-bar', { timeout: 40000 })
 
+      const chatPath = '/project/bravo-app?chat=portable-chat'
+      await saveChat(portB, tokenB, 'bravo-app', 'portable-chat')
+      for (const [port, token, expected] of [
+        [PORT_A, TOKEN, '/_lan/pod/' + keyB + '/project/bravo-app'],
+        [portB, tokenB, '/project/bravo-app'],
+      ]) {
+        const cold = await browser.newContext()
+        try {
+          const tab = await cold.newPage()
+          await tab.goto(`http://localhost:${port}/_lan/pod/${keyB}${chatPath}`)
+          await tab.locator('[name=token]').fill(token)
+          await tab.getByRole('button', { name: 'Open', exact: true }).click()
+          await tab.locator('.ai-msg.user:has-text("Conversation on the owning pod")').waitFor()
+          assert(new URL(tab.url()).pathname === expected, 'a cold localhost link opens the owner through the gateway or on the owner itself')
+        } finally {
+          await cold.close()
+        }
+      }
+      await page.goto('about:blank')
+      const relayLink = new URLSearchParams({ pod: process.env.E2E_POD_ID, open: '/pod/' + keyB + chatPath })
+      await page.goto(ORIGIN + '/#' + relayLink, { waitUntil: 'domcontentloaded' })
+      await page.frameLocator('#frame').locator('.ai-msg.user:has-text("Conversation on the owning pod")').waitFor({ timeout: 40000 })
+      assert(new URL(appOf(page).url()).pathname === '/pod/' + keyB + '/project/bravo-app', 'cold relay link enters through the registered gateway and opens the LAN-only owner')
+      await page.goto('about:blank')
+      await page.goto(ORIGIN, { waitUntil: 'domcontentloaded' })
+      await page.waitForSelector('#frame', { timeout: 40000 })
+      app = appOf(page)
+      await app.waitForSelector('.home .home-bar', { timeout: 40000 })
+
       // 7. The relay only ever saw ciphertext: its base holds no project name.
       const dump = fs.readFileSync(process.env.E2E_RELAY_DATA + '/relay.db', 'latin1')
       for (const name of ['alpha-app', 'bravo-app', 'charlie-app'])
@@ -601,6 +653,10 @@ serve('bravo preview').listen(${appPort}, '127.0.0.1')
       await local.waitForSelector('.home .home-bar', { timeout: 40000 })
       await openProject(local, local, 'charlie', path.join(TMP, 'mp-charlie', 'ws'), 'alpha')
       assert(new URL(local.url()).pathname === `/_lan/pod/${keyC}/project/charlie-app`, 'a pod of another cluster is reached pod to pod: ' + local.url())
+      const file = path.join(TMP, 'mp-charlie', 'ws', 'charlie-app', 'hello.txt')
+      await local.goto(`http://127.0.0.1:${PORT_A}/_lan/pod/${keyC}/open?` + new URLSearchParams({ path: file, line: '1' }))
+      await local.waitForSelector('.tab:has-text("hello.txt")', { timeout: 30000 })
+      assert(new URL(local.url()).pathname === `/_lan/pod/${keyC}/project/charlie-app`, 'the remote gateway carries the /open query to the owning pod')
       await local.close()
 
       // 10. Each pod registered at the relay gets its own tunnel: a project of alpha and a project

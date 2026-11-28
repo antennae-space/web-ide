@@ -35,8 +35,15 @@ func (s *Server) externalMCPTools() []pluginMCPTool {
 					if err != nil {
 						return "", err
 					}
+					// The external protocol takes a base URL to which the plugin appends paths.
+					// A relay bootstrap link must encode the complete path, so use the local
+					// gateway base when it cannot express the relay route.
+					base := scope.LocalURL
+					if scope.URL != "" && scope.RelayEntry == "" {
+						base = scope.URL
+					}
 					raw, err := proc.Call(ctx, "mcp", map[string]any{"name": name, "args": args, "lang": scope.Lang,
-						"scope": map[string]any{"project": scope.Here.ID, "main": scope.Root.ID, "ticket": scope.Ticket, "url": scope.URL}})
+						"scope": map[string]any{"project": scope.Here.ID, "main": scope.Root.ID, "ticket": scope.Ticket, "url": base}})
 					if err != nil {
 						return "", err
 					}

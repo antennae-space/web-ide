@@ -92,12 +92,12 @@ func (g *RemoteGateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		g.serveWS(w, r, key)
 		return
 	}
-	g.serveFetch(w, r, key, rest)
+	g.serveFetch(w, r, key)
 }
 
 // serveFetch answers one fetch of the page on an http:<n> channel of the pod's window: the JSON
 // head, then the body as raw chunks, closed by an empty one — what the pod's own tunnel answers.
-func (g *RemoteGateway) serveFetch(w http.ResponseWriter, r *http.Request, key, rest string) {
+func (g *RemoteGateway) serveFetch(w http.ResponseWriter, r *http.Request, key string) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
 	win, err := g.window(ctx, key)
@@ -134,8 +134,15 @@ func (g *RemoteGateway) serveFetch(w http.ResponseWriter, r *http.Request, key, 
 	if r.Header.Get("Accept-Encoding") != "" {
 		headers["X-Webide-Decode"] = "1"
 	}
+	path := strings.TrimPrefix(r.URL.EscapedPath(), lan.PeerPrefix+key)
+	if path == "" {
+		path = "/"
+	}
+	if r.URL.RawQuery != "" {
+		path += "?" + r.URL.RawQuery
+	}
 	head, _ := json.Marshal(map[string]any{
-		"path": "/" + rest, "method": r.Method, "headers": headers, "body": string(body),
+		"path": path, "method": r.Method, "headers": headers, "body": string(body),
 		"base": lan.PeerPrefix + key,
 	})
 	if err := ch.Write(head); err != nil {

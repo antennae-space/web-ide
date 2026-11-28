@@ -91,7 +91,10 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 					text = delegationCut(text)
 				}
 				public, local := conversationURLs(sc, c.ID)
-				return text + "\n\nConversation in the IDE: " + public + "\nLocal conversation: " + local, nil
+				if public != "" {
+					text += "\n\nConversation in the IDE: " + public
+				}
+				return text + "\nLocal conversation: " + local, nil
 			},
 		},
 		{
@@ -178,7 +181,7 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 
 func conversationURLs(sc plugins.MCPScope, id string) (public, local string) {
 	path := "/project/" + url.PathEscape(sc.Root.ID) + "?chat=" + url.QueryEscape(id)
-	return sc.URL + path, sc.LocalURL + path
+	return sc.ResourceURLs(path)
 }
 
 // Only assistant_list and assistant_read accept the Supervisor's inspection grant.

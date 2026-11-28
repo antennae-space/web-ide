@@ -891,7 +891,8 @@ func (v *podsView) List() any { return v.dir.List() }
 func (v *podsView) Gateway() string {
 	return v.dir.Gateway()
 }
-func (v *podsView) Cluster() string { return v.dir.Cluster() }
+func (v *podsView) Cluster() string              { return v.dir.Cluster() }
+func (v *podsView) RelayPodID(key string) string { return v.dir.PodID(key) }
 
 // Own is the device key of this pod, paired ("" otherwise): known without a relay or a sync key.
 func (v *podsView) Own() string {

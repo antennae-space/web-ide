@@ -30,10 +30,12 @@ type MCPScope struct {
 	Here, Root *projects.Project
 	// Ticket is the ticket of the worktree the client works in, 0 elsewhere.
 	Ticket int64
-	// URL is the address the user opens the IDE at (its relay page, else the local one).
+	// URL is the configured public address or the path of this pod on its relay.
 	URL string
-	// LocalURL is the direct address of this pod on the machine.
+	// LocalURL addresses the pod through the browser machine's local gateway.
 	LocalURL string
+	// RelayEntry is the signaling ID of the registered pod that opens the relay tunnel.
+	RelayEntry string
 	// Lang is the language of the interface (the errors shown in a conversation).
 	Lang string
 	// Identity and AllowsProject come from the authenticated MCP grant.
@@ -50,7 +52,29 @@ func (sc MCPScope) BoundedAssistant() bool { return sc.Supervisor || sc.ACPParen
 
 // ProjectURL is the page of a project in the IDE, at the address the user opens it.
 func (sc MCPScope) ProjectURL(id string) string {
-	return sc.URL + "/project/" + url.PathEscape(id)
+	public, local := sc.ResourceURLs("/project/" + url.PathEscape(id))
+	if public != "" {
+		return public
+	}
+	return local
+}
+
+// ResourceURLs keeps the full path and query together when the relay opens the app in its frame.
+func (sc MCPScope) ResourceURLs(path string) (public, local string) {
+	local = sc.LocalURL + path
+	if sc.URL == "" {
+		return "", local
+	}
+	if sc.RelayEntry == "" {
+		return sc.URL + path, local
+	}
+	u, err := url.Parse(sc.URL)
+	if err != nil {
+		return "", local
+	}
+	fragment := url.Values{"pod": {sc.RelayEntry}, "open": {u.EscapedPath() + path}}
+	u.Path, u.RawPath = "/", ""
+	return u.String() + "#" + fragment.Encode(), local
 }
 
 // MCPSchema is the input schema of a tool of the MCP: cwd, then its parameters.

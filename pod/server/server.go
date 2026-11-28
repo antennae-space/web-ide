@@ -292,12 +292,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveWS(w, r)
 		return
 	}
-	// A relay project link pasted with this pod's local origin can drop its relay prefix.
-	if s.Pods != nil {
+	// Portable links name the owner even on the owner's local origin.
+	if s.Pods != nil && (strings.HasPrefix(r.URL.Path, peerPrefix) || strings.HasPrefix(r.URL.Path, "/pod/")) {
 		key := s.Pods.Own()
-		if target, ok := strings.CutPrefix(r.URL.RequestURI(), "/pod/"+key); key != "" && ok && strings.HasPrefix(target, "/project/") {
-			http.Redirect(w, r, target, http.StatusFound)
-			return
+		if key != "" {
+			req := r.URL.RequestURI()
+			for _, prefix := range []string{peerPrefix, "/pod/"} {
+				if target, ok := strings.CutPrefix(req, prefix+key); ok {
+					p, _, _ := strings.Cut(target, "?")
+					if strings.HasPrefix(p, "/project/") || p == openPath {
+						http.Redirect(w, r, target, http.StatusFound)
+						return
+					}
+				}
+			}
 		}
 	}
 	// The routes of the pods: a pod of the LAN came through ServeTrusted with its certificate.

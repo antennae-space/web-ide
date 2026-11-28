@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -12,16 +13,21 @@ import (
 )
 
 // fakePods records the power requests the handler passes on, and signs as a pod would.
-type fakePods struct{ got []*identity.PowerRequest }
+type fakePods struct {
+	got     []*identity.PowerRequest
+	gateway string
+	podIDs  map[string]string
+}
 
-func (f *fakePods) List() any                  { return nil }
-func (f *fakePods) Preferred() bool            { return false }
-func (f *fakePods) SetPreferred(on bool) error { return nil }
-func (f *fakePods) Gateway() string            { return "" }
-func (f *fakePods) Cluster() string            { return "" }
-func (f *fakePods) Own() string                { return "own" }
-func (f *fakePods) CanUpdate() bool            { return false }
-func (f *fakePods) CanPower() bool             { return false }
+func (f *fakePods) List() any                    { return nil }
+func (f *fakePods) Preferred() bool              { return false }
+func (f *fakePods) SetPreferred(on bool) error   { return nil }
+func (f *fakePods) Gateway() string              { return f.gateway }
+func (f *fakePods) Cluster() string              { return "" }
+func (f *fakePods) Own() string                  { return "own" }
+func (f *fakePods) RelayPodID(key string) string { return f.podIDs[key] }
+func (f *fakePods) CanUpdate() bool              { return false }
+func (f *fakePods) CanPower() bool               { return false }
 func (f *fakePods) Update(ctx context.Context, req *identity.UpdateRequest) (any, error) {
 	return nil, nil
 }
@@ -77,17 +83,50 @@ func TestPowerLocal(t *testing.T) {
 // under the path of the pod.
 func TestRelayLinks(t *testing.T) {
 	s, ts := newServer(t)
-	s.Pods = &fakePods{}
-	s.RelayStatus = func() RelayInfo { return RelayInfo{URL: "wss://relay.example"} }
+	s.Cfg.Addr = "127.0.0.1:4433"
+	pods := &fakePods{gateway: "gateway-key", podIDs: map[string]string{"gateway-key": "gateway-registration"}}
+	s.Pods = pods
+	state := "connected"
+	s.RelayStatus = func() RelayInfo { return RelayInfo{URL: "wss://relay.example", State: state} }
 	text := s.mcpInstructions(mcpIdentity{mcpGrant: mcpGrant{Profile: mcpDeveloper}})
-	local := s.localURL()
-	for _, want := range []string{"(https://relay.example/pod/own/open?path=", "([local](" + local + "/open?path="} {
-		if !strings.Contains(text, want) {
-			t.Errorf("missing %q in:\n%s", want, text)
-		}
+	local := "http://localhost:4433/_lan/pod/own"
+	if !strings.Contains(text, local+"/open?path=") {
+		t.Errorf("missing local owner route in instructions: %s", text)
 	}
-	if !strings.HasPrefix(local, "http://") || strings.Contains(local, "relay") {
-		t.Fatalf("local address: %q", local)
+	path := "/project/root?chat=abc&other=a%2Bb"
+	public, gotLocal := s.resourceScope().ResourceURLs(path)
+	u, err := url.Parse(public)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := url.ParseQuery(u.EscapedFragment())
+	if err != nil || u.Host != "relay.example" || f.Get("pod") != "gateway-registration" ||
+		f.Get("open") != "/pod/own"+path || gotLocal != local+path {
+		t.Fatalf("relay and local resources: %q %q (%v)", public, gotLocal, err)
+	}
+	state = "connecting"
+	if public, _ := s.resourceScope().ResourceURLs(path); public != "" {
+		t.Fatalf("a connecting relay supplied a link: %s", public)
+	}
+	state = "connected"
+	delete(pods.podIDs, "gateway-key")
+	if public, _ := s.resourceScope().ResourceURLs(path); public != "" {
+		t.Fatalf("an unregistered relay supplied a link: %s", public)
+	}
+	pods.podIDs["own"] = "direct-registration"
+	if public, _ := s.resourceScope().ResourceURLs(path); !strings.Contains(public, "pod=direct-registration") {
+		t.Fatalf("registered owner fallback: %s", public)
+	}
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/_lan/pod/own"+path, nil)
+	req.AddCookie(&http.Cookie{Name: cookieName, Value: s.Token})
+	hc := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := hc.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != path {
+		t.Fatalf("local owner route: %d %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 
 	a, _ := dial(t, ts, s.Token)
