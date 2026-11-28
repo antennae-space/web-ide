@@ -39,9 +39,12 @@ type MCPScope struct {
 	Supervisor    bool
 	AllowsProject func(here, root string) bool
 	// ACPParent is the pod's ID of the authenticated parent session.
-	ACPParent       string
-	RefreshACPGrant func() bool
+	ACPParent              string
+	RefreshDelegationGrant func() bool
 }
+
+// BoundedAssistant reports whether assistant_start uses the read-only delegation path.
+func (sc MCPScope) BoundedAssistant() bool { return sc.Supervisor || sc.ACPParent != "" }
 
 // ProjectURL is the page of a project in the IDE, at the address the user opens it.
 func (sc MCPScope) ProjectURL(id string) string {

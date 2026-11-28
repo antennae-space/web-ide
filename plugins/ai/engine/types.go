@@ -81,10 +81,10 @@ type Chat struct {
 	WebURLs []string `json:"webUrls,omitempty"`
 }
 
-// Delegation records the ACP parent independently of the Assistant's sub-agent tree.
+// Delegation records the optional ACP parent independently of the Assistant's sub-agent tree.
 // The current turn and its state are saved with the transcript.
 type Delegation struct {
-	Parent string `json:"parent"`
+	Parent string `json:"parent,omitempty"`
 	Turn   string `json:"turn"`
 	From   int    `json:"from"`
 	State  string `json:"state"`

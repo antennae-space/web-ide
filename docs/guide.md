@@ -86,13 +86,13 @@ To revoke a manual client, remove its entry. To rotate its bearer, generate a fr
 
 ### Use the Assistant from an MCP client
 
-Set `assistant` to `true` on the credential. Use `assistant_list` to find a conversation by title or list active conversations. Use `assistant_read` to read its messages. Use `assistant_send` to send a message. The message waits if a turn is running. Use `assistant_start` with a message to start a conversation in Build mode with the configured model. You can specify a mode or a model server and model. Open *Conversations of the project* in the Assistant tool to see the conversation. The main project and its worktrees share this history.
+Set `assistant` to `true` on the credential. Use `assistant_list` to find a conversation by title or list active conversations. Use `assistant_read` to read its messages. Use `assistant_send` to send a message. The message waits if a turn is running. A manual Developer can use `assistant_start` with a message to start a conversation in Build mode with the configured model. You can specify a mode or a model server and model. Open *Conversations of the project* in the Assistant tool to see the conversation. The main project and its worktrees share this history.
 
 With a Developer credential that has this grant, use `kanban_develop` to start a conversation for a To do or In progress ticket. Prepare its worktree with `kanban_start` first if needed. Pass the ticket number to `kanban_develop` and use the returned conversation ID with `kanban_conversation`, `kanban_reply` or `kanban_answer`. You can also open the conversation from the ticket in the IDE.
 
 The Assistant can read and edit files in the worktree and update the linked ticket. Approve shell commands in the IDE.
 
-A Supervisor can start and steer its own text conversations. The Assistant sends the model zero tool schemas for these conversations in every mode, including Build. Developer conversations started or steered through MCP can also ask the user questions in the IDE. These limits stay with the conversation when the pod reloads it.
+A Supervisor can start bounded read-only analysis with `assistant_start`. Use the same start, wait and stop steps as for [ACP delegation](#delegate-to-the-assistant-from-an-acp-session). The delegation belongs to the Supervisor credential and the exact project selected by `cwd`. The Assistant can ask the user questions in the IDE.
 
 With an Assistant grant, a Supervisor can inspect ACP delegations with `assistant_list` and `assistant_read`. Use a `cwd` in the granted project or worktree. Both tools show the parent ACP session ID and the saved turn ID and state when available. The delegation is read-only for the Supervisor.
 

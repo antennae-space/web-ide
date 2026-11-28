@@ -68,8 +68,12 @@ const fake = http.createServer(async (req, res) => {
     return end(res)
   }
   if (firstUser === 'Supervisor conversation') {
-    sse(res, { tool_calls: calls([['mcp-command', 'bash', { command: 'touch mcp-forbidden' }]]) })
-    return end(res, 'tool_calls')
+    if (last.role === 'user') {
+      sse(res, { tool_calls: calls([['mcp-command', 'bash', { command: 'touch mcp-forbidden' }]]) })
+      return end(res, 'tool_calls')
+    }
+    sse(res, { content: 'Supervisor analysis finished.' })
+    return end(res)
   }
   if (firstUser === 'MCP first message') {
     sse(res, { content: 'MCP received ' + text(last) })
@@ -560,6 +564,15 @@ run(async ({ page }) => {
     const observer = mcpToken('observer')
     const foreignChat = await mcp('assistant_send', { chat: externalChat, message: 'unexpected' }, observer)
     assert(foreignChat.result.isError, 'Supervisor cannot steer another credential’s conversation')
+    await kp.click('[data-testid=assistant-settings]')
+    await kp.click('.ai-tab:has-text("Servers")')
+    await kp.click('.ai-server-row button:has-text("Edit")')
+    await kp.check('.ai-servers input[name=children]')
+    await kp.click('.ai-servers button:has-text("Save")')
+    await kp.click('.ai-tab:has-text("Sub-agents")')
+    await page.selectOption('select[name=childServer]', { index: 1 })
+    await page.selectOption('select[name=childModel]', 'fake-model')
+    await kp.click('.ai-servers :is(.modal-head, .ide-modal-head) button')
     const historyButton = '.ai-panel button[title="Conversations of the project"]'
     await kp.click(historyButton)
     await kp.waitForSelector('.ai-chat-open:has-text("MCP conversation")')
@@ -568,16 +581,12 @@ run(async ({ page }) => {
     assert(!supervisorChat.result.isError, 'an explicit Supervisor Assistant grant starts a conversation')
     await supervisorRow.waitFor({ timeout: 5000 })
     assert(true, 'the open Assistant sidebar lists a new Supervisor conversation')
-    const supervisorID = supervisorChat.result.content[0].text
-    const until = Date.now() + 10000
-    let transcript = ''
-    while (Date.now() < until && !transcript.includes('Tool unavailable in this MCP conversation')) {
-      const response = await mcp('assistant_read', { chat: supervisorID, tools: true }, observer)
-      transcript = response.result.content[0].text
-      await page.waitForTimeout(100)
-    }
+    const { chat: supervisorID, turn: supervisorTurn } = JSON.parse(supervisorChat.result.content[0].text)
+    const waited = await mcp('assistant_wait', { chat: supervisorID, turn: supervisorTurn }, observer)
+    assert(!waited.result.isError && JSON.parse(waited.result.content[0].text).answer === 'Supervisor analysis finished.', 'Supervisor can wait for its answer')
+    const transcript = (await mcp('assistant_read', { chat: supervisorID, tools: true }, observer)).result.content[0].text
     const supervisorRequest = requests.find((req) => req.messages.some((msg) => msg.content === 'Supervisor conversation'))
-    assert(supervisorRequest && toolNames(supervisorRequest).length === 0, 'Supervisor Assistant receives no nested tools')
+    assert(supervisorRequest && toolNames(supervisorRequest).sort().join(',') === 'ask_user,list_dir,read_file', 'Supervisor Assistant receives the scoped analysis tools')
     assert(transcript.includes('Tool unavailable in this MCP conversation'), 'the Assistant rejects a tool emitted despite discovery')
     assert(!fs.existsSync(WS + '/demo/mcp-forbidden'), 'the denied Assistant tool creates no file')
     await page.reload()
@@ -813,15 +822,6 @@ run(async ({ page }) => {
       while (!fs.existsSync(credential) && Date.now() < readyBy) await page.waitForTimeout(30)
       assert(fs.existsSync(credential), 'ACP received its managed credential')
       const owner = fs.readFileSync(credential, 'utf8')
-      await kp.click('[data-testid=assistant-settings]')
-      await kp.click('.ai-tab:has-text("Servers")')
-      await kp.click('.ai-server-row button:has-text("Edit")')
-      await kp.check('.ai-servers input[name=children]')
-      await kp.click('.ai-servers button:has-text("Save")')
-      await kp.click('.ai-tab:has-text("Sub-agents")')
-      await page.selectOption('select[name=childServer]', { index: 1 })
-      await page.selectOption('select[name=childModel]', 'fake-model')
-      await kp.click('.ai-servers :is(.modal-head, .ide-modal-head) button')
       const call = async (name, args) => JSON.parse(await ok(name, { cwd, ...args }, owner))
       const delegated = await call('assistant_start', { title: 'ACP fixture review', message: 'Check the ACP fixture' })
       const question = await call('assistant_wait', { chat: delegated.chat, turn: delegated.turn })

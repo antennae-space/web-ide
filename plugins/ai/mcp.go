@@ -287,12 +287,12 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 	if strings.TrimSpace(text) == "" {
 		return "", fmt.Errorf("message is empty")
 	}
-	if sc.ACPParent != "" && len(text) > delegationPromptBytes {
+	if sc.BoundedAssistant() && len(text) > delegationPromptBytes {
 		return "", i18n.New("Assistant delegation input exceeds 16 KiB")
 	}
 	if r := s.run(id); r != nil {
 		r.mu.Lock()
-		if r.root != root || !mcpChatAllowedIn(sc, r.chat, r.project) {
+		if r.root != root || !mcpChatAllowedIn(sc, r.chat, r.project) || sc.Supervisor && r.chat.Delegation == nil {
 			r.mu.Unlock()
 			return "", errMCPConversation
 		}
@@ -331,7 +331,7 @@ func (s *A) reply(sc plugins.MCPScope, loc llm.ChatLocation, root, project, lang
 	if err != nil {
 		return "", err
 	}
-	if chat.Parent != "" || chat.Agent != nil {
+	if chat.Parent != "" || chat.Agent != nil || sc.Supervisor && chat.Delegation == nil {
 		return "", errMCPConversation
 	}
 	if chat.Server == "" || chat.Model == "" {

@@ -40,14 +40,14 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 					}
 					return mcpInspectionDetails(sc, c), true
 				})
-				if sc.ACPParent != "" && (sc.RefreshACPGrant == nil || !sc.RefreshACPGrant()) {
+				if sc.BoundedAssistant() && (sc.RefreshDelegationGrant == nil || !sc.RefreshDelegationGrant()) {
 					return "", errMCPConversation
 				}
 				if err == nil && len(lines) == 0 {
 					return "No conversation.", nil
 				}
 				text := strings.Join(lines, "\n")
-				if sc.ACPParent != "" {
+				if sc.BoundedAssistant() {
 					text = delegationCut(text)
 				}
 				return text, err
@@ -83,7 +83,7 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 				if details := mcpInspectionDetails(sc, c); details != "" {
 					text = details + "\n\n" + text
 				}
-				if sc.ACPParent != "" && (sc.RefreshACPGrant == nil || !sc.RefreshACPGrant()) {
+				if sc.BoundedAssistant() && (sc.RefreshDelegationGrant == nil || !sc.RefreshDelegationGrant()) {
 					return "", errMCPConversation
 				}
 				if c.Delegation != nil {
@@ -94,7 +94,7 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 		},
 		{
 			Name:        "assistant_send",
-			Description: "Sends or queues a message to the Assistant. ACP delegation returns the turn id for assistant_wait.",
+			Description: "Sends or queues a message to the Assistant. A delegation returns the turn id for assistant_wait.",
 			Props:       map[string]any{"chat": chat, "message": message},
 			Required:    []string{"chat", "message"},
 			Run: func(_ context.Context, sc plugins.MCPScope, raw json.RawMessage) (string, error) {
@@ -107,11 +107,11 @@ func (s *A) assistantMCPTools() []plugins.MCPTool {
 		},
 		{
 			Name:        "assistant_start",
-			Description: "Starts an Assistant conversation in the project of cwd. For ACP, starts bounded analysis on the configured sub-agent model and returns chat and turn ids.",
+			Description: "Starts an Assistant conversation in the project of cwd. Supervisor and managed ACP callers start bounded analysis on the configured sub-agent model and receive chat and turn ids.",
 			Props: map[string]any{
 				"message": message,
 				"title":   plugins.Str("Conversation title, optional"),
-				"mode":    plugins.Enum("Assistant mode, ACP allows analysis or plan only", "analysis", engine.Briefing, engine.Plan, engine.Build, engine.Orchestrator),
+				"mode":    plugins.Enum("Assistant mode, delegation allows analysis or plan only", "analysis", engine.Briefing, engine.Plan, engine.Build, engine.Orchestrator),
 				"server":  plugins.Str("Model server id, optional with model"),
 				"model":   plugins.Str("Model id, optional with server"),
 			},
@@ -129,9 +129,9 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 	if strings.TrimSpace(a.Message) == "" {
 		return "", i18n.New("message is empty")
 	}
-	if sc.ACPParent != "" {
+	if sc.BoundedAssistant() {
 		if a.Mode != "" && a.Mode != "analysis" && a.Mode != engine.Plan {
-			return "", i18n.New("ACP Assistant delegation requires analysis mode")
+			return "", i18n.New("Assistant delegation requires analysis mode")
 		}
 		if len(a.Message) > delegationPromptBytes || len(a.Title) > delegationPromptBytes {
 			return "", i18n.New("Assistant delegation input exceeds 16 KiB")
@@ -166,7 +166,7 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 	if !s.modelInfo(ctx, a.Server, a.Model).found {
 		return "", i18n.Errorf("model %q is not available on server %q", a.Model, a.Server)
 	}
-	c := &engine.Chat{MCPOwner: sc.Identity, MCPProject: sc.Here.ID, MCPTextOnly: sc.Supervisor, ID: assistant.NewID(), Title: strings.TrimSpace(a.Title), Mode: a.Mode, Server: a.Server, Model: a.Model}
+	c := &engine.Chat{MCPOwner: sc.Identity, MCPProject: sc.Here.ID, ID: assistant.NewID(), Title: strings.TrimSpace(a.Title), Mode: a.Mode, Server: a.Server, Model: a.Model}
 	c.AddUser(&engine.Message{Role: "user", Content: assistant.String(a.Message), Display: a.Message, Author: assistant.AuthorMCP})
 	if err := s.startRun(chatLocOf(sc.Root), sc.Root.ID, sc.Here.ID, sc.Lang, c, 0); err != nil {
 		return "", err
@@ -176,8 +176,8 @@ func (s *A) startMCPConversation(ctx context.Context, sc plugins.MCPScope, raw j
 
 // Only assistant_list and assistant_read accept the Supervisor's inspection grant.
 func (s *A) mcpChatInspectable(sc plugins.MCPScope, c *engine.Chat) bool {
-	if sc.Supervisor && c.Delegation != nil {
-		if c.Delegation.Parent == "" || sc.AllowsProject == nil || !sc.AllowsProject(c.MCPProject, sc.Root.ID) {
+	if sc.Supervisor && c.Delegation != nil && c.Delegation.Parent != "" {
+		if sc.AllowsProject == nil || !sc.AllowsProject(c.MCPProject, sc.Root.ID) {
 			return false
 		}
 		root, err := s.Projects.Root(c.MCPProject)
@@ -191,7 +191,10 @@ func mcpInspectionDetails(sc plugins.MCPScope, c *engine.Chat) string {
 	if !sc.Supervisor || d == nil {
 		return ""
 	}
-	details := "ACP parent " + d.Parent
+	details := "MCP delegation"
+	if d.Parent != "" {
+		details = "ACP parent " + d.Parent
+	}
 	if d.Turn != "" {
 		details += " · turn " + d.Turn
 	}
@@ -208,10 +211,10 @@ func (s *A) mcpChatAllowed(sc plugins.MCPScope, c *engine.Chat) bool {
 
 func mcpChatAllowedIn(sc plugins.MCPScope, c *engine.Chat, project string) bool {
 	if c.Delegation != nil || sc.ACPParent != "" {
-		return c.Delegation != nil && sc.ACPParent != "" && c.Delegation.Parent == sc.ACPParent &&
+		return c.Delegation != nil && sc.BoundedAssistant() && c.Delegation.Parent == sc.ACPParent &&
 			c.MCPOwner == sc.Identity && c.MCPProject == sc.Here.ID && project == c.MCPProject &&
 			sc.AllowsProject != nil && sc.AllowsProject(project, sc.Root.ID) &&
-			sc.RefreshACPGrant != nil && sc.RefreshACPGrant()
+			sc.RefreshDelegationGrant != nil && sc.RefreshDelegationGrant()
 	}
 	if sc.Supervisor && (c.MCPOwner != sc.Identity || !c.MCPTextOnly) {
 		return false

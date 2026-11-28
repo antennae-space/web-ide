@@ -40,15 +40,16 @@ type assistantRun struct {
 	done bool
 	// A run taken back after a restart of the pod (assistant_resume.go): the completion to read
 	// again, the tool calls to end first, the command of one of them to follow.
-	resumeStream *engine.Running
-	resumeCalls  []engine.ToolCall
-	follow       *engine.Running
-	devKey       string // reservation held while this development runs
-	acpParent    string // the authenticated ACP owner
-	turn         string
-	delegation   atomic.Pointer[delegationUpdate]
-	modelSteps   int
-	toolSteps    int
+	resumeStream    *engine.Running
+	resumeCalls     []engine.ToolCall
+	follow          *engine.Running
+	devKey          string // reservation held while this development runs
+	acpParent       string // the parent ACP session, when present
+	delegationOwner string // the authenticated MCP caller
+	turn            string
+	delegation      atomic.Pointer[delegationUpdate]
+	modelSteps      int
+	toolSteps       int
 }
 
 func contextWithCancel() (context.Context, context.CancelFunc) {
@@ -186,14 +187,14 @@ func (s *A) publish(r *assistantRun, from int) error {
 	if s.stopping() {
 		return errors.New("the pod is stopping")
 	}
-	if d := r.chat.Delegation; r.acpParent != "" && !r.done && d.State != "stopping" {
+	if d := r.chat.Delegation; r.turn != "" && !r.done && d.State != "stopping" {
 		d.State = r.state
 	}
 	err := s.saveChat(r.loc, r.chat)
 	if err != nil {
 		s.emitAssistant(r.root, "assistant.error", map[string]string{"id": r.id, "error": i18n.Translate(r.lang, err)})
 	}
-	if r.acpParent != "" && !r.done {
+	if r.turn != "" && !r.done {
 		r.publishDelegation(err)
 	}
 	s.emitAssistant(r.root, "assistant.update", updateOf(r.chat, r.state, r.ahead, from))

@@ -125,7 +125,7 @@ func (s *A) startMCPDelegation(sc plugins.MCPScope, c *engine.Chat, from int) er
 		c.Running, c.Approval, c.Queue = nil, nil, nil
 		closeToolCalls(c, "Interrupted: the pod stopped before this tool ended.")
 	}
-	return s.startRunGranted(chatLocOf(sc.Root), sc.Root.ID, c.MCPProject, sc.Lang, c, from, sc.RefreshACPGrant)
+	return s.startRunGranted(chatLocOf(sc.Root), sc.Root.ID, c.MCPProject, sc.Lang, c, from, sc.RefreshDelegationGrant)
 }
 
 func (s *A) loadMCPChat(sc plugins.MCPScope, id string) (*engine.Chat, error) {
@@ -227,9 +227,6 @@ func delegationWaiting(state string) bool {
 }
 
 func (s *A) waitDelegation(ctx context.Context, sc plugins.MCPScope, id, turn string, timeout time.Duration) (delegationResult, error) {
-	if sc.ACPParent == "" {
-		return delegationResult{}, errMCPConversation
-	}
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
 	c, err := s.loadMCPChat(sc, id)
@@ -251,7 +248,7 @@ func (s *A) waitDelegation(ctx context.Context, sc plugins.MCPScope, id, turn st
 			interruptDelegation(c)
 			res = delegationSnapshot(c)
 		}
-		if !sc.RefreshACPGrant() {
+		if !sc.RefreshDelegationGrant() {
 			return delegationResult{}, errMCPConversation
 		}
 		return res, nil
@@ -263,7 +260,7 @@ func (s *A) waitDelegation(ctx context.Context, sc plugins.MCPScope, id, turn st
 		// second read and its signal atomically. A waiter keeps this run even
 		// if a follow-up starts before the waiter wakes.
 		update := r.delegation.Load()
-		if !sc.RefreshACPGrant() {
+		if !sc.RefreshDelegationGrant() {
 			return delegationResult{}, errMCPConversation
 		}
 		res := update.result
@@ -316,9 +313,6 @@ func (s *A) stopDelegation(project, parent string) {
 }
 
 func (s *A) stopMCPDelegation(sc plugins.MCPScope, id, turn string) (delegationResult, error) {
-	if sc.ACPParent == "" {
-		return delegationResult{}, errMCPConversation
-	}
 	c, err := s.loadMCPChat(sc, id)
 	if err != nil || c.Delegation == nil || turn != "" && c.Delegation.Turn != turn {
 		return delegationResult{}, errMCPConversation

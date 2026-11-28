@@ -248,7 +248,7 @@ func TestMCPDevelop(t *testing.T) {
 	}
 	child, _ := s.Projects.Get(c.Ticket.Project)
 	owner := plugins.MCPScope{Here: child, Root: root, Ticket: 5, ACPParent: "parent", Identity: "acp:parent",
-		AllowsProject: func(here, _ string) bool { return here == child.ID }, RefreshACPGrant: func() bool { return true }}
+		AllowsProject: func(here, _ string) bool { return here == child.ID }, RefreshDelegationGrant: func() bool { return true }}
 	saved.Delegation = &engine.Delegation{Parent: owner.ACPParent, Turn: "turn", State: "failed"}
 	saved.MCPOwner = owner.Identity
 	if err := s.saveChat(chatLocOf(root), saved); err != nil {
@@ -261,7 +261,7 @@ func TestMCPDevelop(t *testing.T) {
 	sibling := owner
 	sibling.ACPParent, sibling.Identity = "sibling", "acp:sibling"
 	revoked := owner
-	revoked.RefreshACPGrant = func() bool { return false }
+	revoked.RefreshDelegationGrant = func() bool { return false }
 	for _, tool := range []string{"kanban_conversation", "kanban_reply", "kanban_answer"} {
 		for _, scope := range []plugins.MCPScope{sc, sibling, revoked} {
 			if _, err := callMCP(t, s, tool, scope, linked); !errors.Is(err, errMCPConversation) {

@@ -92,7 +92,7 @@ func (s *Server) allowsMCPTool(i mcpIdentity, t mcpTarget) bool {
 		case "assistant_list", "assistant_read", "assistant_send", "assistant_start":
 			return i.Assistant
 		case "assistant_wait", "assistant_stop":
-			return developer && i.Assistant && i.acpSession != ""
+			return i.Assistant && (i.Profile == mcpSupervisor || i.acpSession != "")
 		case "kanban_conversation":
 			return developer && (i.acpSession == "" || i.Assistant)
 		case "kanban_develop", "kanban_reply", "kanban_answer":
@@ -270,6 +270,12 @@ func (s *Server) authorizeMCPTicket(ctx context.Context, ac mcpAccess, a assista
 func (s *Server) mcpPluginScope(ctx context.Context) plugins.MCPScope {
 	a := accessForMCP(ctx)
 	return plugins.MCPScope{Here: a.here, Root: a.root, Ticket: a.ticket, URL: s.publicURL(), Lang: s.uiLanguage(),
-		ACPParent: a.acpSession, RefreshACPGrant: func() bool { return s.validACPGrant(a.mcpIdentity) },
+		ACPParent: a.acpSession, RefreshDelegationGrant: func() bool {
+			if a.acpSession != "" {
+				return s.validACPGrant(a.mcpIdentity)
+			}
+			current, ok := s.manualMCPIdentity(a.TokenSHA256)
+			return ok && current.key == a.key && current.Profile == mcpSupervisor && current.Assistant && current.matches(a.mcpScope)
+		},
 		Identity: a.key, Supervisor: a.Profile == mcpSupervisor, AllowsProject: a.allows}
 }

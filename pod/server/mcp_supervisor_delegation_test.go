@@ -135,7 +135,11 @@ func TestMCPSupervisorDelegation(t *testing.T) {
 		denied(ungranted, name, dir, "unavailable")
 	}
 	denied(family, "assistant_send", dir, "conversation is unavailable")
-	for _, name := range []string{"assistant_stop", "assistant_wait", "kanban_reply", "kanban_answer"} {
+	for _, name := range []string{"assistant_stop", "assistant_wait"} {
+		denied(family, name, dir, "conversation is unavailable")
+		denied(ungranted, name, dir, "unavailable")
+	}
+	for _, name := range []string{"kanban_reply", "kanban_answer"} {
 		denied(family, name, dir, "unavailable")
 	}
 
@@ -148,4 +152,33 @@ func TestMCPSupervisorDelegation(t *testing.T) {
 	contains(list(worktree, dir, false), turn.Chat, "state completed")
 	contains(read(family, rootDir), "Delegated fixture answer", "ACP parent "+parent, "turn "+turn.Turn, "state completed")
 	denied(family, "assistant_send", rootDir, "conversation is unavailable")
+
+	start := map[string]any{"cwd": dir, "mode": "build", "message": "Supervisor analysis"}
+	if got, failed := family.tool("assistant_start", start); !failed || !strings.Contains(got, "analysis mode") {
+		t.Fatalf("build: %s", got)
+	}
+	start["mode"] = "plan"
+	start["server"], start["model"] = "fixture", "unapproved"
+	if got, failed := family.tool("assistant_start", start); !failed || !strings.Contains(got, "not configured") {
+		t.Fatalf("unapproved model: %s", got)
+	}
+	delete(start, "server")
+	delete(start, "model")
+	raw = family.ok("assistant_start", start)
+	if err := json.Unmarshal([]byte(raw), &turn); err != nil || turn.Chat == "" || turn.Turn == "" || turn.Model != "fixture" {
+		t.Fatalf("Supervisor start: %s (%v)", raw, err)
+	}
+	contains(read(family, dir), "Supervisor analysis", "MCP delegation", "turn "+turn.Turn)
+	for _, name := range []string{"assistant_read", "assistant_send", "assistant_wait", "assistant_stop"} {
+		denied(owner, name, dir, "conversation is unavailable")
+		denied(worktree, name, dir, "conversation is unavailable")
+		denied(family, name, rootDir, "conversation is unavailable")
+	}
+	if got, failed := family.tool("assistant_start", start); !failed || !strings.Contains(got, "already has an active") {
+		t.Fatalf("concurrent start: %s", got)
+	}
+	args := map[string]any{"cwd": dir, "chat": turn.Chat, "turn": turn.Turn, "timeout_ms": 3000}
+	family.ok("assistant_stop", args)
+	contains(family.ok("assistant_wait", args), `"state":"cancelled"`)
+	contains(read(family, dir), "state cancelled")
 }

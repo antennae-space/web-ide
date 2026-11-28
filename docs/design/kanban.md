@@ -190,9 +190,9 @@ The pod authenticates each `POST /mcp` request with a separate MCP bearer. The g
 | Read a linked ACP transcript | — | Yes |
 | Start or steer an ACP session | Yes | — |
 | Start a ticket-linked Assistant development in a prepared worktree | — | With an Assistant grant |
-| Use the Assistant | With a grant, own text conversations | With a grant, scoped conversations and user questions |
+| Use the Assistant | With a grant, own read-only delegations | With a grant, scoped conversations and user questions |
 | Inspect an ACP Assistant delegation | With an Assistant grant for its project or worktree | Only the owning ACP session |
-| Wait for or stop an Assistant delegation | — | Only the owning ACP session |
+| Wait for or stop an Assistant delegation | Only the owning Supervisor credential | Only the owning ACP session |
 | Invoke other external plugin tools | — | With an explicit plugin and tool grant |
 
 The user or a Developer prepares the worktree before a Supervisor uses it. The external Kanban's current start operation combines worktree creation with setup. The pod refuses this operation for Supervisor before calling the plugin. It also checks the action of multipurpose Kanban tools before dispatch.
@@ -203,17 +203,17 @@ Each managed Developer bearer belongs to one ACP session and its exact registere
 
 ### ACP Assistant delegation
 
-`assistant_start` defaults to read-only analysis for an ACP session. Its file tools check the registered project and worktree. The Assistant can also ask the user a question. `kanban_develop` starts a Build conversation for a ticket in the session's prepared worktree. The development reservation covers the whole worktree, including steps of the same lineage. The existing shell approval flow applies.
+`assistant_start` defaults to read-only analysis for a Supervisor with an Assistant grant or a managed ACP Developer. These callers can select analysis or Plan mode. The Assistant can list directories, read files in the selected project or worktree and ask the user a question. `kanban_develop` starts a Build conversation for a ticket in the session's prepared worktree. The development reservation covers the whole worktree, including steps of the same lineage. The existing shell approval flow applies.
 
 The configured sub-agent server and model in `llm.json` supply the default for the pod and its worktrees. When the sub-agent server and model are unset, the pod uses the last Assistant selection if its model is listed on a server marked *Available to sub-agents*. An explicit alternative must also be listed on a server with that setting. The model must support chat.
 
-The pod gives each parent one executing turn and uses the model server's shared concurrency slots. A prompt can contain up to 16 KiB and an answer, error or question returned by the wait can contain up to 8 KiB. Each turn has up to two minutes, eight model requests and 24 tool calls. Each request asks the model server for at most 4,096 output tokens.
+The pod gives each caller one executing turn per project and uses the model server's shared concurrency slots. A prompt can contain up to 16 KiB and an answer, error or question returned by the wait can contain up to 8 KiB. Each turn has up to two minutes, eight model requests and 24 tool calls. Each request asks the model server for at most 4,096 output tokens.
 
 `assistant_wait` returns the state for the specified turn. It returns `queued`, `running`, `waiting_user`, `completed`, `failed`, `stopping` or `cancelled`. A wait expires after 15 seconds by default, with a maximum of 20 seconds. A timeout of zero reads the state immediately. An expired wait sets `timed_out` while the turn continues. A disconnect ends the wait. A new HTTP connection can read the saved result of the current turn. After a new turn starts, a new wait for the previous turn is refused. An interrupted turn after a pod restart reports an error.
 
 `assistant_stop` cancels the turn, clears queued follow-ups and keeps the saved transcript. Wait for `cancelled` before starting more work. The linked ticket routes also check the ACP parent, the credential, the exact project and the ticket. Manual Developer clients retain scoped conversation access.
 
-With an Assistant grant, a Supervisor can use `assistant_list` and `assistant_read` to inspect ACP delegations in granted projects and worktrees. The pod checks the delegation's saved project against the grant. Both tools show the saved ACP parent session ID, turn ID and state when available. The owning ACP session controls the delegation through MCP. See [the smoke test](../guide.md#delegate-to-the-assistant-from-an-acp-session).
+With an Assistant grant, a Supervisor can use `assistant_list` and `assistant_read` to inspect ACP delegations in granted projects and worktrees. The pod checks the delegation's saved project against the grant. Both tools show the saved ACP parent session ID, turn ID and state when available. Each Supervisor delegation belongs to its credential and exact project or worktree. The owning caller controls its delegation through MCP. Supervisors can read their earlier text conversations and start a new delegation for follow-up work. See [the smoke test](../guide.md#delegate-to-the-assistant-from-an-acp-session).
 
 ## Supervisor tools on the agent sessions
 

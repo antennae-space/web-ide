@@ -88,12 +88,15 @@ func (s *Server) authenticateMCP(r *http.Request) (mcpIdentity, bool) {
 		}
 		return mcpIdentity{mcpGrant: mcpGrant{Profile: mcpDeveloper, Projects: map[string]bool{project: p.Parent == ""}, Assistant: true}, key: "managed:" + project}, true
 	}
+	return s.manualMCPIdentity(mcpDigest(token))
+}
+
+func (s *Server) manualMCPIdentity(hash string) (mcpIdentity, bool) {
 	var grants map[string]mcpGrant
 	raw, err := s.readMCPFile(mcpClients)
 	if err != nil || json.Unmarshal(raw, &grants) != nil {
 		return mcpIdentity{}, false
 	}
-	hash := mcpDigest(token)
 	var match mcpIdentity
 	for name, grant := range grants {
 		if name != "" && (grant.Profile == mcpSupervisor || grant.Profile == mcpDeveloper) && len(grant.Projects) > 0 &&
