@@ -1,6 +1,6 @@
 # AI plugin
 
-The MCP tools `assistant_list`, `assistant_read`, `assistant_send` and `assistant_start` use the same conversations and turn loop as the Assistant tool. The MCP grant and `cwd` select the project. A Supervisor can use its own text conversations with an Assistant grant. Conversations started or steered by Developer through MCP can ask the user for input.
+The MCP tools `assistant_list`, `assistant_read`, `assistant_send` and `assistant_start` use the same conversations and turn loop as the Assistant tool. The MCP grant and `cwd` select the project. A Supervisor with an Assistant grant can use its own text conversations and inspect ACP delegations in granted projects and worktrees with `assistant_list` and `assistant_read`. Conversations started or steered by Developer through MCP can ask the user for input.
 
 A Developer with an Assistant grant can use `kanban_develop` to start a linked Build conversation in a prepared ticket worktree. The Assistant and ACP share the development reservation for the worktree. Manual Developers use the usual Assistant model by default.
 
