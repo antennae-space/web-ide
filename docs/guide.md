@@ -109,6 +109,8 @@ The IDE provides the ACP session with a Developer credential for its registered 
 
 Analysis can list directories and read files within the registered project. Use `kanban_develop` for writing in a prepared worktree. An active ACP turn or Assistant development in that worktree holds the development reservation. Shell commands require IDE approval. See [the delegation limits](design/kanban.md#acp-assistant-delegation).
 
+Sign in once per browser profile and host. A sign-in on `127.0.0.1` is separate from one on `localhost`. When an external site opens a conversation link, the localhost gateway can continue with the session already in that browser. For a file link, click **Open** to continue.
+
 ### Steer an agent session from an MCP client
 
 The six tools of the **Supervisor** profile run the same development path as the *Dev session* button of the Kanban, so the session appears in the *Agents* tool with its tab, its thread and its statistics. `agent_providers` lists the CLI agents the pod can run, and the models a session of this project tells. `agent_start` takes a ticket number, a provider id, an optional model and a message. It answers the session id at once, while the agent initializes. Its first prompt is the ticket's briefing, then your message.

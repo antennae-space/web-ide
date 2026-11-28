@@ -261,6 +261,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveOpen(w, r)
 		return
 	}
+	if r.URL.Path == accessContinuePath && r.Method == http.MethodGet {
+		s.continueAccess(w, r)
+		return
+	}
 	if r.URL.Path == "/auth" && r.Method == http.MethodPost {
 		next := accessNext(r.FormValue("next"))
 		if subtle.ConstantTimeCompare([]byte(strings.TrimSpace(r.FormValue("token"))), []byte(s.Token)) != 1 {
@@ -279,6 +283,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.authorized(r) {
+		if showAccessLink(w, r) {
+			return
+		}
 		if r.URL.Path == "/ws" {
 			http.Error(w, "not paired", http.StatusUnauthorized)
 			return

@@ -570,11 +570,35 @@ run(
         const cold = await browser.newContext()
         try {
           const tab = await cold.newPage()
-          await tab.goto(`http://localhost:${port}/_lan/pod/${keyB}${chatPath}`)
+          const origin = `http://localhost:${port}`
+          const link = origin + '/_lan/pod/' + keyB + chatPath
+          const source = 'https://external.example.test/'
+          await cold.route(source, (r) => r.fulfill({ contentType: 'text/html', body: `<a href="${link}">Open conversation</a>` }))
+          const clickLink = async () => {
+            await tab.goto(source)
+            await tab.getByRole('link', { name: 'Open conversation' }).click()
+          }
+          if (port === PORT_A) await clickLink()
+          else await tab.goto(link)
           await tab.locator('[name=token]').fill(token)
           await tab.getByRole('button', { name: 'Open', exact: true }).click()
-          await tab.locator('.ai-msg.user:has-text("Conversation on the owning pod")').waitFor()
+          const message = tab.locator('.ai-msg.user:has-text("Conversation on the owning pod")')
+          await message.waitFor()
           assert(new URL(tab.url()).pathname === expected, 'a cold localhost link opens the owner through the gateway or on the owner itself')
+          const cookie = (await cold.cookies(origin)).find((c) => c.name === 'webide_token')
+          assert(cookie?.sameSite === 'Strict' && cookie.httpOnly && cookie.domain === 'localhost' && cookie.path === '/' && cookie.expires > 0,
+            'localhost keeps its persistent host-only Strict cookie')
+          for (let i = 0; i < 2; i++) {
+            await clickLink()
+            await message.waitFor()
+            assert(new URL(tab.url()).pathname === expected && !(await tab.locator('[name=token]').count()),
+              'a cross-site conversation link reuses the authenticated localhost session')
+          }
+          await tab.reload()
+          await message.waitFor()
+          assert(!(await tab.locator('[name=token]').count()), 'a cold reload retains the localhost session')
+          const retained = (await cold.cookies(origin)).find((c) => c.name === 'webide_token')
+          assert(retained?.value === token, 'following owner links keeps the original gateway cookie')
         } finally {
           await cold.close()
         }
